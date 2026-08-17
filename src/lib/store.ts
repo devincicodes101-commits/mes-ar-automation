@@ -52,6 +52,8 @@ export interface PromiseRecord {
   promisedFor: string;
   createdAt: string;
   source: "call" | "email";
+  /** Section 3: a short confirmation is sent once a promise is recorded. */
+  confirmationSentAt: string | null;
 }
 
 export interface SentEmail {
@@ -136,6 +138,23 @@ MES Group`,
 We were unable to collect this month's charges because there is no GIRO arrangement in place for account {{code}}.
 
 Setting up GIRO means future charges are collected automatically and avoids late payment fees. The form is attached.
+
+Kind regards,
+Customer Services Department
+MES Group`,
+  },
+  {
+    id: "promise-confirmation",
+    name: "Promise confirmation",
+    trigger: "Straight after a promise is recorded",
+    subject: "Thank you, {{company}}",
+    body: `Dear {{company}},
+
+Thank you for speaking with us today.
+
+This is to confirm what we agreed: payment of SGD {{promiseAmount}} on account {{code}} by {{promiseDate}}.
+
+If anything about that is not right, please reply to this email and let us know.
 
 Kind regards,
 Customer Services Department
@@ -256,6 +275,7 @@ export function recordCall(
       promisedFor: call.promisedDate,
       createdAt: now(),
       source: "call",
+      confirmationSentAt: null,
     });
     entries.push(log("Recorded a promise to pay", call.companyName));
   }
@@ -277,6 +297,16 @@ export function recordEmail(input: Omit<SentEmail, "id" | "at">): void {
       log(`Sent the ${email.templateName.toLowerCase()}`, email.companyName),
       ...state.audit,
     ],
+  });
+}
+
+/** Marks a promise as confirmed to the tenant, per proposal section 3. */
+export function markPromiseConfirmed(promiseId: string): void {
+  commit({
+    ...state,
+    promises: state.promises.map((p) =>
+      p.id === promiseId ? { ...p, confirmationSentAt: now() } : p,
+    ),
   });
 }
 

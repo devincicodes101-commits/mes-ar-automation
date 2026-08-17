@@ -1,20 +1,24 @@
 "use client";
 
 import { useMemo } from "react";
-import { formatSgd } from "@/lib/data";
+import { accountById, formatSgd } from "@/lib/data";
 import {
   PROMISE_STATE_LABEL,
   PromiseRecord,
   PromiseState,
   promiseState,
+  markPromiseConfirmed,
+  recordEmail,
   useStore,
 } from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
   EmptyState,
   StatTile,
   StatusBadge,
+  Tag,
 } from "@/components/ui";
 
 const ORDER: PromiseState[] = ["broken", "due-today", "upcoming"];
@@ -27,6 +31,33 @@ const KIND: Record<PromiseState, "good" | "warning" | "critical"> = {
 
 export default function PromisesPage() {
   const store = useStore();
+  const { canAct } = useSession();
+  const { notify } = useToast();
+
+  const template = store.templates.find((t) => t.id === "promise-confirmation");
+
+  /**
+   * Proposal section 3: once a promise is recorded, a short confirmation goes
+   * to the tenant. It is still approved rather than fired automatically, in
+   * keeping with the human in the loop rule for everything else.
+   */
+  function sendConfirmation(p: (typeof store.promises)[number]) {
+    const account = accountById(p.accountId);
+    if (!template) return;
+    recordEmail({
+      accountId: p.accountId,
+      companyName: p.companyName,
+      templateId: template.id,
+      templateName: template.name,
+      subject: template.subject.replaceAll("{{company}}", p.companyName),
+      to: account?.emails ?? [],
+    });
+    markPromiseConfirmed(p.id);
+    notify(
+      `Confirmation sent to ${p.companyName}`,
+      `Confirming SGD ${formatSgd(p.amount)} by ${p.promisedFor}`,
+    );
+  }
 
   const grouped = useMemo(() => {
     const g: Record<PromiseState, PromiseRecord[]> = {
@@ -115,6 +146,26 @@ export default function PromisesPage() {
                           due {p.promisedFor}
                         </div>
                       </div>
+
+                      <div className="shrink-0">
+                        {p.confirmationSentAt ? (
+                          <StatusBadge kind="good" label="Confirmed to tenant" />
+                        ) : accountById(p.accountId)?.hasContact ? (
+                          canAct ? (
+                            <button
+                              type="button"
+                              onClick={() => sendConfirmation(p)}
+                              className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                            >
+                              Send confirmation
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-ink-muted">View only</span>
+                          )
+                        ) : (
+                          <Tag>No email on file</Tag>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -125,9 +176,11 @@ export default function PromisesPage() {
 
         <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
           <p className="text-[11px] leading-relaxed text-ink-muted">
-            The system does not connect to the bank. A promise is confirmed as
-            paid when the tenant no longer appears on next month&apos;s failed
-            payment report.
+            When a promise is recorded, a short confirmation goes to the tenant
+            so both sides have it in writing. You approve it first, as with
+            every other email. Payment itself is confirmed when the tenant no
+            longer appears on next month&apos;s failed payment report, since the
+            system does not connect to the bank.
           </p>
         </div>
       </Card>

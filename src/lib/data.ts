@@ -266,6 +266,88 @@ export function revenueTypes(): string[] {
   return Array.from(new Set(data.invoices.map((i) => i.revenueType))).sort();
 }
 
+/* ------------------------------------------------------- recurring reports */
+
+/**
+ * Proposal 4.7. Three reports go out on a schedule and each one is a
+ * different thing. They previously shared a single export, which meant the
+ * security deposit report contained no deposits and each manager received
+ * every manager's tenants.
+ */
+
+export interface DepositRow {
+  account: Account;
+  deposits: number;
+  offsetting: boolean;
+  outstanding: number;
+}
+
+/**
+ * Security deposit reconciliation, to CSD every Monday.
+ *
+ * Deposits come from invoice lines, and an account is treated as offsetting
+ * when the officer has noted it against the balance. In the sample that note
+ * reads "Offset SD" in the old spreadsheet's Update column.
+ */
+export function depositReport(accounts: Account[]): DepositRow[] {
+  return accounts
+    .map((a) => {
+      const deposits = invoicesForAccount(a)
+        .filter((i) => i.revenueType === "Security Deposit")
+        .reduce((s, i) => s + i.openBalance, 0);
+      const offsetting = /offset\s*sd/i.test(a.legacyNote ?? "");
+      return { account: a, deposits, offsetting, outstanding: overdueTotal(a) };
+    })
+    .filter((r) => r.deposits > 0 || r.offsetting)
+    .sort((x, y) => y.deposits - x.deposits);
+}
+
+export interface RmReport {
+  key: string;
+  name: string;
+  accounts: Account[];
+  outstanding: number;
+  overdue: number;
+}
+
+/**
+ * Outstanding balance logs, one per relationship manager. A manager receives
+ * only their own tenants, which is the same rule the database enforces.
+ */
+export function rmReports(accounts: Account[]): RmReport[] {
+  const managers =
+    (data as unknown as { managers?: { key: string; name: string }[] })
+      .managers ?? [];
+
+  const rows = managers.map((m) => {
+    const mine = accounts.filter(
+      (a) => (a as Account & { rm?: string }).rm === m.key,
+    );
+    return {
+      key: m.key,
+      name: m.name,
+      accounts: mine,
+      outstanding: mine.reduce((s, a) => s + a.total, 0),
+      overdue: mine.reduce((s, a) => s + overdueTotal(a), 0),
+    };
+  });
+
+  // Tenants nobody owns are worth surfacing rather than losing.
+  const unassigned = accounts.filter(
+    (a) => !(a as Account & { rm?: string }).rm,
+  );
+  if (unassigned.length > 0) {
+    rows.push({
+      key: "unassigned",
+      name: "No manager assigned",
+      accounts: unassigned,
+      outstanding: unassigned.reduce((s, a) => s + a.total, 0),
+      overdue: unassigned.reduce((s, a) => s + overdueTotal(a), 0),
+    });
+  }
+  return rows;
+}
+
 /* ------------------------------------------------------- late payment fees */
 
 export type FeeBasis = "flat" | "percent";

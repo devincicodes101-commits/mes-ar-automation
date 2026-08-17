@@ -32,6 +32,12 @@ export const NAV: {
     note: "Who owes what, and how overdue it is.",
   },
   {
+    href: "/failed-payments",
+    label: "Failed Payments",
+    group: "Prepare",
+    note: "Which bank payments bounced, and where each one goes next.",
+  },
+  {
     href: "/collections",
     label: "Action List",
     group: "Prepare",

@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { allAccounts, data, formatSgd, isInCredit } from "@/lib/data";
+import {
+  allAccounts,
+  data,
+  depositReport,
+  formatSgd,
+  isInCredit,
+  overdueTotal,
+  rmReports,
+} from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { downloadCsv, exportName } from "@/lib/export";
@@ -71,6 +79,9 @@ export default function ReportsPage() {
     }
     return Array.from(m.entries()).sort((x, y) => y[1].total - x[1].total);
   }, [accounts]);
+
+  const deposits = useMemo(() => depositReport(accounts), [accounts]);
+  const managers = useMemo(() => rmReports(accounts), [accounts]);
 
   const activityRows =
     store.emails.length + store.calls.length + store.promises.length;
@@ -165,40 +176,24 @@ export default function ReportsPage() {
                 type="button"
                 disabled={!canAct}
                 onClick={() => {
-                  const rows = accounts.map((a) => [
-                    a.customerCode,
-                    a.companyName,
-                    a.property,
-                    a.status,
-                    a.industry ?? "",
-                    a.entity ?? "",
-                    a.buckets.current,
-                    a.buckets.d30,
-                    a.buckets.d60,
-                    a.buckets.d90,
-                    a.buckets.d90plus,
-                    a.total,
-                  ]);
+                  const built = buildReport(r.id, accounts);
+                  if (built.rows.length === 0) {
+                    notify(
+                      `${r.name} has no rows`,
+                      built.emptyReason ?? "Nothing to report for this period.",
+                    );
+                    return;
+                  }
                   downloadCsv(
                     exportName(r.id, data.asOfSummary),
-                    [
-                      "Customer Code",
-                      "Company Name",
-                      "Property",
-                      "Status",
-                      "Industry",
-                      "Entity",
-                      "Current",
-                      "30 Days",
-                      "60 Days",
-                      "90 Days",
-                      "Over 90 Days",
-                      "Total Outstanding",
-                    ],
-                    rows,
+                    built.headers,
+                    built.rows,
                   );
                   recordExport(r.name);
-                  notify(`${r.name} downloaded`, `${rows.length} rows, sent to ${r.goesTo}`);
+                  notify(
+                    `${r.name} downloaded`,
+                    `${built.rows.length} rows, sent to ${r.goesTo}`,
+                  );
                 }}
                 className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
@@ -208,6 +203,88 @@ export default function ReportsPage() {
           ))}
         </ul>
       </Card>
+
+      {/* Proposal 4.7. Shown on screen, not only in a download, so the officer
+          can see what is in each report before sending it. */}
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Security deposits"
+            hint="To CSD every Monday. Deposits held, and any being used against an outstanding balance."
+            right={<StatusBadge kind="warning" label="MES to confirm the source" />}
+          />
+          {deposits.length === 0 ? (
+            <EmptyState
+              title="No deposit lines found"
+              body="The invoice detail in this sample contains no security deposit lines, and no account is marked as offsetting one. MES has not confirmed whether this report comes from the AR report or another document."
+            />
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line-grid text-left">
+                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">Tenant</th>
+                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Deposit held</th>
+                  <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deposits.map((d) => (
+                  <tr key={d.account.id} className="border-b border-line-grid">
+                    <td className="px-5 py-2.5">
+                      <span className="text-ink">{d.account.companyName}</span>
+                      {d.offsetting ? (
+                        <span className="ml-2">
+                          <StatusBadge kind="serious" label="Being offset" />
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="tabular px-3 py-2.5 text-right text-ink-secondary">
+                      {formatSgd(d.deposits)}
+                    </td>
+                    <td className="tabular px-5 py-2.5 text-right font-medium text-ink">
+                      {formatSgd(d.outstanding)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Relationship manager balances"
+            hint="One list per manager, covering only their own tenants. The same rule the database enforces."
+          />
+          <ul className="divide-y divide-line-grid">
+            {managers.map((m) => (
+              <li key={m.key} className="flex flex-wrap items-center gap-4 px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-ink">{m.name}</p>
+                  <p className="mt-0.5 text-[11px] text-ink-muted">
+                    {m.accounts.length} tenants
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="tabular text-sm font-medium text-ink">
+                    {formatSgd(m.outstanding)}
+                  </div>
+                  <div className="tabular mt-0.5 text-[11px] text-ink-muted">
+                    {formatSgd(m.overdue)} overdue
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="border-t border-line-hair bg-surface-alt px-5 py-2.5">
+            <p className="text-[11px] leading-relaxed text-ink-muted">
+              The two manager worksheets in the sample give the same tenant code
+              different company names, so these assignments need confirming
+              before the report goes out.
+            </p>
+          </div>
+        </Card>
+      </div>
 
       {/* ----------------------------------------------- industry breakdown */}
       <Card>
@@ -257,6 +334,100 @@ export default function ReportsPage() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * Builds one of the three scheduled reports. Each has its own columns, because
+ * a security deposit report with no deposits in it and a manager's log
+ * containing another manager's tenants are not reports, they are a file with
+ * the right name.
+ */
+function buildReport(
+  id: string,
+  accounts: ReturnType<typeof allAccounts>,
+): { headers: string[]; rows: unknown[][]; emptyReason?: string } {
+  if (id === "deposit") {
+    const rows = depositReport(accounts);
+    return {
+      headers: [
+        "Customer Code",
+        "Company Name",
+        "Property",
+        "Status",
+        "Deposit Held SGD",
+        "Being Offset",
+        "Outstanding SGD",
+      ],
+      rows: rows.map((d) => [
+        d.account.customerCode,
+        d.account.companyName,
+        d.account.property,
+        d.account.status,
+        d.deposits.toFixed(2),
+        d.offsetting ? "Yes" : "No",
+        d.outstanding.toFixed(2),
+      ]),
+      emptyReason:
+        "No security deposit lines were found in the invoice detail, and no account is marked as offsetting one. MES has not yet confirmed where this report's figures come from.",
+    };
+  }
+
+  if (id === "rm") {
+    const reports = rmReports(accounts);
+    return {
+      headers: [
+        "Relationship Manager",
+        "Customer Code",
+        "Company Name",
+        "Property",
+        "Status",
+        "Overdue SGD",
+        "Total Outstanding SGD",
+      ],
+      // One file covering every manager, each row tagged with whose it is, so
+      // it can be split per manager when it is actually sent out.
+      rows: reports.flatMap((rep) =>
+        rep.accounts.map((a) => [
+          rep.name,
+          a.customerCode,
+          a.companyName,
+          a.property,
+          a.status,
+          overdueTotal(a).toFixed(2),
+          a.total.toFixed(2),
+        ]),
+      ),
+      emptyReason: "No tenants are assigned to a relationship manager.",
+    };
+  }
+
+  // Industry breakdown, for management.
+  const byIndustry = new Map<string, { count: number; total: number; overdue: number }>();
+  for (const a of accounts) {
+    if (isInCredit(a)) continue;
+    const key = a.industry ?? "Not categorised";
+    const row = byIndustry.get(key) ?? { count: 0, total: 0, overdue: 0 };
+    row.count += 1;
+    row.total += a.total;
+    row.overdue += overdueTotal(a);
+    byIndustry.set(key, row);
+  }
+  return {
+    headers: [
+      "Business Type",
+      "Tenants",
+      "Overdue SGD",
+      "Total Outstanding SGD",
+    ],
+    rows: Array.from(byIndustry.entries())
+      .sort((x, y) => y[1].total - x[1].total)
+      .map(([name, v]) => [
+        name,
+        v.count,
+        v.overdue.toFixed(2),
+        v.total.toFixed(2),
+      ]),
+  };
 }
 
 function Cell({ label, value }: { label: string; value: string }) {
