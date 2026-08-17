@@ -1,19 +1,51 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        page: "var(--page)",
+        surface: {
+          DEFAULT: "var(--surface-1)",
+          alt: "var(--surface-2)",
+        },
+        ink: {
+          DEFAULT: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+        },
+        line: {
+          grid: "var(--gridline)",
+          base: "var(--baseline)",
+          hair: "var(--border)",
+        },
+        brand: {
+          DEFAULT: "var(--brand)",
+          ink: "var(--brand-ink)",
+          wash: "var(--brand-wash)",
+        },
+        age: {
+          1: "var(--age-1)",
+          2: "var(--age-2)",
+          3: "var(--age-3)",
+          4: "var(--age-4)",
+          5: "var(--age-5)",
+        },
+        credit: "var(--credit)",
+        status: {
+          good: "var(--status-good)",
+          warning: "var(--status-warning)",
+          serious: "var(--status-serious)",
+          critical: "var(--status-critical)",
+        },
+      },
+      fontFamily: {
+        sans: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
       },
     },
   },
   plugins: [],
 };
+
 export default config;

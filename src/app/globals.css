@@ -2,26 +2,161 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  MES AR Automation - design tokens.
+
+  Palette method: dataviz skill. The aging buckets are an ORDINAL ramp of a
+  single hue (MES navy), light to dark, validated with scripts/validate_palette.js
+  in both modes:
+    light  #86b6ef,#5598e7,#2a78d6,#1c5cab,#104281  -> ALL CHECKS PASS
+    dark   #184f95,#256abf,#3987e5,#6da7ec,#9ec5f4  -> ALL CHECKS PASS
+  Do not add decorative hues. Severity is carried by ramp position, never by
+  a rainbow. Status colours are reserved and always ship with an icon + label.
+*/
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* surfaces */
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --surface-2: #f3f3f0;
+
+  /* ink */
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+
+  /* lines */
+  --gridline: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.1);
+
+  /* MES brand navy */
+  --brand: #1e4d8c;
+  --brand-ink: #ffffff;
+  --brand-wash: #eef2f8;
+
+  /* aging ordinal ramp: current -> 90+ */
+  --age-1: #86b6ef;
+  --age-2: #5598e7;
+  --age-3: #2a78d6;
+  --age-4: #1c5cab;
+  --age-5: #104281;
+
+  /* credit (negative balance) uses success ink, not a series hue */
+  --credit: #006300;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --surface-2: #222220;
+
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+
+    --gridline: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255, 255, 255, 0.1);
+
+    --brand: #3987e5;
+    --brand-ink: #0d0d0d;
+    --brand-wash: #16233a;
+
+    --age-1: #184f95;
+    --age-2: #256abf;
+    --age-3: #3987e5;
+    --age-4: #6da7ec;
+    --age-5: #9ec5f4;
+
+    --credit: #0ca30c;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --surface-2: #222220;
+
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+
+  --gridline: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255, 255, 255, 0.1);
+
+  --brand: #3987e5;
+  --brand-ink: #0d0d0d;
+  --brand-wash: #16233a;
+
+  --age-1: #184f95;
+  --age-2: #256abf;
+  --age-3: #3987e5;
+  --age-4: #6da7ec;
+  --age-5: #9ec5f4;
+
+  --credit: #0ca30c;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* Status palette is fixed and never themed. Always paired with icon + label. */
+:root,
+:root[data-theme="dark"] {
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+}
+
+html,
+body {
+  background: var(--page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Columns that must align vertically get tabular figures. Standalone
+   stat-tile values keep proportional figures per the method. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--text-muted) 12%, transparent),
+    transparent
+  );
+  animation: shimmer 1.6s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
   }
 }

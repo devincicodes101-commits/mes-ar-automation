@@ -1,101 +1,355 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useMemo, useState } from "react";
+import {
+  AS_OF,
+  allAccounts,
+  bucketTotals,
+  formatSgd,
+  invoicesForAccount,
+  isInCredit,
+  kpis,
+  overdueTotal,
+} from "@/lib/data";
+import { Account, BUCKETS, PropertyCode } from "@/lib/types";
+import {
+  BucketSwatch,
+  Card,
+  CardHeader,
+  EmptyState,
+  StatTile,
+  StatusBadge,
+  Tag,
+} from "@/components/ui";
+
+type StatusFilter = "Live" | "Terminated";
+
+const PROPERTIES: (PropertyCode | "ALL")[] = ["ALL", "JPD1", "JPD2", "BSD", "LEO"];
+
+const PROPERTY_LABEL: Record<string, string> = {
+  ALL: "All properties",
+  JPD1: "Jurong Penjuru 1",
+  JPD2: "Jurong Penjuru 2",
+  BSD: "Blue Stars",
+  LEO: "The Leo",
+};
+
+export default function AgingBoardPage() {
+  const [property, setProperty] = useState<PropertyCode | "ALL">("ALL");
+  const [status, setStatus] = useState<StatusFilter>("Live");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const accounts = useMemo(() => {
+    return allAccounts()
+      .filter((a) => (property === "ALL" ? true : a.property === property))
+      .filter((a) => a.status === status)
+      .sort((a, b) => overdueTotal(b) - overdueTotal(a));
+  }, [property, status]);
+
+  const k = useMemo(() => kpis(accounts), [accounts]);
+  const totals = useMemo(() => bucketTotals(accounts), [accounts]);
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="space-y-6">
+      {/* ---------------------------------------------------------- KPI row */}
+      <div>
+        <div className="mb-3 flex items-baseline justify-between">
+          <h1 className="text-base font-semibold text-ink">AR Aging Board</h1>
+          <p className="text-xs text-ink-muted">
+            AR report as of {AS_OF}. Follow up begins at the 30 day line.
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatTile
+            label="Total outstanding"
+            prefix="SGD"
+            value={formatSgd(k.outstanding)}
+            note={`${k.accounts} accounts in view`}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <StatTile
+            label="Past the 30 day line"
+            prefix="SGD"
+            value={formatSgd(k.overdue)}
+            note={`${k.actionable} accounts need action`}
+            emphasis
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <StatTile
+            label="Over 90 days"
+            prefix="SGD"
+            value={formatSgd(k.severe)}
+            note="Escalation candidates"
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <StatTile
+            label="Accounts in credit"
+            value={String(k.inCredit)}
+            note="Excluded from all chasing"
+          />
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------ table */}
+      <Card>
+        <CardHeader
+          title="Accounts by aging bucket"
+          hint="An account is a company at one property. The same company can rent in two dormitories and is listed separately for each."
+          right={
+            <div className="flex items-center gap-2">
+              <div
+                className="flex rounded border border-line-hair p-0.5"
+                role="group"
+                aria-label="Account status"
+              >
+                {(["Live", "Terminated"] as StatusFilter[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
+                    aria-pressed={status === s}
+                    className={`rounded px-2.5 py-1 text-xs ${
+                      status === s
+                        ? "bg-brand-wash font-medium text-ink"
+                        : "text-ink-muted hover:text-ink-secondary"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          }
+        />
+
+        {/* property tabs */}
+        <div
+          className="flex flex-wrap gap-1 border-b border-line-hair px-5 py-2.5"
+          role="tablist"
+          aria-label="Property"
+        >
+          {PROPERTIES.map((p) => (
+            <button
+              key={p}
+              type="button"
+              role="tab"
+              aria-selected={property === p}
+              onClick={() => setProperty(p)}
+              className={`rounded px-2.5 py-1 text-xs ${
+                property === p
+                  ? "bg-brand-wash font-medium text-ink"
+                  : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+              }`}
+            >
+              {PROPERTY_LABEL[p]}
+            </button>
+          ))}
+        </div>
+
+        {accounts.length === 0 ? (
+          <EmptyState
+            title="No accounts in this view"
+            body="Change the property or status filter to see accounts."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line-grid text-left">
+                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
+                    Account
+                  </th>
+                  {BUCKETS.map((b) => (
+                    <th
+                      key={b.key}
+                      className={`px-3 py-2.5 text-right text-xs font-medium text-ink-muted ${
+                        // The 30 day trigger line. Everything right of this rule
+                        // is what MES actively chases.
+                        b.key === "d30"
+                          ? "border-l-2 border-l-line-base"
+                          : ""
+                      }`}
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <BucketSwatch ramp={b.ramp} />
+                        {b.label}
+                      </span>
+                    </th>
+                  ))}
+                  <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
+                    Total
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {accounts.map((a) => (
+                  <AccountRow
+                    key={a.id}
+                    account={a}
+                    open={expanded === a.id}
+                    onToggle={() =>
+                      setExpanded(expanded === a.id ? null : a.id)
+                    }
+                  />
+                ))}
+              </tbody>
+
+              <tfoot>
+                <tr className="border-t-2 border-line-base font-medium">
+                  <td className="px-5 py-3 text-xs text-ink-secondary">
+                    {accounts.length} accounts
+                  </td>
+                  {BUCKETS.map((b) => (
+                    <td
+                      key={b.key}
+                      className={`tabular px-3 py-3 text-right text-xs text-ink ${
+                        b.key === "d30" ? "border-l-2 border-l-line-base" : ""
+                      }`}
+                    >
+                      {formatSgd(totals[b.key])}
+                    </td>
+                  ))}
+                  <td className="tabular px-5 py-3 text-right text-xs text-ink">
+                    {formatSgd(k.outstanding)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
+  );
+}
+
+function AccountRow({
+  account,
+  open,
+  onToggle,
+}: {
+  account: Account;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const credit = isInCredit(account);
+  const invoices = open ? invoicesForAccount(account) : [];
+
+  return (
+    <>
+      <tr
+        className="cursor-pointer border-b border-line-grid hover:bg-surface-alt"
+        onClick={onToggle}
+      >
+        <td className="px-5 py-3">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="w-3 text-xs text-ink-muted"
+            >
+              {open ? "−" : "+"}
+            </span>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-ink">
+                {account.companyName}
+              </div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-ink-muted">
+                  {account.customerCode} · {account.property}
+                </span>
+                {account.isOneFm ? <Tag>1FM</Tag> : null}
+                {account.industry ? <Tag>{account.industry}</Tag> : null}
+                {credit ? (
+                  <StatusBadge kind="good" label="In credit" />
+                ) : null}
+                {!account.hasContact && !credit ? (
+                  <StatusBadge kind="warning" label="No email" />
+                ) : null}
+                {account.lateFeeCount >= 3 ? (
+                  <StatusBadge
+                    kind="critical"
+                    label={`${account.lateFeeCount} late fees`}
+                  />
+                ) : null}
+                {account.legacyNote ? (
+                  <StatusBadge kind="serious" label={account.legacyNote} />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </td>
+
+        {BUCKETS.map((b) => {
+          const v = account.buckets[b.key];
+          return (
+            <td
+              key={b.key}
+              className={`tabular px-3 py-3 text-right ${
+                b.key === "d30" ? "border-l-2 border-l-line-base" : ""
+              } ${v === 0 ? "text-ink-muted" : "text-ink-secondary"}`}
+            >
+              {v === 0 ? "–" : formatSgd(v)}
+            </td>
+          );
+        })}
+
+        <td
+          className="tabular px-5 py-3 text-right font-medium"
+          style={credit ? { color: "var(--credit)" } : undefined}
+        >
+          {formatSgd(account.total, { sign: credit })}
+        </td>
+      </tr>
+
+      {open ? (
+        <tr className="border-b border-line-grid bg-surface-alt">
+          <td colSpan={7} className="px-5 py-4">
+            <p className="mb-2 text-xs font-medium text-ink-secondary">
+              Open invoices for {account.companyName}
+            </p>
+            {invoices.length === 0 ? (
+              <p className="text-xs text-ink-muted">
+                No invoice detail in the sample for this account. The detailed
+                report covers a subset of tenants.
+              </p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-ink-muted">
+                    <th className="py-1.5 pr-4 font-medium">Revenue type</th>
+                    <th className="py-1.5 pr-4 font-medium">Document</th>
+                    <th className="py-1.5 pr-4 font-medium">Due</th>
+                    <th className="py-1.5 pr-4 text-right font-medium">Age</th>
+                    <th className="py-1.5 text-right font-medium">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((i) => (
+                    <tr key={i.id} className="border-t border-line-grid">
+                      <td className="py-1.5 pr-4 text-ink-secondary">
+                        <span className="inline-flex items-center gap-1.5">
+                          {i.revenueType}
+                          {i.isOneFm ? <Tag>1FM</Tag> : null}
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-4 text-ink-muted">
+                        {i.documentNumber}
+                      </td>
+                      <td className="py-1.5 pr-4 text-ink-muted">
+                        {i.dueDate ?? ""}
+                      </td>
+                      <td className="tabular py-1.5 pr-4 text-right text-ink-muted">
+                        {i.age !== null && i.age > 0 ? `${i.age}d` : "not due"}
+                      </td>
+                      <td className="tabular py-1.5 text-right text-ink-secondary">
+                        {formatSgd(i.openBalance)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </td>
+        </tr>
+      ) : null}
+    </>
   );
 }
