@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import {
   GIRO_LABEL,
-  allAccounts,
   formatSgd,
   giroStatus,
   isInCredit,
   overdueTotal,
 } from "@/lib/data";
 import { useSession } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -49,9 +49,10 @@ type Tab = "matching" | "giro-setup" | "chase";
 
 export default function FailedPaymentsPage() {
   const { scope } = useSession();
+  const ds = useDataset();
   const [tab, setTab] = useState<Tab>("matching");
 
-  const accounts = useMemo(() => scope(allAccounts()), [scope]);
+  const accounts = useMemo(() => scope(ds.accounts), [ds, scope]);
 
   // Once the bank file is readable these fill themselves in. Until then the
   // only tenants we can name are those the AR report itself identifies.

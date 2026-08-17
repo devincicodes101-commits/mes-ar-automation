@@ -30,9 +30,17 @@ export function accountById(id: string): Account | undefined {
 
 const norm = (s: string) => s.trim().replace(/\.$/, "").toUpperCase();
 
-export function invoicesForAccount(account: Account): Invoice[] {
+/**
+ * Invoice lookups take the invoice list explicitly. Screens pass whatever the
+ * active dataset holds, so an uploaded file is used rather than the sample.
+ * The default keeps older call sites working.
+ */
+export function invoicesForAccount(
+  account: Account,
+  invoices: Invoice[] = data.invoices as Invoice[],
+): Invoice[] {
   const key = norm(account.companyName);
-  return data.invoices.filter((i) => norm(i.companyName) === key);
+  return invoices.filter((i) => norm(i.companyName) === key);
 }
 
 /** Balance sitting at 30 days or worse. This is what MES actually chases. */
@@ -220,11 +228,14 @@ export interface RevenueRow {
  * Built from the invoice level report, which in the sample covers fewer
  * tenants than the summary. The screen says so rather than hiding it.
  */
-export function revenueBreakdown(accounts: Account[]): RevenueRow[] {
+export function revenueBreakdown(
+  accounts: Account[],
+  invoices: Invoice[] = data.invoices as Invoice[],
+): RevenueRow[] {
   const names = new Set(accounts.map((a) => norm(a.companyName)));
   const rows = new Map<string, RevenueRow>();
 
-  for (const inv of data.invoices) {
+  for (const inv of invoices) {
     if (!names.has(norm(inv.companyName))) continue;
 
     const row =
@@ -250,7 +261,7 @@ export function revenueBreakdown(accounts: Account[]): RevenueRow[] {
   const out = Array.from(rows.values());
   for (const row of out) {
     row.companies = new Set(
-      data.invoices
+      invoices
         .filter(
           (i) => i.revenueType === row.type && names.has(norm(i.companyName)),
         )
@@ -262,8 +273,10 @@ export function revenueBreakdown(accounts: Account[]): RevenueRow[] {
 }
 
 /** Every revenue type present in the data, for filter menus. */
-export function revenueTypes(): string[] {
-  return Array.from(new Set(data.invoices.map((i) => i.revenueType))).sort();
+export function revenueTypes(
+  invoices: Invoice[] = data.invoices as Invoice[],
+): string[] {
+  return Array.from(new Set(invoices.map((i) => i.revenueType))).sort();
 }
 
 /* ------------------------------------------------------- recurring reports */
@@ -289,10 +302,13 @@ export interface DepositRow {
  * when the officer has noted it against the balance. In the sample that note
  * reads "Offset SD" in the old spreadsheet's Update column.
  */
-export function depositReport(accounts: Account[]): DepositRow[] {
+export function depositReport(
+  accounts: Account[],
+  invoices: Invoice[] = data.invoices as Invoice[],
+): DepositRow[] {
   return accounts
     .map((a) => {
-      const deposits = invoicesForAccount(a)
+      const deposits = invoicesForAccount(a, invoices)
         .filter((i) => i.revenueType === "Security Deposit")
         .reduce((s, i) => s + i.openBalance, 0);
       const offsetting = /offset\s*sd/i.test(a.legacyNote ?? "");
@@ -314,10 +330,12 @@ export interface RmReport {
  * Outstanding balance logs, one per relationship manager. A manager receives
  * only their own tenants, which is the same rule the database enforces.
  */
-export function rmReports(accounts: Account[]): RmReport[] {
-  const managers =
-    (data as unknown as { managers?: { key: string; name: string }[] })
-      .managers ?? [];
+export function rmReports(
+  accounts: Account[],
+  managers: { key: string; name: string }[] = (
+    data as unknown as { managers?: { key: string; name: string }[] }
+  ).managers ?? [],
+): RmReport[] {
 
   const rows = managers.map((m) => {
     const mine = accounts.filter(

@@ -12,6 +12,7 @@ import {
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import { downloadCsv, exportName } from "@/lib/export";
 import {
   Card,
@@ -62,10 +63,11 @@ const REPORTS: ReportDef[] = [
 export default function ReportsPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
+  const ds = useDataset();
   const { notify } = useToast();
   const [preview, setPreview] = useState<"netsuite" | null>(null);
 
-  const accounts = useMemo(() => scope(allAccounts()), [scope]);
+  const accounts = useMemo(() => scope(ds.accounts), [ds, scope]);
 
   const industry = useMemo(() => {
     const m = new Map<string, { total: number; count: number }>();
@@ -80,8 +82,14 @@ export default function ReportsPage() {
     return Array.from(m.entries()).sort((x, y) => y[1].total - x[1].total);
   }, [accounts]);
 
-  const deposits = useMemo(() => depositReport(accounts), [accounts]);
-  const managers = useMemo(() => rmReports(accounts), [accounts]);
+  const deposits = useMemo(
+    () => depositReport(accounts, ds.invoices),
+    [accounts, ds.invoices],
+  );
+  const managers = useMemo(
+    () => rmReports(accounts, ds.managers),
+    [accounts, ds.managers],
+  );
 
   const activityRows =
     store.emails.length + store.calls.length + store.promises.length;

@@ -2,8 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  AS_OF,
-  allAccounts,
   bucketTotals,
   formatSgd,
   invoicesForAccount,
@@ -17,6 +15,7 @@ import {
 } from "@/lib/data";
 import { Account, BUCKETS, BucketKey, PropertyCode } from "@/lib/types";
 import { useSession } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   BucketSwatch,
   Card,
@@ -44,6 +43,7 @@ type SortKey = "name" | "total" | "overdue" | BucketKey;
 
 export default function AgingBoardPage() {
   const { scope } = useSession();
+  const ds = useDataset();
   const [property, setProperty] = useState<PropertyCode | "ALL">("ALL");
   const [status, setStatus] = useState<StatusFilter>("Live");
   const [view, setView] = useState<ViewMode>("tenant");
@@ -55,7 +55,7 @@ export default function AgingBoardPage() {
 
   const accounts = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = scope(allAccounts())
+    const list = scope(ds.accounts)
       .filter((a) => (property === "ALL" ? true : a.property === property))
       .filter((a) => a.status === status)
       .filter((a) => (giro === "ALL" ? true : giroStatus(a) === giro))
@@ -82,7 +82,7 @@ export default function AgingBoardPage() {
           : Number(x) - Number(y);
       return desc ? -cmp : cmp;
     });
-  }, [property, status, giro, query, sort, desc, scope]);
+  }, [ds, property, status, giro, query, sort, desc, scope]);
 
   function sortState(key: SortKey): "ascending" | "descending" | "none" {
     if (sort !== key) return "none";
@@ -100,7 +100,10 @@ export default function AgingBoardPage() {
 
   const k = useMemo(() => kpis(accounts), [accounts]);
   const totals = useMemo(() => bucketTotals(accounts), [accounts]);
-  const charges = useMemo(() => revenueBreakdown(accounts), [accounts]);
+  const charges = useMemo(
+    () => revenueBreakdown(accounts, ds.invoices),
+    [accounts, ds.invoices],
+  );
 
   return (
     <div className="space-y-6">
@@ -136,7 +139,7 @@ export default function AgingBoardPage() {
       <Card>
         <CardHeader
           title="Every tenant, and how overdue they are"
-          hint={`Figures as at ${AS_OF}. Anything to the right of the thick line is past 30 days and needs chasing. A tenant renting at two dormitories is listed once for each.`}
+          hint={`Figures as at ${ds.asOf}. Anything to the right of the thick line is past 30 days and needs chasing. A tenant renting at two dormitories is listed once for each.`}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {/* Proposal 4.3: see balances split by what they are actually for. */}

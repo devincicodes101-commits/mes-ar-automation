@@ -5,12 +5,12 @@ import {
   DEFAULT_FEE_RULE,
   FeeBasis,
   FeeRule,
-  allAccounts,
   feesDue,
   formatSgd,
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -31,11 +31,15 @@ import {
 export default function LateFeesPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
+  const ds = useDataset();
   const { notify } = useToast();
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
   const [preview, setPreview] = useState(false);
 
-  const lines = useMemo(() => feesDue(scope(allAccounts()), rule), [rule, scope]);
+  const lines = useMemo(
+    () => feesDue(scope(ds.accounts), rule),
+    [ds, rule, scope],
+  );
   const totalFees = lines.reduce((s, l) => s + l.fee, 0);
   const repeat = lines.filter((l) => l.alreadyCharged > 0).length;
 

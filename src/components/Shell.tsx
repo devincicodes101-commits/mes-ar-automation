@@ -7,6 +7,7 @@ import { ReactNode, useEffect, useState } from "react";
 
 
 import { MANAGERS, ROLES, Role, useSession } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 
 /**
  * Names are written for the CSD officer who uses this daily, not for the spec.
@@ -126,6 +127,7 @@ function ThemeToggle() {
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, setRole, rmKey, setRmKey, scopeNote } = useSession();
+  const ds = useDataset();
   const current = navFor(pathname);
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
@@ -143,6 +145,12 @@ export function Shell({ children }: { children: ReactNode }) {
           />
           <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-muted">
             AR Automation
+          </p>
+          {/* Which data every screen is currently showing. */}
+          <p className="mt-1.5 text-[10px] leading-tight text-ink-muted">
+            {ds.source === "uploaded"
+              ? `Your file, ${ds.period}`
+              : "Sample data"}
           </p>
         </div>
 
@@ -176,8 +184,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
         <div className="border-t border-line-hair px-5 py-3">
           <p className="text-[10px] leading-relaxed text-ink-muted">
-            Prototype build. Figures parsed from the sample workbooks supplied
-            by MES.
+            {ds.source === "uploaded"
+              ? `Prototype build. Showing ${ds.accounts.length} tenants from the file you uploaded, as at ${ds.asOf}.`
+              : "Prototype build. Figures parsed from the sample workbooks supplied by MES."}
           </p>
         </div>
       </aside>

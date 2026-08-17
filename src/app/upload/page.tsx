@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { allAccounts, data, formatSgd, kpis } from "@/lib/data";
+import { data, formatSgd, kpis } from "@/lib/data";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
+import { applyDataset, datasetFromResults, revertToSample, useDataset } from "@/lib/dataset";
 
 type Phase = "idle" | "parsing" | "done";
 
@@ -21,6 +22,7 @@ type Phase = "idle" | "parsing" | "done";
 export default function UploadPage() {
   const { canAct } = useSession();
   const { notify } = useToast();
+  const ds = useDataset();
   const [phase, setPhase] = useState<Phase>("idle");
   const [arFile, setArFile] = useState<File | null>(null);
   const [dbsFile, setDbsFile] = useState<File | null>(null);
@@ -28,7 +30,7 @@ export default function UploadPage() {
   const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
   const [error, setError] = useState<string | null>(null);
 
-  const accounts = allAccounts();
+  const accounts = ds.accounts;
   const k = kpis(accounts);
   const withEmail = accounts.filter((a) => a.hasContact).length;
 
@@ -168,6 +170,40 @@ export default function UploadPage() {
 
       {phase === "parsing" ? <ParseSkeleton /> : null}
 
+      {phase === "done" && results.length > 0 ? (
+        <ApplyBar
+          results={results}
+          period={period}
+          canAct={canAct}
+          onApplied={(label) =>
+            notify(
+              "Now using your file",
+              `${label}. Every screen has switched to it.`,
+            )
+          }
+        />
+      ) : null}
+
+      {ds.source === "uploaded" ? (
+        <Card className="flex flex-wrap items-center gap-3 px-5 py-3">
+          <StatusBadge kind="good" label="Using your uploaded file" />
+          <p className="flex-1 text-xs text-ink-secondary">
+            {ds.label}, billing period {ds.period}, figures as at {ds.asOf}.
+            {" "}{ds.accounts.length} tenants across every screen.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              revertToSample();
+              notify("Back to the sample data");
+            }}
+            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+          >
+            Go back to the sample
+          </button>
+        </Card>
+      ) : null}
+
       {phase === "done" ? (
         <ParseReport
           results={results}
@@ -177,6 +213,71 @@ export default function UploadPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Reading a file and adopting it are separate steps on purpose. The officer
+ * sees what was found, including anything that could not be read, and only
+ * then decides whether the rest of the application should switch to it.
+ */
+function ApplyBar({
+  results,
+  period,
+  canAct,
+  onApplied,
+}: {
+  results: ParseResult[];
+  period: string;
+  canAct: boolean;
+  onApplied: (label: string) => void;
+}) {
+  const built = datasetFromResults(results, period);
+  const errors = results.reduce(
+    (n, r) => n + r.problems.filter((p) => p.severity === "error").length,
+    0,
+  );
+
+  if (!built) {
+    return (
+      <Card className="px-5 py-3.5">
+        <div className="flex items-start gap-3">
+          <StatusBadge kind="critical" label="Nothing usable" />
+          <p className="text-xs text-ink-secondary">
+            Neither file could be read as an AR report, so there is nothing to
+            switch the application over to.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-ink">
+          Use this file across the whole application?
+        </p>
+        <p className="mt-0.5 text-[11px] text-ink-muted">
+          {built.accounts.length} tenants and {built.invoices.length} invoices
+          would replace the sample on every screen.
+          {errors > 0
+            ? ` ${errors} row${errors === 1 ? "" : "s"} could not be read and will be left out.`
+            : ""}
+        </p>
+      </div>
+      <button
+        type="button"
+        disabled={!canAct}
+        onClick={() => {
+          applyDataset(built);
+          onApplied(`${built.accounts.length} tenants loaded`);
+        }}
+        className="shrink-0 rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Use this data
+      </button>
+    </Card>
   );
 }
 

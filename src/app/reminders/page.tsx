@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  allAccounts,
   buildQueue,
   formatSgd,
   overdueTotal,
@@ -10,6 +9,7 @@ import {
 import { Account } from "@/lib/types";
 import { Template, recordEmail, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -33,13 +33,14 @@ function merge(text: string, a: Account): string {
 export default function RemindersPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
+  const ds = useDataset();
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
 
   const template =
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
 
-  const queue = useMemo(() => buildQueue(scope(allAccounts())), [scope]);
+  const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
   const sentIds = new Set(
     store.emails.filter((e) => e.templateId === templateId).map((e) => e.accountId),
   );

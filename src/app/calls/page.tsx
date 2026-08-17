@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import {
   GIRO_LABEL,
   LAST_BANK_RUN,
-  allAccounts,
   buildQueue,
   formatSgd,
   giroStatus,
@@ -20,6 +19,7 @@ import {
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -33,9 +33,10 @@ import {
 export default function CallListPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
+  const ds = useDataset();
   const [active, setActive] = useState<Account | null>(null);
 
-  const queue = useMemo(() => buildQueue(scope(allAccounts())), [scope]);
+  const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
   const calledIds = new Set(store.calls.map((c) => c.accountId));
 
   const todo = queue.filter((q) => !calledIds.has(q.account.id));

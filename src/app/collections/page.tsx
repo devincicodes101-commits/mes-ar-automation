@@ -5,7 +5,6 @@ import {
   GIRO_LABEL,
   GiroStatus,
   REASON_LABEL,
-  allAccounts,
   buildQueue,
   formatSgd,
   giroStatus,
@@ -15,6 +14,7 @@ import {
 import { Account, QueueReason } from "@/lib/types";
 import { useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
+import { useDataset } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -71,6 +71,7 @@ function matchesAge(a: Account, f: AgeFilter): boolean {
 export default function ActionListPage() {
   const store = useStore();
   const { scope } = useSession();
+  const ds = useDataset();
   const [property, setProperty] = useState<(typeof PROPERTIES)[number]>("All");
   const [status, setStatus] = useState<StatusFilter>("All");
   const [age, setAge] = useState<AgeFilter>("any");
@@ -78,10 +79,10 @@ export default function ActionListPage() {
   const [giro, setGiro] = useState<GiroStatus | "All">("All");
   const [oneFmOnly, setOneFmOnly] = useState(false);
 
-  const types = useMemo(() => revenueTypes(), []);
+  const types = useMemo(() => revenueTypes(ds.invoices), [ds.invoices]);
 
   const queue = useMemo(() => {
-    const accounts = scope(allAccounts())
+    const accounts = scope(ds.accounts)
       .filter((a) => (property === "All" ? true : a.property === property))
       .filter((a) => (status === "All" ? true : a.status === status))
       .filter((a) => (oneFmOnly ? a.isOneFm : true))
@@ -89,7 +90,7 @@ export default function ActionListPage() {
       .filter((a) => (giro === "All" ? true : giroStatus(a) === giro))
       .filter((a) => matchesAge(a, age));
     return buildQueue(accounts);
-  }, [property, status, age, charge, giro, oneFmOnly, scope]);
+  }, [ds, property, status, age, charge, giro, oneFmOnly, scope]);
 
   /**
    * How many tenants each aging option would return, given the other filters.
@@ -98,7 +99,7 @@ export default function ActionListPage() {
    */
   const ageCounts = useMemo(() => {
     const base = buildQueue(
-      scope(allAccounts())
+      scope(ds.accounts)
         .filter((a) => (property === "All" ? true : a.property === property))
         .filter((a) => (status === "All" ? true : a.status === status))
         .filter((a) => (oneFmOnly ? a.isOneFm : true))
@@ -114,7 +115,7 @@ export default function ActionListPage() {
       },
       {} as Record<AgeFilter, number>,
     );
-  }, [property, status, charge, giro, oneFmOnly, scope]);
+  }, [ds, property, status, charge, giro, oneFmOnly, scope]);
 
   const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
   const noContact = queue.filter((q) => !q.account.hasContact).length;
