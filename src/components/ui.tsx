@@ -183,6 +183,50 @@ export function BucketSwatch({ ramp }: { ramp: number }) {
   );
 }
 
+/* ----------------------------------------------------------------- modal */
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4 sm:p-8"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`w-full rounded-lg border border-line-hair bg-surface shadow-xl ${
+          wide ? "max-w-3xl" : "max-w-xl"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-line-hair px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded px-1.5 text-ink-muted hover:text-ink"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="px-5 py-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function EmptyState({
   title,
   body,

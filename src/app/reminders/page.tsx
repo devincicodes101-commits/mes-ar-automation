@@ -1,17 +1,278 @@
-import { Planned } from "@/components/Planned";
+"use client";
 
-export default function Page() {
+import { useMemo, useState } from "react";
+import {
+  allAccounts,
+  buildQueue,
+  formatSgd,
+  overdueTotal,
+} from "@/lib/data";
+import { Account } from "@/lib/types";
+import { Template, recordEmail, useStore } from "@/lib/store";
+import {
+  Card,
+  CardHeader,
+  EmptyState,
+  Modal,
+  StatTile,
+  StatusBadge,
+  Tag,
+} from "@/components/ui";
+
+/** Fills the {{placeholders}} in a template from one account. */
+function merge(text: string, a: Account): string {
+  return text
+    .replaceAll("{{company}}", a.companyName)
+    .replaceAll("{{code}}", a.customerCode)
+    .replaceAll("{{property}}", a.propertyName)
+    .replaceAll("{{amount}}", formatSgd(a.total))
+    .replaceAll("{{overdue}}", formatSgd(overdueTotal(a)));
+}
+
+export default function RemindersPage() {
+  const store = useStore();
+  const [templateId, setTemplateId] = useState("reminder-7th");
+  const [drafting, setDrafting] = useState<Account | null>(null);
+
+  const template =
+    store.templates.find((t) => t.id === templateId) ?? store.templates[0];
+
+  const queue = useMemo(() => buildQueue(allAccounts()), []);
+  const sentIds = new Set(
+    store.emails.filter((e) => e.templateId === templateId).map((e) => e.accountId),
+  );
+
+  const canEmail = queue.filter((q) => q.account.hasContact);
+  const cannotEmail = queue.filter((q) => !q.account.hasContact);
+  const pending = canEmail.filter((q) => !sentIds.has(q.account.id));
+
   return (
-    <Planned
-      purpose={"Write the reminder emails for you, then let you read and change each one before it goes out. Nothing is ever sent on its own."}
-      contents={[
-              "Standard wording you can edit and save yourself, without asking a developer.",
-              "The tenant name, the amount owed and how overdue it is are filled in for you.",
-              "You read the email, change anything you want, then press send.",
-              "Where a tenant has several finance contacts, all of them are included.",
-              "Every email sent is recorded, and goes into the file you load back into NetSuite."
-      ]}
-      blockedOn={"The wording MES currently uses for the statement, the first reminder, the final notice and the 1FM letter. Also the full list of tenant email addresses. Right now only 8 of 53 tenants have one on file."}
-    />
+    <div className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Ready to send"
+          value={String(pending.length)}
+          note="You approve each one first"
+          emphasis
+        />
+        <StatTile
+          label="Sent so far"
+          value={String(store.emails.length)}
+          note="All recorded in the activity log"
+        />
+        <StatTile
+          label="Blocked, no email"
+          value={String(cannotEmail.length)}
+          note="Waiting on the contact list from MES"
+        />
+        <StatTile
+          label="Wording templates"
+          value={String(store.templates.length)}
+          note="Editable in Settings"
+        />
+      </div>
+
+      <Card>
+        <CardHeader
+          title="Choose the wording, then approve each email"
+          hint="Nothing is sent automatically. You read every email and press send yourself."
+          right={
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
+            >
+              {store.templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          }
+        />
+
+        <div className="border-b border-line-hair bg-surface-alt px-5 py-2.5">
+          <p className="text-[11px] text-ink-muted">
+            {template.name} · normally sent on the {template.trigger}
+          </p>
+        </div>
+
+        {pending.length === 0 ? (
+          <EmptyState
+            title="Nothing waiting for this wording"
+            body="Either every tenant has been sent it, or none of them have an email address on file yet."
+          />
+        ) : (
+          <ul className="divide-y divide-line-grid">
+            {pending.map((item) => (
+              <li
+                key={item.account.id}
+                className="flex flex-wrap items-center gap-4 px-5 py-3.5 hover:bg-surface-alt"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-ink">
+                      {item.account.companyName}
+                    </span>
+                    {item.account.isOneFm ? <Tag>1FM</Tag> : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+                    {item.account.emails.join(", ")}
+                  </p>
+                </div>
+                <div className="tabular shrink-0 text-right text-xs text-ink-secondary">
+                  SGD {formatSgd(item.overdue)} overdue
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDrafting(item.account)}
+                  className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                >
+                  Read and send
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {cannotEmail.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Cannot email these tenants yet"
+            hint="They need chasing but there is no email address on file. Phone them instead, or ask MES for the full contact list."
+          />
+          <div className="flex flex-wrap gap-2 px-5 py-4">
+            {cannotEmail.slice(0, 24).map((q) => (
+              <Tag key={q.account.id}>{q.account.companyName}</Tag>
+            ))}
+            {cannotEmail.length > 24 ? (
+              <span className="text-[11px] text-ink-muted">
+                and {cannotEmail.length - 24} more
+              </span>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
+
+      {store.emails.length > 0 ? (
+        <Card>
+          <CardHeader title="Sent" hint="Every one recorded with a timestamp." />
+          <ul className="divide-y divide-line-grid">
+            {store.emails.map((e) => (
+              <li key={e.id} className="flex flex-wrap gap-4 px-5 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink">
+                    {e.companyName}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+                    {e.subject}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right text-[11px] text-ink-muted">
+                  <StatusBadge kind="good" label={e.templateName} />
+                  <div className="mt-1">
+                    {new Date(e.at).toLocaleString("en-SG")}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {drafting ? (
+        <Draft
+          account={drafting}
+          template={template}
+          onClose={() => setDrafting(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function Draft({
+  account,
+  template,
+  onClose,
+}: {
+  account: Account;
+  template: Template;
+  onClose: () => void;
+}) {
+  const [subject, setSubject] = useState(merge(template.subject, account));
+  const [body, setBody] = useState(merge(template.body, account));
+
+  function send() {
+    recordEmail({
+      accountId: account.id,
+      companyName: account.companyName,
+      templateId: template.id,
+      templateName: template.name,
+      subject,
+      to: account.emails,
+    });
+    onClose();
+  }
+
+  return (
+    <Modal
+      wide
+      title={`${template.name} to ${account.companyName}`}
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        <div className="rounded border border-line-hair bg-surface-alt px-3 py-2">
+          <p className="text-[11px] text-ink-muted">To</p>
+          <p className="mt-0.5 break-all text-xs text-ink">
+            {account.emails.join("; ")}
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Subject
+          </span>
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Message, edit anything you want before sending
+          </span>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={14}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-ink"
+          />
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
+          <button
+            type="button"
+            onClick={send}
+            className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+          >
+            Send this email
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
+          >
+            Cancel
+          </button>
+          <p className="ml-auto text-[11px] text-ink-muted">
+            Prototype only, no email actually leaves this machine.
+          </p>
+        </div>
+      </div>
+    </Modal>
   );
 }
