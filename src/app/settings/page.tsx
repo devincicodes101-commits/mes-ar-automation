@@ -3,16 +3,15 @@ import { Planned } from "@/components/Planned";
 export default function Page() {
   return (
     <Planned
-      title="Settings & Audit Trail"
-      purpose={"Configuration, user management and the permanent record of who did what."}
+      purpose={"Where the email wording, the user accounts and the record of everything done are kept."}
       contents={[
-              "Email template library with version history.",
-              "Users and roles: CSD, Relationship Manager and Management.",
-              "Access enforced by Supabase row level security at the data layer, not in the browser.",
-              "Audit log of every send, call, promise and export, with timestamp and actor.",
-              "Late fee rule configuration, once MES confirms it."
+              "Edit and save the standard email wording, with a history of past versions.",
+              "Add and remove users, and set whether they are CSD, a relationship manager, or management.",
+              "What each person can see is controlled at the database, not just hidden in the screen.",
+              "A permanent record of every email sent, call logged, promise recorded and file exported, with who did it and when.",
+              "The late payment fee amount, once MES confirms how it is worked out."
       ]}
-      blockedOn={"The late payment fee rule. The sample data shows a flat charge repeating monthly plus a separate rejected GIRO fee, which contradicts the percentage figure used in the earlier flow deck."}
+      blockedOn={"How the late payment fee is calculated. The sample data shows the same flat charge repeating each month, plus a separate charge when a payment is rejected. That does not match the percentage figure used in the earlier slide deck."}
     />
   );
 }

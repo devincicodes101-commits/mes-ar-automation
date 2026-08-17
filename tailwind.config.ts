@@ -9,6 +9,7 @@ const config: Config = {
         surface: {
           DEFAULT: "var(--surface-1)",
           alt: "var(--surface-2)",
+          sunk: "var(--surface-3)",
         },
         ink: {
           DEFAULT: "var(--text-primary)",
@@ -19,11 +20,12 @@ const config: Config = {
           grid: "var(--gridline)",
           base: "var(--baseline)",
           hair: "var(--border)",
+          strong: "var(--border-strong)",
         },
-        brand: {
-          DEFAULT: "var(--brand)",
-          ink: "var(--brand-ink)",
-          wash: "var(--brand-wash)",
+        accent: {
+          DEFAULT: "var(--accent)",
+          ink: "var(--accent-ink)",
+          wash: "var(--accent-wash)",
         },
         age: {
           1: "var(--age-1)",
@@ -39,6 +41,11 @@ const config: Config = {
           serious: "var(--status-serious)",
           critical: "var(--status-critical)",
         },
+      },
+      borderRadius: {
+        DEFAULT: "2px",
+        md: "3px",
+        lg: "4px",
       },
       fontFamily: {
         sans: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],

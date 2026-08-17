@@ -3,15 +3,14 @@ import { Planned } from "@/components/Planned";
 export default function Page() {
   return (
     <Planned
-      title="Reports & Export"
-      purpose={"Generate the recurring departmental reports and the clean export that goes back into NetSuite."}
+      purpose={"Produce the reports that go out on a schedule, and the clean file that gets loaded back into NetSuite."}
       contents={[
-              "Security deposit reconciliation for CSD, every Monday.",
-              "Industry segment analysis for management, on the first working day.",
-              "RM outstanding balance logs, ongoing.",
-              "NetSuite export covering every email sent, call logged and promise captured."
+              "Security deposit report for CSD, every Monday.",
+              "Industry breakdown for management, on the first working day of the month.",
+              "Outstanding balance lists for each relationship manager.",
+              "One file covering every email sent, call made and promise recorded, ready to upload into NetSuite."
       ]}
-      blockedOn={"Confirmation of whether these reports are pulled from the AR report or assembled from other source documents. The RM worksheets in the sample give the same customer code different company names, so they look like placeholder data."}
+      blockedOn={"Whether these come straight from the AR report or are put together from other documents. The two relationship manager worksheets in the sample give the same tenant code different company names, so they look like stand in data rather than the real thing."}
     />
   );
 }

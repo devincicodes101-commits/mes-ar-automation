@@ -6,25 +6,84 @@ import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
 /**
- * Role-based access is a contracted requirement (CSD / RM / Management), and in
+ * Role based access is a contracted requirement (CSD / RM / Management), and in
  * production it is enforced by Supabase row level security, not by this
  * switcher. The switcher exists so the prototype can demonstrate what each role
- * sees during the sign-off walkthrough.
+ * sees during the sign off walkthrough.
  */
 const ROLES = ["CSD Officer", "Relationship Manager", "Management"] as const;
 export type Role = (typeof ROLES)[number];
 
-const NAV: { href: string; label: string; group: string }[] = [
-  { href: "/upload", label: "Upload Centre", group: "Reconcile" },
-  { href: "/", label: "AR Aging Board", group: "Reconcile" },
-  { href: "/collections", label: "Collections Queue", group: "Reconcile" },
-  { href: "/reminders", label: "Reminder Drafting", group: "Collect" },
-  { href: "/calls", label: "Calling List", group: "Collect" },
-  { href: "/promises", label: "Promise to Pay", group: "Collect" },
-  { href: "/defaulters", label: "Recurring Defaulters", group: "Insight" },
-  { href: "/reports", label: "Reports & Export", group: "Insight" },
-  { href: "/settings", label: "Settings & Audit", group: "Admin" },
+/**
+ * Names are written for the CSD officer who uses this daily, not for the spec.
+ * Each one says what the officer does on that screen. `note` is the plain
+ * English explanation shown under the page title.
+ */
+export const NAV: {
+  href: string;
+  label: string;
+  group: string;
+  note: string;
+}[] = [
+  {
+    href: "/upload",
+    label: "Upload Reports",
+    group: "Prepare",
+    note: "Bring in this month's AR report and the bank's failed GIRO list.",
+  },
+  {
+    href: "/",
+    label: "Outstanding Balances",
+    group: "Prepare",
+    note: "Who owes what, and how overdue it is.",
+  },
+  {
+    href: "/collections",
+    label: "Action List",
+    group: "Prepare",
+    note: "Who to chase today, most urgent first.",
+  },
+  {
+    href: "/reminders",
+    label: "Reminder Emails",
+    group: "Chase",
+    note: "Write and send the 7th reminder and the 21st final notice.",
+  },
+  {
+    href: "/calls",
+    label: "Call List",
+    group: "Chase",
+    note: "Who to phone on the 14th and 15th, and what they said.",
+  },
+  {
+    href: "/promises",
+    label: "Payment Promises",
+    group: "Chase",
+    note: "Every promise to pay, with the date it was promised for.",
+  },
+  {
+    href: "/defaulters",
+    label: "Repeat Defaulters",
+    group: "Review",
+    note: "Tenants whose payment fails month after month.",
+  },
+  {
+    href: "/reports",
+    label: "Reports & Export",
+    group: "Review",
+    note: "Weekly and monthly reports, plus the file to load into NetSuite.",
+  },
+  {
+    href: "/settings",
+    label: "Settings & Activity Log",
+    group: "Admin",
+    note: "Email templates, users, and a record of every action taken.",
+  },
 ];
+
+export function navFor(pathname: string) {
+  return NAV.find((n) => n.href === pathname);
+}
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -41,17 +100,19 @@ function ThemeToggle() {
   function toggle() {
     const next = !dark;
     setDark(next);
-    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+    document.documentElement.setAttribute(
+      "data-theme",
+      next ? "dark" : "light",
+    );
   }
 
   return (
     <button
       type="button"
       onClick={toggle}
-      className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:bg-surface-alt"
-      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
     >
-      {dark ? "Light" : "Dark"}
+      {dark ? "Light mode" : "Dark mode"}
     </button>
   );
 }
@@ -59,12 +120,12 @@ function ThemeToggle() {
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [role, setRole] = useState<Role>("CSD Officer");
-
+  const current = navFor(pathname);
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-line-hair bg-surface">
+      <aside className="flex w-64 shrink-0 flex-col border-r border-line-hair bg-surface">
         <div className="border-b border-line-hair px-5 py-4">
           <Image
             src="/mes-logo.png"
@@ -72,9 +133,9 @@ export function Shell({ children }: { children: ReactNode }) {
             width={438}
             height={127}
             priority
-            className="h-8 w-auto"
+            className="logo-mark h-7 w-auto"
           />
-          <p className="mt-2.5 text-[11px] leading-tight text-ink-muted">
+          <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-muted">
             AR Automation
           </p>
         </div>
@@ -91,11 +152,12 @@ export function Shell({ children }: { children: ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={item.note}
                     aria-current={active ? "page" : undefined}
                     className={`block rounded px-2 py-1.5 text-[13px] ${
                       active
-                        ? "bg-brand-wash font-medium text-ink"
-                        : "text-ink-secondary hover:bg-surface-alt"
+                        ? "bg-accent-wash font-medium text-ink"
+                        : "text-ink-secondary hover:bg-surface-alt hover:text-ink"
                     }`}
                   >
                     {item.label}
@@ -107,8 +169,9 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="border-t border-line-hair px-5 py-3">
-          <p className="text-[10px] text-ink-muted">
-            Prototype build. Data parsed from the MES sample workbooks.
+          <p className="text-[10px] leading-relaxed text-ink-muted">
+            Prototype build. Figures parsed from the sample workbooks supplied
+            by MES.
           </p>
         </div>
       </aside>
@@ -117,8 +180,13 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="flex items-center gap-4 border-b border-line-hair bg-surface px-6 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">
-              {NAV.find((n) => n.href === pathname)?.label ?? "AR Automation"}
+              {current?.label ?? "AR Automation"}
             </p>
+            {current ? (
+              <p className="truncate text-[11px] text-ink-muted">
+                {current.note}
+              </p>
+            ) : null}
           </div>
 
           <div className="ml-auto flex items-center gap-2.5">

@@ -3,14 +3,13 @@ import { Planned } from "@/components/Planned";
 export default function Page() {
   return (
     <Planned
-      title="Calling List & Call Log"
-      purpose={"Produce the mid month calling list for the 14th and 15th, and capture what was agreed on each call."}
+      purpose={"Give you the list of tenants to phone on the 14th and 15th, and a short form to fill in afterwards so nothing gets forgotten."}
       contents={[
-              "Prioritised list drawn from the collections queue, worst first.",
-              "Capture form pre filled with client name, amount owed, deduction fail date and aging bucket.",
-              "Fields for who was reached, what was agreed, and the next action date.",
-              "Officers call from their existing MES line, so there is no per minute telephony cost.",
-              "Each completed call saved as a structured dated record, exportable for NetSuite."
+              "The list is ordered so the most urgent tenants come first.",
+              "Before you dial, the screen already shows the name, the amount owed, when their payment failed and how overdue it is.",
+              "After the call you note who you spoke to, what they agreed, and when to check back.",
+              "You phone from your normal office line, so there is no call charge and nothing new to learn.",
+              "Each call is saved with the date and time, ready to load into NetSuite."
       ]}
     />
   );

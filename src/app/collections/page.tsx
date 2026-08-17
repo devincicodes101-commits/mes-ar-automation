@@ -49,55 +49,44 @@ export default function CollectionsQueuePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h1 className="text-base font-semibold text-ink">
-            Collections Queue
-          </h1>
-          <p className="text-xs text-ink-muted">
-            Ranked worst first. Accounts in credit are excluded automatically.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile
-            label="Accounts to action"
-            value={String(queue.length)}
-            note="Across the current filter"
-          />
-          <StatTile
-            label="Value in the queue"
-            prefix="SGD"
-            value={formatSgd(totalOverdue)}
-            note="Balance past the 30 day line"
-            emphasis
-          />
-          <StatTile
-            label="Cannot email yet"
-            value={String(noContact)}
-            note="No address on file for these tenants"
-          />
-          <StatTile
-            label="Repeat GIRO failures"
-            value={String(
-              queue.filter((q) => q.account.lateFeeCount >= 3).length,
-            )}
-            note="Three or more late fees charged"
-          />
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Tenants to chase"
+          value={String(queue.length)}
+          note="In the properties you have selected"
+        />
+        <StatTile
+          label="Money being chased"
+          prefix="SGD"
+          value={formatSgd(totalOverdue)}
+          note="Everything past 30 days"
+          emphasis
+        />
+        <StatTile
+          label="Cannot email these"
+          value={String(noContact)}
+          note="No email address on file yet"
+        />
+        <StatTile
+          label="Fail every month"
+          value={String(
+            queue.filter((q) => q.account.lateFeeCount >= 3).length,
+          )}
+          note="Charged three or more late fees"
+        />
       </div>
 
       <Card>
         <CardHeader
-          title="Prioritised action list"
-          hint="Ranking is deterministic: 90+ balance weighted heaviest, then 60, then 30, plus repeat late fees. Terminated accounts are de-weighted."
+          title="Work down this list from the top"
+          hint="Ordered by a fixed rule, not by guesswork. The oldest money counts most, then repeat late fees. Tenants who have moved out rank lower, and anyone in credit is left out."
           right={
             <label className="flex items-center gap-2 text-xs text-ink-secondary">
               <input
                 type="checkbox"
                 checked={oneFmOnly}
                 onChange={(e) => setOneFmOnly(e.target.checked)}
-                className="h-3.5 w-3.5 accent-[var(--brand)]"
+                className="h-3.5 w-3.5 accent-[var(--accent)]"
               />
               1FM only
             </label>
@@ -113,7 +102,7 @@ export default function CollectionsQueuePage() {
               aria-pressed={property === f}
               className={`rounded px-2.5 py-1 text-xs ${
                 property === f
-                  ? "bg-brand-wash font-medium text-ink"
+                  ? "bg-accent-wash font-medium text-ink"
                   : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
               }`}
             >

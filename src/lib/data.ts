@@ -152,11 +152,12 @@ export function formatDate(iso: string | null): string {
   });
 }
 
+/** Written for the officer reading the screen, not for the spec. */
 export const REASON_LABEL: Record<QueueReason, string> = {
-  "giro-no-dda": "No GIRO mandate",
-  "giro-refer-paying-party": "Repeat GIRO failure",
-  "aging-30": "Past 30 day trigger",
-  "aging-90": "Balance over 90 days",
-  "promise-broken": "Open promise to pay",
-  "no-contact": "No email on file",
+  "giro-no-dda": "Never set up GIRO",
+  "giro-refer-paying-party": "Payment fails every month",
+  "aging-30": "Overdue more than 30 days",
+  "aging-90": "Owed for over 90 days",
+  "promise-broken": "Promised to pay",
+  "no-contact": "No email address",
 };

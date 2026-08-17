@@ -3,15 +3,14 @@ import { Planned } from "@/components/Planned";
 export default function Page() {
   return (
     <Planned
-      title="Recurring Defaulter View"
-      purpose={"Surface the chronic risk accounts whose GIRO fails month after month."}
+      purpose={"Show the tenants who fail to pay month after month, so they can be dealt with differently from someone who is late once."}
       contents={[
-              "Accounts ranked by how often their GIRO has failed across billing periods.",
-              "Late fee count per account, which the sample data shows as a flat charge each month it recurs.",
-              "Balance trend across periods once more than one upload exists.",
-              "Feeds the Phase 2 predictive layer once enough production history accumulates."
+              "Tenants ranked by how many months in a row their payment has failed.",
+              "How many late fees each one has been charged.",
+              "Whether their balance is getting better or worse over time.",
+              "This is also the starting point for the prediction work planned for a later phase."
       ]}
-      blockedOn={"Meaningful trends need several months of uploads. The first upload establishes the baseline only."}
+      blockedOn={"Patterns need several months of uploads before they mean anything. The first upload only sets the starting point."}
     />
   );
 }

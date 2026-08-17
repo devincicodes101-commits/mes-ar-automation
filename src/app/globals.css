@@ -5,105 +5,116 @@
 /*
   MES AR Automation - design tokens.
 
-  Palette method: dataviz skill. The aging buckets are an ORDINAL ramp of a
-  single hue (MES navy), light to dark, validated with scripts/validate_palette.js
-  in both modes:
-    light  #86b6ef,#5598e7,#2a78d6,#1c5cab,#104281  -> ALL CHECKS PASS
-    dark   #184f95,#256abf,#3987e5,#6da7ec,#9ec5f4  -> ALL CHECKS PASS
-  Do not add decorative hues. Severity is carried by ramp position, never by
-  a rainbow. Status colours are reserved and always ship with an icon + label.
+  Monochrome by design. The interface is grey and white with near-black or
+  near-white as the only accent, so it reads as a finance tool rather than a
+  template.
+
+  Aging severity is an ORDINAL ramp of neutral grey, light to dark, validated
+  with the dataviz validator in both modes:
+    light  #a3a29c,#85847e,#66655f,#47463f,#2a2924  ALL CHECKS PASS
+    dark   #4f4e47,#6d6c63,#8b8a80,#a9a89d,#c7c6ba  ALL CHECKS PASS
+
+  The only colour anywhere is the four reserved status hues. They appear as a
+  single small glyph and always carry a text label beside them, so meaning
+  never rests on colour and the page never reads as colourful.
 */
 
 :root {
   color-scheme: light;
 
   /* surfaces */
-  --page: #f9f9f7;
+  --page: #f7f7f5;
   --surface-1: #fcfcfb;
-  --surface-2: #f3f3f0;
+  --surface-2: #f1f1ee;
+  --surface-3: #e8e8e4;
 
   /* ink */
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
+  --text-primary: #101010;
+  --text-secondary: #4a4945;
+  --text-muted: #85847e;
 
   /* lines */
-  --gridline: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11, 11, 11, 0.1);
+  --gridline: #e4e3de;
+  --baseline: #b9b8b1;
+  --border: rgba(16, 16, 16, 0.12);
+  --border-strong: rgba(16, 16, 16, 0.26);
 
-  /* MES brand navy */
-  --brand: #1e4d8c;
-  --brand-ink: #ffffff;
-  --brand-wash: #eef2f8;
+  /* accent is ink, not a hue */
+  --accent: #101010;
+  --accent-ink: #ffffff;
+  --accent-wash: #e8e8e4;
 
-  /* aging ordinal ramp: current -> 90+ */
-  --age-1: #86b6ef;
-  --age-2: #5598e7;
-  --age-3: #2a78d6;
-  --age-4: #1c5cab;
-  --age-5: #104281;
+  /* aging ordinal ramp: current through 90 plus */
+  --age-1: #a3a29c;
+  --age-2: #85847e;
+  --age-3: #66655f;
+  --age-4: #47463f;
+  --age-5: #2a2924;
 
-  /* credit (negative balance) uses success ink, not a series hue */
-  --credit: #006300;
+  /* credit reads as ink, not green */
+  --credit: #4a4945;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
 
-    --page: #0d0d0d;
-    --surface-1: #1a1a19;
-    --surface-2: #222220;
+    --page: #0c0c0b;
+    --surface-1: #141413;
+    --surface-2: #1e1e1c;
+    --surface-3: #292927;
 
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
+    --text-primary: #f7f7f5;
+    --text-secondary: #b5b4ab;
+    --text-muted: #85847e;
 
-    --gridline: #2c2c2a;
-    --baseline: #383835;
-    --border: rgba(255, 255, 255, 0.1);
+    --gridline: #262624;
+    --baseline: #3a3a36;
+    --border: rgba(247, 247, 245, 0.12);
+    --border-strong: rgba(247, 247, 245, 0.28);
 
-    --brand: #3987e5;
-    --brand-ink: #0d0d0d;
-    --brand-wash: #16233a;
+    --accent: #f7f7f5;
+    --accent-ink: #0c0c0b;
+    --accent-wash: #292927;
 
-    --age-1: #184f95;
-    --age-2: #256abf;
-    --age-3: #3987e5;
-    --age-4: #6da7ec;
-    --age-5: #9ec5f4;
+    --age-1: #4f4e47;
+    --age-2: #6d6c63;
+    --age-3: #8b8a80;
+    --age-4: #a9a89d;
+    --age-5: #c7c6ba;
 
-    --credit: #0ca30c;
+    --credit: #b5b4ab;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --page: #0d0d0d;
-  --surface-1: #1a1a19;
-  --surface-2: #222220;
+  --page: #0c0c0b;
+  --surface-1: #141413;
+  --surface-2: #1e1e1c;
+  --surface-3: #292927;
 
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
+  --text-primary: #f7f7f5;
+  --text-secondary: #b5b4ab;
+  --text-muted: #85847e;
 
-  --gridline: #2c2c2a;
-  --baseline: #383835;
-  --border: rgba(255, 255, 255, 0.1);
+  --gridline: #262624;
+  --baseline: #3a3a36;
+  --border: rgba(247, 247, 245, 0.12);
+  --border-strong: rgba(247, 247, 245, 0.28);
 
-  --brand: #3987e5;
-  --brand-ink: #0d0d0d;
-  --brand-wash: #16233a;
+  --accent: #f7f7f5;
+  --accent-ink: #0c0c0b;
+  --accent-wash: #292927;
 
-  --age-1: #184f95;
-  --age-2: #256abf;
-  --age-3: #3987e5;
-  --age-4: #6da7ec;
-  --age-5: #9ec5f4;
+  --age-1: #4f4e47;
+  --age-2: #6d6c63;
+  --age-3: #8b8a80;
+  --age-4: #a9a89d;
+  --age-5: #c7c6ba;
 
-  --credit: #0ca30c;
+  --credit: #b5b4ab;
 }
 
 /* Status palette is fixed and never themed. Always paired with icon + label. */
@@ -120,12 +131,31 @@ body {
   background: var(--page);
   color: var(--text-primary);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Columns that must align vertically get tabular figures. Standalone
-   stat-tile values keep proportional figures per the method. */
+/* Columns that must align vertically get tabular figures. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* The MES mark is full colour artwork sitting on a monochrome shell. Knock it
+   back to neutral in dark mode so it does not glow against the dark surface. */
+.logo-mark {
+  mix-blend-mode: multiply;
+}
+
+:root[data-theme="dark"] .logo-mark,
+:root:where(:not([data-theme="light"])) .logo-mark {
+  mix-blend-mode: normal;
+  filter: grayscale(1) invert(1) brightness(1.9) contrast(0.85);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:where(:not([data-theme="dark"])) .logo-mark {
+    mix-blend-mode: multiply;
+    filter: none;
+  }
 }
 
 @keyframes shimmer {
@@ -138,7 +168,7 @@ body {
   position: relative;
   overflow: hidden;
   background: var(--surface-2);
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .skeleton::after {
@@ -149,14 +179,20 @@ body {
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in srgb, var(--text-muted) 12%, transparent),
+    color-mix(in srgb, var(--text-muted) 14%, transparent),
     transparent
   );
-  animation: shimmer 1.6s infinite;
+  animation: shimmer 1.5s infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after {
     animation: none;
   }
+}
+
+/* Focus ring is ink, matching the monochrome accent. */
+:where(button, a, input, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

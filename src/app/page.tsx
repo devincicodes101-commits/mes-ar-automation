@@ -52,47 +52,38 @@ export default function AgingBoardPage() {
   return (
     <div className="space-y-6">
       {/* ---------------------------------------------------------- KPI row */}
-      <div>
-        <div className="mb-3 flex items-baseline justify-between">
-          <h1 className="text-base font-semibold text-ink">AR Aging Board</h1>
-          <p className="text-xs text-ink-muted">
-            AR report as of {AS_OF}. Follow up begins at the 30 day line.
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile
-            label="Total outstanding"
-            prefix="SGD"
-            value={formatSgd(k.outstanding)}
-            note={`${k.accounts} accounts in view`}
-          />
-          <StatTile
-            label="Past the 30 day line"
-            prefix="SGD"
-            value={formatSgd(k.overdue)}
-            note={`${k.actionable} accounts need action`}
-            emphasis
-          />
-          <StatTile
-            label="Over 90 days"
-            prefix="SGD"
-            value={formatSgd(k.severe)}
-            note="Escalation candidates"
-          />
-          <StatTile
-            label="Accounts in credit"
-            value={String(k.inCredit)}
-            note="Excluded from all chasing"
-          />
-        </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label="Total owed"
+          prefix="SGD"
+          value={formatSgd(k.outstanding)}
+          note={`${k.accounts} tenants shown`}
+        />
+        <StatTile
+          label="Overdue, needs chasing"
+          prefix="SGD"
+          value={formatSgd(k.overdue)}
+          note={`${k.actionable} tenants past 30 days`}
+          emphasis
+        />
+        <StatTile
+          label="Owed for over 90 days"
+          prefix="SGD"
+          value={formatSgd(k.severe)}
+          note="The hardest money to recover"
+        />
+        <StatTile
+          label="In credit, do not chase"
+          value={String(k.inCredit)}
+          note="These tenants have overpaid"
+        />
       </div>
 
       {/* ------------------------------------------------------------ table */}
       <Card>
         <CardHeader
-          title="Accounts by aging bucket"
-          hint="An account is a company at one property. The same company can rent in two dormitories and is listed separately for each."
+          title="Every tenant, and how overdue they are"
+          hint={`Figures as at ${AS_OF}. Anything to the right of the thick line is past 30 days and needs chasing. A tenant renting at two dormitories is listed once for each.`}
           right={
             <div className="flex items-center gap-2">
               <div
@@ -108,7 +99,7 @@ export default function AgingBoardPage() {
                     aria-pressed={status === s}
                     className={`rounded px-2.5 py-1 text-xs ${
                       status === s
-                        ? "bg-brand-wash font-medium text-ink"
+                        ? "bg-accent-wash font-medium text-ink"
                         : "text-ink-muted hover:text-ink-secondary"
                     }`}
                   >
@@ -135,7 +126,7 @@ export default function AgingBoardPage() {
               onClick={() => setProperty(p)}
               className={`rounded px-2.5 py-1 text-xs ${
                 property === p
-                  ? "bg-brand-wash font-medium text-ink"
+                  ? "bg-accent-wash font-medium text-ink"
                   : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
               }`}
             >
@@ -286,7 +277,7 @@ function AccountRow({
                 b.key === "d30" ? "border-l-2 border-l-line-base" : ""
               } ${v === 0 ? "text-ink-muted" : "text-ink-secondary"}`}
             >
-              {v === 0 ? "–" : formatSgd(v)}
+              {v === 0 ? "-" : formatSgd(v)}
             </td>
           );
         })}

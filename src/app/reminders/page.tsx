@@ -3,16 +3,15 @@ import { Planned } from "@/components/Planned";
 export default function Page() {
   return (
     <Planned
-      title="Reminder Drafting & Review"
-      purpose={"Draft the 7th reminder and the 21st final notice from configurable templates, then hold them for the officer to approve. Nothing sends itself."}
+      purpose={"Write the reminder emails for you, then let you read and change each one before it goes out. Nothing is ever sent on its own."}
       contents={[
-              "Template editor so CSD can change the wording and save it, without a developer.",
-              "Draft preview with the account name, balance and aging bucket merged in.",
-              "Edit before send, then an explicit approve step. Human in the loop is a contracted requirement.",
-              "Multi recipient handling, since contact records hold several addresses separated by semicolons.",
-              "Every send written to the audit trail and included in the NetSuite export."
+              "Standard wording you can edit and save yourself, without asking a developer.",
+              "The tenant name, the amount owed and how overdue it is are filled in for you.",
+              "You read the email, change anything you want, then press send.",
+              "Where a tenant has several finance contacts, all of them are included.",
+              "Every email sent is recorded, and goes into the file you load back into NetSuite."
       ]}
-      blockedOn={"The current SOA, first reminder, final notice and 1FM templates, and the master tenant email list. Only 8 of 53 accounts currently have an address on file."}
+      blockedOn={"The wording MES currently uses for the statement, the first reminder, the final notice and the 1FM letter. Also the full list of tenant email addresses. Right now only 8 of 53 tenants have one on file."}
     />
   );
 }
