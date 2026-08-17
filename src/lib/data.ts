@@ -152,6 +152,131 @@ export function formatDate(iso: string | null): string {
   });
 }
 
+/* ------------------------------------------------ revenue type segmentation */
+
+/** The detailed report labels buckets in words. Map them onto our keys. */
+const BUCKET_FROM_LABEL: Record<string, BucketKey> = {
+  Current: "current",
+  "30 days": "d30",
+  "60 days": "d60",
+  "90 days": "d90",
+  "More than 90 days": "d90plus",
+};
+
+export interface RevenueRow {
+  type: string;
+  buckets: Record<BucketKey, number>;
+  total: number;
+  invoices: number;
+  companies: number;
+  isOneFm: boolean;
+}
+
+/**
+ * Splits the outstanding balance by what it is actually for, so the officer can
+ * see whether a balance is rent, maintenance raised through 1FM, or a fee.
+ * Proposal 4.3.
+ *
+ * Built from the invoice level report, which in the sample covers fewer
+ * tenants than the summary. The screen says so rather than hiding it.
+ */
+export function revenueBreakdown(accounts: Account[]): RevenueRow[] {
+  const names = new Set(accounts.map((a) => norm(a.companyName)));
+  const rows = new Map<string, RevenueRow>();
+
+  for (const inv of data.invoices) {
+    if (!names.has(norm(inv.companyName))) continue;
+
+    const row =
+      rows.get(inv.revenueType) ??
+      ({
+        type: inv.revenueType,
+        buckets: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 },
+        total: 0,
+        invoices: 0,
+        companies: 0,
+        isOneFm: false,
+      } as RevenueRow);
+
+    const key = BUCKET_FROM_LABEL[inv.bucket];
+    if (key) row.buckets[key] += inv.openBalance;
+    row.total += inv.openBalance;
+    row.invoices += 1;
+    if (inv.isOneFm) row.isOneFm = true;
+    rows.set(inv.revenueType, row);
+  }
+
+  // Count distinct companies per revenue type.
+  const out = Array.from(rows.values());
+  for (const row of out) {
+    row.companies = new Set(
+      data.invoices
+        .filter(
+          (i) => i.revenueType === row.type && names.has(norm(i.companyName)),
+        )
+        .map((i) => norm(i.companyName)),
+    ).size;
+  }
+
+  return out.sort((a, b) => b.total - a.total);
+}
+
+/** Every revenue type present in the data, for filter menus. */
+export function revenueTypes(): string[] {
+  return Array.from(new Set(data.invoices.map((i) => i.revenueType))).sort();
+}
+
+/* ------------------------------------------------------- late payment fees */
+
+export type FeeBasis = "flat" | "percent";
+
+export interface FeeRule {
+  basis: FeeBasis;
+  /** Dollar amount when flat, percentage points when percent. */
+  value: number;
+  /** Only charge accounts owing at least this much. */
+  minimumBalance: number;
+  /** Skip accounts that have already moved out. */
+  skipTerminated: boolean;
+}
+
+/**
+ * Default reflects what the sample data actually shows: the same flat charge
+ * repeating each month. MES has not confirmed the rule, so it is editable on
+ * screen rather than hard coded. Proposal 4.8.
+ */
+export const DEFAULT_FEE_RULE: FeeRule = {
+  basis: "flat",
+  value: 20,
+  minimumBalance: 0,
+  skipTerminated: false,
+};
+
+export interface FeeLine {
+  account: Account;
+  overdue: number;
+  fee: number;
+  alreadyCharged: number;
+}
+
+export function feesDue(accounts: Account[], rule: FeeRule): FeeLine[] {
+  return accounts
+    .filter((a) => !isInCredit(a))
+    .filter((a) => (rule.skipTerminated ? a.status !== "Terminated" : true))
+    .map((a) => ({ account: a, overdue: overdueTotal(a) }))
+    .filter((r) => r.overdue > rule.minimumBalance)
+    .map((r) => ({
+      account: r.account,
+      overdue: r.overdue,
+      fee:
+        rule.basis === "flat"
+          ? rule.value
+          : Math.round(r.overdue * (rule.value / 100) * 100) / 100,
+      alreadyCharged: r.account.lateFeeCount,
+    }))
+    .sort((a, b) => b.overdue - a.overdue);
+}
+
 /** Written for the officer reading the screen, not for the spec. */
 export const REASON_LABEL: Record<QueueReason, string> = {
   "giro-no-dda": "Never set up GIRO",

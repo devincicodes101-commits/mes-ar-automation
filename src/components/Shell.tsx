@@ -62,6 +62,12 @@ export const NAV: {
     note: "Every promise to pay, with the date it was promised for.",
   },
   {
+    href: "/late-fees",
+    label: "Late Payment Fees",
+    group: "Chase",
+    note: "Work out and raise the admin fee on the 16th of the month.",
+  },
+  {
     href: "/defaulters",
     label: "Repeat Defaulters",
     group: "Review",
