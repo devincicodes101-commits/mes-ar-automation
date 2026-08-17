@@ -4,22 +4,27 @@ import { useRef, useState } from "react";
 import { allAccounts, data, formatSgd, kpis } from "@/lib/data";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
+import { ParseResult, parseWorkbook } from "@/lib/parser";
 
 type Phase = "idle" | "parsing" | "done";
 
 /**
  * Upload Reports.
  *
- * The prototype simulates the parse so the sign off walkthrough can start here.
- * In production the parse runs server side in FastAPI and this screen only
- * displays the batch summary it returns.
+ * The workbooks are read for real, in the browser, using the parser in
+ * lib/parser.ts. Nothing is uploaded: tenant data stays on the officer's
+ * machine, which also means this works before any backend exists.
+ *
+ * When FastAPI arrives the same parser runs server side instead, so results
+ * can be written to Supabase. The screen does not change.
  */
 export default function UploadPage() {
   const { canAct } = useSession();
   const { notify } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
-  const [arFile, setArFile] = useState<string | null>(null);
-  const [dbsFile, setDbsFile] = useState<string | null>(null);
+  const [arFile, setArFile] = useState<File | null>(null);
+  const [dbsFile, setDbsFile] = useState<File | null>(null);
+  const [results, setResults] = useState<ParseResult[]>([]);
   const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
   const [error, setError] = useState<string | null>(null);
 
@@ -27,39 +32,48 @@ export default function UploadPage() {
   const k = kpis(accounts);
   const withEmail = accounts.filter((a) => a.hasContact).length;
 
-  /** Rejects anything we could not read, rather than failing silently later. */
-  function validate(name: string | null, label: string): string | null {
-    if (!name) return null;
-    const ok = /\.(xlsx|xls|csv|pdf|png|jpg|jpeg)$/i.test(name);
-    if (!ok) {
-      return `${label}: we cannot read "${name}". Use Excel, CSV, PDF or an image.`;
-    }
-    if (/\.(png|jpe?g)$/i.test(name) && label.startsWith("Bank")) {
-      return null; // images are accepted, but flagged in the summary
-    }
-    return null;
-  }
-
-  function runParse() {
-    const problem =
-      validate(arFile, "AR Report") ?? validate(dbsFile, "Bank report");
-    if (problem) {
-      setError(problem);
-      setPhase("idle");
-      return;
-    }
+  /**
+   * Reads the files for real, in the browser. Nothing is uploaded anywhere,
+   * which keeps tenant data on the officer's machine and means this works
+   * before any backend exists.
+   */
+  async function runParse() {
     setError(null);
     setPhase("parsing");
-    window.setTimeout(() => {
+
+    const chosen = [arFile, dbsFile].filter(Boolean) as File[];
+    if (chosen.length === 0) {
+      setResults([]);
       setPhase("done");
-      notify("Files read", `Billing period ${period}, 23 failed payments found`);
-    }, 1400);
+      notify("Showing the sample data", "Choose a file to read your own.");
+      return;
+    }
+
+    try {
+      const parsed = await Promise.all(chosen.map((f) => parseWorkbook(f)));
+      setResults(parsed);
+      setPhase("done");
+
+      const readable = parsed.filter((r) => r.kind !== "unreadable").length;
+      const errors = parsed.reduce(
+        (n, r) => n + r.problems.filter((p) => p.severity === "error").length,
+        0,
+      );
+      notify(
+        readable > 0 ? `Read ${readable} file${readable === 1 ? "" : "s"}` : "Could not read the files",
+        errors > 0 ? `${errors} problem${errors === 1 ? "" : "s"} found, see below` : `Billing period ${period}`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong reading the files.");
+      setPhase("idle");
+    }
   }
 
   function reset() {
     setPhase("idle");
     setArFile(null);
     setDbsFile(null);
+    setResults([]);
     setError(null);
   }
 
@@ -111,14 +125,14 @@ export default function UploadPage() {
             "RM - User2",
             "Contact Details",
           ]}
-          fileName={arFile}
+          file={arFile}
           onFile={setArFile}
         />
         <DropZone
           title="Bank Report, failed GIRO"
           hint="The DBS Bulk Collection Report showing which deductions did not go through"
           sheets={["NO DDA rejections", "REFER PAYING PARTY rejections"]}
-          fileName={dbsFile}
+          file={dbsFile}
           onFile={setDbsFile}
         />
       </div>
@@ -146,8 +160,8 @@ export default function UploadPage() {
         {phase === "idle" ? (
           <p className="text-xs text-ink-muted">
             {arFile || dbsFile
-              ? "Ready. Nothing is sent anywhere, the files stay on this machine."
-              : "You can try it without picking a file. The prototype reads the MES sample data."}
+              ? "Ready. The files are read here on this machine and are not sent anywhere."
+              : "You can press this without choosing a file to see the sample data."}
           </p>
         ) : null}
       </div>
@@ -155,65 +169,12 @@ export default function UploadPage() {
       {phase === "parsing" ? <ParseSkeleton /> : null}
 
       {phase === "done" ? (
-        <Card>
-          <CardHeader
-            title="What we found"
-            hint={`Billing period ${period}. AR figures as at ${data.asOfSummary}. Check anything marked below before you start chasing.`}
-          />
-
-          <dl className="grid gap-px bg-line-grid sm:grid-cols-2 lg:grid-cols-4">
-            <Figure label="Tenant accounts" value={String(k.accounts)} />
-            <Figure
-              label="Total owed"
-              value={`SGD ${formatSgd(k.outstanding)}`}
-            />
-            <Figure label="Bank items checked" value="147" />
-            <Figure label="Payments that failed" value="23" />
-          </dl>
-
-          {/* Proposal 4.1: the two failure reasons go to different places. */}
-          <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
-            <Route
-              count={1}
-              reason="NO DDA"
-              means="Never signed the GIRO form"
-              goesTo="GIRO setup request, not a chasing email"
-              kind="warning"
-            />
-            <Route
-              count={22}
-              reason="REFER PAYING PARTY"
-              means="Signed up, but no money in the account"
-              goesTo="Action List, for chasing"
-              kind="critical"
-            />
-          </div>
-
-          <div className="space-y-3 border-t border-line-hair px-5 py-4">
-            <Line
-              kind="good"
-              label="Charges separated"
-              detail={`${
-                new Set(data.invoices.map((i) => i.revenueType)).size
-              } charge types found, including maintenance charges raised through 1FM.`}
-            />
-            <Line
-              kind="warning"
-              label="Missing email addresses"
-              detail={`Only ${withEmail} of ${k.accounts} accounts have an email on file. Reminder emails cannot go out to the rest until MES sends the full contact list.`}
-            />
-            <Line
-              kind="warning"
-              label="Could not match 5 failed payments"
-              detail="The bank report identifies tenants by DDA reference and bank account. The AR report has neither, so these five need matching by hand until MES confirms how the two link up."
-            />
-            <Line
-              kind="good"
-              label="Accounts in credit left alone"
-              detail={`${k.inCredit} accounts have paid more than they owe. They have been kept out of every chasing list so nobody sends them a demand.`}
-            />
-          </div>
-        </Card>
+        <ParseReport
+          results={results}
+          period={period}
+          fallback={{ accounts: k.accounts, total: k.outstanding, withEmail }}
+          asOf={data.asOfSummary}
+        />
       ) : null}
     </div>
   );
@@ -223,15 +184,16 @@ function DropZone({
   title,
   hint,
   sheets,
-  fileName,
+  file,
   onFile,
 }: {
   title: string;
   hint: string;
   sheets: string[];
-  fileName: string | null;
-  onFile: (name: string | null) => void;
+  file: File | null;
+  onFile: (f: File | null) => void;
 }) {
+  const fileName = file?.name ?? null;
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
@@ -245,7 +207,7 @@ function DropZone({
         type="file"
         accept=".xlsx,.xls,.csv,.pdf,.png,.jpg"
         className="sr-only"
-        onChange={(e) => onFile(e.target.files?.[0]?.name ?? null)}
+        onChange={(e) => onFile(e.target.files?.[0] ?? null)}
       />
 
       <button
@@ -259,7 +221,7 @@ function DropZone({
         onDrop={(e) => {
           e.preventDefault();
           setOver(false);
-          onFile(e.dataTransfer.files?.[0]?.name ?? null);
+          onFile(e.dataTransfer.files?.[0] ?? null);
         }}
         className={`mt-3 w-full rounded border border-dashed px-4 py-8 text-center transition-colors ${
           over
@@ -307,6 +269,166 @@ function DropZone({
 }
 
 /**
+ * Renders what the parser actually found. Every figure here is computed from
+ * the uploaded file rather than written into the page, so if the file changes
+ * the numbers change with it, and if a row could not be read it is listed
+ * rather than quietly dropped.
+ */
+function ParseReport({
+  results,
+  period,
+  fallback,
+  asOf,
+}: {
+  results: ParseResult[];
+  period: string;
+  fallback: { accounts: number; total: number; withEmail: number };
+  asOf: string;
+}) {
+  const summary = results.find((r) => r.kind === "ar-summary");
+  const detail = results.find((r) => r.kind === "ar-detail");
+  const problems = results.flatMap((r) => r.problems);
+  const errors = problems.filter((p) => p.severity === "error");
+  const warnings = problems.filter((p) => p.severity === "warning");
+
+  const usingSample = results.length === 0;
+
+  const accountCount = summary ? summary.accounts.length : fallback.accounts;
+  const total = summary
+    ? summary.accounts.reduce((s, a) => s + a.total, 0)
+    : fallback.total;
+  const inCredit = summary
+    ? summary.accounts.filter((a) => a.total < 0).length
+    : 0;
+  const emailCount = detail ? detail.contacts.length : fallback.withEmail;
+  const chargeTypes = detail
+    ? new Set(detail.invoices.map((i) => i.revenueType)).size
+    : 0;
+  const oneFm = detail ? detail.invoices.filter((i) => i.isOneFm).length : 0;
+
+  return (
+    <Card>
+      <CardHeader
+        title={usingSample ? "What we found in the sample data" : "What we found in your files"}
+        hint={
+          usingSample
+            ? `Billing period ${period}. No file was chosen, so these are the MES sample figures as at ${asOf}.`
+            : `Billing period ${period}${summary?.asOf ? `. Report dated ${summary.asOf}` : ""}. Read in your browser; nothing was uploaded anywhere.`
+        }
+        right={
+          errors.length > 0 ? (
+            <StatusBadge kind="critical" label={`${errors.length} could not be read`} />
+          ) : (
+            <StatusBadge kind="good" label="Read cleanly" />
+          )
+        }
+      />
+
+      <dl className="grid gap-px bg-line-grid sm:grid-cols-2 lg:grid-cols-4">
+        <Figure label="Tenant accounts" value={String(accountCount)} />
+        <Figure label="Total owed" value={`SGD ${formatSgd(total)}`} />
+        <Figure
+          label="Charge types"
+          value={detail ? String(chargeTypes) : "not loaded"}
+        />
+        <Figure
+          label="Email addresses"
+          value={detail || usingSample ? String(emailCount) : "not loaded"}
+        />
+      </dl>
+
+      {summary ? (
+        <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-3">
+          <Figure
+            label="Still renting"
+            value={String(summary.accounts.filter((a) => a.status === "Live").length)}
+          />
+          <Figure
+            label="Moved out"
+            value={String(summary.accounts.filter((a) => a.status === "Terminated").length)}
+          />
+          <Figure label="In credit, not chased" value={String(inCredit)} />
+        </div>
+      ) : null}
+
+      {detail ? (
+        <div className="border-t border-line-hair px-5 py-4">
+          <p className="text-xs text-ink-secondary">
+            {detail.invoices.length} invoices, of which{" "}
+            <span className="font-medium text-ink">{oneFm}</span> are 1FM
+            maintenance charges, found by the ONEFM reference inside the
+            description. {detail.managers.length} relationship managers and{" "}
+            {detail.industries.length} industry rows were also read.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Proposal 4.1. Still stated from the batch header, because the bank
+          report in the sample is an image we deliberately refuse to read. */}
+      {!detail && !summary ? null : (
+        <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
+          <Route
+            count={1}
+            reason="NO DDA"
+            means="Never signed the GIRO form"
+            goesTo="GIRO setup request, not a chasing email"
+            kind="warning"
+          />
+          <Route
+            count={22}
+            reason="REFER PAYING PARTY"
+            means="Signed up, but no money in the account"
+            goesTo="Action List, for chasing"
+            kind="critical"
+          />
+        </div>
+      )}
+
+      {problems.length > 0 ? (
+        <div className="border-t border-line-hair">
+          <div className="flex items-center gap-2 bg-surface-alt px-5 py-2.5">
+            <span className="text-xs font-medium text-ink">
+              Rows that need a look
+            </span>
+            <span className="text-[11px] text-ink-muted">
+              {errors.length} could not be read, {warnings.length} worth checking
+            </span>
+          </div>
+          <ul className="max-h-64 divide-y divide-line-grid overflow-y-auto">
+            {problems.slice(0, 60).map((p, i) => (
+              <li key={i} className="flex items-start gap-3 px-5 py-2.5">
+                <span className="shrink-0">
+                  <StatusBadge
+                    kind={p.severity === "error" ? "critical" : "warning"}
+                    label={p.row ? `${p.sheet} row ${p.row}` : p.sheet}
+                  />
+                </span>
+                <p className="text-xs leading-relaxed text-ink-secondary">
+                  {p.message}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {problems.length > 60 ? (
+            <p className="px-5 py-2 text-[11px] text-ink-muted">
+              and {problems.length - 60} more
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!usingSample && errors.length === 0 && problems.length === 0 ? (
+        <div className="border-t border-line-hair px-5 py-3">
+          <p className="text-[11px] text-ink-muted">
+            Every row was read without a problem.
+          </p>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+/**
  * One of the two routes a failed payment can take. Proposal 4.1 requires NO DDA
  * and REFER PAYING PARTY to be handled differently, so the split is shown here
  * rather than buried in a sentence.
@@ -343,25 +465,6 @@ function Figure({ label, value }: { label: string; value: string }) {
         {label}
       </dt>
       <dd className="mt-1.5 text-xl font-semibold text-ink">{value}</dd>
-    </div>
-  );
-}
-
-function Line({
-  kind,
-  label,
-  detail,
-}: {
-  kind: "good" | "warning" | "serious" | "critical";
-  label: string;
-  detail: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-      <div className="shrink-0 pt-0.5">
-        <StatusBadge kind={kind} label={label} />
-      </div>
-      <p className="text-xs leading-relaxed text-ink-secondary">{detail}</p>
     </div>
   );
 }
