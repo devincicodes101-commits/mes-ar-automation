@@ -2,11 +2,15 @@
 
 import { useMemo, useState } from "react";
 import {
+  GIRO_LABEL,
+  LAST_BANK_RUN,
   allAccounts,
   buildQueue,
   formatSgd,
+  giroStatus,
   overdueTotal,
   severeTotal,
+  worstBucket,
 } from "@/lib/data";
 import { Account } from "@/lib/types";
 import {
@@ -214,8 +218,10 @@ function CallForm({
   const [date, setDate] = useState("");
   const [next, setNext] = useState("");
   const [notes, setNotes] = useState("");
+  const [failDate, setFailDate] = useState(LAST_BANK_RUN);
 
   const promised = outcome === "promised-to-pay";
+  const bucket = worstBucket(account);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -228,27 +234,46 @@ function CallForm({
       promisedDate: promised && date ? date : null,
       nextActionDate: next || null,
       notes,
+      agingBucket: bucket,
+      deductionFailDate: failDate || null,
     });
     onClose();
   }
 
   return (
     <Modal title={`Call with ${account.companyName}`} onClose={onClose}>
-      {/* Pre-filled context. The officer should not have to look anything up. */}
-      <dl className="grid grid-cols-2 gap-x-5 gap-y-2 border-b border-line-hair pb-4 text-xs sm:grid-cols-4">
+      {/*
+        Pre-filled context, proposal 5.1: client, amount owed, deduction fail
+        date and aging bucket. The officer should not have to look anything up
+        before dialling.
+      */}
+      <dl className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-line-hair pb-4 text-xs sm:grid-cols-3">
         <Fact label="Account" value={account.customerCode} />
         <Fact label="Property" value={account.propertyName} />
-        <Fact
-          label="Total owed"
-          value={`SGD ${formatSgd(account.total)}`}
-        />
+        <Fact label="How overdue" value={bucket} />
+        <Fact label="Total owed" value={`SGD ${formatSgd(account.total)}`} />
         <Fact
           label="Overdue"
           value={`SGD ${formatSgd(overdueTotal(account))}`}
         />
+        <Fact label="GIRO" value={GIRO_LABEL[giroStatus(account)]} />
       </dl>
 
       <form onSubmit={submit} className="space-y-4 pt-4">
+        <Field label="Date their payment bounced">
+          <input
+            type="date"
+            value={failDate}
+            onChange={(e) => setFailDate(e.target.value)}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          />
+          <span className="mt-1 block text-[11px] text-ink-muted">
+            Filled in from the bank run on {LAST_BANK_RUN}. Per tenant dates
+            need the unredacted bank report, so correct it here if you know
+            better.
+          </span>
+        </Field>
+
         <Field label="Who did you speak to">
           <input
             value={reached}

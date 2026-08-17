@@ -109,12 +109,25 @@ export default function UploadPage() {
             <Figure label="Payments that failed" value="23" />
           </dl>
 
-          <div className="space-y-3 border-t border-line-hair px-5 py-4">
-            <Line
-              kind="good"
-              label="Failed payments sorted"
-              detail="1 tenant has never set up GIRO, so they need the form rather than a chasing email. The other 22 have GIRO set up but no money in the account, so they go to the action list."
+          {/* Proposal 4.1: the two failure reasons go to different places. */}
+          <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
+            <Route
+              count={1}
+              reason="NO DDA"
+              means="Never signed the GIRO form"
+              goesTo="GIRO setup request, not a chasing email"
+              kind="warning"
             />
+            <Route
+              count={22}
+              reason="REFER PAYING PARTY"
+              means="Signed up, but no money in the account"
+              goesTo="Action List, for chasing"
+              kind="critical"
+            />
+          </div>
+
+          <div className="space-y-3 border-t border-line-hair px-5 py-4">
             <Line
               kind="good"
               label="Charges separated"
@@ -228,6 +241,36 @@ function DropZone({
         ))}
       </div>
     </Card>
+  );
+}
+
+/**
+ * One of the two routes a failed payment can take. Proposal 4.1 requires NO DDA
+ * and REFER PAYING PARTY to be handled differently, so the split is shown here
+ * rather than buried in a sentence.
+ */
+function Route({
+  count,
+  reason,
+  means,
+  goesTo,
+  kind,
+}: {
+  count: number;
+  reason: string;
+  means: string;
+  goesTo: string;
+  kind: "warning" | "critical";
+}) {
+  return (
+    <div className="bg-surface px-5 py-4">
+      <div className="flex items-baseline gap-2.5">
+        <span className="text-2xl font-semibold text-ink">{count}</span>
+        <StatusBadge kind={kind} label={reason} />
+      </div>
+      <p className="mt-2 text-xs text-ink-secondary">{means}</p>
+      <p className="mt-1.5 text-[11px] text-ink-muted">Sent to: {goesTo}</p>
+    </div>
   );
 }
 

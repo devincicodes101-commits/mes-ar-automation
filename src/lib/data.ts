@@ -152,6 +152,46 @@ export function formatDate(iso: string | null): string {
   });
 }
 
+/* --------------------------------------------------------------- GIRO status */
+
+export type GiroStatus = "enrolled" | "no-mandate" | "unknown";
+
+export const GIRO_LABEL: Record<GiroStatus, string> = {
+  enrolled: "On GIRO, payment rejected",
+  "no-mandate": "No GIRO mandate",
+  unknown: "GIRO status not confirmed",
+};
+
+/**
+ * Proposal 4.4 requires the queue to show GIRO status.
+ *
+ * The AR report carries no such column, and the bank report that would answer
+ * it has the tenant names redacted. What we can prove: if a tenant has been
+ * charged the rejected GIRO admin fee, a deduction was attempted against them,
+ * so a mandate must exist. Everything else stays honestly unknown rather than
+ * being guessed.
+ */
+export function giroStatus(a: Account): GiroStatus {
+  if (a.revenueTypes.includes("Rejected GIRO Fee")) return "enrolled";
+  return "unknown";
+}
+
+/** The worst bucket an account has money sitting in. Used on the call form. */
+export function worstBucket(a: Account): string {
+  if (a.buckets.d90plus > 0) return "More than 90 days";
+  if (a.buckets.d90 > 0) return "90 days";
+  if (a.buckets.d60 > 0) return "60 days";
+  if (a.buckets.d30 > 0) return "30 days";
+  return "Current";
+}
+
+/**
+ * The date the bank last attempted collection, from the DBS batch header.
+ * Per tenant dates need the unredacted report, so this is the batch level date
+ * and the screen labels it as such.
+ */
+export const LAST_BANK_RUN = "2026-05-04";
+
 /* ------------------------------------------------ revenue type segmentation */
 
 /** The detailed report labels buckets in words. Map them onto our keys. */

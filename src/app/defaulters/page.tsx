@@ -9,6 +9,7 @@ import {
   severeTotal,
 } from "@/lib/data";
 import { BUCKETS } from "@/lib/types";
+import { CALL_OUTCOMES, useStore } from "@/lib/store";
 import {
   BucketSwatch,
   Card,
@@ -25,6 +26,42 @@ import {
  * balance has aged past 90 days. Both come straight from the AR report.
  */
 export default function DefaultersPage() {
+  const store = useStore();
+
+  /**
+   * Proposal 4.6 asks for this to be drawn from the aging report *and* from
+   * call outcome classifications. This is the call side: what happened last
+   * time somebody phoned, and how many broken promises are on record.
+   */
+  const callHistory = useMemo(() => {
+    const m = new Map<
+      string,
+      { calls: number; lastOutcome: string | null; brokenPromises: number }
+    >();
+    for (const c of store.calls) {
+      const row =
+        m.get(c.accountId) ?? {
+          calls: 0,
+          lastOutcome: null as string | null,
+          brokenPromises: 0,
+        };
+      row.calls += 1;
+      if (!row.lastOutcome) {
+        row.lastOutcome =
+          CALL_OUTCOMES.find((o) => o.value === c.outcome)?.label ?? c.outcome;
+      }
+      m.set(c.accountId, row);
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    for (const p of store.promises) {
+      if (p.promisedFor < today) {
+        const row = m.get(p.accountId);
+        if (row) row.brokenPromises += 1;
+      }
+    }
+    return m;
+  }, [store.calls, store.promises]);
+
   const rows = useMemo(() => {
     return allAccounts()
       .filter((a) => !isInCredit(a))
@@ -98,6 +135,9 @@ export default function DefaultersPage() {
                     Late fees
                   </th>
                   <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">
+                    Last call
+                  </th>
+                  <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">
                     Where the money sits
                   </th>
                   <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
@@ -141,6 +181,36 @@ export default function DefaultersPage() {
 
                     <td className="tabular px-3 py-3 text-right text-ink-secondary">
                       {r.months > 0 ? r.months : "-"}
+                    </td>
+
+                    {/* Proposal 4.6: outcome classifications from the calls. */}
+                    <td className="px-3 py-3">
+                      {(() => {
+                        const h = callHistory.get(r.account.id);
+                        if (!h) {
+                          return (
+                            <span className="text-[11px] text-ink-muted">
+                              never called
+                            </span>
+                          );
+                        }
+                        return (
+                          <div className="space-y-1">
+                            <div className="text-[11px] text-ink-secondary">
+                              {h.lastOutcome}
+                            </div>
+                            <div className="text-[11px] text-ink-muted">
+                              {h.calls} {h.calls === 1 ? "call" : "calls"}
+                            </div>
+                            {h.brokenPromises > 0 ? (
+                              <StatusBadge
+                                kind="critical"
+                                label={`${h.brokenPromises} broken`}
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Where the balance sits, drawn with the same ordinal ramp

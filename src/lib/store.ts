@@ -24,6 +24,9 @@ export interface CallLog {
   promisedDate: string | null;
   nextActionDate: string | null;
   notes: string;
+  /** Pre-filled context captured with the call, per proposal section 5.1. */
+  agingBucket: string;
+  deductionFailDate: string | null;
 }
 
 export type CallOutcome =
