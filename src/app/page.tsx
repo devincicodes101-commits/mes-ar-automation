@@ -12,7 +12,8 @@ import {
   overdueTotal,
   revenueBreakdown,
 } from "@/lib/data";
-import { Account, BUCKETS, PropertyCode } from "@/lib/types";
+import { Account, BUCKETS, BucketKey, PropertyCode } from "@/lib/types";
+import { useSession } from "@/lib/session";
 import {
   BucketSwatch,
   Card,
@@ -36,19 +37,61 @@ const PROPERTY_LABEL: Record<string, string> = {
 };
 
 type ViewMode = "tenant" | "charge";
+type SortKey = "name" | "total" | "overdue" | BucketKey;
 
 export default function AgingBoardPage() {
+  const { scope } = useSession();
   const [property, setProperty] = useState<PropertyCode | "ALL">("ALL");
   const [status, setStatus] = useState<StatusFilter>("Live");
   const [view, setView] = useState<ViewMode>("tenant");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("overdue");
+  const [desc, setDesc] = useState(true);
 
   const accounts = useMemo(() => {
-    return allAccounts()
+    const q = query.trim().toLowerCase();
+    const list = scope(allAccounts())
       .filter((a) => (property === "ALL" ? true : a.property === property))
       .filter((a) => a.status === status)
-      .sort((a, b) => overdueTotal(b) - overdueTotal(a));
-  }, [property, status]);
+      .filter((a) =>
+        q === ""
+          ? true
+          : a.companyName.toLowerCase().includes(q) ||
+            a.customerCode.toLowerCase().includes(q),
+      );
+
+    const value = (a: (typeof list)[0]) => {
+      if (sort === "name") return a.companyName;
+      if (sort === "total") return a.total;
+      if (sort === "overdue") return overdueTotal(a);
+      return a.buckets[sort];
+    };
+
+    return list.sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      const cmp =
+        typeof x === "string" && typeof y === "string"
+          ? x.localeCompare(y)
+          : Number(x) - Number(y);
+      return desc ? -cmp : cmp;
+    });
+  }, [property, status, query, sort, desc, scope]);
+
+  function sortState(key: SortKey): "ascending" | "descending" | "none" {
+    if (sort !== key) return "none";
+    return desc ? "descending" : "ascending";
+  }
+
+  function sortBy(key: SortKey) {
+    if (sort === key) {
+      setDesc(!desc);
+      return;
+    }
+    setSort(key);
+    setDesc(key !== "name");
+  }
 
   const k = useMemo(() => kpis(accounts), [accounts]);
   const totals = useMemo(() => bucketTotals(accounts), [accounts]);
@@ -144,28 +187,42 @@ export default function AgingBoardPage() {
           }
         />
 
-        {/* property tabs */}
-        <div
-          className="flex flex-wrap gap-1 border-b border-line-hair px-5 py-2.5"
-          role="tablist"
-          aria-label="Property"
-        >
-          {PROPERTIES.map((p) => (
-            <button
-              key={p}
-              type="button"
-              role="tab"
-              aria-selected={property === p}
-              onClick={() => setProperty(p)}
-              className={`rounded px-2.5 py-1 text-xs ${
-                property === p
-                  ? "bg-accent-wash font-medium text-ink"
-                  : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
-              }`}
-            >
-              {PROPERTY_LABEL[p]}
-            </button>
-          ))}
+        {/* property tabs and search */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-line-hair px-5 py-2.5">
+          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Property">
+            {PROPERTIES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                role="tab"
+                aria-selected={property === p}
+                onClick={() => setProperty(p)}
+                className={`rounded px-2.5 py-1 text-xs ${
+                  property === p
+                    ? "bg-accent-wash font-medium text-ink"
+                    : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                }`}
+              >
+                {PROPERTY_LABEL[p]}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a tenant by name or code"
+              aria-label="Find a tenant"
+              className="w-56 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+            />
+            {query ? (
+              <span className="text-[11px] text-ink-muted">
+                {accounts.length} found
+              </span>
+            ) : null}
+          </div>
         </div>
 
         {view === "charge" ? (
@@ -180,12 +237,21 @@ export default function AgingBoardPage() {
             <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line-grid text-left">
-                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
-                    Account
+                  <th
+                    aria-sort={sortState("name")}
+                    className="px-5 py-2.5 text-xs font-medium text-ink-muted"
+                  >
+                    <SortHeader
+                      label="Account"
+                      active={sort === "name"}
+                      desc={desc}
+                      onClick={() => sortBy("name")}
+                    />
                   </th>
                   {BUCKETS.map((b) => (
                     <th
                       key={b.key}
+                      aria-sort={sortState(b.key)}
                       className={`px-3 py-2.5 text-right text-xs font-medium text-ink-muted ${
                         // The 30 day trigger line. Everything right of this rule
                         // is what MES actively chases.
@@ -194,14 +260,31 @@ export default function AgingBoardPage() {
                           : ""
                       }`}
                     >
-                      <span className="inline-flex items-center gap-1.5">
-                        <BucketSwatch ramp={b.ramp} />
-                        {b.label}
-                      </span>
+                      <SortHeader
+                        align="right"
+                        active={sort === b.key}
+                        desc={desc}
+                        onClick={() => sortBy(b.key)}
+                        label={
+                          <span className="inline-flex items-center gap-1.5">
+                            <BucketSwatch ramp={b.ramp} />
+                            {b.label}
+                          </span>
+                        }
+                      />
                     </th>
                   ))}
-                  <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
-                    Total
+                  <th
+                    aria-sort={sortState("total")}
+                    className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted"
+                  >
+                    <SortHeader
+                      align="right"
+                      label="Total"
+                      active={sort === "total"}
+                      desc={desc}
+                      onClick={() => sortBy("total")}
+                    />
                   </th>
                 </tr>
               </thead>
@@ -244,6 +327,36 @@ export default function AgingBoardPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+/** Clickable column header. The arrow only shows on the active column. */
+function SortHeader({
+  label,
+  active,
+  desc,
+  onClick,
+  align = "left",
+}: {
+  label: React.ReactNode;
+  active: boolean;
+  desc: boolean;
+  onClick: () => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex w-full items-center gap-1 font-medium hover:text-ink ${
+        active ? "text-ink" : ""
+      } ${align === "right" ? "justify-end" : ""}`}
+    >
+      {label}
+      <span aria-hidden="true" className="text-[9px]">
+        {active ? (desc ? "▼" : "▲") : ""}
+      </span>
+    </button>
   );
 }
 

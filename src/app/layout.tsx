@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Shell } from "@/components/Shell";
+import { SessionProvider, ToastProvider } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "MES AR Automation",
@@ -16,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Shell>{children}</Shell>
+        <SessionProvider>
+          <ToastProvider>
+            <Shell>{children}</Shell>
+          </ToastProvider>
+        </SessionProvider>
       </body>
     </html>
   );

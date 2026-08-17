@@ -47,7 +47,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1656-jpd1",
@@ -72,7 +73,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1744-jpd1",
@@ -97,7 +99,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1235-jpd1",
@@ -122,7 +125,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1364-jpd1",
@@ -147,7 +151,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1647-jpd1",
@@ -172,7 +177,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1369-jpd1",
@@ -197,7 +203,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1236-jpd1",
@@ -230,7 +237,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-641-jpd1",
@@ -260,7 +268,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-165-jpd1",
@@ -288,7 +297,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-893-jpd1",
@@ -313,7 +323,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1561-jpd1",
@@ -346,7 +357,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-249-jpd1",
@@ -371,7 +383,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1742-jpd1",
@@ -396,7 +409,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1330-jpd1",
@@ -421,7 +435,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-707-jpd1",
@@ -446,7 +461,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-87-jpd1",
@@ -471,7 +487,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-108-jpd1",
@@ -496,7 +513,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-144-jpd1",
@@ -521,7 +539,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1220-jpd2",
@@ -559,7 +578,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-166-jpd2",
@@ -594,7 +614,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 4
+      "lateFeeCount": 4,
+      "rm": null
     },
     {
       "id": "dorm-489-jpd2",
@@ -619,7 +640,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-415-jpd2",
@@ -653,7 +675,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1660-jpd2",
@@ -678,7 +701,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-830-jpd2",
@@ -703,7 +727,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1430-jpd2",
@@ -728,7 +753,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-614-jpd2",
@@ -755,7 +781,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-211-jpd2",
@@ -786,7 +813,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1600-jpd2",
@@ -811,7 +839,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1571-jpd2",
@@ -839,7 +868,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1661-jpd2",
@@ -866,7 +896,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-1596-jpd2",
@@ -895,7 +926,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm1"
     },
     {
       "id": "dorm-63-bsd",
@@ -920,7 +952,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-1224-bsd",
@@ -945,7 +978,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-244-bsd",
@@ -970,7 +1004,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-932-bsd",
@@ -995,7 +1030,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-117-bsd",
@@ -1020,7 +1056,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1659-bsd",
@@ -1045,7 +1082,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1451-bsd",
@@ -1070,7 +1108,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-415-bsd",
@@ -1104,7 +1143,8 @@
         "Service & Conservancy",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": "rm2"
     },
     {
       "id": "dorm-765-bsd",
@@ -1129,7 +1169,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1836-bsd",
@@ -1154,7 +1195,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-144-bsd",
@@ -1179,7 +1221,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1119-leo",
@@ -1204,7 +1247,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-979-leo",
@@ -1241,7 +1285,8 @@
         "Stamp Duty",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-187-leo",
@@ -1274,7 +1319,8 @@
         "Stamp Duty",
         "VAT"
       ],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1030-leo",
@@ -1299,7 +1345,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1443-leo",
@@ -1324,7 +1371,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-408-leo",
@@ -1349,7 +1397,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-1578-leo",
@@ -1374,7 +1423,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-910-leo",
@@ -1399,7 +1449,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-380-leo",
@@ -1424,7 +1475,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     },
     {
       "id": "dorm-144-leo",
@@ -1449,7 +1501,8 @@
       "invoiceCount": 0,
       "isOneFm": false,
       "revenueTypes": [],
-      "lateFeeCount": 0
+      "lateFeeCount": 0,
+      "rm": null
     }
   ],
   "invoices": [
@@ -4160,6 +4213,16 @@
       "industry": "Manufacturing",
       "entity": "Mini Environment Service Pte Ltd",
       "property": "JPD2"
+    }
+  ],
+  "managers": [
+    {
+      "key": "rm1",
+      "name": "Voldemort"
+    },
+    {
+      "key": "rm2",
+      "name": "Lockhart"
     }
   ]
 }

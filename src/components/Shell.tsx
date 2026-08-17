@@ -5,14 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 
-/**
- * Role based access is a contracted requirement (CSD / RM / Management), and in
- * production it is enforced by Supabase row level security, not by this
- * switcher. The switcher exists so the prototype can demonstrate what each role
- * sees during the sign off walkthrough.
- */
-const ROLES = ["CSD Officer", "Relationship Manager", "Management"] as const;
-export type Role = (typeof ROLES)[number];
+
+import { MANAGERS, ROLES, Role, useSession } from "@/lib/session";
 
 /**
  * Names are written for the CSD officer who uses this daily, not for the spec.
@@ -125,7 +119,7 @@ function ThemeToggle() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [role, setRole] = useState<Role>("CSD Officer");
+  const { role, setRole, rmKey, setRmKey, scopeNote } = useSession();
   const current = navFor(pathname);
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
 
@@ -211,9 +205,40 @@ export function Shell({ children }: { children: ReactNode }) {
                 </option>
               ))}
             </select>
+
+            {/* Which manager is signed in, only relevant for the RM role. */}
+            {role === "Relationship Manager" && MANAGERS.length > 0 ? (
+              <select
+                aria-label="Relationship manager"
+                value={rmKey}
+                onChange={(e) => setRmKey(e.target.value)}
+                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
+              >
+                {MANAGERS.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
             <ThemeToggle />
           </div>
         </header>
+
+        {/* Says plainly what this role can see, so the demo never leaves anyone
+            guessing why a number changed. */}
+        {role !== "CSD Officer" ? (
+          <div className="border-b border-line-hair bg-surface-alt px-6 py-2">
+            <p className="text-[11px] text-ink-muted">
+              <span className="font-medium text-ink-secondary">
+                Signed in as {role}.
+              </span>{" "}
+              {scopeNote} In production this is enforced by the database, not by
+              the screen.
+            </p>
+          </div>
+        ) : null}
 
         <main className="flex-1 px-6 py-6">{children}</main>
       </div>
