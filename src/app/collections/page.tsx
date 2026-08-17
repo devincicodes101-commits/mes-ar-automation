@@ -84,19 +84,30 @@ export default function ActionListPage() {
   const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
   const noContact = queue.filter((q) => !q.account.hasContact).length;
 
+  const filtered =
+    status !== "All" ||
+    age !== "any" ||
+    charge !== "All" ||
+    property !== "All" ||
+    oneFmOnly;
+
   /**
    * Proposal 4.4: show where each account sits in the reminder sequence.
    * Derived from what has actually been sent, not from the calendar.
+   *
+   * Nothing sent is the normal state for most rows, so it stays as quiet text.
+   * Only real progress earns a badge, otherwise the same label repeats on every
+   * row and drowns out the alerts that matter.
    */
   function sequenceFor(accountId: string) {
     const sent = store.emails.filter((e) => e.accountId === accountId);
     if (sent.some((e) => e.templateId === "final-21st")) {
-      return { kind: "critical" as const, label: "Final notice sent" };
+      return { badge: "critical" as const, label: "Final notice sent" };
     }
     if (sent.some((e) => e.templateId === "reminder-7th")) {
-      return { kind: "serious" as const, label: "First reminder sent" };
+      return { badge: "serious" as const, label: "First reminder sent" };
     }
-    return { kind: "neutral" as const, label: "No reminder sent yet" };
+    return { badge: null, label: "No reminder sent" };
   }
 
   return (
@@ -215,25 +226,23 @@ export default function ActionListPage() {
             </select>
           </label>
 
-          {(status !== "All" ||
-            age !== "any" ||
-            charge !== "All" ||
-            property !== "All" ||
-            oneFmOnly) && (
-            <button
-              type="button"
-              onClick={() => {
-                setStatus("All");
-                setAge("any");
-                setCharge("All");
-                setProperty("All");
-                setOneFmOnly(false);
-              }}
-              className="mb-0.5 text-[11px] text-ink-muted underline hover:text-ink-secondary"
-            >
-              Clear filters
-            </button>
-          )}
+          {/* Always rendered, so it is findable. Disabled when nothing is set,
+              which also tells the officer at a glance that they are seeing the
+              whole list rather than a filtered slice. */}
+          <button
+            type="button"
+            disabled={!filtered}
+            onClick={() => {
+              setStatus("All");
+              setAge("any");
+              setCharge("All");
+              setProperty("All");
+              setOneFmOnly(false);
+            }}
+            className="mb-0.5 rounded border border-line-hair px-2.5 py-1.5 text-[11px] text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:border-line-hair disabled:text-ink-muted disabled:opacity-60"
+          >
+            {filtered ? "Clear filters" : "No filters applied"}
+          </button>
         </div>
 
         {queue.length === 0 ? (
@@ -266,10 +275,17 @@ export default function ActionListPage() {
                         <Tag>Moved out</Tag>
                       ) : null}
                       {item.account.isOneFm ? <Tag>1FM</Tag> : null}
+                      {!seq.badge ? (
+                        <span className="text-[11px] text-ink-muted">
+                          · {seq.label}
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      <StatusBadge kind={seq.kind} label={seq.label} />
+                      {seq.badge ? (
+                        <StatusBadge kind={seq.badge} label={seq.label} />
+                      ) : null}
                       {item.reasons.map((r) => (
                         <StatusBadge
                           key={r}
@@ -283,9 +299,14 @@ export default function ActionListPage() {
                       ))}
                     </div>
 
+                    {/* Long lists of charge types push the row height out, so
+                        show the first few and count the rest. */}
                     {item.account.revenueTypes.length > 0 ? (
                       <p className="mt-1.5 text-[11px] text-ink-muted">
-                        Charges: {item.account.revenueTypes.join(", ")}
+                        Charges: {item.account.revenueTypes.slice(0, 4).join(", ")}
+                        {item.account.revenueTypes.length > 4
+                          ? ` and ${item.account.revenueTypes.length - 4} more`
+                          : ""}
                       </p>
                     ) : null}
                   </div>
