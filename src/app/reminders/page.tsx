@@ -42,9 +42,55 @@ export default function RemindersPage() {
     store.emails.filter((e) => e.templateId === templateId).map((e) => e.accountId),
   );
 
-  const canEmail = queue.filter((q) => q.account.hasContact);
+  /**
+   * Each wording goes to a different set of tenants. Without this the list was
+   * identical for every template and the dropdown looked broken.
+   *
+   * MES SOP 2.1 asks for reminders grouped by GIRO status and portfolio, which
+   * is what this is: the audience follows the tenant's profile.
+   */
+  const audience = useMemo(() => {
+    const gotFirst = new Set(
+      store.emails
+        .filter((e) => e.templateId === "reminder-7th")
+        .map((e) => e.accountId),
+    );
+
+    switch (templateId) {
+      case "final-21st":
+        return {
+          list: queue.filter(
+            (q) => q.account.hasContact && gotFirst.has(q.account.id),
+          ),
+          empty:
+            "Nobody has been sent a first reminder yet. The final notice only goes to tenants who already had one and still have not paid, so send some first reminders and they will appear here.",
+        };
+
+      case "giro-setup":
+        return {
+          list: [],
+          empty:
+            "This goes to tenants who never signed the GIRO form. We cannot identify them yet: the bank report says one tenant has no mandate, but the copy MES sent has the names blanked out, so we cannot tell which one. Send an unredacted bank report and this list fills itself in.",
+        };
+
+      case "onefm":
+        return {
+          list: queue.filter((q) => q.account.isOneFm && q.account.hasContact),
+          empty:
+            "Four tenants carry 1FM maintenance charges, but none of them has an email address on file yet. They are on the Action List and can be phoned in the meantime.",
+        };
+
+      default:
+        return {
+          list: queue.filter((q) => q.account.hasContact),
+          empty:
+            "Every tenant who can be emailed has already been sent this reminder.",
+        };
+    }
+  }, [templateId, queue, store.emails]);
+
   const cannotEmail = queue.filter((q) => !q.account.hasContact);
-  const pending = canEmail.filter((q) => !sentIds.has(q.account.id));
+  const pending = audience.list.filter((q) => !sentIds.has(q.account.id));
 
   return (
     <div className="space-y-5">
@@ -93,14 +139,16 @@ export default function RemindersPage() {
 
         <div className="border-b border-line-hair bg-surface-alt px-5 py-2.5">
           <p className="text-[11px] text-ink-muted">
-            {template.name} · normally sent on the {template.trigger}
+            <span className="text-ink-secondary">{template.name}</span> · sent on
+            the {template.trigger} · {pending.length}{" "}
+            {pending.length === 1 ? "tenant" : "tenants"} in this group
           </p>
         </div>
 
         {pending.length === 0 ? (
           <EmptyState
-            title="Nothing waiting for this wording"
-            body="Either every tenant has been sent it, or none of them have an email address on file yet."
+            title={`No tenants for the ${template.name.toLowerCase()}`}
+            body={audience.empty}
           />
         ) : (
           <ul className="divide-y divide-line-grid">

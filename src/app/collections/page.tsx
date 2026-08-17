@@ -23,10 +23,15 @@ import {
 const PROPERTIES = ["All", "JPD1", "JPD2", "BSD", "LEO"] as const;
 type StatusFilter = "All" | "Live" | "Terminated";
 
-/** Proposal 4.4: filter by aging bucket. */
+/**
+ * Proposal 4.4: filter by aging bucket.
+ *
+ * There is deliberately no "30 days or worse" option. Every account in this
+ * list is already past the 30 day trigger line, so that choice would return
+ * the identical set as "all overdue" and make the control look broken.
+ */
 const AGE_FILTERS = [
-  { key: "any", label: "Any overdue" },
-  { key: "d30", label: "30 days or worse" },
+  { key: "any", label: "All overdue, past 30 days" },
   { key: "d60", label: "60 days or worse" },
   { key: "d90", label: "90 days or worse" },
   { key: "d90plus", label: "Over 90 days only" },
@@ -48,8 +53,6 @@ const REASON_KIND: Record<
 function matchesAge(a: Account, f: AgeFilter): boolean {
   const b = a.buckets;
   switch (f) {
-    case "d30":
-      return b.d30 + b.d60 + b.d90 + b.d90plus > 0;
     case "d60":
       return b.d60 + b.d90 + b.d90plus > 0;
     case "d90":
@@ -80,6 +83,30 @@ export default function ActionListPage() {
       .filter((a) => matchesAge(a, age));
     return buildQueue(accounts);
   }, [property, status, age, charge, oneFmOnly]);
+
+  /**
+   * How many tenants each aging option would return, given the other filters.
+   * Shown in the dropdown so the officer can see the effect before choosing,
+   * and so an option that changes nothing is obvious rather than confusing.
+   */
+  const ageCounts = useMemo(() => {
+    const base = buildQueue(
+      allAccounts()
+        .filter((a) => (property === "All" ? true : a.property === property))
+        .filter((a) => (status === "All" ? true : a.status === status))
+        .filter((a) => (oneFmOnly ? a.isOneFm : true))
+        .filter((a) =>
+          charge === "All" ? true : a.revenueTypes.includes(charge),
+        ),
+    );
+    return AGE_FILTERS.reduce(
+      (acc, f) => {
+        acc[f.key] = base.filter((q) => matchesAge(q.account, f.key)).length;
+        return acc;
+      },
+      {} as Record<AgeFilter, number>,
+    );
+  }, [property, status, charge, oneFmOnly]);
 
   const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
   const noContact = queue.filter((q) => !q.account.hasContact).length;
@@ -202,7 +229,7 @@ export default function ActionListPage() {
             >
               {AGE_FILTERS.map((f) => (
                 <option key={f.key} value={f.key}>
-                  {f.label}
+                  {f.label} ({ageCounts[f.key]})
                 </option>
               ))}
             </select>
