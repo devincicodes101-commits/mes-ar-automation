@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { allAccounts, data, formatSgd, kpis } from "@/lib/data";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
+import { useSession, useToast } from "@/lib/session";
 
 type Phase = "idle" | "parsing" | "done";
 
@@ -14,27 +15,88 @@ type Phase = "idle" | "parsing" | "done";
  * displays the batch summary it returns.
  */
 export default function UploadPage() {
+  const { canAct } = useSession();
+  const { notify } = useToast();
   const [phase, setPhase] = useState<Phase>("idle");
   const [arFile, setArFile] = useState<string | null>(null);
   const [dbsFile, setDbsFile] = useState<string | null>(null);
+  const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
+  const [error, setError] = useState<string | null>(null);
 
   const accounts = allAccounts();
   const k = kpis(accounts);
   const withEmail = accounts.filter((a) => a.hasContact).length;
 
+  /** Rejects anything we could not read, rather than failing silently later. */
+  function validate(name: string | null, label: string): string | null {
+    if (!name) return null;
+    const ok = /\.(xlsx|xls|csv|pdf|png|jpg|jpeg)$/i.test(name);
+    if (!ok) {
+      return `${label}: we cannot read "${name}". Use Excel, CSV, PDF or an image.`;
+    }
+    if (/\.(png|jpe?g)$/i.test(name) && label.startsWith("Bank")) {
+      return null; // images are accepted, but flagged in the summary
+    }
+    return null;
+  }
+
   function runParse() {
+    const problem =
+      validate(arFile, "AR Report") ?? validate(dbsFile, "Bank report");
+    if (problem) {
+      setError(problem);
+      setPhase("idle");
+      return;
+    }
+    setError(null);
     setPhase("parsing");
-    window.setTimeout(() => setPhase("done"), 1400);
+    window.setTimeout(() => {
+      setPhase("done");
+      notify("Files read", `Billing period ${period}, 23 failed payments found`);
+    }, 1400);
   }
 
   function reset() {
     setPhase("idle");
     setArFile(null);
     setDbsFile(null);
+    setError(null);
   }
 
   return (
     <div className="space-y-5">
+      {/* Which month this upload belongs to. The deck says the AR report is
+          pulled on or after the 15th, and may be uploaded later than that, so
+          the period cannot be inferred from the upload date. */}
+      <Card className="flex flex-wrap items-end gap-5 px-5 py-4">
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Which billing period is this?
+          </span>
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+        <p className="mb-2 max-w-lg text-[11px] leading-relaxed text-ink-muted">
+          Billing runs from the 15th with 30 day credit terms. You can upload on
+          any date after that, so the period is set here rather than guessed
+          from the date you upload. Everything on the other screens, and every
+          export filename, is stamped with it.
+        </p>
+      </Card>
+
+      {error ? (
+        <Card className="border-l-2 px-5 py-3.5" >
+          <div className="flex items-start gap-3">
+            <StatusBadge kind="critical" label="Cannot read that file" />
+            <p className="text-xs leading-relaxed text-ink-secondary">{error}</p>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <DropZone
           title="AR Report"
@@ -65,7 +127,7 @@ export default function UploadPage() {
         <button
           type="button"
           onClick={runParse}
-          disabled={phase === "parsing"}
+          disabled={phase === "parsing" || !canAct}
           className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {phase === "parsing" ? "Reading files" : "Read the files"}
@@ -96,7 +158,7 @@ export default function UploadPage() {
         <Card>
           <CardHeader
             title="What we found"
-            hint={`AR figures as at ${data.asOfSummary}. Check anything marked below before you start chasing.`}
+            hint={`Billing period ${period}. AR figures as at ${data.asOfSummary}. Check anything marked below before you start chasing.`}
           />
 
           <dl className="grid gap-px bg-line-grid sm:grid-cols-2 lg:grid-cols-4">

@@ -9,6 +9,7 @@ import {
 } from "@/lib/data";
 import { Account } from "@/lib/types";
 import { Template, recordEmail, useStore } from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -31,13 +32,14 @@ function merge(text: string, a: Account): string {
 
 export default function RemindersPage() {
   const store = useStore();
+  const { scope, canAct } = useSession();
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
 
   const template =
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
 
-  const queue = useMemo(() => buildQueue(allAccounts()), []);
+  const queue = useMemo(() => buildQueue(scope(allAccounts())), [scope]);
   const sentIds = new Set(
     store.emails.filter((e) => e.templateId === templateId).map((e) => e.accountId),
   );
@@ -171,13 +173,19 @@ export default function RemindersPage() {
                 <div className="tabular shrink-0 text-right text-xs text-ink-secondary">
                   SGD {formatSgd(item.overdue)} overdue
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setDrafting(item.account)}
-                  className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
-                >
-                  Read and send
-                </button>
+                {canAct ? (
+                  <button
+                    type="button"
+                    onClick={() => setDrafting(item.account)}
+                    className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                  >
+                    Read and send
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-[11px] text-ink-muted">
+                    View only
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -249,6 +257,7 @@ function Draft({
   template: Template;
   onClose: () => void;
 }) {
+  const { notify } = useToast();
   const [subject, setSubject] = useState(merge(template.subject, account));
   const [body, setBody] = useState(merge(template.body, account));
 
@@ -261,6 +270,10 @@ function Draft({
       subject,
       to: account.emails,
     });
+    notify(
+      `${template.name} sent to ${account.companyName}`,
+      `${account.emails.length} recipient${account.emails.length === 1 ? "" : "s"}, recorded in the activity log`,
+    );
     onClose();
   }
 

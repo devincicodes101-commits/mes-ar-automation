@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { allAccounts, data, formatSgd, isInCredit } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
+import { downloadCsv, exportName } from "@/lib/export";
 import {
   Card,
   CardHeader,
@@ -51,9 +53,11 @@ const REPORTS: ReportDef[] = [
 
 export default function ReportsPage() {
   const store = useStore();
+  const { scope, canAct } = useSession();
+  const { notify } = useToast();
   const [preview, setPreview] = useState<"netsuite" | null>(null);
 
-  const accounts = allAccounts();
+  const accounts = useMemo(() => scope(allAccounts()), [scope]);
 
   const industry = useMemo(() => {
     const m = new Map<string, { total: number; count: number }>();
@@ -159,8 +163,44 @@ export default function ReportsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => recordExport(r.name)}
-                className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                disabled={!canAct}
+                onClick={() => {
+                  const rows = accounts.map((a) => [
+                    a.customerCode,
+                    a.companyName,
+                    a.property,
+                    a.status,
+                    a.industry ?? "",
+                    a.entity ?? "",
+                    a.buckets.current,
+                    a.buckets.d30,
+                    a.buckets.d60,
+                    a.buckets.d90,
+                    a.buckets.d90plus,
+                    a.total,
+                  ]);
+                  downloadCsv(
+                    exportName(r.id, data.asOfSummary),
+                    [
+                      "Customer Code",
+                      "Company Name",
+                      "Property",
+                      "Status",
+                      "Industry",
+                      "Entity",
+                      "Current",
+                      "30 Days",
+                      "60 Days",
+                      "90 Days",
+                      "Over 90 Days",
+                      "Total Outstanding",
+                    ],
+                    rows,
+                  );
+                  recordExport(r.name);
+                  notify(`${r.name} downloaded`, `${rows.length} rows, sent to ${r.goesTo}`);
+                }}
+                className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Generate now
               </button>
@@ -232,6 +272,7 @@ function Cell({ label, value }: { label: string; value: string }) {
 
 function ExportPreview({ onClose }: { onClose: () => void }) {
   const store = useStore();
+  const { notify } = useToast();
 
   const rows = [
     ...store.emails.map((e) => ({
@@ -298,7 +339,22 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
         <button
           type="button"
           onClick={() => {
+            downloadCsv(
+              exportName("NetSuite_Activity", data.asOfSummary),
+              ["Date", "Customer", "Activity", "Detail", "Amount SGD"],
+              rows.map((r) => [
+                new Date(r.date).toISOString().slice(0, 10),
+                r.company,
+                r.type,
+                r.detail,
+                r.amount,
+              ]),
+            );
             recordExport("NetSuite activity export");
+            notify(
+              "NetSuite export downloaded",
+              `${rows.length} rows ready to upload`,
+            );
             onClose();
           }}
           className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"

@@ -10,6 +10,7 @@ import {
 } from "@/lib/data";
 import { BUCKETS } from "@/lib/types";
 import { CALL_OUTCOMES, useStore } from "@/lib/store";
+import { useSession } from "@/lib/session";
 import {
   BucketSwatch,
   Card,
@@ -27,6 +28,7 @@ import {
  */
 export default function DefaultersPage() {
   const store = useStore();
+  const { scope } = useSession();
 
   /**
    * Proposal 4.6 asks for this to be drawn from the aging report *and* from
@@ -63,7 +65,7 @@ export default function DefaultersPage() {
   }, [store.calls, store.promises]);
 
   const rows = useMemo(() => {
-    return allAccounts()
+    return scope(allAccounts())
       .filter((a) => !isInCredit(a))
       .map((a) => ({
         account: a,
@@ -75,7 +77,7 @@ export default function DefaultersPage() {
       .sort(
         (x, y) => y.months - x.months || y.severe - x.severe,
       );
-  }, []);
+  }, [scope]);
 
   const chronic = rows.filter((r) => r.months >= 3);
   const atRisk = rows.filter((r) => r.months < 3);

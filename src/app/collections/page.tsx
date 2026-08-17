@@ -14,6 +14,7 @@ import {
 } from "@/lib/data";
 import { Account, QueueReason } from "@/lib/types";
 import { useStore } from "@/lib/store";
+import { useSession } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -69,6 +70,7 @@ function matchesAge(a: Account, f: AgeFilter): boolean {
 
 export default function ActionListPage() {
   const store = useStore();
+  const { scope } = useSession();
   const [property, setProperty] = useState<(typeof PROPERTIES)[number]>("All");
   const [status, setStatus] = useState<StatusFilter>("All");
   const [age, setAge] = useState<AgeFilter>("any");
@@ -79,7 +81,7 @@ export default function ActionListPage() {
   const types = useMemo(() => revenueTypes(), []);
 
   const queue = useMemo(() => {
-    const accounts = allAccounts()
+    const accounts = scope(allAccounts())
       .filter((a) => (property === "All" ? true : a.property === property))
       .filter((a) => (status === "All" ? true : a.status === status))
       .filter((a) => (oneFmOnly ? a.isOneFm : true))
@@ -87,7 +89,7 @@ export default function ActionListPage() {
       .filter((a) => (giro === "All" ? true : giroStatus(a) === giro))
       .filter((a) => matchesAge(a, age));
     return buildQueue(accounts);
-  }, [property, status, age, charge, giro, oneFmOnly]);
+  }, [property, status, age, charge, giro, oneFmOnly, scope]);
 
   /**
    * How many tenants each aging option would return, given the other filters.
@@ -96,7 +98,7 @@ export default function ActionListPage() {
    */
   const ageCounts = useMemo(() => {
     const base = buildQueue(
-      allAccounts()
+      scope(allAccounts())
         .filter((a) => (property === "All" ? true : a.property === property))
         .filter((a) => (status === "All" ? true : a.status === status))
         .filter((a) => (oneFmOnly ? a.isOneFm : true))
@@ -112,7 +114,7 @@ export default function ActionListPage() {
       },
       {} as Record<AgeFilter, number>,
     );
-  }, [property, status, charge, giro, oneFmOnly]);
+  }, [property, status, charge, giro, oneFmOnly, scope]);
 
   const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
   const noContact = queue.filter((q) => !q.account.hasContact).length;

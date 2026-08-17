@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Template, resetStore, saveTemplate, useStore } from "@/lib/store";
+import { MANAGERS, useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -11,36 +12,38 @@ import {
   Tag,
 } from "@/components/ui";
 
-const USERS = [
-  {
-    name: "Jacqueline",
-    role: "CSD",
-    sees: "Every tenant, every property. Can send reminders and log calls.",
-  },
-  {
-    name: "Darren",
-    role: "CSD",
-    sees: "Every tenant, every property. Can send reminders and log calls.",
-  },
-  {
-    name: "Relationship Manager 1",
-    role: "RM",
-    sees: "Only the tenants assigned to them. Cannot send reminders.",
-  },
-  {
-    name: "Relationship Manager 2",
-    role: "RM",
-    sees: "Only the tenants assigned to them. Cannot send reminders.",
-  },
-  {
-    name: "Raman",
-    role: "Management",
-    sees: "Totals and reports across every property. Read only.",
-  },
+interface User {
+  id: string;
+  name: string;
+  role: "CSD" | "RM" | "Management";
+  rmKey?: string;
+}
+
+const SEED_USERS: User[] = [
+  { id: "u1", name: "Jacqueline", role: "CSD" },
+  { id: "u2", name: "Darren", role: "CSD" },
+  ...MANAGERS.map((m, i) => ({
+    id: `u${i + 3}`,
+    name: m.name,
+    role: "RM" as const,
+    rmKey: m.key,
+  })),
+  { id: "u9", name: "Raman", role: "Management" as const },
 ];
+
+const ROLE_SEES: Record<User["role"], string> = {
+  CSD: "Every tenant, every property. Can send reminders, log calls and raise fees.",
+  RM: "Only the tenants assigned to them. View only.",
+  Management: "Totals and reports across every property. View only.",
+};
 
 export default function SettingsPage() {
   const store = useStore();
+  const { canAct } = useSession();
+  const { notify } = useToast();
+  const [users, setUsers] = useState<User[]>(SEED_USERS);
+  const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState<User["role"]>("CSD");
   const [editing, setEditing] = useState<Template | null>(null);
   const [tab, setTab] = useState<"templates" | "users" | "activity">(
     "templates",
@@ -117,20 +120,102 @@ export default function SettingsPage() {
               hint="Access is decided at the database, not hidden in the screen. A relationship manager cannot reach another manager's tenants even by changing the web address."
             />
             <ul className="divide-y divide-line-grid">
-              {USERS.map((u) => (
-                <li key={u.name} className="flex flex-wrap gap-4 px-5 py-3">
+              {users.map((u) => (
+                <li key={u.id} className="flex flex-wrap items-center gap-4 px-5 py-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-ink">{u.name}</span>
                       <Tag>{u.role}</Tag>
                     </div>
                     <p className="mt-0.5 text-xs text-ink-secondary">
-                      {u.sees}
+                      {ROLE_SEES[u.role]}
                     </p>
                   </div>
+                  <select
+                    aria-label={`Role for ${u.name}`}
+                    value={u.role}
+                    disabled={!canAct}
+                    onChange={(e) => {
+                      const role = e.target.value as User["role"];
+                      setUsers((list) =>
+                        list.map((x) => (x.id === u.id ? { ...x, role } : x)),
+                      );
+                      notify(`${u.name} is now ${role}`);
+                    }}
+                    className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink disabled:opacity-50"
+                  >
+                    <option value="CSD">CSD</option>
+                    <option value="RM">RM</option>
+                    <option value="Management">Management</option>
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!canAct}
+                    onClick={() => {
+                      setUsers((list) => list.filter((x) => x.id !== u.id));
+                      notify(`${u.name} removed`);
+                    }}
+                    className="text-[11px] text-ink-muted underline hover:text-ink disabled:no-underline disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
                 </li>
               ))}
             </ul>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newName.trim()) return;
+                setUsers((list) => [
+                  ...list,
+                  {
+                    id: `u${Date.parse(new Date().toISOString())}`,
+                    name: newName.trim(),
+                    role: newRole,
+                  },
+                ]);
+                notify(`${newName.trim()} added as ${newRole}`);
+                setNewName("");
+              }}
+              className="flex flex-wrap items-end gap-3 border-t border-line-hair bg-surface-alt px-5 py-3.5"
+            >
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-medium text-ink-muted">
+                  Add someone
+                </span>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Full name"
+                  disabled={!canAct}
+                  className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted disabled:opacity-50"
+                />
+              </label>
+              <select
+                aria-label="Role for the new user"
+                value={newRole}
+                disabled={!canAct}
+                onChange={(e) => setNewRole(e.target.value as User["role"])}
+                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink disabled:opacity-50"
+              >
+                <option value="CSD">CSD</option>
+                <option value="RM">RM</option>
+                <option value="Management">Management</option>
+              </select>
+              <button
+                type="submit"
+                disabled={!canAct || !newName.trim()}
+                className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Add user
+              </button>
+              {!canAct ? (
+                <span className="text-[11px] text-ink-muted">
+                  Only CSD can manage users.
+                </span>
+              ) : null}
+            </form>
           </Card>
 
           <Card>

@@ -19,6 +19,7 @@ import {
   recordCall,
   useStore,
 } from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -31,9 +32,10 @@ import {
 
 export default function CallListPage() {
   const store = useStore();
+  const { scope, canAct } = useSession();
   const [active, setActive] = useState<Account | null>(null);
 
-  const queue = useMemo(() => buildQueue(allAccounts()), []);
+  const queue = useMemo(() => buildQueue(scope(allAccounts())), [scope]);
   const calledIds = new Set(store.calls.map((c) => c.accountId));
 
   const todo = queue.filter((q) => !calledIds.has(q.account.id));
@@ -134,13 +136,19 @@ export default function CallListPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActive(item.account)}
-                  className="shrink-0 rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90"
-                >
-                  Log this call
-                </button>
+                {canAct ? (
+                  <button
+                    type="button"
+                    onClick={() => setActive(item.account)}
+                    className="shrink-0 rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90"
+                  >
+                    Log this call
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-[11px] text-ink-muted">
+                    View only
+                  </span>
+                )}
               </li>
             ))}
           </ol>
@@ -212,6 +220,7 @@ function CallForm({
   account: Account;
   onClose: () => void;
 }) {
+  const { notify } = useToast();
   const [reached, setReached] = useState("");
   const [outcome, setOutcome] = useState<CallOutcome>("promised-to-pay");
   const [amount, setAmount] = useState(String(overdueTotal(account).toFixed(2)));
@@ -237,6 +246,12 @@ function CallForm({
       agingBucket: bucket,
       deductionFailDate: failDate || null,
     });
+    notify(
+      `Call with ${account.companyName} saved`,
+      promised && date
+        ? `Promise to pay SGD ${amount} by ${date} added to Payment Promises`
+        : "Recorded in the activity log and the NetSuite export",
+    );
     onClose();
   }
 

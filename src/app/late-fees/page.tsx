@@ -10,6 +10,7 @@ import {
   formatSgd,
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -29,10 +30,12 @@ import {
  */
 export default function LateFeesPage() {
   const store = useStore();
+  const { scope, canAct } = useSession();
+  const { notify } = useToast();
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
   const [preview, setPreview] = useState(false);
 
-  const lines = useMemo(() => feesDue(allAccounts(), rule), [rule]);
+  const lines = useMemo(() => feesDue(scope(allAccounts()), rule), [rule, scope]);
   const totalFees = lines.reduce((s, l) => s + l.fee, 0);
   const repeat = lines.filter((l) => l.alreadyCharged > 0).length;
 
@@ -161,7 +164,7 @@ export default function LateFeesPage() {
             <button
               type="button"
               onClick={() => setPreview(true)}
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || !canAct}
               className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Review and raise
@@ -290,6 +293,10 @@ export default function LateFeesPage() {
               type="button"
               onClick={() => {
                 recordExport(`Late payment fees, ${lines.length} notices`);
+                notify(
+                  `${lines.length} late payment fees raised`,
+                  `SGD ${formatSgd(totalFees)} added across ${lines.length} accounts`,
+                );
                 setPreview(false);
               }}
               className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
