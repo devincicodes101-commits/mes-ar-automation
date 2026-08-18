@@ -179,7 +179,7 @@ export default function ActionListPage() {
       <Card>
         <CardHeader
           title="Work down this list from the top"
-          hint="Ordered by a fixed rule, not by guesswork. The oldest money counts most, then repeat late fees. Tenants who have moved out rank lower, and anyone in credit is left out."
+          hint="Oldest money first, then repeat late fees. Anyone in credit is left out."
           right={
             <label className="flex items-center gap-2 text-xs text-ink-secondary">
               <input
@@ -302,7 +302,7 @@ export default function ActionListPage() {
         {queue.length === 0 ? (
           <EmptyState
             title="Nothing matches these filters"
-            body="Try widening the filters above, or clear them to see the whole list."
+            body="Try widening or clearing the filters."
           />
         ) : (
           <ol className="divide-y divide-line-grid">

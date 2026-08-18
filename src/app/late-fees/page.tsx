@@ -79,7 +79,7 @@ export default function LateFeesPage() {
       <Card>
         <CardHeader
           title="How the fee is worked out"
-          hint="MES has not confirmed this yet, so it is a setting rather than something fixed in the software. Change it here and the list below updates immediately."
+          hint="Change the rule and the list below updates."
           right={<StatusBadge kind="warning" label="Rule not yet confirmed" />}
         />
 
@@ -148,22 +148,13 @@ export default function LateFeesPage() {
           </label>
         </div>
 
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-          <p className="text-[11px] leading-relaxed text-ink-muted">
-            What the sample data suggests: the invoice history shows an
-            identical flat charge raised in four consecutive months for the same
-            tenant, plus a separate charge each time a payment is rejected. That
-            does not match the percentage figure used in the earlier slide deck,
-            which is why we need MES to confirm which is right.
-          </p>
-        </div>
       </Card>
 
       {/* ------------------------------------------------------------ lines */}
       <Card>
         <CardHeader
           title="Fees that would be raised this month"
-          hint="Nothing is charged until you approve it. Review the list, then generate the fee notices."
+          hint="Nothing is charged until you approve it."
           right={
             <button
               type="button"
@@ -179,7 +170,7 @@ export default function LateFeesPage() {
         {lines.length === 0 ? (
           <EmptyState
             title="No fees would be charged"
-            body="No tenant meets the rule above. Lower the minimum balance to see more."
+            body="No tenant meets the rule above."
           />
         ) : (
           <div className="overflow-x-auto">

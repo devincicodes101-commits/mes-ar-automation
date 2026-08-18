@@ -77,13 +77,13 @@ export default function CallListPage() {
       <Card>
         <CardHeader
           title="Who to phone on the 14th and 15th"
-          hint="Call from your normal office line. When you finish, press Log this call and fill in what was agreed. Everything you need is already on screen before you dial."
+          hint="Call from your normal line, then log what was agreed."
         />
 
         {todo.length === 0 ? (
           <EmptyState
             title="Every tenant on the list has been called"
-            body="Anything logged today is shown below. Reset the demo data from Settings if you want to run through it again."
+            body="Anything logged today is shown below."
           />
         ) : (
           <ol className="divide-y divide-line-grid">
@@ -160,7 +160,7 @@ export default function CallListPage() {
         <Card>
           <CardHeader
             title="Calls logged"
-            hint="Saved with the date and time, ready to load into NetSuite."
+            hint="Saved with the date and time."
           />
           <ul className="divide-y divide-line-grid">
             {store.calls.map((c) => (
@@ -284,9 +284,7 @@ function CallForm({
             className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
           />
           <span className="mt-1 block text-[11px] text-ink-muted">
-            Filled in from the bank run on {LAST_BANK_RUN}. Per tenant dates
-            need the unredacted bank report, so correct it here if you know
-            better.
+            From the bank run on {LAST_BANK_RUN}. Correct it if you know better.
           </span>
         </Field>
 

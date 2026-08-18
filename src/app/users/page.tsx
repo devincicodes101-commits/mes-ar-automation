@@ -24,7 +24,7 @@ export default function UsersPage() {
       <Card>
         <CardHeader
           title="People who can use the system"
-          hint="Changing somebody's role changes what the database will return to them, not only what this screen shows them."
+          hint="Role decides what the database will return to them."
           right={
             !canAct ? (
               <StatusBadge kind="neutral" label="View only for your role" />

@@ -20,7 +20,7 @@ export default function ActivityPage() {
       <Card>
         <CardHeader
           title="Everything that has been done"
-          hint="Every email sent, call logged, promise recorded, fee raised and file exported, with who did it and when."
+          hint="Every email, call, promise, fee and export, with who and when."
           right={
             store.audit.length > 0 && canAct ? (
               <button
@@ -64,16 +64,11 @@ export default function ActivityPage() {
           </ul>
         )}
 
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge kind="good" label="Cannot be edited" />
-            <p className="text-[11px] leading-relaxed text-ink-muted">
-              Entries can be added but never changed or removed, by anyone
-              including CSD. A record the audited party can quietly edit is not
-              a record. The Clear demo data button only affects this browser
-              during the prototype.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-line-hair bg-surface-alt px-5 py-3">
+          <StatusBadge kind="good" label="Cannot be edited" />
+          <p className="text-[11px] text-ink-muted">
+            Entries are added, never changed or removed, by anyone.
+          </p>
         </div>
       </Card>
     </div>

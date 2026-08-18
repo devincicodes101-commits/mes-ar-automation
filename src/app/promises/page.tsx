@@ -106,13 +106,13 @@ export default function PromisesPage() {
       <Card>
         <CardHeader
           title="Every promise to pay"
-          hint="This replaces the note typed into the Update column of the spreadsheet. Each promise has a tenant, an amount and a date, so nothing depends on remembering."
+          hint="Confirmed paid when the tenant drops off next month's failed payment report."
         />
 
         {store.promises.length === 0 ? (
           <EmptyState
             title="No promises recorded yet"
-            body="Go to the Call List, log a call and choose Agreed to pay. The promise will appear here straight away."
+            body="Log a call on the Call List and choose Agreed to pay."
           />
         ) : (
           <div className="divide-y divide-line-grid">
@@ -174,15 +174,6 @@ export default function PromisesPage() {
           </div>
         )}
 
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-          <p className="text-[11px] leading-relaxed text-ink-muted">
-            When a promise is recorded, a short confirmation goes to the tenant
-            so both sides have it in writing. You approve it first, as with
-            every other email. Payment itself is confirmed when the tenant no
-            longer appears on next month&apos;s failed payment report, since the
-            system does not connect to the bank.
-          </p>
-        </div>
       </Card>
     </div>
   );

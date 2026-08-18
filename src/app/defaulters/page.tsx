@@ -116,13 +116,13 @@ export default function DefaultersPage() {
       <Card>
         <CardHeader
           title="Tenants who keep failing to pay"
-          hint="Someone late once needs a reminder. Someone late every month needs a different conversation. This screen separates the two."
+          hint="Late once, or late every month."
         />
 
         {rows.length === 0 ? (
           <EmptyState
             title="No repeat defaulters found"
-            body="Nobody in the current data has repeated late fees or a balance over 90 days."
+            body="Nobody has repeated late fees or a balance over 90 days."
           />
         ) : (
           <div className="overflow-x-auto">

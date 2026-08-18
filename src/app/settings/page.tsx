@@ -31,7 +31,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader
           title="How reminders go out"
-          hint="Whether an officer approves each email before it is sent, or the system sends them on the trigger date without asking."
+          hint="Who presses send."
           right={
             <StatusBadge
               kind={auto ? "critical" : "good"}
@@ -45,11 +45,9 @@ export default function SettingsPage() {
             <p className="text-sm font-medium text-ink">
               Send reminders without asking
             </p>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-ink-secondary">
-              When this is off, the officer reads every email and presses send.
-              When it is on, the system sends them on the 7th and the 21st on
-              its own, and the officer only sees them afterwards in the activity
-              log.
+            <p className="mt-1 max-w-2xl text-xs text-ink-secondary">
+              Off: the officer approves each email. On: they go out on the 7th
+              and the 21st unattended.
             </p>
           </div>
 
@@ -76,30 +74,12 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/*
-          The proposal is explicit about this, in two places, and one of them is
-          a highlighted callout in the deck MES was sent. Anyone switching it on
-          should see that rather than discover it later.
-        */}
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3.5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-            <div className="shrink-0">
-              <StatusBadge kind="warning" label="Check this with MES" />
-            </div>
-            <div className="text-[11px] leading-relaxed text-ink-muted">
-              <p>
-                The proposal says the opposite. Section 4.5 requires a review
-                step before anything goes out, and the requirement deck states
-                it as a rule of its own: every reminder is drafted, previewed
-                and approved by the CSD officer before anything is sent.
-              </p>
-              <p className="mt-1.5">
-                Turning this on overrides what MES agreed to. It is worth
-                confirming with them before it is used on real tenants, since
-                the point of the review step is that nobody is chased in error.
-              </p>
-            </div>
-          </div>
+        {/* Proposal 4.5 requires a review step. One line is enough to say so. */}
+        <div className="flex flex-wrap items-center gap-3 border-t border-line-hair bg-surface-alt px-5 py-3">
+          <StatusBadge kind="warning" label="Check with MES" />
+          <p className="text-[11px] text-ink-muted">
+            The agreed process has an officer approve each email.
+          </p>
         </div>
       </Card>
 
@@ -107,7 +87,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader
           title="Standard email wording"
-          hint="Change any of these yourself and save. You do not need a developer. The words in double braces are filled in automatically for each tenant."
+          hint="Words in double braces are filled in for each tenant."
         />
         <ul className="divide-y divide-line-grid">
           {store.templates.map((t) => (
@@ -132,12 +112,6 @@ export default function SettingsPage() {
             </li>
           ))}
         </ul>
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-          <p className="text-[11px] leading-relaxed text-ink-muted">
-            These are our drafts. MES has been asked for the wording the team
-            uses today, and we will replace them once it arrives.
-          </p>
-        </div>
       </Card>
 
       {editing ? (
@@ -151,10 +125,8 @@ export default function SettingsPage() {
             them first. Any tenant with an email address on file and a balance
             past 30 days will be emailed.
           </p>
-          <p className="mt-3 text-xs leading-relaxed text-ink-secondary">
-            This overrides the review step in section 4.5 of the proposal, and
-            the human in the loop rule MES was shown. Worth confirming with them
-            first.
+          <p className="mt-3 text-xs text-ink-secondary">
+            This overrides the review step agreed with MES.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
             <button

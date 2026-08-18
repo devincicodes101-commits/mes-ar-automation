@@ -126,7 +126,7 @@ export default function ReportsPage() {
       <Card>
         <CardHeader
           title="File to load back into NetSuite"
-          hint="One file covering everything the team has done this period. NetSuite is never connected directly, so this is how the record gets back in."
+          hint="Everything done this period, ready to upload into NetSuite."
           right={
             <button
               type="button"
@@ -141,7 +141,7 @@ export default function ReportsPage() {
         {activityRows === 0 ? (
           <EmptyState
             title="Nothing to export yet"
-            body="Log a call or send a reminder first, then the file will have rows in it."
+            body="Log a call or send a reminder first."
           />
         ) : (
           <dl className="grid gap-px bg-line-grid sm:grid-cols-3">
@@ -159,7 +159,7 @@ export default function ReportsPage() {
       <Card>
         <CardHeader
           title="Reports that go out on a schedule"
-          hint="These run on their own once MES confirms where the figures come from."
+          hint="Sent on a schedule."
         />
         <ul className="divide-y divide-line-grid">
           {REPORTS.map((r) => (
@@ -218,13 +218,13 @@ export default function ReportsPage() {
         <Card>
           <CardHeader
             title="Security deposits"
-            hint="To CSD every Monday. Deposits held, and any being used against an outstanding balance."
+            hint="To CSD every Monday."
             right={<StatusBadge kind="warning" label="MES to confirm the source" />}
           />
           {deposits.length === 0 ? (
             <EmptyState
               title="No deposit lines found"
-              body="The invoice detail in this sample contains no security deposit lines, and no account is marked as offsetting one. MES has not confirmed whether this report comes from the AR report or another document."
+              body="No security deposit lines in the invoice detail. Waiting on MES to confirm the source."
             />
           ) : (
             <table className="w-full border-collapse text-sm">
@@ -262,7 +262,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader
             title="Relationship manager balances"
-            hint="One list per manager, covering only their own tenants. The same rule the database enforces."
+            hint="One list per manager."
           />
           <ul className="divide-y divide-line-grid">
             {managers.map((m) => (
@@ -284,13 +284,6 @@ export default function ReportsPage() {
               </li>
             ))}
           </ul>
-          <div className="border-t border-line-hair bg-surface-alt px-5 py-2.5">
-            <p className="text-[11px] leading-relaxed text-ink-muted">
-              The two manager worksheets in the sample give the same tenant code
-              different company names, so these assignments need confirming
-              before the report goes out.
-            </p>
-          </div>
         </Card>
       </div>
 
@@ -298,7 +291,7 @@ export default function ReportsPage() {
       <Card>
         <CardHeader
           title="Outstanding by business type"
-          hint="The management report. Built straight from the AR report, so this one needs nothing further from MES."
+          hint="Outstanding grouped by line of business."
         />
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -328,13 +321,6 @@ export default function ReportsPage() {
             ))}
           </tbody>
         </table>
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-2.5">
-          <p className="text-[11px] text-ink-muted">
-            Most tenants in the sample have no business type recorded, so they
-            fall into Not categorised. The full AR export should carry it for
-            everyone.
-          </p>
-        </div>
       </Card>
 
       {preview === "netsuite" ? (
@@ -375,8 +361,7 @@ function buildReport(
         d.offsetting ? "Yes" : "No",
         d.outstanding.toFixed(2),
       ]),
-      emptyReason:
-        "No security deposit lines were found in the invoice detail, and no account is marked as offsetting one. MES has not yet confirmed where this report's figures come from.",
+      emptyReason: "No security deposit lines in the invoice detail.",
     };
   }
 

@@ -474,7 +474,7 @@ function ChargeTypeTable({
     return (
       <EmptyState
         title="No invoice detail for this selection"
-        body="The detailed report in the sample covers fewer tenants than the summary. Change the property or status filter."
+        body="Change the property or status filter."
       />
     );
   }
@@ -554,13 +554,6 @@ function ChargeTypeTable({
             </tr>
           </tfoot>
         </table>
-      </div>
-      <div className="border-t border-line-hair bg-surface-alt px-5 py-2.5">
-        <p className="text-[11px] leading-relaxed text-ink-muted">
-          Taken from the invoice level report, which in this sample covers fewer
-          tenants than the summary, so these totals are smaller than the by
-          tenant view. The full export should cover everyone.
-        </p>
       </div>
     </>
   );

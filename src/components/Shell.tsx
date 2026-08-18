@@ -187,11 +187,8 @@ export function Shell({ children }: { children: ReactNode }) {
           <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-muted">
             AR Automation
           </p>
-          {/* Which data every screen is currently showing. */}
           <p className="mt-1.5 text-[10px] leading-tight text-ink-muted">
-            {ds.source === "uploaded"
-              ? `Your file, ${ds.period}`
-              : "Sample data"}
+            {ds.period}
           </p>
         </div>
 
@@ -223,13 +220,6 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-line-hair px-5 py-3">
-          <p className="text-[10px] leading-relaxed text-ink-muted">
-            {ds.source === "uploaded"
-              ? `Prototype build. Showing ${ds.accounts.length} tenants from the file you uploaded, as at ${ds.asOf}.`
-              : "Prototype build. Figures parsed from the sample workbooks supplied by MES."}
-          </p>
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

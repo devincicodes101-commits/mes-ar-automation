@@ -66,28 +66,28 @@ export default function RemindersPage() {
             (q) => q.account.hasContact && gotFirst.has(q.account.id),
           ),
           empty:
-            "Nobody has been sent a first reminder yet. The final notice only goes to tenants who already had one and still have not paid, so send some first reminders and they will appear here.",
+            "The final notice goes to tenants who already had a first reminder. Send some, and they appear here.",
         };
 
       case "giro-setup":
         return {
           list: [],
           empty:
-            "This goes to tenants who never signed the GIRO form. We cannot identify them yet: the bank report says one tenant has no mandate, but the copy MES sent has the names blanked out, so we cannot tell which one. Send an unredacted bank report and this list fills itself in.",
+            "For tenants who never signed the GIRO form. The bank report needs to be readable before we can tell who they are.",
         };
 
       case "onefm":
         return {
           list: queue.filter((q) => q.account.isOneFm && q.account.hasContact),
           empty:
-            "Four tenants carry 1FM maintenance charges, but none of them has an email address on file yet. They are on the Action List and can be phoned in the meantime.",
+            "Tenants with 1FM charges have no email address on file. Phone them instead.",
         };
 
       default:
         return {
           list: queue.filter((q) => q.account.hasContact),
           empty:
-            "Every tenant who can be emailed has already been sent this reminder.",
+            "Everyone who can be emailed has had this one.",
         };
     }
   }, [templateId, queue, store.emails]);
@@ -126,7 +126,7 @@ export default function RemindersPage() {
           title="Choose the wording, then approve each email"
           hint={
             store.settings.autoSendReminders
-              ? "Automatic sending is on. These will go out on the trigger date without anyone reading them first. You can still send one early from here."
+              ? "Automatic sending is on. These go out on the trigger date. You can still send one early."
               : "Nothing is sent automatically. You read every email and press send yourself."
           }
           right={
@@ -147,9 +147,8 @@ export default function RemindersPage() {
         {store.settings.autoSendReminders ? (
           <div className="flex flex-wrap items-center gap-3 border-b border-line-hair bg-surface-alt px-5 py-2.5">
             <StatusBadge kind="critical" label="Sending automatically" />
-            <p className="text-[11px] leading-relaxed text-ink-muted">
-              Turned on in Settings. This overrides the review step in the
-              proposal, where every reminder is approved by an officer first.
+            <p className="text-[11px] text-ink-muted">
+              Turned on in Settings.
             </p>
           </div>
         ) : null}
@@ -211,7 +210,7 @@ export default function RemindersPage() {
         <Card>
           <CardHeader
             title="Cannot email these tenants yet"
-            hint="They need chasing but there is no email address on file. Phone them instead, or ask MES for the full contact list."
+            hint="No email address on file."
           />
           <div className="flex flex-wrap gap-2 px-5 py-4">
             {cannotEmail.slice(0, 24).map((q) => (
@@ -344,9 +343,7 @@ function Draft({
           >
             Cancel
           </button>
-          <p className="ml-auto text-[11px] text-ink-muted">
-            Prototype only, no email actually leaves this machine.
-          </p>
+
         </div>
       </div>
     </Modal>

@@ -224,7 +224,7 @@ export default function FailedPaymentsPage() {
           noMandate.length === 0 ? (
             <EmptyState
               title="No tenant can be identified as unenrolled yet"
-              body={`The bank report says ${BATCH.noDda} tenant has never signed the GIRO form, but with the names removed we cannot tell which one. These tenants need a form to sign, not a chasing email, which is why they are kept off the Action List.`}
+              body={`The bank report says ${BATCH.noDda} tenant has never signed the GIRO form. With the names removed we cannot tell which one.`}
             />
           ) : (
             <ul className="divide-y divide-line-grid">
@@ -247,7 +247,7 @@ export default function FailedPaymentsPage() {
           rejected.length === 0 ? (
             <EmptyState
               title="No tenant can be confirmed as a failed deduction yet"
-              body={`The bank report says ${BATCH.referPayingParty} tenants have GIRO set up but no money in the account. Until the names are readable we cannot say which. In the meantime the Action List ranks everyone by how overdue they are, which covers the same ground less precisely.`}
+              body={`The bank report says ${BATCH.referPayingParty} tenants have GIRO set up but no money in the account. The names are not readable, so we cannot say which.`}
             />
           ) : (
             <ul className="divide-y divide-line-grid">

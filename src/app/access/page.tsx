@@ -17,7 +17,7 @@ export default function AccessPage() {
       <Card>
         <CardHeader
           title="What each role is allowed to do"
-          hint="These rules live in the database. Nobody can get around them by editing the web address, calling the interface directly or opening the browser console, because the database itself refuses to return the rows."
+          hint="Enforced by the database, not by the screen."
         />
 
         <div className="overflow-x-auto">
@@ -86,13 +86,13 @@ export default function AccessPage() {
         <CardHeader title="How the data is protected" />
         <ul className="divide-y divide-line-grid">
           {[
-            "Every table refuses access by default. A table with no matching rule returns nothing rather than everything, so a mistake fails closed.",
-            "A relationship manager can only read rows belonging to their own tenants, checked by the database on every single query.",
-            "Tenant email addresses are personal data under the PDPA and are withheld from relationship managers.",
-            "Passwords are never stored by us. Signing in is handled by Supabase.",
+            "Every table refuses access by default, so a mistake fails closed rather than open.",
+            "A relationship manager can only read their own tenants, checked on every query.",
+            "Tenant email addresses are withheld from relationship managers, as personal data under the PDPA.",
+            "Passwords are never stored by us.",
             "Sensitive fields are encrypted at rest.",
-            "The activity log can be added to but never changed or deleted, by anyone, including CSD.",
-            "Tenant data stays inside MES control. Nothing is sent to NetSuite or the bank automatically.",
+            "The activity log can be added to, never changed or deleted, by anyone.",
+            "Nothing is sent to NetSuite or the bank automatically.",
           ].map((line) => (
             <li
               key={line}
@@ -102,15 +102,11 @@ export default function AccessPage() {
             </li>
           ))}
         </ul>
-        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge kind="good" label="Verified" />
-            <p className="text-[11px] leading-relaxed text-ink-muted">
-              An automated test signs in as each role and confirms what the
-              database actually hands back, rather than taking the screen at its
-              word.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center gap-3 border-t border-line-hair bg-surface-alt px-5 py-3">
+          <StatusBadge kind="good" label="Verified" />
+          <p className="text-[11px] text-ink-muted">
+            Checked by an automated test against the database.
+          </p>
         </div>
       </Card>
     </div>

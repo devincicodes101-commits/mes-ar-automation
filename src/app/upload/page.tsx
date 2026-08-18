@@ -47,7 +47,7 @@ export default function UploadPage() {
     if (chosen.length === 0) {
       setResults([]);
       setPhase("done");
-      notify("Showing the sample data", "Choose a file to read your own.");
+      notify("No file chosen", "Showing the sample data.");
       return;
     }
 
@@ -96,11 +96,9 @@ export default function UploadPage() {
             className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
-        <p className="mb-2 max-w-lg text-[11px] leading-relaxed text-ink-muted">
-          Billing runs from the 15th with 30 day credit terms. You can upload on
-          any date after that, so the period is set here rather than guessed
-          from the date you upload. Everything on the other screens, and every
-          export filename, is stamped with it.
+        <p className="mb-2 max-w-md text-[11px] text-ink-muted">
+          Billing runs from the 15th on 30 day terms. Every screen and export is
+          stamped with the period you choose.
         </p>
       </Card>
 
@@ -116,7 +114,7 @@ export default function UploadPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <DropZone
           title="AR Report"
-          hint="The multi worksheet export from NetSuite, usually named AR reports-Final.xlsx"
+          hint="The multi worksheet export from NetSuite."
           sheets={[
             "Detailed Full Report",
             "Stamp Duty",
@@ -132,7 +130,7 @@ export default function UploadPage() {
         />
         <DropZone
           title="Bank Report, failed GIRO"
-          hint="The DBS Bulk Collection Report showing which deductions did not go through"
+          hint="The DBS Bulk Collection Report."
           sheets={["NO DDA rejections", "REFER PAYING PARTY rejections"]}
           file={dbsFile}
           onFile={setDbsFile}
@@ -159,13 +157,7 @@ export default function UploadPage() {
           </button>
         ) : null}
 
-        {phase === "idle" ? (
-          <p className="text-xs text-ink-muted">
-            {arFile || dbsFile
-              ? "Ready. The files are read here on this machine and are not sent anywhere."
-              : "You can press this without choosing a file to see the sample data."}
-          </p>
-        ) : null}
+
       </div>
 
       {phase === "parsing" ? <ParseSkeleton /> : null}
@@ -188,8 +180,7 @@ export default function UploadPage() {
         <Card className="flex flex-wrap items-center gap-3 px-5 py-3">
           <StatusBadge kind="good" label="Using your uploaded file" />
           <p className="flex-1 text-xs text-ink-secondary">
-            {ds.label}, billing period {ds.period}, figures as at {ds.asOf}.
-            {" "}{ds.accounts.length} tenants across every screen.
+            {ds.accounts.length} tenants, period {ds.period}, as at {ds.asOf}.
           </p>
           <button
             type="button"
@@ -199,7 +190,7 @@ export default function UploadPage() {
             }}
             className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
           >
-            Go back to the sample
+            Use the sample instead
           </button>
         </Card>
       ) : null}
@@ -244,8 +235,7 @@ function ApplyBar({
         <div className="flex items-start gap-3">
           <StatusBadge kind="critical" label="Nothing usable" />
           <p className="text-xs text-ink-secondary">
-            Neither file could be read as an AR report, so there is nothing to
-            switch the application over to.
+            Neither file could be read as an AR report.
           </p>
         </div>
       </Card>
@@ -259,10 +249,9 @@ function ApplyBar({
           Use this file across the whole application?
         </p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
-          {built.accounts.length} tenants and {built.invoices.length} invoices
-          would replace the sample on every screen.
+          {built.accounts.length} tenants, {built.invoices.length} invoices.
           {errors > 0
-            ? ` ${errors} row${errors === 1 ? "" : "s"} could not be read and will be left out.`
+            ? ` ${errors} row${errors === 1 ? "" : "s"} could not be read.`
             : ""}
         </p>
       </div>
@@ -340,11 +329,9 @@ function DropZone({
         ) : (
           <>
             <p className="text-xs text-ink-secondary">
-              Click here to choose a file, or drag one onto this box
+              Choose a file, or drag one here
             </p>
-            <p className="mt-1 text-[11px] text-ink-muted">
-              Excel, CSV, PDF or an image
-            </p>
+            <p className="mt-1 text-[11px] text-ink-muted">Excel or CSV</p>
           </>
         )}
       </button>
