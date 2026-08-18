@@ -10,6 +10,22 @@ import { applyDataset, datasetFromResults, revertToSample, useDataset } from "@/
 type Phase = "idle" | "parsing" | "done";
 
 /**
+ * The tabs the detail export normally carries. Used to report what a file
+ * turned out to contain, never to reject one: MES may add or drop a tab and
+ * the reader copes either way, it just says so.
+ */
+const EXPECTED_DETAIL_SHEETS = [
+  "Detailed Full Report",
+  "Stamp Duty",
+  "Park Fee",
+  "Late Fee",
+  "Industry",
+  "RM - User1",
+  "RM - User2",
+  "Contact Details",
+];
+
+/**
  * Upload Reports.
  *
  * The workbooks are read for real, in the browser, using the parser in
@@ -114,24 +130,15 @@ export default function UploadPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <DropZone
           title="AR Report"
-          hint="The multi worksheet export from NetSuite."
-          sheets={[
-            "Detailed Full Report",
-            "Stamp Duty",
-            "Park Fee",
-            "Late Fee",
-            "Industry",
-            "RM - User1",
-            "RM - User2",
-            "Contact Details",
-          ]}
+          hint="The multi worksheet export from NetSuite, usually named AR reports-Final.xlsx."
+          note="Every worksheet in the file is listed back to you once it has been read."
           file={arFile}
           onFile={setArFile}
         />
         <DropZone
           title="Bank Report, failed GIRO"
-          hint="The DBS Bulk Collection Report."
-          sheets={["NO DDA rejections", "REFER PAYING PARTY rejections"]}
+          hint="The DBS Bulk Collection Report, listing which deductions did not go through."
+          note="Export it from DBS as CSV or Excel. A PDF or screenshot cannot be read: a misread digit would mean chasing the wrong tenant for the wrong sum. Rejected lines are split into NO DDA and REFER PAYING PARTY."
           file={dbsFile}
           onFile={setDbsFile}
         />
@@ -273,13 +280,13 @@ function ApplyBar({
 function DropZone({
   title,
   hint,
-  sheets,
+  note,
   file,
   onFile,
 }: {
   title: string;
   hint: string;
-  sheets: string[];
+  note: string;
   file: File | null;
   onFile: (f: File | null) => void;
 }) {
@@ -346,12 +353,7 @@ function DropZone({
         </button>
       ) : null}
 
-      <p className="mt-3 text-[11px] text-ink-muted">Worksheets expected</p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {sheets.map((s) => (
-          <Tag key={s}>{s}</Tag>
-        ))}
-      </div>
+      <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">{note}</p>
     </Card>
   );
 }
@@ -451,6 +453,8 @@ function ParseReport({
         </div>
       ) : null}
 
+      {detail ? <SheetsRead sheets={detail.sheets} /> : null}
+
       {/* Proposal 4.1. Still stated from the batch header, because the bank
           report in the sample is an image we deliberately refuse to read. */}
       {!detail && !summary ? null : (
@@ -513,6 +517,62 @@ function ParseReport({
         </div>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * What the workbook turned out to contain.
+ *
+ * Reported after reading rather than predicted before it, because a list of
+ * expected tabs shown while somebody is still choosing a file tells them
+ * nothing, and is wrong the moment MES changes their export.
+ */
+function SheetsRead({ sheets }: { sheets: string[] }) {
+  const key = (s: string) => s.trim().replace(/\s+/g, " ").toUpperCase();
+  const present = new Set(sheets.map(key));
+
+  const found = EXPECTED_DETAIL_SHEETS.filter((s) => present.has(key(s)));
+  const missing = EXPECTED_DETAIL_SHEETS.filter((s) => !present.has(key(s)));
+
+  const expected = new Set(EXPECTED_DETAIL_SHEETS.map(key));
+  const extra = sheets.filter((s) => !expected.has(key(s)));
+
+  const lostContacts = missing.some((s) => key(s) === key("Contact Details"));
+
+  return (
+    <div className="border-t border-line-hair px-5 py-4">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <StatusBadge
+          kind={missing.length === 0 ? "good" : "warning"}
+          label={
+            missing.length === 0
+              ? "All expected tabs present"
+              : `${missing.length} expected tab${missing.length === 1 ? "" : "s"} missing`
+          }
+        />
+        <span className="text-[11px] text-ink-muted">
+          {sheets.length} tab{sheets.length === 1 ? "" : "s"} read
+        </span>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {found.map((s) => (
+          <Tag key={s}>{s}</Tag>
+        ))}
+        {extra.map((s) => (
+          <Tag key={s}>{s}</Tag>
+        ))}
+      </div>
+
+      {missing.length > 0 ? (
+        <p className="mt-2.5 text-[11px] leading-relaxed text-ink-secondary">
+          Not in this file: {missing.join(", ")}.
+          {lostContacts
+            ? " Without Contact Details there are no email addresses, so reminders cannot be sent."
+            : ""}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

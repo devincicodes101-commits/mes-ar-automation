@@ -27,12 +27,16 @@ export interface ParsedSummary {
   kind: "ar-summary";
   asOf: string | null;
   accounts: Account[];
+  /** Tab names the workbook actually contained, in file order. */
+  sheets: string[];
   problems: ParseProblem[];
 }
 
 export interface ParsedDetail {
   kind: "ar-detail";
   asOf: string | null;
+  /** Tab names the workbook actually contained, in file order. */
+  sheets: string[];
   invoices: Omit<Invoice, "id">[];
   contacts: { companyName: string; emails: string[] }[];
   industries: { companyName: string; industry: string; entity: string; property: string }[];
@@ -291,7 +295,13 @@ export function parseSummary(wb: XLSX.WorkBook): ParsedSummary {
     });
   }
 
-  return { kind: "ar-summary", asOf, accounts, problems };
+  return {
+    kind: "ar-summary",
+    asOf,
+    accounts,
+    sheets: wb.SheetNames.map(clean),
+    problems,
+  };
 }
 
 /* -------------------------------------------------------- the detail report */
@@ -492,6 +502,7 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
   return {
     kind: "ar-detail",
     asOf,
+    sheets: wb.SheetNames.map(clean),
     invoices,
     contacts,
     industries,
