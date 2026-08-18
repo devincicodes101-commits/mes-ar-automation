@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode } from "react";
 
 
 import { MANAGERS, ROLES, Role, useSession } from "@/lib/session";
@@ -19,6 +19,12 @@ export const NAV: {
   label: string;
   group: string;
   note: string;
+  /**
+   * Hidden from the sidebar but still reachable by URL. Nothing is deleted:
+   * these are screens the client has parked rather than dropped, so restoring
+   * one is a single line here.
+   */
+  hidden?: boolean;
 }[] = [
   {
     href: "/upload",
@@ -37,12 +43,20 @@ export const NAV: {
     label: "Failed Payments",
     group: "Prepare",
     note: "Which bank payments bounced, and where each one goes next.",
+    // Hidden at the client's request. The batch summary lives in Upload
+    // Reports, which is where proposal 4.9 puts it anyway.
+    hidden: true,
   },
   {
     href: "/collections",
     label: "Action List",
     group: "Prepare",
     note: "Who to chase today, most urgent first.",
+    // Hidden at the client's request, on the basis that this becomes the
+    // priority list the automation works from rather than a screen an officer
+    // reads. Note this is proposal 4.4, Collections Queue, which is a required
+    // feature and a named module in 4.9. Unhide by deleting this line.
+    hidden: true,
   },
   {
     href: "/reminders",
@@ -82,9 +96,27 @@ export const NAV: {
   },
   {
     href: "/settings",
-    label: "Settings & Activity Log",
+    label: "Settings",
     group: "Admin",
-    note: "Email templates, users, and a record of every action taken.",
+    note: "Email wording and how the system behaves.",
+  },
+  {
+    href: "/users",
+    label: "User Management",
+    group: "Admin",
+    note: "Add people, remove them, and set what each one is.",
+  },
+  {
+    href: "/access",
+    label: "Access Control",
+    group: "Admin",
+    note: "What each role is allowed to see and do.",
+  },
+  {
+    href: "/activity",
+    label: "Activity Log",
+    group: "Admin",
+    note: "A permanent record of every action, with who did it and when.",
   },
 ];
 
@@ -92,44 +124,13 @@ export function navFor(pathname: string) {
   return NAV.find((n) => n.href === pathname);
 }
 
-function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    const stamped = document.documentElement.getAttribute("data-theme");
-    if (stamped) {
-      setDark(stamped === "dark");
-      return;
-    }
-    setDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
-  }, []);
-
-  function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.setAttribute(
-      "data-theme",
-      next ? "dark" : "light",
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
-    >
-      {dark ? "Light mode" : "Dark mode"}
-    </button>
-  );
-}
-
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, setRole, rmKey, setRmKey, scopeNote } = useSession();
   const ds = useDataset();
   const current = navFor(pathname);
-  const groups = Array.from(new Set(NAV.map((n) => n.group)));
+  const visible = NAV.filter((n) => !n.hidden);
+  const groups = Array.from(new Set(visible.map((n) => n.group)));
 
   return (
     <div className="flex min-h-screen">
@@ -160,7 +161,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
                 {group}
               </p>
-              {NAV.filter((n) => n.group === group).map((item) => {
+              {visible.filter((n) => n.group === group).map((item) => {
                 const active = pathname === item.href;
                 return (
                   <Link
@@ -237,7 +238,6 @@ export function Shell({ children }: { children: ReactNode }) {
               </select>
             ) : null}
 
-            <ThemeToggle />
           </div>
         </header>
 

@@ -14,7 +14,7 @@ import {
 import { Account, QueueReason } from "@/lib/types";
 import { useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -71,7 +71,7 @@ function matchesAge(a: Account, f: AgeFilter): boolean {
 export default function ActionListPage() {
   const store = useStore();
   const { scope } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const [property, setProperty] = useState<(typeof PROPERTIES)[number]>("All");
   const [status, setStatus] = useState<StatusFilter>("All");
   const [age, setAge] = useState<AgeFilter>("any");

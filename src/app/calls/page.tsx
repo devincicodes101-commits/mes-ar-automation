@@ -19,7 +19,7 @@ import {
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -33,7 +33,7 @@ import {
 export default function CallListPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const [active, setActive] = useState<Account | null>(null);
 
   const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);

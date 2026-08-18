@@ -12,7 +12,7 @@ import {
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import { downloadCsv, exportName } from "@/lib/export";
 import {
   Card,
@@ -63,7 +63,7 @@ const REPORTS: ReportDef[] = [
 export default function ReportsPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
   const [preview, setPreview] = useState<"netsuite" | null>(null);
 

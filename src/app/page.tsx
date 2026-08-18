@@ -14,8 +14,9 @@ import {
   giroStatus,
 } from "@/lib/data";
 import { Account, BUCKETS, BucketKey, PropertyCode } from "@/lib/types";
-import { useSession } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useSession, useToast } from "@/lib/session";
+import { useDataset, withManualEmails } from "@/lib/dataset";
+import { setManualEmails, useStore } from "@/lib/store";
 import {
   BucketSwatch,
   Card,
@@ -42,8 +43,9 @@ type ViewMode = "tenant" | "charge";
 type SortKey = "name" | "total" | "overdue" | BucketKey;
 
 export default function AgingBoardPage() {
-  const { scope } = useSession();
-  const ds = useDataset();
+  const { scope, canAct } = useSession();
+  const store = useStore();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const [property, setProperty] = useState<PropertyCode | "ALL">("ALL");
   const [status, setStatus] = useState<StatusFilter>("Live");
   const [view, setView] = useState<ViewMode>("tenant");
@@ -318,6 +320,7 @@ export default function AgingBoardPage() {
                   <AccountRow
                     key={a.id}
                     account={a}
+                    canAct={canAct}
                     open={expanded === a.id}
                     onToggle={() =>
                       setExpanded(expanded === a.id ? null : a.id)
@@ -351,6 +354,80 @@ export default function AgingBoardPage() {
         )}
       </Card>
     </div>
+  );
+}
+
+/**
+ * Lets the officer type in an address for a tenant the AR export has none for.
+ *
+ * The export carries an email for 8 tenants out of 53, and the reminder screen
+ * cannot reach the rest. Rather than waiting for MES to send a full contact
+ * list, the officer can fill them in as they go, and what they type reaches
+ * every other screen straight away.
+ */
+function AddEmail({ account, canAct }: { account: Account; canAct: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const { notify } = useToast();
+
+  if (!canAct) return <StatusBadge kind="warning" label="No email" />;
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded border border-line-hair bg-surface-alt px-2 py-0.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+      >
+        <span aria-hidden="true" style={{ color: "var(--status-warning)" }}>
+          △
+        </span>
+        No email, add one
+      </button>
+    );
+  }
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        autoFocus
+        type="email"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+          if (e.key !== "Enter") return;
+          const emails = value
+            .split(/[;,]/)
+            .map((x) => x.trim())
+            .filter((x) => x.includes("@"));
+          if (emails.length === 0) return;
+          setManualEmails(account.id, account.companyName, emails);
+          notify(
+            `Email saved for ${account.companyName}`,
+            "They can now be sent reminders.",
+          );
+          setOpen(false);
+          setValue("");
+        }}
+        placeholder="name@company.com, press Enter"
+        className="w-56 rounded border border-line-hair bg-surface px-2 py-0.5 text-xs text-ink placeholder:text-ink-muted"
+      />
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        aria-label="Cancel"
+        className="text-xs text-ink-muted hover:text-ink"
+      >
+        ✕
+      </button>
+    </span>
   );
 }
 
@@ -491,10 +568,12 @@ function ChargeTypeTable({
 
 function AccountRow({
   account,
+  canAct,
   open,
   onToggle,
 }: {
   account: Account;
+  canAct: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -532,7 +611,7 @@ function AccountRow({
                   <StatusBadge kind="good" label="In credit" />
                 ) : null}
                 {!account.hasContact && !credit ? (
-                  <StatusBadge kind="warning" label="No email" />
+                  <AddEmail account={account} canAct={canAct} />
                 ) : null}
                 {account.lateFeeCount >= 3 ? (
                   <StatusBadge

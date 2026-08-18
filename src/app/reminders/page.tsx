@@ -9,7 +9,7 @@ import {
 import { Account } from "@/lib/types";
 import { Template, recordEmail, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -33,7 +33,7 @@ function merge(text: string, a: Account): string {
 export default function RemindersPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
 
@@ -124,7 +124,11 @@ export default function RemindersPage() {
       <Card>
         <CardHeader
           title="Choose the wording, then approve each email"
-          hint="Nothing is sent automatically. You read every email and press send yourself."
+          hint={
+            store.settings.autoSendReminders
+              ? "Automatic sending is on. These will go out on the trigger date without anyone reading them first. You can still send one early from here."
+              : "Nothing is sent automatically. You read every email and press send yourself."
+          }
           right={
             <select
               value={templateId}
@@ -139,6 +143,16 @@ export default function RemindersPage() {
             </select>
           }
         />
+
+        {store.settings.autoSendReminders ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-line-hair bg-surface-alt px-5 py-2.5">
+            <StatusBadge kind="critical" label="Sending automatically" />
+            <p className="text-[11px] leading-relaxed text-ink-muted">
+              Turned on in Settings. This overrides the review step in the
+              proposal, where every reminder is approved by an officer first.
+            </p>
+          </div>
+        ) : null}
 
         <div className="border-b border-line-hair bg-surface-alt px-5 py-2.5">
           <p className="text-[11px] text-ink-muted">

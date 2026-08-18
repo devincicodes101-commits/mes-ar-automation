@@ -9,7 +9,8 @@ import {
   overdueTotal,
 } from "@/lib/data";
 import { useSession } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
+import { useStore } from "@/lib/store";
 import {
   Card,
   CardHeader,
@@ -49,7 +50,8 @@ type Tab = "matching" | "giro-setup" | "chase";
 
 export default function FailedPaymentsPage() {
   const { scope } = useSession();
-  const ds = useDataset();
+  const store = useStore();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const [tab, setTab] = useState<Tab>("matching");
 
   const accounts = useMemo(() => scope(ds.accounts), [ds, scope]);

@@ -83,12 +83,38 @@ export interface Template {
   body: string;
 }
 
+/**
+ * Email addresses typed in by the officer for tenants the AR export does not
+ * carry one for. Keyed by account id. These sit alongside the imported list
+ * rather than replacing it, so a later upload cannot silently wipe them.
+ */
+export type ManualEmails = Record<string, string[]>;
+
+export interface Settings {
+  /**
+   * Whether reminders go out without an officer approving each one.
+   *
+   * Off by default, deliberately. Proposal 4.5 requires "a review step before
+   * anything goes out", and the requirement deck states it as a highlighted
+   * rule: every reminder is drafted, previewed and approved by the CSD officer
+   * before anything is sent. Turning this on overrides that, so the screen
+   * says so plainly.
+   */
+  autoSendReminders: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  autoSendReminders: false,
+};
+
 export interface StoreState {
   calls: CallLog[];
   promises: PromiseRecord[];
   emails: SentEmail[];
   audit: AuditEntry[];
   templates: Template[];
+  manualEmails: ManualEmails;
+  settings: Settings;
 }
 
 const KEY = "mes-ar-prototype-v1";
@@ -185,6 +211,8 @@ const EMPTY: StoreState = {
   emails: [],
   audit: [],
   templates: DEFAULT_TEMPLATES,
+  manualEmails: {},
+  settings: DEFAULT_SETTINGS,
 };
 
 let state: StoreState = EMPTY;
@@ -203,6 +231,8 @@ function read(): StoreState {
       emails: parsed.emails ?? [],
       audit: parsed.audit ?? [],
       templates: parsed.templates?.length ? parsed.templates : DEFAULT_TEMPLATES,
+      manualEmails: parsed.manualEmails ?? {},
+      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
     };
   } catch {
     return EMPTY;
@@ -310,6 +340,47 @@ export function markPromiseConfirmed(promiseId: string): void {
   });
 }
 
+/** Records an email address the officer typed in for a tenant. */
+export function setManualEmails(
+  accountId: string,
+  companyName: string,
+  emails: string[],
+): void {
+  const next = { ...state.manualEmails };
+  if (emails.length === 0) delete next[accountId];
+  else next[accountId] = emails;
+
+  commit({
+    ...state,
+    manualEmails: next,
+    audit: [
+      log(
+        emails.length === 0 ? "Removed an email address" : "Added an email address",
+        companyName,
+      ),
+      ...state.audit,
+    ],
+  });
+}
+
+export function updateSettings(patch: Partial<Settings>): void {
+  commit({
+    ...state,
+    settings: { ...state.settings, ...patch },
+    audit: [
+      log(
+        patch.autoSendReminders === undefined
+          ? "Changed a setting"
+          : patch.autoSendReminders
+            ? "Turned ON automatic reminder sending"
+            : "Turned OFF automatic reminder sending",
+        "Settings",
+      ),
+      ...state.audit,
+    ],
+  });
+}
+
 export function saveTemplate(template: Template): void {
   commit({
     ...state,
@@ -328,7 +399,12 @@ export function recordExport(name: string): void {
 }
 
 export function resetStore(): void {
-  commit({ ...EMPTY, templates: DEFAULT_TEMPLATES });
+  commit({
+    ...EMPTY,
+    templates: DEFAULT_TEMPLATES,
+    manualEmails: {},
+    settings: DEFAULT_SETTINGS,
+  });
 }
 
 /* ------------------------------------------------------------- derivations */

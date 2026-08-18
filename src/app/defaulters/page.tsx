@@ -11,7 +11,7 @@ import {
 import { BUCKETS } from "@/lib/types";
 import { CALL_OUTCOMES, useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   BucketSwatch,
   Card,
@@ -30,7 +30,7 @@ import {
 export default function DefaultersPage() {
   const store = useStore();
   const { scope } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
 
   /**
    * Proposal 4.6 asks for this to be drawn from the aging report *and* from

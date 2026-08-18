@@ -10,7 +10,7 @@ import {
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
@@ -31,7 +31,7 @@ import {
 export default function LateFeesPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
-  const ds = useDataset();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
   const [preview, setPreview] = useState(false);

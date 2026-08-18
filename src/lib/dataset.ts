@@ -187,6 +187,30 @@ export function useDataset(): Dataset {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
+/**
+ * The dataset with any addresses the officer typed in folded on top.
+ *
+ * The AR export carries an email for only a handful of tenants, so the officer
+ * can add the rest by hand. Those live in the store rather than in the dataset,
+ * which means a later upload replaces the imported figures without wiping the
+ * addresses somebody spent an afternoon collecting.
+ */
+export function withManualEmails(
+  ds: Dataset,
+  manual: Record<string, string[]>,
+): Dataset {
+  if (Object.keys(manual).length === 0) return ds;
+  return {
+    ...ds,
+    accounts: ds.accounts.map((a) => {
+      const added = manual[a.id];
+      if (!added || added.length === 0) return a;
+      const emails = Array.from(new Set([...a.emails, ...added]));
+      return { ...a, emails, hasContact: emails.length > 0 };
+    }),
+  };
+}
+
 export function applyDataset(d: Dataset): void {
   commit(d);
 }

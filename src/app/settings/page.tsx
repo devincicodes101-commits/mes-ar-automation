@@ -1,299 +1,185 @@
 "use client";
 
 import { useState } from "react";
-import { Template, resetStore, saveTemplate, useStore } from "@/lib/store";
-import { MANAGERS, useSession, useToast } from "@/lib/session";
+import {
+  Template,
+  saveTemplate,
+  updateSettings,
+  useStore,
+} from "@/lib/store";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
-  EmptyState,
   Modal,
   StatusBadge,
   Tag,
 } from "@/components/ui";
 
-interface User {
-  id: string;
-  name: string;
-  role: "CSD" | "RM" | "Management";
-  rmKey?: string;
-}
-
-const SEED_USERS: User[] = [
-  { id: "u1", name: "Jacqueline", role: "CSD" },
-  { id: "u2", name: "Darren", role: "CSD" },
-  ...MANAGERS.map((m, i) => ({
-    id: `u${i + 3}`,
-    name: m.name,
-    role: "RM" as const,
-    rmKey: m.key,
-  })),
-  { id: "u9", name: "Raman", role: "Management" as const },
-];
-
-const ROLE_SEES: Record<User["role"], string> = {
-  CSD: "Every tenant, every property. Can send reminders, log calls and raise fees.",
-  RM: "Only the tenants assigned to them. View only.",
-  Management: "Totals and reports across every property. View only.",
-};
-
 export default function SettingsPage() {
   const store = useStore();
   const { canAct } = useSession();
   const { notify } = useToast();
-  const [users, setUsers] = useState<User[]>(SEED_USERS);
-  const [newName, setNewName] = useState("");
-  const [newRole, setNewRole] = useState<User["role"]>("CSD");
   const [editing, setEditing] = useState<Template | null>(null);
-  const [tab, setTab] = useState<"templates" | "users" | "activity">(
-    "templates",
-  );
+  const [confirming, setConfirming] = useState(false);
+
+  const auto = store.settings.autoSendReminders;
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-1">
-        {(
-          [
-            ["templates", "Email wording"],
-            ["users", "Who can see what"],
-            ["activity", "Activity log"],
-          ] as const
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setTab(k)}
-            aria-pressed={tab === k}
-            className={`rounded px-3 py-1.5 text-xs ${
-              tab === k
-                ? "bg-accent-wash font-medium text-ink"
-                : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* ------------------------------------------------ sending behaviour */}
+      <Card>
+        <CardHeader
+          title="How reminders go out"
+          hint="Whether an officer approves each email before it is sent, or the system sends them on the trigger date without asking."
+          right={
+            <StatusBadge
+              kind={auto ? "critical" : "good"}
+              label={auto ? "Sending automatically" : "Officer approves each one"}
+            />
+          }
+        />
 
-      {tab === "templates" ? (
-        <Card>
-          <CardHeader
-            title="Standard email wording"
-            hint="Change any of these yourself and save. You do not need a developer. The words in double braces are filled in automatically for each tenant."
-          />
-          <ul className="divide-y divide-line-grid">
-            {store.templates.map((t) => (
-              <li key={t.id} className="flex flex-wrap gap-4 px-5 py-3.5">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-ink">{t.name}</span>
-                    <Tag>{t.trigger}</Tag>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-ink-secondary">
-                    {t.subject}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEditing(t)}
-                  className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
-                >
-                  Edit wording
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
-            <p className="text-[11px] leading-relaxed text-ink-muted">
-              These are our drafts. MES has been asked for the wording the team
-              uses today, and we will replace them once it arrives.
+        <div className="flex flex-wrap items-start gap-4 px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-ink">
+              Send reminders without asking
+            </p>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-ink-secondary">
+              When this is off, the officer reads every email and presses send.
+              When it is on, the system sends them on the 7th and the 21st on
+              its own, and the officer only sees them afterwards in the activity
+              log.
             </p>
           </div>
-        </Card>
-      ) : null}
 
-      {tab === "users" ? (
-        <>
-          <Card>
-            <CardHeader
-              title="Who can see what"
-              hint="Access is decided at the database, not hidden in the screen. A relationship manager cannot reach another manager's tenants even by changing the web address."
-            />
-            <ul className="divide-y divide-line-grid">
-              {users.map((u) => (
-                <li key={u.id} className="flex flex-wrap items-center gap-4 px-5 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-ink">{u.name}</span>
-                      <Tag>{u.role}</Tag>
-                    </div>
-                    <p className="mt-0.5 text-xs text-ink-secondary">
-                      {ROLE_SEES[u.role]}
-                    </p>
-                  </div>
-                  <select
-                    aria-label={`Role for ${u.name}`}
-                    value={u.role}
-                    disabled={!canAct}
-                    onChange={(e) => {
-                      const role = e.target.value as User["role"];
-                      setUsers((list) =>
-                        list.map((x) => (x.id === u.id ? { ...x, role } : x)),
-                      );
-                      notify(`${u.name} is now ${role}`);
-                    }}
-                    className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink disabled:opacity-50"
-                  >
-                    <option value="CSD">CSD</option>
-                    <option value="RM">RM</option>
-                    <option value="Management">Management</option>
-                  </select>
-                  <button
-                    type="button"
-                    disabled={!canAct}
-                    onClick={() => {
-                      setUsers((list) => list.filter((x) => x.id !== u.id));
-                      notify(`${u.name} removed`);
-                    }}
-                    className="text-[11px] text-ink-muted underline hover:text-ink disabled:no-underline disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={auto}
+            disabled={!canAct}
+            onClick={() => {
+              if (!auto) {
+                setConfirming(true);
+                return;
+              }
+              updateSettings({ autoSendReminders: false });
+              notify("Automatic sending turned off", "Officers approve each email again.");
+            }}
+            className={`shrink-0 rounded border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+              auto
+                ? "border-line-strong text-ink hover:bg-surface-alt"
+                : "border-accent bg-accent text-accent-ink hover:opacity-90"
+            }`}
+          >
+            {auto ? "Turn off automatic sending" : "Turn on automatic sending"}
+          </button>
+        </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newName.trim()) return;
-                setUsers((list) => [
-                  ...list,
-                  {
-                    id: `u${Date.parse(new Date().toISOString())}`,
-                    name: newName.trim(),
-                    role: newRole,
-                  },
-                ]);
-                notify(`${newName.trim()} added as ${newRole}`);
-                setNewName("");
-              }}
-              className="flex flex-wrap items-end gap-3 border-t border-line-hair bg-surface-alt px-5 py-3.5"
-            >
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-medium text-ink-muted">
-                  Add someone
-                </span>
-                <input
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Full name"
-                  disabled={!canAct}
-                  className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted disabled:opacity-50"
-                />
-              </label>
-              <select
-                aria-label="Role for the new user"
-                value={newRole}
-                disabled={!canAct}
-                onChange={(e) => setNewRole(e.target.value as User["role"])}
-                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink disabled:opacity-50"
-              >
-                <option value="CSD">CSD</option>
-                <option value="RM">RM</option>
-                <option value="Management">Management</option>
-              </select>
+        {/*
+          The proposal is explicit about this, in two places, and one of them is
+          a highlighted callout in the deck MES was sent. Anyone switching it on
+          should see that rather than discover it later.
+        */}
+        <div className="border-t border-line-hair bg-surface-alt px-5 py-3.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <div className="shrink-0">
+              <StatusBadge kind="warning" label="Check this with MES" />
+            </div>
+            <div className="text-[11px] leading-relaxed text-ink-muted">
+              <p>
+                The proposal says the opposite. Section 4.5 requires a review
+                step before anything goes out, and the requirement deck states
+                it as a rule of its own: every reminder is drafted, previewed
+                and approved by the CSD officer before anything is sent.
+              </p>
+              <p className="mt-1.5">
+                Turning this on overrides what MES agreed to. It is worth
+                confirming with them before it is used on real tenants, since
+                the point of the review step is that nobody is chased in error.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* ---------------------------------------------------------- wording */}
+      <Card>
+        <CardHeader
+          title="Standard email wording"
+          hint="Change any of these yourself and save. You do not need a developer. The words in double braces are filled in automatically for each tenant."
+        />
+        <ul className="divide-y divide-line-grid">
+          {store.templates.map((t) => (
+            <li key={t.id} className="flex flex-wrap gap-4 px-5 py-3.5">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-ink">{t.name}</span>
+                  <Tag>{t.trigger}</Tag>
+                </div>
+                <p className="mt-1 truncate text-xs text-ink-secondary">
+                  {t.subject}
+                </p>
+              </div>
               <button
-                type="submit"
-                disabled={!canAct || !newName.trim()}
-                className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                type="button"
+                disabled={!canAct}
+                onClick={() => setEditing(t)}
+                className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Add user
+                Edit wording
               </button>
-              {!canAct ? (
-                <span className="text-[11px] text-ink-muted">
-                  Only CSD can manage users.
-                </span>
-              ) : null}
-            </form>
-          </Card>
-
-          <Card>
-            <CardHeader title="How the data is protected" />
-            <ul className="divide-y divide-line-grid">
-              {[
-                "Every table has row level security switched on, so the database itself refuses to return rows a person is not entitled to.",
-                "Passwords are never stored by us. Sign in is handled by Supabase.",
-                "Sensitive fields are encrypted at rest.",
-                "Every action is written to the activity log with the person's name and the time.",
-                "Tenant data never leaves MES control. Nothing is sent to NetSuite or the bank automatically.",
-              ].map((line) => (
-                <li
-                  key={line}
-                  className="px-5 py-2.5 text-xs leading-relaxed text-ink-secondary"
-                >
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </Card>
-        </>
-      ) : null}
-
-      {tab === "activity" ? (
-        <Card>
-          <CardHeader
-            title="Activity log"
-            hint="Every email, call, promise and export, with who did it and when. This is what auditors and disputes rely on."
-            right={
-              store.audit.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Clear all demo activity? This only affects this browser.",
-                      )
-                    ) {
-                      resetStore();
-                    }
-                  }}
-                  className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
-                >
-                  Clear demo data
-                </button>
-              ) : undefined
-            }
-          />
-          {store.audit.length === 0 ? (
-            <EmptyState
-              title="Nothing recorded yet"
-              body="Send a reminder or log a call, and it will appear here immediately."
-            />
-          ) : (
-            <ul className="divide-y divide-line-grid">
-              {store.audit.map((a) => (
-                <li key={a.id} className="flex flex-wrap gap-4 px-5 py-2.5">
-                  <span className="w-40 shrink-0 text-[11px] text-ink-muted">
-                    {new Date(a.at).toLocaleString("en-SG")}
-                  </span>
-                  <span className="min-w-0 flex-1 text-xs text-ink-secondary">
-                    <span className="font-medium text-ink">{a.actor}</span>{" "}
-                    {a.action.toLowerCase()} for{" "}
-                    <span className="text-ink">{a.subject}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      ) : null}
+            </li>
+          ))}
+        </ul>
+        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
+          <p className="text-[11px] leading-relaxed text-ink-muted">
+            These are our drafts. MES has been asked for the wording the team
+            uses today, and we will replace them once it arrives.
+          </p>
+        </div>
+      </Card>
 
       {editing ? (
-        <TemplateEditor
-          template={editing}
-          onClose={() => setEditing(null)}
-        />
+        <TemplateEditor template={editing} onClose={() => setEditing(null)} />
+      ) : null}
+
+      {confirming ? (
+        <Modal title="Turn on automatic sending?" onClose={() => setConfirming(false)}>
+          <p className="text-xs leading-relaxed text-ink-secondary">
+            Reminders will go out on the 7th and the 21st without anyone reading
+            them first. Any tenant with an email address on file and a balance
+            past 30 days will be emailed.
+          </p>
+          <p className="mt-3 text-xs leading-relaxed text-ink-secondary">
+            This overrides the review step in section 4.5 of the proposal, and
+            the human in the loop rule MES was shown. Worth confirming with them
+            first.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                updateSettings({ autoSendReminders: true });
+                notify(
+                  "Automatic sending turned on",
+                  "Reminders will go out without approval.",
+                );
+                setConfirming(false);
+              }}
+              className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+            >
+              Turn it on
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
@@ -306,6 +192,7 @@ function TemplateEditor({
   template: Template;
   onClose: () => void;
 }) {
+  const { notify } = useToast();
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.body);
 
@@ -357,6 +244,7 @@ function TemplateEditor({
             type="button"
             onClick={() => {
               saveTemplate({ ...template, subject, body });
+              notify(`${template.name} saved`);
               onClose();
             }}
             className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
@@ -370,7 +258,6 @@ function TemplateEditor({
           >
             Cancel
           </button>
-          <StatusBadge kind="good" label="Saved to the activity log" />
         </div>
       </div>
     </Modal>
