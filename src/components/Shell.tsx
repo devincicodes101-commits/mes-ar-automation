@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 
 
 import { MANAGERS, ROLES, Role, useSession } from "@/lib/session";
@@ -124,6 +124,46 @@ export function navFor(pathname: string) {
   return NAV.find((n) => n.href === pathname);
 }
 
+/**
+ * Light and dark.
+ *
+ * The palette is defined once as tokens and the dark values are declared under
+ * both the prefers-color-scheme media query and the data-theme attribute, so
+ * this toggle wins in both directions: it can override an OS set to dark, and
+ * an OS set to light.
+ */
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const stamped = document.documentElement.getAttribute("data-theme");
+    if (stamped) {
+      setDark(stamped === "dark");
+      return;
+    }
+    setDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }, []);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.setAttribute(
+      "data-theme",
+      next ? "dark" : "light",
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+    >
+      {dark ? "Light mode" : "Dark mode"}
+    </button>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { role, setRole, rmKey, setRmKey, scopeNote } = useSession();
@@ -238,6 +278,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </select>
             ) : null}
 
+            <ThemeToggle />
           </div>
         </header>
 
