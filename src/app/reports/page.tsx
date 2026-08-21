@@ -87,7 +87,8 @@ export default function ReportsPage() {
     [accounts, ds.invoices],
   );
   const managers = useMemo(
-    () => rmReports(accounts, ds.managers),
+    () =>
+      rmReports(accounts, ds.managers).filter((m) => m.accounts.length > 0),
     [accounts, ds.managers],
   );
 
@@ -240,6 +241,9 @@ export default function ReportsPage() {
                   <tr key={d.account.id} className="border-b border-line-grid">
                     <td className="px-5 py-2.5">
                       <span className="text-ink">{d.account.companyName}</span>
+                      <span className="ml-2 text-[11px] text-ink-muted">
+                        {d.account.property}
+                      </span>
                       {d.offsetting ? (
                         <span className="ml-2">
                           <StatusBadge kind="serious" label="Being offset" />
