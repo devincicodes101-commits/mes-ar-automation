@@ -3,6 +3,13 @@
 import * as XLSX from "xlsx";
 import { Account, Invoice, PropertyCode } from "./types";
 
+// The classification rules live on their own so the build can check them
+// against every description MES has ever sent: see scripts/test-revenue.mts.
+// Re-exported because parser.ts has always been where callers found it.
+import { revenueType } from "./revenue-rules";
+
+export { revenueType };
+
 /**
  * Reads the two workbooks MES exports from NetSuite.
  *
@@ -305,24 +312,6 @@ export function parseSummary(wb: XLSX.WorkBook): ParsedSummary {
 }
 
 /* -------------------------------------------------------- the detail report */
-
-/** Works out what a charge is for, from the free text description. */
-export function revenueType(description: string): string {
-  const d = description.toUpperCase();
-  if (d.includes("ONEFM") || d.includes("ONE FM")) return "1FM Maintenance";
-  if (d.trim() === "VAT") return "VAT";
-  if (d.includes("OCCUPANCY FEE")) return "Occupancy Fee";
-  if (d.includes("CREAM SERVICE")) return "CREAM Services";
-  if (d.includes("FURNITURE")) return "Furniture & Fittings";
-  if (d.includes("SERVICE & CONSERVANCY")) return "Service & Conservancy";
-  if (d.includes("LATE PAYMENT")) return "Late Payment Fee";
-  if (d.includes("REJECTED GIRO")) return "Rejected GIRO Fee";
-  if (d.includes("SEASON PARKING")) return "Season Parking";
-  if (d.includes("STAMP DUTY")) return "Stamp Duty";
-  if (d.includes("SECURITY DEPOSIT")) return "Security Deposit";
-  if (d.includes("ADMIN FEE")) return "Admin Fee";
-  return "Other Charges";
-}
 
 /**
  * AR reports-Final.xlsx. The main tab interleaves three kinds of row: a

@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run test:revenue && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:revenue": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-revenue.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

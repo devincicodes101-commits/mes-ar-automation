@@ -5,6 +5,7 @@ import { data, formatSgd, kpis } from "@/lib/data";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
+import { unrecognisedDescriptions } from "@/lib/revenue-rules";
 import { applyDataset, datasetFromResults, revertToSample, useDataset } from "@/lib/dataset";
 
 type Phase = "idle" | "parsing" | "done";
@@ -446,6 +447,8 @@ function ParseReport({
 
       {detail ? <SheetsRead sheets={detail.sheets} /> : null}
 
+      {detail ? <Unclassified invoices={detail.invoices} /> : null}
+
       {problems.length > 0 ? (
         <div className="border-t border-line-hair">
           <div className="flex items-center gap-2 bg-surface-alt px-5 py-2.5">
@@ -487,6 +490,76 @@ function ParseReport({
         </div>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * Descriptions no classification rule claimed.
+ *
+ * MES types these by hand and new wordings appear every month, so the keyword
+ * list will never be finished. This panel is what keeps that honest: anything
+ * we failed to recognise is named here, with a count, within one upload.
+ *
+ * A line reading "Other Charges" is not listed. MES wrote those words
+ * deliberately, so it is their classification rather than our failure, and
+ * reporting it would have this panel crying wolf on every single upload.
+ */
+function Unclassified({
+  invoices,
+}: {
+  invoices: { description: string }[];
+}) {
+  const missed = unrecognisedDescriptions(invoices.map((i) => i.description));
+  const lines = missed.reduce((n, m) => n + m.count, 0);
+
+  return (
+    <div className="border-t border-line-hair px-5 py-4">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <StatusBadge
+          kind={missed.length === 0 ? "good" : "warning"}
+          label={
+            missed.length === 0
+              ? "Every charge was classified"
+              : `${missed.length} description${missed.length === 1 ? "" : "s"} not recognised`
+          }
+        />
+        {missed.length > 0 ? (
+          <span className="text-[11px] text-ink-muted">
+            {lines} line{lines === 1 ? "" : "s"}, filed under Other Charges
+          </span>
+        ) : null}
+      </div>
+
+      {missed.length > 0 ? (
+        <>
+          <ul className="mt-2.5 divide-y divide-line-grid rounded border border-line-hair">
+            {missed.slice(0, 20).map((m) => (
+              <li
+                key={m.description}
+                className="flex items-start gap-3 px-3 py-2"
+              >
+                <span className="tabular shrink-0 text-[11px] text-ink-muted">
+                  {m.count} line{m.count === 1 ? "" : "s"}
+                </span>
+                <span className="text-[11px] leading-relaxed text-ink-secondary">
+                  {m.description}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {missed.length > 20 ? (
+            <p className="mt-1.5 text-[11px] text-ink-muted">
+              and {missed.length - 20} more
+            </p>
+          ) : null}
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-secondary">
+            These still count towards the tenant&apos;s balance. They are
+            grouped under Other Charges until a rule is added for them, which
+            is a code change so that money cannot be reclassified by accident.
+          </p>
+        </>
+      ) : null}
+    </div>
   );
 }
 
