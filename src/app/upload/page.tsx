@@ -41,7 +41,6 @@ export default function UploadPage() {
   const ds = useDataset();
   const [phase, setPhase] = useState<Phase>("idle");
   const [arFile, setArFile] = useState<File | null>(null);
-  const [dbsFile, setDbsFile] = useState<File | null>(null);
   const [results, setResults] = useState<ParseResult[]>([]);
   const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +58,7 @@ export default function UploadPage() {
     setError(null);
     setPhase("parsing");
 
-    const chosen = [arFile, dbsFile].filter(Boolean) as File[];
+    const chosen = [arFile].filter(Boolean) as File[];
     if (chosen.length === 0) {
       setResults([]);
       setPhase("done");
@@ -90,7 +89,6 @@ export default function UploadPage() {
   function reset() {
     setPhase("idle");
     setArFile(null);
-    setDbsFile(null);
     setResults([]);
     setError(null);
   }
@@ -127,22 +125,15 @@ export default function UploadPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <DropZone
-          title="AR Report"
-          hint="The multi worksheet export from NetSuite, usually named AR reports-Final.xlsx."
-          note="Every worksheet in the file is listed back to you once it has been read."
-          file={arFile}
-          onFile={setArFile}
-        />
-        <DropZone
-          title="Bank Report, failed GIRO"
-          hint="The DBS Bulk Collection Report, listing which deductions did not go through."
-          note="Export it from DBS as CSV or Excel. A PDF or screenshot cannot be read: a misread digit would mean chasing the wrong tenant for the wrong sum. Rejected lines are split into NO DDA and REFER PAYING PARTY."
-          file={dbsFile}
-          onFile={setDbsFile}
-        />
-      </div>
+      {/* One input. The DBS bank report was removed at the client's
+          request: see docs/dbs-removal.md. */}
+      <DropZone
+        title="AR Report"
+        hint="The export from NetSuite. This is the only file the system needs."
+        note="Every worksheet in the file is listed back to you once it has been read."
+        file={arFile}
+        onFile={setArFile}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -151,7 +142,7 @@ export default function UploadPage() {
           disabled={phase === "parsing" || !canAct}
           className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {phase === "parsing" ? "Reading files" : "Read the files"}
+          {phase === "parsing" ? "Reading the file" : "Read the file"}
         </button>
 
         {phase === "done" ? (
@@ -455,27 +446,6 @@ function ParseReport({
 
       {detail ? <SheetsRead sheets={detail.sheets} /> : null}
 
-      {/* Proposal 4.1. Still stated from the batch header, because the bank
-          report in the sample is an image we deliberately refuse to read. */}
-      {!detail && !summary ? null : (
-        <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
-          <Route
-            count={1}
-            reason="NO DDA"
-            means="Never signed the GIRO form"
-            goesTo="GIRO setup request, not a chasing email"
-            kind="warning"
-          />
-          <Route
-            count={22}
-            reason="REFER PAYING PARTY"
-            means="Signed up, but no money in the account"
-            goesTo="Action List, for chasing"
-            kind="critical"
-          />
-        </div>
-      )}
-
       {problems.length > 0 ? (
         <div className="border-t border-line-hair">
           <div className="flex items-center gap-2 bg-surface-alt px-5 py-2.5">
@@ -572,36 +542,6 @@ function SheetsRead({ sheets }: { sheets: string[] }) {
             : ""}
         </p>
       ) : null}
-    </div>
-  );
-}
-
-/**
- * One of the two routes a failed payment can take. Proposal 4.1 requires NO DDA
- * and REFER PAYING PARTY to be handled differently, so the split is shown here
- * rather than buried in a sentence.
- */
-function Route({
-  count,
-  reason,
-  means,
-  goesTo,
-  kind,
-}: {
-  count: number;
-  reason: string;
-  means: string;
-  goesTo: string;
-  kind: "warning" | "critical";
-}) {
-  return (
-    <div className="bg-surface px-5 py-4">
-      <div className="flex items-baseline gap-2.5">
-        <span className="text-2xl font-semibold text-ink">{count}</span>
-        <StatusBadge kind={kind} label={reason} />
-      </div>
-      <p className="mt-2 text-xs text-ink-secondary">{means}</p>
-      <p className="mt-1.5 text-[11px] text-ink-muted">Sent to: {goesTo}</p>
     </div>
   );
 }

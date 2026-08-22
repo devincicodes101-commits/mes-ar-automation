@@ -155,21 +155,6 @@ Customer Services Department
 MES Group`,
   },
   {
-    id: "giro-setup",
-    name: "GIRO setup request",
-    trigger: "When no mandate exists",
-    subject: "Setting up GIRO for {{company}}",
-    body: `Dear {{company}},
-
-We were unable to collect this month's charges because there is no GIRO arrangement in place for account {{code}}.
-
-Setting up GIRO means future charges are collected automatically and avoids late payment fees. The form is attached.
-
-Kind regards,
-Customer Services Department
-MES Group`,
-  },
-  {
     id: "promise-confirmation",
     name: "Promise confirmation",
     trigger: "Straight after a promise is recorded",

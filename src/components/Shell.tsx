@@ -30,22 +30,13 @@ export const NAV: {
     href: "/upload",
     label: "Upload Reports",
     group: "Prepare",
-    note: "Bring in this month's AR report and the bank's failed GIRO list.",
+    note: "Bring in this month's AR report.",
   },
   {
     href: "/",
     label: "Outstanding Balances",
     group: "Prepare",
     note: "Who owes what, and how overdue it is.",
-  },
-  {
-    href: "/failed-payments",
-    label: "Failed Payments",
-    group: "Prepare",
-    note: "Which bank payments bounced, and where each one goes next.",
-    // Hidden at the client's request. The batch summary lives in Upload
-    // Reports, which is where proposal 4.9 puts it anyway.
-    hidden: true,
   },
   {
     href: "/collections",

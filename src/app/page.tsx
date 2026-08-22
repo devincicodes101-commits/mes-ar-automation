@@ -9,9 +9,6 @@ import {
   kpis,
   overdueTotal,
   revenueBreakdown,
-  GIRO_LABEL,
-  GiroStatus,
-  giroStatus,
 } from "@/lib/data";
 import { Account, BUCKETS, BucketKey, PropertyCode } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
@@ -50,7 +47,6 @@ export default function AgingBoardPage() {
   const [status, setStatus] = useState<StatusFilter>("Live");
   const [view, setView] = useState<ViewMode>("tenant");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [giro, setGiro] = useState<GiroStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("overdue");
   const [desc, setDesc] = useState(true);
@@ -60,7 +56,6 @@ export default function AgingBoardPage() {
     const list = scope(ds.accounts)
       .filter((a) => (property === "ALL" ? true : a.property === property))
       .filter((a) => a.status === status)
-      .filter((a) => (giro === "ALL" ? true : giroStatus(a) === giro))
       .filter((a) =>
         q === ""
           ? true
@@ -84,7 +79,7 @@ export default function AgingBoardPage() {
           : Number(x) - Number(y);
       return desc ? -cmp : cmp;
     });
-  }, [ds, property, status, giro, query, sort, desc, scope]);
+  }, [ds, property, status, query, sort, desc, scope]);
 
   function sortState(key: SortKey): "ascending" | "descending" | "none" {
     if (sort !== key) return "none";
@@ -219,22 +214,6 @@ export default function AgingBoardPage() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Objective bullet 2 lists GIRO status alongside property,
-                revenue type and Live/Terminated as a way to group the board. */}
-            <label className="sr-only" htmlFor="giro-filter">
-              GIRO status
-            </label>
-            <select
-              id="giro-filter"
-              value={giro}
-              onChange={(e) => setGiro(e.target.value as GiroStatus | "ALL")}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
-            >
-              <option value="ALL">Any GIRO status</option>
-              <option value="enrolled">On GIRO, payment rejected</option>
-              <option value="no-mandate">No GIRO mandate</option>
-              <option value="unknown">Not confirmed</option>
-            </select>
             <input
               type="search"
               value={query}
@@ -597,9 +576,6 @@ function AccountRow({
                 </span>
                 {account.isOneFm ? <Tag>1FM</Tag> : null}
                 {account.industry ? <Tag>{account.industry}</Tag> : null}
-                <span className="text-[11px] text-ink-muted">
-                  {GIRO_LABEL[giroStatus(account)]}
-                </span>
                 {credit ? (
                   <StatusBadge kind="good" label="In credit" />
                 ) : null}

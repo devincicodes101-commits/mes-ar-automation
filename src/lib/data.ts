@@ -121,7 +121,7 @@ export function buildQueue(accounts: Account[]): QueueItem[] {
 
     if (overdue > 0) reasons.push("aging-30");
     if (severeTotal(account) > 0) reasons.push("aging-90");
-    if (account.lateFeeCount >= 3) reasons.push("giro-refer-paying-party");
+    if (account.lateFeeCount >= 3) reasons.push("repeat-late-fees");
     if (!account.hasContact && overdue > 0) reasons.push("no-contact");
     if (account.legacyNote) reasons.push("promise-broken");
 
@@ -160,30 +160,6 @@ export function formatDate(iso: string | null): string {
   });
 }
 
-/* --------------------------------------------------------------- GIRO status */
-
-export type GiroStatus = "enrolled" | "no-mandate" | "unknown";
-
-export const GIRO_LABEL: Record<GiroStatus, string> = {
-  enrolled: "On GIRO, payment rejected",
-  "no-mandate": "No GIRO mandate",
-  unknown: "GIRO status not confirmed",
-};
-
-/**
- * Proposal 4.4 requires the queue to show GIRO status.
- *
- * The AR report carries no such column, and the bank report that would answer
- * it has the tenant names redacted. What we can prove: if a tenant has been
- * charged the rejected GIRO admin fee, a deduction was attempted against them,
- * so a mandate must exist. Everything else stays honestly unknown rather than
- * being guessed.
- */
-export function giroStatus(a: Account): GiroStatus {
-  if (a.revenueTypes.includes("Rejected GIRO Fee")) return "enrolled";
-  return "unknown";
-}
-
 /** The worst bucket an account has money sitting in. Used on the call form. */
 export function worstBucket(a: Account): string {
   if (a.buckets.d90plus > 0) return "More than 90 days";
@@ -192,13 +168,6 @@ export function worstBucket(a: Account): string {
   if (a.buckets.d30 > 0) return "30 days";
   return "Current";
 }
-
-/**
- * The date the bank last attempted collection, from the DBS batch header.
- * Per tenant dates need the unredacted report, so this is the batch level date
- * and the screen labels it as such.
- */
-export const LAST_BANK_RUN = "2026-05-04";
 
 /* ------------------------------------------------ revenue type segmentation */
 
@@ -419,10 +388,26 @@ export function feesDue(accounts: Account[], rule: FeeRule): FeeLine[] {
 
 /** Written for the officer reading the screen, not for the spec. */
 export const REASON_LABEL: Record<QueueReason, string> = {
-  "giro-no-dda": "Never set up GIRO",
-  "giro-refer-paying-party": "Payment fails every month",
+  "repeat-late-fees": "Charged late fees repeatedly",
   "aging-30": "Overdue more than 30 days",
   "aging-90": "Owed for over 90 days",
   "promise-broken": "Promised to pay",
   "no-contact": "No email address",
 };
+
+/**
+ * The reason as the officer should read it, given the account it is about.
+ *
+ * `repeat-late-fees` carries a count because "charged 7 times" and "charged 3
+ * times" are different conversations, and a number baked into the string would
+ * be wrong the moment the data moves. Everything else is fixed text.
+ */
+export function reasonLabel(reason: QueueReason, a: Account): string {
+  if (reason === "repeat-late-fees") {
+    return `Charged late fees ${a.lateFeeCount} times`;
+  }
+  if (reason === "promise-broken" && a.legacyNote) {
+    return `Promise: ${a.legacyNote}`;
+  }
+  return REASON_LABEL[reason];
+}

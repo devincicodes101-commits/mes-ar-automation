@@ -532,7 +532,7 @@ export async function parseWorkbook(file: File): Promise<ParseResult> {
             `"${file.name}" is an image or PDF. Amounts and account numbers ` +
             "cannot be read reliably from a picture, and a misread digit would " +
             "mean chasing the wrong tenant for the wrong sum. Please export " +
-            "this report from DBS as CSV or Excel instead.",
+            "the report as CSV or Excel instead."
         },
       ],
     };

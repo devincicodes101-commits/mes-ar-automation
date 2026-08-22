@@ -2,12 +2,9 @@
 
 import { useMemo, useState } from "react";
 import {
-  GIRO_LABEL,
-  GiroStatus,
-  REASON_LABEL,
   buildQueue,
   formatSgd,
-  giroStatus,
+  reasonLabel,
   revenueTypes,
   severeTotal,
 } from "@/lib/data";
@@ -46,8 +43,7 @@ const REASON_KIND: Record<
   QueueReason,
   "good" | "warning" | "serious" | "critical" | "neutral"
 > = {
-  "giro-no-dda": "warning",
-  "giro-refer-paying-party": "critical",
+  "repeat-late-fees": "critical",
   "aging-30": "warning",
   "aging-90": "critical",
   "promise-broken": "serious",
@@ -76,7 +72,6 @@ export default function ActionListPage() {
   const [status, setStatus] = useState<StatusFilter>("All");
   const [age, setAge] = useState<AgeFilter>("any");
   const [charge, setCharge] = useState("All");
-  const [giro, setGiro] = useState<GiroStatus | "All">("All");
   const [oneFmOnly, setOneFmOnly] = useState(false);
 
   const types = useMemo(() => revenueTypes(ds.invoices), [ds.invoices]);
@@ -87,10 +82,9 @@ export default function ActionListPage() {
       .filter((a) => (status === "All" ? true : a.status === status))
       .filter((a) => (oneFmOnly ? a.isOneFm : true))
       .filter((a) => (charge === "All" ? true : a.revenueTypes.includes(charge)))
-      .filter((a) => (giro === "All" ? true : giroStatus(a) === giro))
       .filter((a) => matchesAge(a, age));
     return buildQueue(accounts);
-  }, [ds, property, status, age, charge, giro, oneFmOnly, scope]);
+  }, [ds, property, status, age, charge, oneFmOnly, scope]);
 
   /**
    * How many tenants each aging option would return, given the other filters.
@@ -105,8 +99,7 @@ export default function ActionListPage() {
         .filter((a) => (oneFmOnly ? a.isOneFm : true))
         .filter((a) =>
           charge === "All" ? true : a.revenueTypes.includes(charge),
-        )
-        .filter((a) => (giro === "All" ? true : giroStatus(a) === giro)),
+        ),
     );
     return AGE_FILTERS.reduce(
       (acc, f) => {
@@ -115,7 +108,7 @@ export default function ActionListPage() {
       },
       {} as Record<AgeFilter, number>,
     );
-  }, [ds, property, status, charge, giro, oneFmOnly, scope]);
+  }, [ds, property, status, charge, oneFmOnly, scope]);
 
   const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
   const noContact = queue.filter((q) => !q.account.hasContact).length;
@@ -124,7 +117,6 @@ export default function ActionListPage() {
     status !== "All" ||
     age !== "any" ||
     charge !== "All" ||
-    giro !== "All" ||
     property !== "All" ||
     oneFmOnly;
 
@@ -263,22 +255,6 @@ export default function ActionListPage() {
             </select>
           </label>
 
-          <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-ink-muted">
-              GIRO status
-            </span>
-            <select
-              value={giro}
-              onChange={(e) => setGiro(e.target.value as GiroStatus | "All")}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
-            >
-              <option value="All">Any status</option>
-              <option value="enrolled">On GIRO, payment rejected</option>
-              <option value="no-mandate">No GIRO mandate</option>
-              <option value="unknown">Not confirmed</option>
-            </select>
-          </label>
-
           {/* Always rendered, so it is findable. Disabled when nothing is set,
               which also tells the officer at a glance that they are seeing the
               whole list rather than a filtered slice. */}
@@ -289,7 +265,6 @@ export default function ActionListPage() {
               setStatus("All");
               setAge("any");
               setCharge("All");
-              setGiro("All");
               setProperty("All");
               setOneFmOnly(false);
             }}
@@ -344,22 +319,17 @@ export default function ActionListPage() {
                         <StatusBadge
                           key={r}
                           kind={REASON_KIND[r]}
-                          label={
-                            r === "promise-broken" && item.account.legacyNote
-                              ? `Promise: ${item.account.legacyNote}`
-                              : REASON_LABEL[r]
-                          }
+                          label={reasonLabel(r, item.account)}
                         />
                       ))}
                     </div>
 
-                    {/* Proposal 4.4: the row must show GIRO status and revenue
-                        type alongside the reason and the balance. */}
+                    {/* Proposal 4.4 also named GIRO status here. It went with
+                        the DBS upload: see docs/dbs-removal.md. */}
                     <p className="mt-1.5 text-[11px] text-ink-muted">
-                      {GIRO_LABEL[giroStatus(item.account)]}
                       {item.account.revenueTypes.length > 0 ? (
                         <>
-                          {" · Charges: "}
+                          {"Charges: "}
                           {item.account.revenueTypes.slice(0, 4).join(", ")}
                           {item.account.revenueTypes.length > 4
                             ? ` and ${item.account.revenueTypes.length - 4} more`

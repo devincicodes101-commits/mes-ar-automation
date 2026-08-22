@@ -87,11 +87,12 @@ export interface ArData {
 
 /**
  * Why an account is sitting in the collections queue.
- * `giroFailed` reasons come from the DBS report, the rest from the AR report.
+ *
+ * Every reason is derived from the AR report. The two GIRO reasons that used
+ * to sit here were removed with the DBS upload: see docs/dbs-removal.md.
  */
 export type QueueReason =
-  | "giro-no-dda"
-  | "giro-refer-paying-party"
+  | "repeat-late-fees"
   | "aging-30"
   | "aging-90"
   | "promise-broken"

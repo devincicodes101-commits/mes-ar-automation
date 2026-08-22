@@ -49,8 +49,8 @@ export default function RemindersPage() {
    * Each wording goes to a different set of tenants. Without this the list was
    * identical for every template and the dropdown looked broken.
    *
-   * MES SOP 2.1 asks for reminders grouped by GIRO status and portfolio, which
-   * is what this is: the audience follows the tenant's profile.
+   * MES SOP 2.1 asks for reminders grouped by portfolio, which is what this
+   * is: the audience follows the tenant's profile.
    */
   const audience = useMemo(() => {
     const gotFirst = new Set(
@@ -67,13 +67,6 @@ export default function RemindersPage() {
           ),
           empty:
             "The final notice goes to tenants who already had a first reminder. Send some, and they appear here.",
-        };
-
-      case "giro-setup":
-        return {
-          list: [],
-          empty:
-            "For tenants who never signed the GIRO form. The bank report needs to be readable before we can tell who they are.",
         };
 
       case "onefm":

@@ -2,11 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
-  GIRO_LABEL,
-  LAST_BANK_RUN,
   buildQueue,
   formatSgd,
-  giroStatus,
   overdueTotal,
   severeTotal,
   worstBucket,
@@ -228,7 +225,7 @@ function CallForm({
   const [date, setDate] = useState("");
   const [next, setNext] = useState("");
   const [notes, setNotes] = useState("");
-  const [failDate, setFailDate] = useState(LAST_BANK_RUN);
+  const [failDate, setFailDate] = useState("");
 
   const promised = outcome === "promised-to-pay";
   const bucket = worstBucket(account);
@@ -272,7 +269,6 @@ function CallForm({
           label="Overdue"
           value={`SGD ${formatSgd(overdueTotal(account))}`}
         />
-        <Fact label="GIRO" value={GIRO_LABEL[giroStatus(account)]} />
       </dl>
 
       <form onSubmit={submit} className="space-y-4 pt-4">
@@ -284,7 +280,7 @@ function CallForm({
             className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
           />
           <span className="mt-1 block text-[11px] text-ink-muted">
-            From the bank run on {LAST_BANK_RUN}. Correct it if you know better.
+            Leave blank if you do not know it.
           </span>
         </Field>
 
