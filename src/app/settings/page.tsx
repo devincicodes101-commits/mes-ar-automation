@@ -8,6 +8,7 @@ import {
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { REVENUE_RULES } from "@/lib/revenue-rules";
 import {
   Card,
   CardHeader,
@@ -79,6 +80,70 @@ export default function SettingsPage() {
           <StatusBadge kind="warning" label="Check with MES" />
           <p className="text-[11px] text-ink-muted">
             The agreed process has an officer approve each email.
+          </p>
+        </div>
+      </Card>
+
+      {/* ------------------------------------------------ classification */}
+      <Card>
+        <CardHeader
+          title="How a charge is classified"
+          hint="Read from the description on each invoice line. The first rule that matches wins."
+          right={<StatusBadge kind="neutral" label="Read only" />}
+        />
+        <ol className="divide-y divide-line-grid">
+          {REVENUE_RULES.map((rule) => (
+            <li key={rule.order} className="flex gap-4 px-5 py-3">
+              <span className="tabular w-6 shrink-0 pt-0.5 text-xs text-ink-muted">
+                {rule.order}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-ink">
+                    {rule.type}
+                  </span>
+                  {rule.exact ? <Tag>is exactly &ldquo;{rule.exact}&rdquo;</Tag> : null}
+                  {rule.startsWith && !rule.keywords.length ? (
+                    <Tag>or starts with &ldquo;{rule.startsWith}&rdquo;</Tag>
+                  ) : null}
+                  {rule.keywords.map((k) => (
+                    <Tag key={k}>contains &ldquo;{k}&rdquo;</Tag>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-ink-secondary">{rule.means}</p>
+                {rule.ordering ? (
+                  <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                    {rule.ordering}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+          <li className="flex gap-4 px-5 py-3">
+            <span className="tabular w-6 shrink-0 pt-0.5 text-xs text-ink-muted">
+              {REVENUE_RULES.length + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-ink">
+                  Other Charges
+                </span>
+                <Tag>anything else</Tag>
+              </div>
+              <p className="mt-1 text-xs text-ink-secondary">
+                Nothing above matched. These are listed by description after
+                every upload, so a wording we have not seen before shows up
+                straight away.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <div className="border-t border-line-hair px-5 py-3">
+          <p className="text-[11px] leading-relaxed text-ink-muted">
+            The order is deliberate and some rules only work because of where
+            they sit. Occupancy Fee alone is most of the money owed, so these
+            are changed in code and checked against every description MES has
+            sent before they can be released, rather than being editable here.
           </p>
         </div>
       </Card>
