@@ -1,5 +1,5 @@
-import raw from "./mock/arData.json";
-import {
+import raw from "./mock/arData.json" with { type: "json" };
+import type {
   Account,
   ArData,
   BucketKey,
@@ -44,6 +44,19 @@ export function invoicesForAccount(
 }
 
 /** Balance sitting at 30 days or worse. This is what MES actually chases. */
+/**
+ * What is past the trigger line, meaning everything outside Current.
+ *
+ * Worth knowing what that is in days. MES count anything up to and including
+ * 15 days past due as Current, so this is "more than 15 days overdue", not
+ * "more than 30". The proposal and MES both call it the 30-day trigger line
+ * because the first bucket past it is labelled "30 days", and that name is
+ * kept here so the screens match the language MES use.
+ *
+ * It is the right measure for deciding who to chase. It is the wrong measure
+ * for the late payment fee, which falls due at 14 days and is therefore still
+ * inside Current: see feesDue.
+ */
 export function overdueTotal(a: Account): number {
   return a.buckets.d30 + a.buckets.d60 + a.buckets.d90 + a.buckets.d90plus;
 }
@@ -382,6 +395,12 @@ export interface FeeRule {
   minimumBalance: number;
   /** Skip accounts that have already moved out. */
   skipTerminated: boolean;
+  /**
+   * How many days past its due date a charge must be before it attracts the
+   * fee. Fourteen, from MES's own letter: rent falls due on the 1st and the
+   * fee applies if payment has not arrived by the 15th.
+   */
+  minimumAgeDays: number;
 }
 
 /**
@@ -404,6 +423,7 @@ export const DEFAULT_FEE_RULE: FeeRule = {
   value: 100,
   minimumBalance: 0,
   skipTerminated: false,
+  minimumAgeDays: 14,
 };
 
 /**
@@ -415,20 +435,60 @@ export const CHEQUE_ADMIN_FEE = 50;
 
 export interface FeeLine {
   account: Account;
+  /** What the fee is being charged on: due at least minimumAgeDays ago. */
   overdue: number;
   fee: number;
   alreadyCharged: number;
+  /**
+   * True when the figure came from the aging buckets rather than from invoice
+   * dates, because the upload carried no line detail. The buckets cannot
+   * express "14 days", so the selection is approximate and the screen says so.
+   */
+  approximate: boolean;
 }
 
-export function feesDue(accounts: Account[], rule: FeeRule): FeeLine[] {
+/**
+ * Who the late payment fee falls on.
+ *
+ * MES's letter states the rule as a date, not a bucket: the fee applies "if
+ * payment is not received by the 15th day of each calendar month". Rent falls
+ * due on the 1st, so that is fourteen days past the due date.
+ *
+ * This used to select on the aging buckets, taking everything outside
+ * Current. That looks equivalent and is not. MES count anything up to and
+ * including 15 days past due as Current, so on the 16th, when the fee is
+ * raised, the month that has just gone unpaid is 15 days old and sits in
+ * Current. The rule was therefore charging older debt and never charging the
+ * month the letter is actually about, which is precisely backwards.
+ *
+ * So the invoice dates decide it. Where an upload carries no line detail, and
+ * MES have sent one where every amount was blank, the buckets are used as a
+ * fallback and the line is marked approximate rather than presented as fact.
+ */
+export function feesDue(
+  accounts: Account[],
+  rule: FeeRule,
+  invoices: Invoice[] = data.invoices as Invoice[],
+): FeeLine[] {
   return accounts
     .filter((a) => !isInCredit(a))
     .filter((a) => (rule.skipTerminated ? a.status !== "Terminated" : true))
-    .map((a) => ({ account: a, overdue: overdueTotal(a) }))
+    .map((a) => {
+      const lines = invoicesForAccount(a, invoices);
+      const dated = lines.filter((i) => i.age !== null);
+      if (dated.length === 0) {
+        return { account: a, overdue: overdueTotal(a), approximate: true };
+      }
+      const overdue = dated
+        .filter((i) => (i.age as number) >= rule.minimumAgeDays)
+        .reduce((n, i) => n + i.openBalance, 0);
+      return { account: a, overdue, approximate: false };
+    })
     .filter((r) => r.overdue > rule.minimumBalance)
     .map((r) => ({
       account: r.account,
       overdue: r.overdue,
+      approximate: r.approximate,
       fee:
         rule.basis === "flat"
           ? rule.value

@@ -27,6 +27,7 @@ import {
   buildImportPlan,
   periodOf,
 } from "../src/lib/import.ts";
+import { DEFAULT_FEE_RULE, feesDue } from "../src/lib/data.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -309,6 +310,64 @@ check("the officer's own work is protected",
       IMPORT_MUST_NOT_TOUCH.join(","), "calls,promises,emails_sent,late_fees,audit_log");
 check("tenants are added and updated, never deleted",
       IMPORT_UPSERTS.join(","), "tenants");
+
+/* ------------------------------------------------------- the late fee ---
+ * MES's letter states the fee as a date: charged if payment has not arrived
+ * by the 15th, and rent falls due on the 1st, so fourteen days past due.
+ *
+ * Selecting on the aging buckets instead looks equivalent and is not. Their
+ * Current bucket runs to 15 days, so on the 16th, when the fee is raised, the
+ * month that has just gone unpaid is 15 days old and still sits in Current.
+ * A bucket rule charges older debt and never charges the month the letter is
+ * actually about.
+ */
+console.log("\nThe late payment fee falls on the right accounts\n");
+
+const feeAcct = (id: string, total: number, buckets: Record<string, number> = {}) =>
+  ({
+    id, customerCode: "DORM-1", companyName: `FEE ${id} PTE. LTD.`,
+    property: "JPD1", propertyName: "JPD1", status: "Live",
+    buckets: {
+      current: buckets.current ?? total, d30: buckets.d30 ?? 0,
+      d60: buckets.d60 ?? 0, d90: buckets.d90 ?? 0, d90plus: buckets.d90plus ?? 0,
+    },
+    total, legacyNote: null, emails: [], hasContact: true, industry: null,
+    entity: null, invoiceCount: 0, isOneFm: false, revenueTypes: [],
+    lateFeeCount: 0,
+  }) as never;
+
+const feeInv = (company: string, age: number, amount: number) =>
+  ({
+    id: `${company}-${age}`, companyName: company, transactionType: "Invoice",
+    date: null, dueDate: null, description: "Occupancy Fee Charges",
+    documentNumber: "JPD1-786/1", linkedContract: null, age,
+    bucket: age <= 15 ? "Current" : "30 days", openBalance: amount,
+    revenueType: "Occupancy Fee", isOneFm: false,
+  }) as never;
+
+check("the rule is $100 flat", `${DEFAULT_FEE_RULE.basis} ${DEFAULT_FEE_RULE.value}`, "flat 100");
+check("and it starts at 14 days past due", DEFAULT_FEE_RULE.minimumAgeDays, 14);
+
+/* The case a bucket rule gets wrong: rent due on the 1st, unpaid, fee raised
+ * on the 16th. Fifteen days old, still Current, and it must be charged. */
+const justCrossed = feesDue([feeAcct("a", 1000)], DEFAULT_FEE_RULE, [feeInv("FEE a PTE. LTD.", 15, 1000)]);
+check("a tenant 15 days past due is charged", justCrossed.length, 1);
+check("even though their bucket still says Current", justCrossed[0]?.overdue, 1000);
+check("and it is not flagged approximate", justCrossed[0]?.approximate, false);
+
+const notYet = feesDue([feeAcct("b", 1000)], DEFAULT_FEE_RULE, [feeInv("FEE b PTE. LTD.", 13, 1000)]);
+check("a tenant 13 days past due is not charged yet", notYet.length, 0);
+
+const mixed = feesDue([feeAcct("c", 1500)], DEFAULT_FEE_RULE, [
+  feeInv("FEE c PTE. LTD.", 40, 1000),
+  feeInv("FEE c PTE. LTD.", 5, 500),
+]);
+check("only the part old enough is charged on", mixed[0]?.overdue, 1000);
+check("and the fee is the flat $100 regardless", mixed[0]?.fee, 100);
+
+const bucketsOnly = feesDue([feeAcct("d", 900, { current: 0, d30: 900 })], DEFAULT_FEE_RULE, []);
+check("with no invoice dates it falls back to the buckets", bucketsOnly.length, 1);
+check("and says so rather than presenting it as fact", bucketsOnly[0]?.approximate, true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

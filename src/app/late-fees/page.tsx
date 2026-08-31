@@ -37,9 +37,14 @@ export default function LateFeesPage() {
   const [preview, setPreview] = useState(false);
 
   const lines = useMemo(
-    () => feesDue(scope(ds.accounts), rule),
+    () => feesDue(scope(ds.accounts), rule, ds.invoices),
     [ds, rule, scope],
   );
+  // Where an upload carried no line detail the selection falls back to the
+  // aging buckets, which cannot express "14 days past due". Said out loud
+  // rather than left for somebody to discover from a figure that is slightly
+  // off in a direction nobody can explain.
+  const approximate = lines.filter((l) => l.approximate).length;
   const totalFees = lines.reduce((s, l) => s + l.fee, 0);
   const repeat = lines.filter((l) => l.alreadyCharged > 0).length;
 
@@ -49,7 +54,7 @@ export default function LateFeesPage() {
         <StatTile
           label="Accounts to be charged"
           value={String(lines.length)}
-          note="Overdue on the 16th"
+          note={`Unpaid ${rule.minimumAgeDays} days past due`}
           emphasis
         />
         <StatTile
@@ -80,8 +85,26 @@ export default function LateFeesPage() {
         <CardHeader
           title="How the fee is worked out"
           hint="Change the rule and the list below updates."
-          right={<StatusBadge kind="warning" label="Rule not yet confirmed" />}
+          right={
+            <StatusBadge
+              kind="good"
+              label="Confirmed by MES's reminder letter"
+            />
+          }
         />
+
+        {approximate > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 border-b border-line-hair bg-surface-alt px-5 py-2.5">
+            <StatusBadge kind="warning" label={`${approximate} approximate`} />
+            <p className="text-[11px] leading-relaxed text-ink-muted">
+              These uploads carried no invoice dates, so the aging columns were
+              used instead. Those cannot express &ldquo;
+              {rule.minimumAgeDays} days past due&rdquo;, so a tenant who has
+              just crossed the line may be missing. Amounts on the AR detail
+              export would settle it.
+            </p>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block">
@@ -305,7 +328,7 @@ export default function LateFeesPage() {
             >
               Cancel
             </button>
-            <StatusBadge kind="warning" label="Confirm the rule with MES first" />
+            <StatusBadge kind="good" label="$100 flat, before GST" />
           </div>
         </Modal>
       ) : null}
