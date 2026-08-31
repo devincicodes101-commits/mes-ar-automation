@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>MES Collections Lifecycle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:      #f4f6f8;
+    --surface:     #ffffff;
+    --surface-alt: #eef1f5;
+    --line:        #d9e0e8;
+    --line-soft:   #e7ecf1;
+    --ink:         #171c22;
+    --ink-2:       #414c58;
+    --ink-3:       #6f7d8c;
+    --accent:      #1b4965;
+    --accent-soft: #e3edf4;
+    --ok:          #2d6a4f;
+    --ok-soft:     #e2efe8;
+    --warn:        #9a5b09;
+    --warn-soft:   #f7ecdb;
+    --stop:        #97282c;
+    --stop-soft:   #f7e5e5;
+    --shadow:      0 1px 2px rgba(23,28,34,.05), 0 1px 12px rgba(23,28,34,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #101418;
+      --surface:     #171d23;
+      --surface-alt: #1e252c;
+      --line:        #2c353e;
+      --line-soft:   #232b33;
+      --ink:         #e8ecf0;
+      --ink-2:       #b3bec9;
+      --ink-3:       #7f8d9b;
+      --accent:      #7fb2d4;
+      --accent-soft: #1a2a36;
+      --ok:          #7fc4a3;
+      --ok-soft:     #17271f;
+      --warn:        #dda75b;
+      --warn-soft:   #2a2114;
+      --stop:        #e08f92;
+      --stop-soft:   #2b1a1b;
+      --shadow:      0 1px 2px rgba(0,0,0,.3), 0 1px 12px rgba(0,0,0,.2);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #101418;
+    --surface:     #171d23;
+    --surface-alt: #1e252c;
+    --line:        #2c353e;
+    --line-soft:   #232b33;
+    --ink:         #e8ecf0;
+    --ink-2:       #b3bec9;
+    --ink-3:       #7f8d9b;
+    --accent:      #7fb2d4;
+    --accent-soft: #1a2a36;
+    --ok:          #7fc4a3;
+    --ok-soft:     #17271f;
+    --warn:        #dda75b;
+    --warn-soft:   #2a2114;
+    --stop:        #e08f92;
+    --stop-soft:   #2b1a1b;
+    --shadow:      0 1px 2px rgba(0,0,0,.3), 0 1px 12px rgba(0,0,0,.2);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px 96px; }
+  .col  { max-width: 68ch; }
+
+  /* ---------------------------------------------------------- masthead */
+  header.top {
+    border-bottom: 1px solid var(--line);
+    padding: 56px 0 32px;
+    margin-bottom: 48px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px; font-weight: 500;
+    letter-spacing: .13em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    font-family: Newsreader, Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(34px, 5.5vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+    margin: 14px 0 0;
+  }
+  .standfirst {
+    font-family: Newsreader, Georgia, serif;
+    font-size: clamp(17px, 2.2vw, 20px);
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 60ch;
+    margin: 16px 0 0;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+    margin-top: 26px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px; color: var(--ink-3);
+  }
+  .meta b { color: var(--ink-2); font-weight: 500; }
+
+  /* ------------------------------------------------------------ typography */
+  h2 {
+    font-family: Newsreader, Georgia, serif;
+    font-weight: 500; font-size: 30px; line-height: 1.15;
+    letter-spacing: -.01em; text-wrap: balance;
+    margin: 0 0 6px;
+  }
+  h3 {
+    font-size: 15px; font-weight: 600; letter-spacing: -.005em;
+    margin: 0 0 8px;
+  }
+  section { margin-top: 68px; }
+  .sec-head { margin-bottom: 28px; }
+  .sec-head .eyebrow { display: block; margin-bottom: 10px; }
+  .sec-head p { color: var(--ink-2); margin: 6px 0 0; max-width: 62ch; }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .875em;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* --------------------------------------------------------------- chips */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; font-weight: 500;
+    letter-spacing: .07em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--ink-2); background: var(--surface-alt);
+    white-space: nowrap;
+  }
+  .chip.ok   { color: var(--ok);   background: var(--ok-soft);   border-color: transparent; }
+  .chip.warn { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
+  .chip.stop { color: var(--stop); background: var(--stop-soft); border-color: transparent; }
+  .chip.acc  { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+
+  /* ------------------------------------------------------------- timeline */
+  .spine { display: grid; grid-template-columns: 92px 1fr; gap: 0 22px; }
+  .day {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    color: var(--ink); text-align: right; padding-top: 16px;
+  }
+  .day small { display: block; font-weight: 400; color: var(--ink-3); font-size: 10.5px; letter-spacing: .06em; }
+
+  .track { position: relative; padding: 0 0 26px 26px; border-left: 1px solid var(--line); }
+  .track::before {
+    content: ""; position: absolute; left: -5.5px; top: 22px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 3px var(--ground);
+  }
+  .track.terminal::before { background: var(--ink-3); }
+  .track:last-child { border-left-color: transparent; }
+
+  .stage {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 5px; padding: 15px 18px; box-shadow: var(--shadow);
+    margin-top: 12px;
+  }
+  .stage h3 { margin-bottom: 3px; }
+  .stage p  { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .stage .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+  /* branches */
+  .fork { margin: 10px 0 0 14px; display: grid; gap: 8px; }
+  .branch {
+    border-left: 2px solid var(--line);
+    padding: 9px 0 9px 14px;
+    font-size: 14px; color: var(--ink-2);
+  }
+  .branch.ok   { border-left-color: var(--ok); }
+  .branch.warn { border-left-color: var(--warn); }
+  .branch.stop { border-left-color: var(--stop); }
+  .branch b { color: var(--ink); font-weight: 600; }
+  .branch .who {
+    display: block; margin-top: 4px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+  }
+
+  /* --------------------------------------------------------------- cards */
+  .grid { display: grid; gap: 14px; }
+  @media (min-width: 720px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 5px; padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .card h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .card p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .card p + p { margin-top: 10px; }
+
+  .ledger {
+    display: grid; grid-template-columns: 1fr auto; gap: 3px 16px;
+    font-family: "IBM Plex Mono", monospace; font-size: 12.5px;
+    margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line-soft);
+  }
+  .ledger dt { color: var(--ink-3); }
+  .ledger dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .ledger .tot { font-weight: 600; }
+  .ledger .rule { grid-column: 1 / -1; border-top: 1px solid var(--line-soft); margin-top: 4px; padding-top: 4px; }
+
+  /* --------------------------------------------------------------- table */
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+  th {
+    text-align: left; font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); padding: 11px 16px;
+    border-bottom: 1px solid var(--line); background: var(--surface-alt);
+    white-space: nowrap;
+  }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--line-soft); color: var(--ink-2); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td strong { color: var(--ink); font-weight: 600; }
+  td.nowrap { white-space: nowrap; }
+
+  /* ---------------------------------------------------------- blockers */
+  .block {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--stop);
+    border-radius: 4px; padding: 16px 20px; box-shadow: var(--shadow);
+  }
+  .block.warn { border-left-color: var(--warn); }
+  .block.acc  { border-left-color: var(--accent); }
+  .block h3 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .block h3 .rank {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    color: var(--ink-3); font-weight: 500;
+  }
+  .block p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .block p + p { margin-top: 9px; }
+  .block .owner {
+    display: inline-block; margin-top: 11px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3);
+  }
+
+  /* -------------------------------------------------------- questions */
+  ol.qs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; counter-reset: q; }
+  ol.qs li {
+    counter-increment: q;
+    display: grid; grid-template-columns: 34px 1fr; gap: 14px;
+    padding: 14px 0; border-bottom: 1px solid var(--line-soft);
+  }
+  ol.qs li:last-child { border-bottom: 0; }
+  ol.qs li::before {
+    content: "Q" counter(q);
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 500;
+    color: var(--ink-3); padding-top: 3px;
+  }
+  ol.qs .q { font-weight: 600; color: var(--ink); margin: 0 0 4px; font-size: 15px; }
+  ol.qs .why { font-size: 14px; color: var(--ink-2); margin: 0; }
+
+  .note {
+    font-size: 13.5px; color: var(--ink-3); font-style: italic;
+    border-top: 1px solid var(--line-soft); padding-top: 14px; margin-top: 22px;
+  }
+
+  footer {
+    margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    display: flex; flex-wrap: wrap; gap: 8px 28px;
+  }
+
+  @media (max-width: 620px) {
+    .spine { grid-template-columns: 62px 1fr; gap: 0 14px; }
+    .track { padding-left: 18px; }
+    .wrap { padding: 0 18px 72px; }
+  }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">MES Group &middot; Accounts Receivable</span>
+    <h1>One month, one tenant, six ways it ends</h1>
+    <p class="standfirst">
+      The collections cycle as MES actually runs it, traced with real accounts from
+      their own May report. Plus the files we are still unsure about, and the
+      questions we need answered before the next stage.
+    </p>
+    <div class="meta">
+      <span><b>Prepared by</b> DeVinci Codes</span>
+      <span><b>Sources</b> AR Collections Cycle, AR report, contact list, reminder letters</span>
+      <span><b>Data as at</b> 25 May 2026</span>
+    </div>
+  </header>
+
+  <!-- ============================================================ LIFECYCLE -->
+  <section style="margin-top:0">
+    <div class="sec-head col">
+      <span class="eyebrow">The cycle</span>
+      <h2>From bill to final warning</h2>
+      <p>
+        Dates below run July into August. The shape repeats every month. The bill
+        goes out in advance on the 15th, but the money is not due until the 1st,
+        and everything is counted from there.
+      </p>
+    </div>
+
+    <div class="spine">
+
+      <div class="day">15 JUL<small>day &minus;17</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>The bill goes out</h3>
+          <p>Invoices raised for the following month. Ad hoc billing on the 21st or 24th is normal.</p>
+          <div class="tags"><span class="chip">MES raises it</span><span class="chip">nothing to chase yet</span></div>
+        </div>
+      </div>
+
+      <div class="day">1 AUG<small>day 0</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>Payment due &middot; the bank tries to collect</h3>
+          <p>Rent is payable on the first working day of the month by GIRO. Most tenants clear here.</p>
+        </div>
+        <div class="fork">
+          <div class="branch ok">
+            <b>Paid on time.</b> Drops off every list. Nothing further happens.
+            <span class="who">the majority &middot; never appears again this month</span>
+          </div>
+          <div class="branch warn">
+            <b>Payment fails or no GIRO in place.</b> Stays on the books and enters the cycle below.
+            <span class="who">MES currently removes GIRO payers from the chase list by hand</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="day">4 AUG<small>day 3</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>First download</h3>
+          <p>
+            The AR report is pulled out of NetSuite and uploaded. Three steps run every time:
+            tag the report date, work out how late each charge is, group by dormitory then by charge type.
+          </p>
+          <div class="tags">
+            <span class="chip acc">no emails sent</span>
+            <span class="chip">ageing counted from the report date</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="day">7 AUG<small>day 6</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>First reminder, then calls</h3>
+          <p>
+            Upload again, send the first reminder to everyone still unpaid, then phone them
+            and log what was said. The letter warns that a $100 fee lands on the 15th.
+          </p>
+          <div class="tags"><span class="chip acc">bulk email, one click</span><span class="chip">calls logged</span></div>
+        </div>
+        <div class="fork">
+          <div class="branch ok">
+            <b>Pays after the reminder.</b> Closed. No fee, no call needed.
+          </div>
+          <div class="branch warn">
+            <b>Promises to pay.</b> A dated commitment is recorded and followed up
+            on the day, rather than a note in a spreadsheet cell.
+            <span class="who">TELEGRAM PTE. LTD. &middot; DORM-830 &middot; &ldquo;Payment by 27.05.26&rdquo;</span>
+          </div>
+          <div class="branch stop">
+            <b>No email address on file.</b> Cannot be emailed at all, so the only
+            route is the phone.
+            <span class="who">6 companies appear on a dormitory tab but not on the contact list</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="day">15 AUG<small>day 14</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>Second deadline &middot; the fee applies</h3>
+          <p>
+            Thirty days from billing. Anything still unpaid now attracts a flat
+            <strong>$100 administration fee</strong>, before GST. Paying by cheque adds $50.
+          </p>
+          <div class="tags"><span class="chip warn">$100 flat, not a percentage</span></div>
+        </div>
+      </div>
+
+      <div class="day">16 AUG<small>day 15</small></div>
+      <div class="track">
+        <div class="stage">
+          <h3>Escalate to the managers</h3>
+          <p>
+            Upload again, list everyone more than 14 days late, and email each
+            relationship manager their own tenants with a deadline to reply.
+          </p>
+          <div class="tags">
+            <span class="chip acc">one file per manager</span>
+            <span class="chip">AR team raises the fee, not the system</span>
+          </div>
+        </div>
+        <div class="fork">
+          <div class="branch warn">
+            <b>Manager chases and reports back.</b> Their reply updates the account.
+            <span class="who">&ldquo;Please revert on the payment updates by 2pm on 13 August&rdquo;</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="day">21 AUG<small>day 20</small></div>
+      <div class="track terminal">
+        <div class="stage">
+          <h3>Final warning, then calls again</h3>
+          <p>
+            A much firmer letter: it cites the Employment of Foreign Manpower
+            Regulations and raises disruption of services and legal options.
+            Calls follow, as on the 7th.
+          </p>
+        </div>
+        <div class="fork">
+          <div class="branch ok">
+            <b>Pays after the final notice.</b> Closed, with the $100 fee still on the account.
+          </div>
+          <div class="branch stop">
+            <b>Still unpaid.</b> Rolls into next month one bucket older, and the
+            cycle restarts with the September bill.
+            <span class="who">30 charges in the current file are already over 90 days old</span>
+          </div>
+          <div class="branch stop">
+            <b>Moves out still owing.</b> Marked Terminated but the debt stays.
+            <span class="who">JPD2 has 6 live tenants and 7 who have left owing money</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ======================================================== REAL ACCOUNTS -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">Four real accounts</span>
+      <h2>The same month, four different endings</h2>
+      <p>
+        All four are in MES&rsquo;s May report for dormitory JPD2. The total is never
+        the interesting number &mdash; the spread across the age columns is.
+      </p>
+    </div>
+
+    <div class="grid two">
+
+      <div class="card">
+        <h3>SOVEREIGN PTE. LTD. <span class="chip">live</span></h3>
+        <p>
+          Owes across every single age band. Not one bad month &mdash; five months of
+          steady slippage, with the largest chunk the oldest.
+        </p>
+        <dl class="ledger">
+          <dt>Current</dt><dd>486.18</dd>
+          <dt>30 days</dt><dd>455.98</dd>
+          <dt>60 days</dt><dd>492.68</dd>
+          <dt>90 days</dt><dd>70.85</dd>
+          <dt>Over 90 days</dt><dd>626.75</dd>
+          <dt class="rule tot">Grand total</dt><dd class="rule tot">2,132.44</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h3>BURNING SUN PTE. LTD. <span class="chip stop">chronic</span></h3>
+        <p>
+          Has been charged the late payment fee <strong>four times</strong>. A tenant who
+          pays late every month is a different conversation from one who forgot once.
+        </p>
+        <dl class="ledger">
+          <dt>Current</dt><dd>155.86</dd>
+          <dt>30 days</dt><dd>155.86</dd>
+          <dt>60 days</dt><dd>838.22</dd>
+          <dt>90 days</dt><dd>20.72</dd>
+          <dt>Over 90 days</dt><dd>968.50</dd>
+          <dt class="rule tot">Grand total</dt><dd class="rule tot">2,139.16</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h3>MODERN WELLNESS <span class="chip warn">reads wrong</span></h3>
+        <p>
+          The current column is <strong>minus $1,591</strong>, so at a glance they look
+          like they have overpaid. They have not. Three older months are still
+          outstanding and they owe <strong>$100.86</strong> net.
+        </p>
+        <dl class="ledger">
+          <dt>Current</dt><dd>&minus;1,591.00</dd>
+          <dt>30 days</dt><dd>752.14</dd>
+          <dt>60 days</dt><dd>469.86</dd>
+          <dt>90 days</dt><dd>469.86</dd>
+          <dt class="rule tot">Grand total</dt><dd class="rule tot">100.86</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h3>JOLLY JOLLY PTE LTD <span class="chip stop">terminated</span></h3>
+        <p>
+          Moved out and left the balance behind. Every dollar is over 90 days old.
+          A reminder about next month&rsquo;s rent would be the wrong letter entirely.
+        </p>
+        <dl class="ledger">
+          <dt>Current</dt><dd>&mdash;</dd>
+          <dt>30 days</dt><dd>&mdash;</dd>
+          <dt>60 days</dt><dd>&mdash;</dd>
+          <dt>Over 90 days</dt><dd>727.00</dd>
+          <dt class="rule tot">Grand total</dt><dd class="rule tot">727.00</dd>
+        </dl>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================================== FILES -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">Source files</span>
+      <h2>What we have, and what we are unsure about</h2>
+      <p>
+        MES has sent seven files. Most are clear. Four raise questions we cannot
+        answer by reading them.
+      </p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>File</th><th>What it gives us</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>AR report</strong><br><span class="mono" style="color:var(--ink-3)">JPD1 / JPD2 / BSD / LEO tabs</span></td>
+            <td>What every tenant owes, split across the five age bands, per dormitory.</td>
+            <td class="nowrap"><span class="chip ok">clear</span></td>
+          </tr>
+          <tr>
+            <td><strong>Client contact list</strong></td>
+            <td>110 companies, 228 email addresses. Unblocks reminders entirely.</td>
+            <td class="nowrap"><span class="chip ok">clear</span></td>
+          </tr>
+          <tr>
+            <td><strong>Reminder letters</strong><br><span class="mono" style="color:var(--ink-3)">first and final</span></td>
+            <td>The real wording, and the $100 fee rule stated in writing.</td>
+            <td class="nowrap"><span class="chip ok">clear</span></td>
+          </tr>
+          <tr>
+            <td><strong>AR Collections Cycle</strong><br><span class="mono" style="color:var(--ink-3)">plus the Flow and Formula tabs</span></td>
+            <td>The monthly timetable, and the exact formula for how late a charge is.</td>
+            <td class="nowrap"><span class="chip ok">clear</span></td>
+          </tr>
+          <tr>
+            <td><strong>Finance AR Download</strong><br><span class="mono" style="color:var(--ink-3)">169 invoice lines</span></td>
+            <td>Should tell us what each individual charge was for. The amount column is blank on every row.</td>
+            <td class="nowrap"><span class="chip stop">unusable</span></td>
+          </tr>
+          <tr>
+            <td><strong>Manager mockups</strong><br><span class="mono" style="color:var(--ink-3)">Harry&rsquo;s and Ray&rsquo;s</span></td>
+            <td>The layout of the manager report. But the two files have different columns, and two of them have no formula we can work out.</td>
+            <td class="nowrap"><span class="chip warn">conflicting</span></td>
+          </tr>
+          <tr>
+            <td><strong>Report placeholder tabs</strong><br><span class="mono" style="color:var(--ink-3)">SD / PF / LP / SD / RM</span></td>
+            <td>Names five reports MES wants. All five tabs are completely empty.</td>
+            <td class="nowrap"><span class="chip warn">no data</span></td>
+          </tr>
+          <tr>
+            <td><strong>Revenue categories list</strong></td>
+            <td>MES&rsquo;s own list of charge types. Promised in their workflow document.</td>
+            <td class="nowrap"><span class="chip stop">not sent</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note col">
+      One further note on the contact list: it contains real company names and real
+      email addresses, where everything sent previously was anonymised. That changes
+      how the file should be stored and who should have access to it.
+    </p>
+  </section>
+
+  <!-- =========================================================== BLOCKERS -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">Blockers</span>
+      <h2>What is stopping work, in order</h2>
+      <p>Two sit with MES. Two are ours and are already being fixed.</p>
+    </div>
+
+    <div class="grid">
+
+      <div class="block">
+        <h3>The invoice amounts are blank <span class="rank">blocker 1 &middot; with MES</span></h3>
+        <p>
+          Every one of the 169 invoice lines has an empty amount column, in both the
+          file sent last week and the one sent this week. Oddly, the four credit note
+          rows in the same tab <em>do</em> carry amounts, which suggests a filter left
+          on during export rather than a missing column.
+        </p>
+        <p>
+          Without it there is no charge breakdown, no revenue split and no late fee
+          calculation. The dormitory tabs still give us totals, so work continues,
+          but this is the one item that cannot be worked around.
+        </p>
+        <span class="owner">needs: a re-export with amounts</span>
+      </div>
+
+      <div class="block">
+        <h3>Two report columns have no formula <span class="rank">blocker 2 &middot; with MES</span></h3>
+        <p>
+          The manager report mockup has <strong>Overdue Total</strong> and
+          <strong>Risk Exposure</strong> columns. Checked against every row, neither
+          follows a rule we can derive, and two of the Risk Exposure figures are negative.
+        </p>
+        <p>
+          The mockup is illustrative, so invented numbers are expected. But it means
+          the formulas cannot be reverse engineered and have to be stated.
+        </p>
+        <span class="owner">needs: the calculation, in one sentence each</span>
+      </div>
+
+      <div class="block acc">
+        <h3>One record per month, not per report <span class="rank">blocker 3 &middot; ours</span></h3>
+        <p>
+          Our database allows one record per company per month. That was correct when
+          we believed the report was uploaded once a month. MES uploads on the 4th, the
+          7th and the 16th &mdash; all in August.
+        </p>
+        <p>
+          So the first upload succeeds and the second is rejected. Everything else is
+          built on top of this, so it is being fixed first.
+        </p>
+        <span class="owner">ours &middot; fix in progress</span>
+      </div>
+
+      <div class="block acc">
+        <h3>1FM charges identified the wrong way <span class="rank">blocker 4 &middot; ours</span></h3>
+        <p>
+          MES identify a 1FM charge by its invoice number. We built it by searching the
+          description text. An invoice carries several lines and usually only one of
+          them mentions 1FM, so the VAT and sick bay lines on the same invoice are
+          being missed.
+        </p>
+        <p>
+          We are currently catching <strong>17 lines out of 45</strong>. Small fix, and
+          their file told us exactly how to do it.
+        </p>
+        <span class="owner">ours &middot; fix in progress</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================== QUESTIONS -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">Open questions</span>
+      <h2>What we need from MES</h2>
+      <p>
+        Each of these is a sentence to answer, not a piece of work. Together they
+        unblock the reporting and the charge breakdown.
+      </p>
+    </div>
+
+    <ol class="qs">
+      <li>
+        <div>
+          <p class="q">Why is the Open Balance column empty on all 169 invoice rows?</p>
+          <p class="why">The four credit note rows in the same tab do have amounts, so it looks like a filter rather than a missing column. Knowing which is faster than a blind re-export.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">How are Overdue Total and Risk Exposure calculated?</p>
+          <p class="why">Neither follows a rule we can see in the mockup, and two Risk Exposure figures are negative.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Harry&rsquo;s and Ray&rsquo;s mockups have different columns. Which one is the report to build?</p>
+          <p class="why">Ray&rsquo;s adds Overdue Total, Update, Security Deposit and Risk Exposure. Harry&rsquo;s has none of them.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">In the list SD / PF / 1FM / LP / SD / RM, which SD is Security Deposit and which is Stamp Duty?</p>
+          <p class="why">The abbreviation is used twice, in the workflow note and again in the tab names.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Should 1FM credit notes count as 1FM?</p>
+          <p class="why">1FM invoices are numbered JP1FM. Two 1FM credit notes are numbered JP1CN, so a rule based on the invoice prefix alone would miss them.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Is credit measured from the billing date or from the 1st of the month it covers?</p>
+          <p class="why">The workflow calls the 1st the 14-day point, but it is 17 days after a 15 July bill. Counting from the 1st makes both figures line up.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Should reminder letters use different bank details per dormitory?</p>
+          <p class="why">The letters we have quote MES &amp; JPD Housing Pte Ltd, which is the JPD1 company. BSD and LEO sit under different entities.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Six companies appear on a dormitory tab but not on the contact list. Missing, or deliberately excluded?</p>
+          <p class="why">Those six cannot be sent a reminder at all until an address exists for them.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">The revenue categories list has not arrived yet.</p>
+          <p class="why">We have built our own from 345 real descriptions and it classifies all of them, but it is our reading of their categories rather than their own list.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>DeVinci Codes &middot; MES AR Automation</span>
+    <span>Traced against the 25 May 2026 AR report</span>
+    <span>All figures SGD</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
