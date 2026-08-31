@@ -370,6 +370,7 @@ function ParseReport({
 }) {
   const summary = results.find((r) => r.kind === "ar-summary");
   const detail = results.find((r) => r.kind === "ar-detail");
+  const contactList = results.find((r) => r.kind === "contact-list");
   const problems = results.flatMap((r) => r.problems);
   const errors = problems.filter((p) => p.severity === "error");
   const warnings = problems.filter((p) => p.severity === "warning");
@@ -449,6 +450,29 @@ function ParseReport({
       {detail ? <SheetsRead sheets={detail.sheets} /> : null}
 
       {detail ? <Unclassified invoices={detail.invoices} /> : null}
+
+      {contactList ? (
+        <div className="border-t border-line-hair px-5 py-4">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <StatusBadge
+              kind={contactList.missing.length === 0 ? "good" : "warning"}
+              label={`${contactList.contacts.length} companies with an email address`}
+            />
+            <span className="text-[11px] text-ink-muted">
+              {contactList.contacts.reduce((n, c) => n + c.emails.length, 0)}{" "}
+              addresses in total
+            </span>
+          </div>
+          {contactList.missing.length > 0 ? (
+            <p className="mt-2.5 text-[11px] leading-relaxed text-ink-secondary">
+              {contactList.missing.length} companies rent at a dormitory but
+              have no address on this list, so no reminder can reach them. They
+              are named under &ldquo;Rows that need a look&rdquo; and stay on
+              the call list.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {problems.length > 0 ? (
         <div className="border-t border-line-hair">

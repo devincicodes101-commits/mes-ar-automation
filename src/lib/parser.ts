@@ -1,14 +1,14 @@
 "use client";
 
 import * as XLSX from "xlsx";
-import { Account, Invoice, PropertyCode } from "./types";
-import { bucketLabelForAge } from "./data";
-import { emailAddresses, looksLikeUnreadableContact } from "./emails";
+import type { Account, Invoice, PropertyCode } from "./types";
+import { bucketLabelForAge } from "./data.ts";
+import { emailAddresses, looksLikeUnreadableContact } from "./emails.ts";
 
 // The classification rules live on their own so the build can check them
 // against every description MES has ever sent: see scripts/test-revenue.mts.
 // Re-exported because parser.ts has always been where callers found it.
-import { isOneFm, revenueType } from "./revenue-rules";
+import { isOneFm, revenueType } from "./revenue-rules.ts";
 
 export { revenueType };
 
@@ -54,9 +54,25 @@ export interface ParsedDetail {
   problems: ParseProblem[];
 }
 
+/**
+ * MES's client contact list. A separate workbook from either AR report, with
+ * one tab per dormitory listing who rents there and a combined tab carrying
+ * the email addresses.
+ */
+export interface ParsedContacts {
+  kind: "contact-list";
+  asOf: string | null;
+  sheets: string[];
+  contacts: { customerCode: string; companyName: string; emails: string[] }[];
+  /** On a dormitory tab but absent from the combined list, so uncontactable. */
+  missing: { customerCode: string; companyName: string; property: string }[];
+  problems: ParseProblem[];
+}
+
 export type ParseResult =
   | ParsedSummary
   | ParsedDetail
+  | ParsedContacts
   | { kind: "unreadable"; problems: ParseProblem[] };
 
 /* -------------------------------------------------------------- utilities */
@@ -150,9 +166,27 @@ function findHeaderRow(rows: unknown[][], firstHeading: string): number {
 export function detectKind(wb: XLSX.WorkBook): ParseResult["kind"] {
   const names = wb.SheetNames.map((n) => norm(n));
   if (names.some((n) => n.startsWith("DETAILED FULL REPORT"))) return "ar-detail";
+
+  // The contact list is checked before the summary, and has to be. Its tabs
+  // are also named JPD1, JPD2 and BSD, so on tab names alone it looks exactly
+  // like a balances export and would be parsed as one, producing a list of
+  // tenants who all owe nothing. What separates them is an Email Address
+  // column, which no balances export carries.
+  if (hasEmailColumn(wb)) return "contact-list";
+
   if (names.some((n) => Object.keys(PROPERTY_NAMES).includes(n)))
     return "ar-summary";
   return "unreadable";
+}
+
+function hasEmailColumn(wb: XLSX.WorkBook): boolean {
+  for (const sheetName of wb.SheetNames) {
+    const rows = rowsOf(wb, sheetName);
+    for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
+      if ((rows[i] ?? []).some((c) => norm(c) === "EMAIL ADDRESS")) return true;
+    }
+  }
+  return false;
 }
 
 /* ------------------------------------------------- the per property summary */
@@ -532,6 +566,120 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
 
 /* ------------------------------------------------------------ entry point */
 
+/* ---------------------------------------------------- the contact list */
+
+/**
+ * R1.xlsx, MES's client contact list.
+ *
+ * One tab per dormitory listing who rents there, then a combined tab holding
+ * the email addresses. The combined tab is the one that matters; the
+ * dormitory tabs are read only to work out who is on none of them, because a
+ * tenant with no address cannot be emailed at all and needs to be named
+ * rather than quietly skipped.
+ *
+ * In the file MES sent, 116 companies appear across the three dormitory tabs
+ * and 110 on the combined tab. The six in the gap are the ones the reminder
+ * screen shows as phone only.
+ */
+export function parseContacts(wb: XLSX.WorkBook): ParsedContacts {
+  const problems: ParseProblem[] = [];
+  const contacts: ParsedContacts["contacts"] = [];
+  const onDormTab = new Map<string, { companyName: string; property: string }>();
+  let asOf: string | null = null;
+
+  for (const sheetName of wb.SheetNames) {
+    const rows = rowsOf(wb, sheetName);
+
+    for (let i = 0; i < Math.min(rows.length, 8); i += 1) {
+      const m = /^as of\s+(.+)$/i.exec(clean(rows[i]?.[0]));
+      if (m && !asOf) asOf = excelDate(m[1]) ?? clean(m[1]);
+    }
+
+    const headerAt = findHeaderRow(rows, "Company Name");
+    if (headerAt === -1) continue;
+
+    const header = (rows[headerAt] ?? []).map((c) => norm(c));
+    const emailAt = header.indexOf("EMAIL ADDRESS");
+
+    for (let i = headerAt + 1; i < rows.length; i += 1) {
+      const parts = splitCustomer(rows[i]?.[0]);
+      if (!parts) continue;
+
+      if (emailAt === -1) {
+        // A dormitory tab: names and Live/Terminated only.
+        if (!onDormTab.has(parts.code)) {
+          onDormTab.set(parts.code, {
+            companyName: parts.name,
+            property: clean(sheetName),
+          });
+        }
+        continue;
+      }
+
+      const cell = rows[i]?.[emailAt];
+      const emails = emailAddresses(cell);
+      if (emails.length === 0) {
+        problems.push({
+          sheet: clean(sheetName),
+          row: i + 1,
+          severity: "warning",
+          message: looksLikeUnreadableContact(cell)
+            ? `${parts.name}: there is something in the email column but no ` +
+              `address we can read in it. The cell says: ${clean(cell).slice(0, 80)}`
+            : `${parts.name} has no email address and cannot be sent a reminder.`,
+        });
+        continue;
+      }
+      contacts.push({
+        customerCode: parts.code,
+        companyName: parts.name,
+        emails,
+      });
+    }
+  }
+
+  const withEmail = new Set(contacts.map((c) => c.customerCode));
+  const missing = Array.from(onDormTab.entries())
+    .filter(([code]) => !withEmail.has(code))
+    .map(([code, v]) => ({
+      customerCode: code,
+      companyName: v.companyName,
+      property: v.property,
+    }));
+
+  if (contacts.length === 0) {
+    problems.push({
+      sheet: "-",
+      row: null,
+      severity: "error",
+      message:
+        "No email addresses were found. The combined tab should carry an " +
+        "Email Address column alongside the company names.",
+    });
+  }
+
+  for (const m of missing) {
+    problems.push({
+      sheet: m.property,
+      row: null,
+      severity: "warning",
+      message:
+        `${m.customerCode} ${m.companyName} rents at ${m.property} but is not ` +
+        "on the list with an address, so no reminder can reach them. They " +
+        "stay on the call list.",
+    });
+  }
+
+  return {
+    kind: "contact-list",
+    asOf,
+    sheets: wb.SheetNames.map(clean),
+    contacts,
+    missing,
+    problems,
+  };
+}
+
 export async function parseWorkbook(file: File): Promise<ParseResult> {
   const name = file.name.toLowerCase();
 
@@ -579,6 +727,7 @@ export async function parseWorkbook(file: File): Promise<ParseResult> {
   const kind = detectKind(wb);
   if (kind === "ar-summary") return parseSummary(wb);
   if (kind === "ar-detail") return parseDetail(wb);
+  if (kind === "contact-list") return parseContacts(wb);
 
   return {
     kind: "unreadable",
@@ -588,9 +737,10 @@ export async function parseWorkbook(file: File): Promise<ParseResult> {
         row: null,
         severity: "error",
         message:
-          `"${file.name}" was opened but does not look like either report. ` +
-          `Tabs found: ${wb.SheetNames.join(", ")}. Expected either one tab ` +
-          "per dormitory (JPD1, JPD2, BSD, LEO) or a Detailed Full Report tab.",
+          `"${file.name}" was opened but is not a report we recognise. ` +
+          `Tabs found: ${wb.SheetNames.join(", ")}. Expected one tab per ` +
+          "dormitory (JPD1, JPD2, BSD, LEO), a Detailed Full Report tab, or " +
+          "a contact list with an Email Address column.",
       },
     ],
   };

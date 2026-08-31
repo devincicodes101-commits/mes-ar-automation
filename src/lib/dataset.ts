@@ -3,7 +3,12 @@
 import { useSyncExternalStore } from "react";
 import { Account, Invoice } from "./types";
 import { data as seed } from "./data";
-import type { ParseResult, ParsedDetail, ParsedSummary } from "./parser";
+import type {
+  ParseResult,
+  ParsedContacts,
+  ParsedDetail,
+  ParsedSummary,
+} from "./parser";
 
 /**
  * The active dataset.
@@ -45,6 +50,7 @@ export function mergeParsed(
   summary: ParsedSummary | null,
   detail: ParsedDetail | null,
   period: string,
+  contactList: ParsedContacts | null = null,
 ): Dataset {
   const accounts: Account[] = (summary?.accounts ?? seed.accounts).map((a) => ({
     ...a,
@@ -87,6 +93,21 @@ export function mergeParsed(
     }
   }
 
+  // A contact list uploaded on its own. Matched on customer code rather than
+  // company name: the code is stable, whereas MES's two files spell the same
+  // company differently often enough that names alone lose matches.
+  if (contactList) {
+    const byCode = new Map(
+      contactList.contacts.map((c) => [c.customerCode.toUpperCase(), c.emails]),
+    );
+    for (const a of accounts) {
+      const found = byCode.get(a.customerCode.toUpperCase());
+      if (!found || found.length === 0) continue;
+      a.emails = Array.from(new Set([...a.emails, ...found]));
+      a.hasContact = a.emails.length > 0;
+    }
+  }
+
   return {
     source: "uploaded",
     label:
@@ -103,7 +124,7 @@ export function mergeParsed(
   };
 }
 
-/** Pulls whichever of the two file kinds are present out of a parse run. */
+/** Pulls whichever of the file kinds are present out of a parse run. */
 export function datasetFromResults(
   results: ParseResult[],
   period: string,
@@ -112,8 +133,10 @@ export function datasetFromResults(
     (results.find((r) => r.kind === "ar-summary") as ParsedSummary) ?? null;
   const detail =
     (results.find((r) => r.kind === "ar-detail") as ParsedDetail) ?? null;
+  const contacts =
+    (results.find((r) => r.kind === "contact-list") as ParsedContacts) ?? null;
   if (!summary && !detail) return null;
-  return mergeParsed(summary, detail, period);
+  return mergeParsed(summary, detail, period, contacts);
 }
 
 /* ------------------------------------------------------------------ store */
