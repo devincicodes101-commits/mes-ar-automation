@@ -289,63 +289,6 @@
     display: flex; flex-wrap: wrap; gap: 8px 28px;
   }
 
-
-  /* ----------------------------------------------------------- file cards */
-  .group-head { margin: 34px 0 16px; }
-  .files { display: grid; gap: 14px; }
-  @media (min-width: 860px) { .files { grid-template-columns: 1fr 1fr; } }
-
-  .file {
-    background: var(--surface); border: 1px solid var(--line);
-    border-left: 3px solid var(--ok);
-    border-radius: 5px; padding: 18px 20px; box-shadow: var(--shadow);
-  }
-  .file.bad { border-left-color: var(--warn); }
-  .file-h { margin-bottom: 10px; }
-  .file-h h3 { margin: 0 0 2px; font-size: 16px; }
-  .file-sub {
-    font-size: 11px; color: var(--ink-3);
-    letter-spacing: .03em;
-  }
-  .file p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
-  .file p.pt { margin-top: 11px; }
-  .file b { color: var(--ink); font-weight: 600; }
-
-  .snippet {
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 11.5px; line-height: 1.65;
-    background: var(--surface-alt); border: 1px solid var(--line-soft);
-    border-radius: 4px; padding: 11px 13px; margin: 11px 0 0;
-    overflow-x: auto; color: var(--ink-2); white-space: pre;
-  }
-  .quote {
-    margin: 11px 0 0; padding: 2px 0 2px 14px;
-    border-left: 2px solid var(--line);
-    font-family: Newsreader, Georgia, serif; font-size: 15.5px;
-    line-height: 1.5; color: var(--ink-2);
-  }
-  .quote b { color: var(--ink); font-weight: 600; }
-
-  /* -------------------------------------------------------------- alert */
-  .alert {
-    margin-top: 22px; background: var(--warn-soft);
-    border: 1px solid var(--line-soft); border-left: 3px solid var(--warn);
-    border-radius: 4px; padding: 16px 20px;
-  }
-  .alert.acc { background: var(--accent-soft); border-left-color: var(--accent); }
-  .alert h3 { margin-bottom: 6px; }
-  .alert p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
-  .alert p + p { margin-top: 9px; }
-  .alert b { color: var(--ink); font-weight: 600; }
-
-  /* --------------------------------------------------- question backstory */
-  ol.qs li { padding: 18px 0; }
-  ol.qs .story {
-    font-size: 14px; color: var(--ink-2); margin: 0 0 8px;
-    padding-left: 12px; border-left: 2px solid var(--line-soft);
-  }
-  ol.qs .story b { color: var(--ink); font-weight: 600; }
-
   @media (max-width: 620px) {
     .spine { grid-template-columns: 62px 1fr; gap: 0 14px; }
     .track { padding-left: 18px; }
@@ -827,73 +770,127 @@ DLIGHT         Grand Total 1,898.78    Risk Exposure    -457.59</pre>
   <!-- =========================================================== BLOCKERS -->
   <section>
     <div class="sec-head col">
-      <span class="eyebrow">Blockers</span>
-      <h2>What is stopping work, in order</h2>
-      <p>Two sit with MES. Two are ours and are already being fixed.</p>
+      <span class="eyebrow">What we need</span>
+      <h2>Three things only MES can supply</h2>
+      <p>
+        Everything else is under way. These three are the only items where the work
+        stops until something comes back from your side.
+      </p>
     </div>
 
     <div class="grid">
 
       <div class="block">
-        <h3>The invoice amounts are blank <span class="rank">blocker 1 &middot; with MES</span></h3>
+        <h3>The invoice amounts are blank <span class="rank">1 &middot; blocks the charge breakdown</span></h3>
         <p>
-          Every one of the 169 invoice lines has an empty amount column, in both the
-          file sent last week and the one sent this week. Oddly, the four credit note
-          rows in the same tab <em>do</em> carry amounts, which suggests a filter left
-          on during export rather than a missing column.
+          In the <span class="mono">Finance AR Download</span> tab, all
+          <b>169 invoice rows</b> have an empty amount column. That tab is what tells us
+          how a balance is made up &mdash; how much is rent, how much is maintenance,
+          how much is VAT.
         </p>
         <p>
-          Without it there is no charge breakdown, no revenue split and no late fee
-          calculation. The dormitory tabs still give us totals, so work continues,
-          but this is the one item that cannot be worked around.
+          One detail that may point straight at the cause: <b>the four credit note rows
+          in the same tab do have amounts.</b> So the column is present and the export
+          itself is working. It looks like a filter that was applied to the invoice rows
+          only.
         </p>
-        <span class="owner">needs: a re-export with amounts</span>
+        <p>
+          The dormitory tabs still give us every tenant&rsquo;s total, so the balances
+          and the ageing are fine. But the charge breakdown, the revenue split, the late
+          fee calculation and four of the six reports all wait on this.
+        </p>
+        <span class="owner">needed: the same export with amounts included</span>
       </div>
 
       <div class="block">
-        <h3>Two report columns have no formula <span class="rank">blocker 2 &middot; with MES</span></h3>
+        <h3>Two columns on the manager report have no formula <span class="rank">2 &middot; blocks the RM report</span></h3>
         <p>
-          The manager report mockup has <strong>Overdue Total</strong> and
-          <strong>Risk Exposure</strong> columns. Checked against every row, neither
-          follows a rule we can derive, and two of the Risk Exposure figures are negative.
+          The mockup includes <b>Overdue Total</b> and <b>Risk Exposure</b>. We checked
+          both against every row and could not find a rule that produces them &mdash;
+          not total minus current, not total minus deposit. <b>Two of the Risk Exposure
+          figures are negative.</b>
         </p>
         <p>
-          The mockup is illustrative, so invented numbers are expected. But it means
-          the formulas cannot be reverse engineered and have to be stated.
+          Being a mockup, illustrative numbers are exactly what we would expect. It just
+          means the calculations cannot be worked out from the examples and need to be
+          stated.
         </p>
-        <span class="owner">needs: the calculation, in one sentence each</span>
+        <span class="owner">needed: one sentence for each calculation</span>
       </div>
 
-      <div class="block acc">
-        <h3>One record per month, not per report <span class="rank">blocker 3 &middot; ours</span></h3>
+      <div class="block">
+        <h3>Six tenants have no email address <span class="rank">3 &middot; blocks their reminders</span></h3>
         <p>
-          Our database allows one record per company per month. That was correct when
-          we believed the report was uploaded once a month. MES uploads on the 4th, the
-          7th and the 16th &mdash; all in August.
+          The contact list covers 110 companies, which unblocked reminders for almost
+          everyone. Six appear on a dormitory tab but not on the list with addresses, so
+          <b>the system cannot email them at all.</b> All six are Live.
         </p>
-        <p>
-          So the first upload succeeds and the second is rejected. Everything else is
-          built on top of this, so it is being fixed first.
-        </p>
-        <span class="owner">ours &middot; fix in progress</span>
-      </div>
 
-      <div class="block acc">
-        <h3>1FM charges identified the wrong way <span class="rank">blocker 4 &middot; ours</span></h3>
-        <p>
-          MES identify a 1FM charge by its invoice number. We built it by searching the
-          description text. An invoice carries several lines and usually only one of
-          them mentions 1FM, so the VAT and sick bay lines on the same invoice are
-          being missed.
+        <div class="scroll" style="margin-top:14px">
+          <table>
+            <thead>
+              <tr><th>Customer</th><th>Company</th><th>Dormitory</th><th style="text-align:right">Owes today</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono nowrap">DORM-1220</td>
+                <td><strong>SORAM ENGINEERING PTE. LTD.</strong></td>
+                <td class="nowrap">JPD2</td>
+                <td class="nowrap num" style="text-align:right"><strong>2,132.44</strong></td>
+              </tr>
+              <tr>
+                <td class="mono nowrap">DORM-63</td>
+                <td><strong>ALTUS FACILITIES ENGINEERING PTE. LTD.</strong></td>
+                <td class="nowrap">BSD</td>
+                <td class="nowrap num" style="text-align:right"><strong>546.22</strong></td>
+              </tr>
+              <tr>
+                <td class="mono nowrap">DORM-1451</td>
+                <td><strong>YANGTZE CONSTRUCTION AND ENGINEERING PTE. LTD.</strong></td>
+                <td class="nowrap">BSD</td>
+                <td class="nowrap num" style="text-align:right"><strong>250.32</strong></td>
+              </tr>
+              <tr>
+                <td class="mono nowrap">DORM-1437</td>
+                <td>WORLDSCAN ENGINEERING PTE. LTD.</td>
+                <td class="nowrap">JPD2</td>
+                <td class="nowrap" style="text-align:right;color:var(--ink-3)">nothing owed</td>
+              </tr>
+              <tr>
+                <td class="mono nowrap">DORM-1604</td>
+                <td>ADVANCE ENGINEERING &amp; TESTING (AET) PTE. LTD.</td>
+                <td class="nowrap">JPD1</td>
+                <td class="nowrap" style="text-align:right;color:var(--ink-3)">nothing owed</td>
+              </tr>
+              <tr>
+                <td class="mono nowrap">DORM-1620</td>
+                <td>SPK.N SYSTEM PTE. LTD.</td>
+                <td class="nowrap">BSD</td>
+                <td class="nowrap" style="text-align:right;color:var(--ink-3)">nothing owed</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin-top:14px">
+          <b>Three of the six owe money right now, $2,929 between them.</b> SORAM
+          ENGINEERING is the largest single account of the six and owes across every age
+          band, so it is exactly the sort of account the reminders exist for.
         </p>
-        <p>
-          We are currently catching <strong>17 lines out of 45</strong>. Small fix, and
-          their file told us exactly how to do it.
-        </p>
-        <span class="owner">ours &middot; fix in progress</span>
+        <span class="owner">needed: an address for each, or confirmation they are phone-only</span>
       </div>
 
     </div>
+
+    <div class="alert acc">
+      <h3>Everything else is moving</h3>
+      <p>
+        The reminder wording, the $100 fee rule, the ageing calculation and the contact
+        list are all in hand and being built against. <b>Nothing else is waiting on
+        MES.</b>
+      </p>
+    </div>
+
   </section>
 
   <!-- ========================================================== QUESTIONS -->
