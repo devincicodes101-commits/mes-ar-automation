@@ -119,40 +119,97 @@ export interface StoreState {
 
 const KEY = "mes-ar-prototype-v1";
 
+/**
+ * The first two are MES's own letters, transcribed from the Word documents
+ * they sent, with their mail merge fields swapped for ours. Wording we had
+ * written ourselves stood here until then, which was fine for a demo and not
+ * fine for a letter that threatens legal action.
+ *
+ * Their merge fields were Company_Name and Grand_Total_, which is the whole
+ * list: everything else in both letters is fixed text.
+ */
 export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: "reminder-7th",
     name: "First reminder",
     trigger: "7th of the month",
-    subject: "Outstanding balance for {{company}}",
+    subject: "Outstanding rental payment, {{company}}",
     body: `Dear {{company}},
 
-Our records show an outstanding balance of SGD {{amount}} on your account {{code}} at {{property}}.
+We hope this finds you well.
 
-Of this, SGD {{overdue}} is now more than 30 days past due.
+We refer to the above subject and would like to bring your attention to your outstanding dues.
 
-We would be grateful if you could arrange payment, or reply to this email if any part of the balance is in question.
+Rental is payable on the 1st working day of each calendar month via Giro. However, we would like to bring to your attention that we have yet to receive the outstanding rental payment due from you. As of today, {{today}}, the outstanding amount stands at $ {{amount}}, which consists of rental and maintenance charges.
 
-Kind regards,
-Customer Services Department
-MES Group`,
+Please take note that if payment is not received by the 15th day of each calendar month, an administrative fee for late payment amounting to $100.00 (before prevailing GST) will be charged.
+
+If you have already processed payment or paid the outstanding rental, kindly ignore this email.
+
+If you have not, kindly assist us with payment as soon as possible.
+
+If you choose to pay by cheque, kindly take note that a cheque admin fee of $50 is chargeable from 1st August 2022. Please fill in the enclosed Direct Debit Application form and send the original form back to us.
+
+You can make the payment via bank transfer or PayNow and kindly send a screenshot of the transaction to ar@dormitory.com.sg for confirmation.
+
+Bank Transfer Detail
+DBS Account Number: 011-901192-0
+MES & JPD HOUSING PTE LTD
+
+PAYNOW Detail
+UEN: 200412284W, MES & JPD HOUSING PTE LTD
+
+Please indicate invoice no. in the remarks.
+
+We seek your kind understanding and co-operation to settle your outstanding dues latest by {{dueBy}}.
+
+Should you have any further clarifications, please contact me soonest possible.
+
+Best Regards,
+
+Jacqueline
+Credit Control Officer, Finance Department
+DID Tel: 6349 5019
+Office No: 6337 2666`,
   },
   {
     id: "final-21st",
     name: "Final notice",
     trigger: "21st of the month",
-    subject: "Final notice, account {{code}}",
+    subject: "Final reminder, outstanding rental payment for {{company}}",
     body: `Dear {{company}},
 
-Despite our earlier reminder, an amount of SGD {{amount}} remains outstanding on account {{code}} at {{property}}.
+We hope this finds you well.
 
-This is a final notice before a late payment administration fee is applied and the account is placed on credit hold.
+Under the contract we entered, you were to pay rental by the 1st working day of each calendar month via Giro. However, we have yet to receive your outstanding rental payment and maintenance charges of $ {{amount}} as of today, {{today}}. Despite our reminders, we have yet to receive payment.
 
-Please arrange payment, or contact us today to discuss.
+Please take note that if payment is not received by the 15th day of each calendar month, an administrative fee for late payment amounting to $100.00 (before prevailing GST) will be charged.
 
-Kind regards,
-Customer Services Department
-MES Group`,
+Do also take note that employers who fail to pay rent for their foreign workers living in dormitories would be in breach of the Employment of Foreign Manpower (Work Passes) Regulations 2012.
+
+If you have already processed payment or paid the outstanding rental, kindly ignore this email.
+
+If you have not, we strongly urge you to make payment urgently.
+
+You can make the payment via bank transfer or PayNow and kindly send a screenshot of the transaction to ar@dormitory.com.sg for confirmation.
+
+Bank Transfer Detail
+DBS Account Number: 011-901192-0
+MES & JPD HOUSING PTE LTD
+
+PAYNOW Detail
+UEN: 200412284W, MES & JPD HOUSING PTE LTD
+
+Please indicate invoice no. in the remarks.
+
+We seek your kind understanding and co-operation to settle your outstanding dues latest by {{dueBy}}. If you do not make payment within the stipulated time, we shall have no choice but to consider disruption of our services to you and all other available legal options.
+
+Should you have any further clarifications, please contact me soonest possible.
+
+Jacqueline Fong
+Credit Control Officer, Finance Department
+DID Tel: 6349 5019
+Office No: 6337 2666`,
   },
   {
     id: "promise-confirmation",

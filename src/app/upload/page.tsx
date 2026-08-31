@@ -112,7 +112,8 @@ export default function UploadPage() {
           />
         </label>
         <p className="mb-2 max-w-md text-[11px] text-ink-muted">
-          Billing runs from the 15th on 30 day terms. Every screen and export is
+          Billing runs from the 15th, payment falls due on the 1st, and there
+          are two deadlines after that: 14 days, then 30. Every screen and export is
           stamped with the period you choose.
         </p>
       </Card>

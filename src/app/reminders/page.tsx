@@ -20,14 +20,34 @@ import {
   Tag,
 } from "@/components/ui";
 
-/** Fills the {{placeholders}} in a template from one account. */
+/**
+ * Fills the {{placeholders}} in a template from one account.
+ *
+ * MES's letters name today's date and a date to pay by, both written out in
+ * full the way their own letters do: "7th April 2026". The pay-by date is six
+ * days out, which is the gap in both of the letters they sent.
+ */
 function merge(text: string, a: Account): string {
+  const today = new Date();
+  const payBy = new Date(today);
+  payBy.setDate(payBy.getDate() + 6);
+
   return text
     .replaceAll("{{company}}", a.companyName)
     .replaceAll("{{code}}", a.customerCode)
     .replaceAll("{{property}}", a.propertyName)
     .replaceAll("{{amount}}", formatSgd(a.total))
-    .replaceAll("{{overdue}}", formatSgd(overdueTotal(a)));
+    .replaceAll("{{overdue}}", formatSgd(overdueTotal(a)))
+    .replaceAll("{{today}}", longDate(today))
+    .replaceAll("{{dueBy}}", longDate(payBy));
+}
+
+function longDate(d: Date): string {
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export default function RemindersPage() {

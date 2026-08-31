@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   REVENUE_RULES,
+  isOneFm,
   matchRule,
   normaliseDescription,
   revenueType,
@@ -95,6 +96,22 @@ console.log("\nThe rule table\n");
 for (const [description, expected] of CASES) {
   check(normaliseDescription(description).slice(0, 60), revenueType(description), expected);
 }
+
+/* The document number carries 1FM even when the line's own text does not.
+ * These are real invoices from MES's export. JP1FM/2656 is the one that
+ * matters: four lines, every one of them 1FM, and not one says so. */
+console.log("\n1FM is decided by the invoice number, not the wording\n");
+check("VAT line on a 1FM invoice", revenueType("VAT", "JP1FM/2705"), "1FM Maintenance");
+check("Sick Bay line on a 1FM invoice", revenueType("Sick Bay Usage", "JP1FM/2656"), "1FM Maintenance");
+check("Maintenance line on a 1FM invoice", revenueType("Maintenance Works", "JP1FM/2659"), "1FM Maintenance");
+check("Opening Balance on a 1FM invoice", revenueType("Opening Balance - AR", "JP1FM/2159"), "1FM Maintenance");
+check("MES's own spelling, JPD1FM", revenueType("VAT", "JPD1FM/0001"), "1FM Maintenance");
+check("a 1FM credit note, caught by the wording", revenueType("ADMISSION TO SICKBAY AS PER ONEFM", "JP1CN/070"), "1FM Maintenance");
+check("an ordinary invoice is untouched", revenueType("VAT", "JPD1-786/002429"), "VAT");
+check("ordinary sick bay stays Sick Bay", revenueType("Sick Bay Usage", "JPD1-786/002430"), "Sick Bay");
+check("no document number still works", revenueType("Occupancy Fee Charges"), "Occupancy Fee");
+check("isOneFm agrees with the type", isOneFm("VAT", "JP1FM/2705"), true);
+check("isOneFm is false for ordinary lines", isOneFm("VAT", "JPD1-786/002429"), false);
 
 console.log("\nOrdering, the part that breaks silently\n");
 check("Late Payment beats Admin Fee", revenueType("Admin Fee For Late Payment - JUL '26"), "Late Payment Fee");

@@ -73,7 +73,7 @@ export default function CallListPage() {
 
       <Card>
         <CardHeader
-          title="Who to phone on the 14th and 15th"
+          title="Who to phone on the 7th and the 21st"
           hint="Call from your normal line, then log what was agreed."
         />
 

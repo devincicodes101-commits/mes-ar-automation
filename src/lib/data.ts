@@ -180,6 +180,41 @@ const BUCKET_FROM_LABEL: Record<string, BucketKey> = {
   "More than 90 days": "d90plus",
 };
 
+/**
+ * How overdue a charge is, from MES's own formula. Their Formula tab spells it
+ * out, and it agrees with the Aging column on all 173 rows of their export:
+ *
+ *   IF(Age<=15,"Current", 16..45 "30 days", 46..75 "60 days",
+ *      76..105 "90 days", else "More than 90 days")
+ *
+ * Fifteen days rather than zero because that is the grace period: rent falls
+ * due on the 1st and the late fee lands on the 15th.
+ *
+ * Worth computing rather than copying their label. The label is a formula in
+ * their spreadsheet and a formula can be dragged one row short. Calculating it
+ * here means a disagreement is visible instead of inherited.
+ */
+export function bucketForAge(age: number): BucketKey {
+  if (age <= 15) return "current";
+  if (age <= 45) return "d30";
+  if (age <= 75) return "d60";
+  if (age <= 105) return "d90";
+  return "d90plus";
+}
+
+/** The label MES print, for the same age. */
+export function bucketLabelForAge(age: number): string {
+  return BUCKET_LABEL[bucketForAge(age)];
+}
+
+const BUCKET_LABEL: Record<BucketKey, string> = {
+  current: "Current",
+  d30: "30 days",
+  d60: "60 days",
+  d90: "90 days",
+  d90plus: "More than 90 days",
+};
+
 export interface RevenueRow {
   type: string;
   buckets: Record<BucketKey, number>;
@@ -354,12 +389,29 @@ export interface FeeRule {
  * repeating each month. MES has not confirmed the rule, so it is editable on
  * screen rather than hard coded. Proposal 4.8.
  */
+/**
+ * MES's own first reminder letter states the rule outright:
+ *
+ *   "if payment is not received by the 15th day of each calendar month, an
+ *    administrative fee for late payment amounting to $100.00 (before
+ *    prevailing GST) will be charged."
+ *
+ * Flat, not a percentage. It was an open item for months and two of our
+ * sources disagreed; the letter settles it.
+ */
 export const DEFAULT_FEE_RULE: FeeRule = {
   basis: "flat",
-  value: 20,
+  value: 100,
   minimumBalance: 0,
   skipTerminated: false,
 };
+
+/**
+ * Charged when a tenant pays by cheque, from 1 August 2022, per the same
+ * letter. Nothing raises it yet: the AR report does not say how anyone paid,
+ * so this is recorded rather than applied.
+ */
+export const CHEQUE_ADMIN_FEE = 50;
 
 export interface FeeLine {
   account: Account;

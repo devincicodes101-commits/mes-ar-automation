@@ -59,7 +59,7 @@ export const NAV: {
     href: "/calls",
     label: "Call List",
     group: "Chase",
-    note: "Who to phone on the 14th and 15th, and what they said.",
+    note: "Who to phone after each reminder goes out, and what they said.",
   },
   {
     href: "/promises",

@@ -136,7 +136,7 @@ export default function AgingBoardPage() {
       <Card>
         <CardHeader
           title="Every tenant, and how overdue they are"
-          hint={`Figures as at ${ds.asOf}. Anything to the right of the thick line is past 30 days and needs chasing. A tenant renting at two dormitories is listed once for each.`}
+          hint={`Figures as at ${ds.asOf}. Anything to the right of the thick line is past 30 days and needs chasing. The $100 admin fee applies from 14 days overdue, on the 15th. A tenant renting at two dormitories is listed once for each.`}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {/* Proposal 4.3: see balances split by what they are actually for. */}

@@ -2,11 +2,12 @@
 
 import * as XLSX from "xlsx";
 import { Account, Invoice, PropertyCode } from "./types";
+import { bucketLabelForAge } from "./data";
 
 // The classification rules live on their own so the build can check them
 // against every description MES has ever sent: see scripts/test-revenue.mts.
 // Re-exported because parser.ts has always been where callers found it.
-import { revenueType } from "./revenue-rules";
+import { isOneFm, revenueType } from "./revenue-rules";
 
 export { revenueType };
 
@@ -386,6 +387,28 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
               ? Math.round(Number(clean(ageRaw)))
               : null;
 
+        // MES print an age bucket in the file, and it is a spreadsheet formula
+        // rather than something NetSuite exports. A formula can be dragged one
+        // row short or left over from last month's layout, so the age is used
+        // to work the bucket out here and the two are compared. Theirs is kept
+        // either way, because the file is what they will point at, but a
+        // disagreement is reported rather than silently inherited.
+        const theirBucket = clean(row[11]);
+        if (age !== null && theirBucket !== "") {
+          const ours = bucketLabelForAge(age);
+          if (ours !== theirBucket) {
+            problems.push({
+              sheet: mainName,
+              row: i + 1,
+              severity: "warning",
+              message:
+                `${company}: the file says "${theirBucket}" but ${age} days ` +
+                `overdue is "${ours}" by MES's own formula. Using the file's ` +
+                `value. Worth checking the Aging column in the export.`,
+            });
+          }
+        }
+
         invoices.push({
           companyName: company.replace(/\.$/, ""),
           transactionType: txType,
@@ -395,10 +418,10 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
           documentNumber: clean(row[5]),
           linkedContract: clean(row[6]) || null,
           age,
-          bucket: clean(row[11]),
+          bucket: theirBucket,
           openBalance: balance,
-          revenueType: revenueType(description),
-          isOneFm: description.toUpperCase().includes("ONEFM"),
+          revenueType: revenueType(description, clean(row[5])),
+          isOneFm: isOneFm(description, clean(row[5])),
         });
       }
     }

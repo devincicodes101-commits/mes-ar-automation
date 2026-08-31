@@ -29,6 +29,12 @@ export interface RevenueRule {
   readonly exact?: string;
   /** Matched against the start of the trimmed description. */
   readonly startsWith?: string;
+  /**
+   * Matched against the invoice's document number rather than its description.
+   * The document number identifies the invoice, and every line on an invoice
+   * belongs to it whatever that individual line happens to say.
+   */
+  readonly document?: RegExp;
   /** Plain English, shown to MES in Settings. */
   readonly means: string;
   /** Why this rule sits at this position. Only where the order is load bearing. */
@@ -40,13 +46,23 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 1,
     type: "1FM Maintenance",
     keywords: ["ONEFM", "ONE FM"],
+    // MES's own note: 1FM = DOCUMENT NUMBER "JPD1FM...". Their exports use
+    // JP1FM, so both spellings are matched, and JPD2 would give JP2FM.
+    document: /^JPD?\d*FM/,
     means: "Anything raised through 1FM, whatever the underlying charge is.",
     ordering:
       "First, and it has to be. These descriptions also contain SICKBAY, " +
       "MAINTENANCE, TENANT TRANSFER and REINSTATEMENT, so any of those rules " +
       "placed above would steal them. MES decided 1FM is a revenue type " +
       "rather than a tag, so the route the charge came through wins over " +
-      "what the charge is.",
+      "what the charge is. " +
+      "The document number is the reliable half. An invoice carries several " +
+      "lines and usually only one of them mentions ONEFM: the VAT and sick " +
+      "bay lines on the same invoice say nothing about 1FM in their own text, " +
+      "but the invoice number does. Reading descriptions alone found 17 of " +
+      "the 45 real 1FM lines. The description test is kept as well, because " +
+      "1FM credit notes are numbered JP1CN and the number alone would miss " +
+      "those.",
   },
   {
     order: 2,
@@ -211,10 +227,22 @@ export function normaliseDescription(description: string): string {
     .toUpperCase();
 }
 
-/** The first rule that claims this description, or null if none does. */
-export function matchRule(description: string): RevenueRule | null {
+/**
+ * The first rule that claims this line, or null if none does.
+ *
+ * `documentNumber` is optional so a description can still be classified on its
+ * own, which is what the rule table is tested against. Pass it wherever it is
+ * available: it is the difference between finding 17 of the 45 real 1FM lines
+ * and finding all of them.
+ */
+export function matchRule(
+  description: string,
+  documentNumber?: string,
+): RevenueRule | null {
   const d = normaliseDescription(description);
+  const doc = normaliseDescription(documentNumber ?? "");
   for (const rule of REVENUE_RULES) {
+    if (rule.document && doc !== "" && rule.document.test(doc)) return rule;
     if (rule.exact && d === rule.exact) return rule;
     if (rule.startsWith && d.startsWith(rule.startsWith)) return rule;
     if (rule.keywords.some((k) => d.includes(k))) return rule;
@@ -222,9 +250,21 @@ export function matchRule(description: string): RevenueRule | null {
   return null;
 }
 
-/** Works out what a charge is for, from the free text description. */
-export function revenueType(description: string): string {
-  return matchRule(description)?.type ?? FALLBACK_TYPE;
+/** Works out what a charge is for, from the description and invoice number. */
+export function revenueType(
+  description: string,
+  documentNumber?: string,
+): string {
+  return matchRule(description, documentNumber)?.type ?? FALLBACK_TYPE;
+}
+
+/**
+ * Whether this line is 1FM, which routes it to the maintenance team rather
+ * than to collections. Same answer as revenueType, expressed as a flag because
+ * that is what the screens filter on.
+ */
+export function isOneFm(description: string, documentNumber?: string): boolean {
+  return matchRule(description, documentNumber)?.type === "1FM Maintenance";
 }
 
 /**

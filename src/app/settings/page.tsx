@@ -247,6 +247,8 @@ function TemplateEditor({
               "{{property}}",
               "{{amount}}",
               "{{overdue}}",
+              "{{today}}",
+              "{{dueBy}}",
             ].map((v) => (
               <Tag key={v}>{v}</Tag>
             ))}
