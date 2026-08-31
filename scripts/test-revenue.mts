@@ -20,6 +20,13 @@ import {
   unrecognisedDescriptions,
 } from "../src/lib/revenue-rules.ts";
 import { emailAddresses, looksLikeUnreadableContact } from "../src/lib/emails.ts";
+import {
+  IMPORT_MUST_NOT_TOUCH,
+  IMPORT_REPLACES,
+  IMPORT_UPSERTS,
+  buildImportPlan,
+  periodOf,
+} from "../src/lib/import.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -228,6 +235,80 @@ console.log(
     "  everyone learns to ignore. Turn this into a real check once MES sends\n" +
     "  a summary and a detail export from the same month, with amounts.",
 );
+
+/* -------------------------------------------------------- the import plan ---
+ * Turning a parsed report into rows. The database side is checked by
+ * test-import.mjs; this is the decision making, which needs no database.
+ */
+console.log("\nBuilding the rows for one upload\n");
+
+const acct = (id: string, code: string, name: string, property: string, total: number) =>
+  ({
+    id, customerCode: code, companyName: name, property,
+    propertyName: property, status: "Live",
+    buckets: { current: total, d30: 0, d60: 0, d90: 0, d90plus: 0 },
+    total, legacyNote: null, emails: [], hasContact: false,
+    industry: null, entity: null, invoiceCount: 0, isOneFm: false,
+    revenueTypes: [], lateFeeCount: 0,
+  }) as never;
+
+const line = (company: string, amount: number) =>
+  ({
+    companyName: company, transactionType: "Invoice", date: "2026-08-01",
+    dueDate: "2026-08-15", description: "Occupancy Fee Charges",
+    documentNumber: "JPD1-786/1", linkedContract: null, age: 10,
+    bucket: "Current", openBalance: amount, revenueType: "Occupancy Fee",
+    isOneFm: false,
+  }) as never;
+
+check("the billing month comes from the report date", periodOf("2026-08-16"), "2026-08-01");
+
+const simple = buildImportPlan(
+  "2026-08-16",
+  [acct("dorm-1-jpd1", "DORM-1", "ALPHA PTE. LTD.", "JPD1", 500)],
+  [line("ALPHA PTE. LTD.", 500)],
+);
+check("one tenant, one snapshot, one invoice", `${simple.tenants.length}/${simple.snapshots.length}/${simple.invoices.length}`, "1/1/1");
+check("the snapshot carries the report date", simple.snapshots[0].report_date, "2026-08-16");
+check("the invoice is attached to the tenant", simple.invoices[0].tenant_id, "dorm-1-jpd1");
+check("nothing to report", simple.problems.length, 0);
+
+/* OKINAWAN PTE. LTD. really does rent at two dormitories and owes at both.
+ * The detail export names the company but not the dormitory, so those lines
+ * cannot be placed. Charging them to whichever tenant came first would make
+ * one balance wrong and the other short, with nothing on screen to say so. */
+const twoDorms = buildImportPlan(
+  "2026-08-16",
+  [
+    acct("dorm-415-jpd2", "DORM-415", "OKINAWAN PTE. LTD", "JPD2", 1745.12),
+    acct("dorm-415-bsd", "DORM-415", "OKINAWAN PTE. LTD", "BSD", 1158.88),
+  ],
+  [line("OKINAWAN PTE. LTD", 900)],
+);
+check("a company at two dormitories is two tenants", twoDorms.tenants.length, 2);
+check("its invoice lines are not guessed at", twoDorms.invoices.length, 0);
+check("and the officer is told why", twoDorms.problems[0]?.includes("more than one dormitory"), true);
+
+const orphan = buildImportPlan(
+  "2026-08-16",
+  [acct("dorm-1-jpd1", "DORM-1", "ALPHA PTE. LTD.", "JPD1", 500)],
+  [line("SOMEBODY ELSE PTE. LTD.", 300)],
+);
+check("an invoice for an unknown company is left out", orphan.invoices.length, 0);
+check("and reported rather than dropped in silence", orphan.problems[0]?.includes("not in the balances file"), true);
+
+const noDetail = buildImportPlan("2026-08-16", [acct("dorm-1-jpd1", "DORM-1", "ALPHA PTE. LTD.", "JPD1", 500)]);
+check("a report with no invoice detail still imports", noDetail.snapshots.length, 1);
+
+/* The rule the whole design turns on, written down as data so it can be
+ * asserted rather than assumed. test-import.mjs checks the database keeps to
+ * it; this checks nobody has quietly moved a table from one list to the other. */
+check("balances and invoice lines are the replaceable ones",
+      IMPORT_REPLACES.join(","), "account_snapshots,invoices");
+check("the officer's own work is protected",
+      IMPORT_MUST_NOT_TOUCH.join(","), "calls,promises,emails_sent,late_fees,audit_log");
+check("tenants are added and updated, never deleted",
+      IMPORT_UPSERTS.join(","), "tenants");
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
