@@ -85,6 +85,20 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
   },
   {
     order: 4,
+    type: "Cheque Admin Fee",
+    keywords: ["CHEQUE"],
+    means: "The $50 charged when a tenant pays by cheque.",
+    ordering:
+      "Above Admin Fee, for the same reason as the two rules above it. MES's " +
+      "reminder letter says the charge exists but none has appeared in any " +
+      "file they have sent, so the exact wording is unknown. If it were left " +
+      "to the fallback it would not reach it: any wording containing \"admin " +
+      "fee\" would be swallowed by the Admin Fee rule and filed as a generic admin fee, " +
+      "and the unrecognised panel would never mention it. Matching on CHEQUE " +
+      "catches it whatever the rest of the sentence says.",
+  },
+  {
+    order: 5,
     type: "Credit Note",
     keywords: ["CREDIT NOTE"],
     means: "A credit raised against the tenant, offsetting what they owe.",
@@ -94,14 +108,14 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "Charges where nobody would look for it.",
   },
   {
-    order: 5,
+    order: 6,
     type: "AR Transfer",
     keywords: ["AR TRANSFERRED"],
     means: "A balance moved in from another entity's ledger.",
     ordering: "Same reason as Credit Note: negative, and must stay visible.",
   },
   {
-    order: 6,
+    order: 7,
     type: "VAT",
     keywords: [],
     exact: "VAT",
@@ -113,7 +127,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "mentions tax in passing.",
   },
   {
-    order: 7,
+    order: 8,
     type: "Occupancy Fee",
     keywords: ["OCCUPANCY FEE"],
     means: "The core bed rental charge.",
@@ -122,19 +136,19 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "serious change and the reconciliation test will catch it.",
   },
   {
-    order: 8,
+    order: 9,
     type: "Service & Conservancy",
     keywords: ["SERVICE & CONSERVANCY"],
     means: "Shared services and upkeep of common areas.",
   },
   {
-    order: 9,
+    order: 10,
     type: "Furniture & Fittings",
     keywords: ["FURNITURE"],
     means: "Beds, lockers and fittings supplied with the room.",
   },
   {
-    order: 10,
+    order: 11,
     type: "CREAM Services",
     keywords: ["CREAM SERVICE"],
     means: "Cleaning, repair and maintenance package.",
@@ -143,25 +157,25 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "\"CREAM Services Charges\".",
   },
   {
-    order: 11,
+    order: 12,
     type: "Security Deposit",
     keywords: ["SECURITY DEPOSIT"],
     means: "Refundable deposit held against the tenancy.",
   },
   {
-    order: 12,
+    order: 13,
     type: "Season Parking",
     keywords: ["SEASON PARKING"],
     means: "Quarterly vehicle parking charges.",
   },
   {
-    order: 13,
+    order: 14,
     type: "Stamp Duty",
     keywords: ["STAMP DUTY"],
     means: "Reimbursement of duty paid on the tenancy agreement.",
   },
   {
-    order: 14,
+    order: 15,
     type: "Sick Bay",
     keywords: ["SICK BAY", "SICKBAY"],
     means: "Use of the on site sick bay.",
@@ -172,7 +186,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "decision to treat 1FM as a revenue type. Do not \"fix\" it.",
   },
   {
-    order: 15,
+    order: 16,
     type: "Maintenance",
     keywords: ["MAINTENANCE"],
     means: "Repairs and replacements billed directly.",
@@ -181,19 +195,19 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "claimed by rule 1 first. Only direct maintenance reaches here.",
   },
   {
-    order: 16,
+    order: 17,
     type: "Issuance Fee",
     keywords: ["ISSUANCE FEE"],
     means: "One off charge for bed board, storage box, bin and broom.",
   },
   {
-    order: 17,
+    order: 18,
     type: "Opening Balance",
     keywords: ["OPENING BALANCE"],
     means: "Balance carried in when the account was opened in NetSuite.",
   },
   {
-    order: 18,
+    order: 19,
     type: "Admin Fee",
     keywords: ["ADMIN FEE", "ADMINISTRATION FEE"],
     means: "General administration charge.",
@@ -203,7 +217,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "ADMINISTRATION FEE, and MES uses both.",
   },
   {
-    order: 19,
+    order: 20,
     type: "Other Charges",
     keywords: [],
     exact: "OTHER CHARGES",

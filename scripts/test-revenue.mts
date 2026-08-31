@@ -131,6 +131,11 @@ check("1FM beats Sick Bay", revenueType("ADMISSION TO SICKBAY AS PER ONEFM NOTIC
 check("Sick Bay without 1FM stays Sick Bay", revenueType("Sick Bay Usage"), "Sick Bay");
 check("Maintenance without 1FM stays Maintenance", revenueType("Maintenance Works"), "Maintenance");
 check("VAT is not a contains rule", revenueType("REIMBURSEMENT OF VAT ON STAMP DUTY"), "Stamp Duty");
+check("a cheque fee beats the generic admin fee",
+      revenueType("Admin Fee For Cheque Payment"), "Cheque Admin Fee");
+check("however MES word it", revenueType("CHEQUE HANDLING CHARGE"), "Cheque Admin Fee");
+check("an ordinary admin fee is untouched",
+      revenueType("Admin Fee - NON-REFUNDABLE"), "Admin Fee");
 check("rules are in declared order", REVENUE_RULES.map((r) => r.order).join(","), REVENUE_RULES.map((_, i) => i + 1).join(","));
 
 /* ---------------------------------------------------- contact addresses ---
@@ -166,7 +171,7 @@ check("text with no address in it is flagged as unreadable",
       looksLikeUnreadableContact("Appali Engineering Pte Ltd"), true);
 
 console.log("\nThe fallback means \"we do not recognise this\"\n");
-check("MES's own \"Other Charges\" is not a miss", matchRule("Other Charges")?.order, 19);
+check("MES's own \"Other Charges\" is not a miss", matchRule("Other Charges") !== null, true);
 for (const d of SHOULD_NOT_MATCH) {
   check(`unrecognised: ${d.slice(0, 40)}`, matchRule(d), null);
   check(`  still typed as`, revenueType(d), "Other Charges");
