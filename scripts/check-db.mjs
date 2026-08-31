@@ -49,6 +49,7 @@ const TABLES = [
 ];
 
 let missing = 0;
+let unreachable = 0;
 let exposed = 0;
 
 console.log("table            rows  as anonymous");
@@ -65,6 +66,16 @@ for (const t of TABLES) {
     .limit(1);
 
   if (error) {
+    // Anything that never reached Postgres is not an RLS result. A paused
+    // project, a DNS failure or a dropped connection all arrive here as an
+    // error, and treating them as "blocked by RLS" turns an unreachable
+    // database into a clean pass. That happened once. Fail loudly instead.
+    if (/fetch failed|ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|network/i.test(
+        `${error.message} ${error.details ?? ""}`)) {
+      console.log(`${t.padEnd(16)}   --  COULD NOT REACH THE DATABASE`);
+      unreachable += 1;
+      continue;
+    }
     if (/does not exist|schema cache|PGRST205|PGRST106/i.test(
         `${error.code} ${error.message}`)) {
       console.log(`${t.padEnd(16)}   --  MISSING, run the migrations`);
@@ -95,6 +106,15 @@ for (const t of TABLES) {
 }
 
 console.log("");
+if (unreachable > 0) {
+  console.log(
+    `FAIL: could not reach the database on ${unreachable} of ${TABLES.length} tables.\n` +
+      "Nothing here was verified. A Supabase project on the free plan pauses\n" +
+      "after a week of no traffic and stops resolving entirely, which looks\n" +
+      "exactly like this. Restore it from the dashboard and run this again.",
+  );
+  process.exit(1);
+}
 if (missing > 0) {
   console.log(`${missing} table(s) missing. Run 0001, 0002 and 0003 in the SQL editor.`);
   process.exit(1);

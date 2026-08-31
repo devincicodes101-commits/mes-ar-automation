@@ -90,7 +90,17 @@ async function connect() {
       } catch {}
     }
   }
-  throw new Error("Could not connect on any endpoint. Check the database password.");
+  // Distinguish "wrong password" from "there is nothing there to connect to".
+  // A paused Supabase project stops resolving, so every endpoint fails with a
+  // DNS error rather than an auth error, and blaming the password sends the
+  // next person hunting for a credential that was never wrong.
+  throw new Error(
+    "Could not connect on any endpoint.\n\n" +
+      "If the failures above are DNS errors (ENOTFOUND), the project is not\n" +
+      "reachable at all. Free plan projects pause after a week of no traffic\n" +
+      "and stop resolving until they are restored from the dashboard.\n\n" +
+      "If they are authentication errors, check SUPABASE_DB_PASSWORD.",
+  );
 }
 
 const client = await connect();
