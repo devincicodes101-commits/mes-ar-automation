@@ -28,6 +28,7 @@ import {
   periodOf,
 } from "../src/lib/import.ts";
 import { DEFAULT_FEE_RULE, feesDue } from "../src/lib/data.ts";
+import { DEFAULT_TEMPLATES, templateDueOn } from "../src/lib/store.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -368,6 +369,28 @@ check("and the fee is the flat $100 regardless", mixed[0]?.fee, 100);
 const bucketsOnly = feesDue([feeAcct("d", 900, { current: 0, d30: 900 })], DEFAULT_FEE_RULE, []);
 check("with no invoice dates it falls back to the buckets", bucketsOnly.length, 1);
 check("and says so rather than presenting it as fact", bucketsOnly[0]?.approximate, true);
+
+/* --------------------------------------- when reminders fire on their own ---
+ * MES asked for reminders to go out unattended. The wiring that runs it lives
+ * in a browser effect and cannot be checked from here, but the decision it
+ * asks can: which wording, if any, is due today.
+ *
+ * The last case is the one that matters. Firing the wrong template on the
+ * wrong day would send the final notice, which cites the Employment of
+ * Foreign Manpower Regulations and raises disruption of services, to somebody
+ * who is six days late.
+ */
+console.log("\nWhich reminder is due today\n");
+const dueOn = (day: number) => templateDueOn(new Date(2026, 7, day), DEFAULT_TEMPLATES);
+check("the 7th sends the first reminder", dueOn(7)?.id, "reminder-7th");
+check("the 21st sends the final notice", dueOn(21)?.id, "final-21st");
+check("the 6th sends nothing", dueOn(6), null);
+check("the 8th sends nothing", dueOn(8), null);
+check("the 16th sends nothing, that is the manager report day", dueOn(16), null);
+check("the 22nd sends nothing", dueOn(22), null);
+check("the 7th can never fire the final notice", dueOn(7)?.id === "final-21st", false);
+check("templates with no trigger day exist and never fire",
+      DEFAULT_TEMPLATES.some((t) => t.triggerDay === undefined), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
