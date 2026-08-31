@@ -69,16 +69,16 @@ for (const u of USERS) {
 
 // Ground truth, read with the service key which bypasses every policy.
 const { count: totalAccounts } = await admin
-  .from("accounts")
+  .from("tenants")
   .select("*", { count: "exact" })
   .limit(1);
 const { count: rm1Accounts } = await admin
-  .from("accounts")
+  .from("tenants")
   .select("*", { count: "exact" })
   .eq("rm_key", "rm1")
   .limit(1);
 const { count: rm2Accounts } = await admin
-  .from("accounts")
+  .from("tenants")
   .select("*", { count: "exact" })
   .eq("rm_key", "rm2")
   .limit(1);
@@ -104,10 +104,25 @@ for (const u of created) {
   console.log(`${u.label}`);
 
   // How many tenants can they see?
-  const { count } = await db.from("accounts").select("*", { count: "exact" }).limit(1);
+  const { count } = await db.from("tenants").select("*", { count: "exact" }).limit(1);
   const expectedAccounts =
     u.role === "rm" ? (u.rm === "rm1" ? rm1Accounts : rm2Accounts) : totalAccounts;
-  check("accounts visible", count ?? 0, expectedAccounts);
+  check("tenants visible", count ?? 0, expectedAccounts);
+
+  // The same scoping has to hold on the snapshots and on the view, or a
+  // manager could read another manager's balances simply by asking a
+  // different table for them.
+  const { count: snaps } = await db
+    .from("account_snapshots")
+    .select("*", { count: "exact" })
+    .limit(1);
+  check("snapshots scoped the same way", (snaps ?? 0) > 0, expectedAccounts > 0);
+
+  const { count: viewRows } = await db
+    .from("current_accounts")
+    .select("*", { count: "exact" })
+    .limit(1);
+  check("current_accounts scoped the same way", viewRows ?? 0, expectedAccounts);
 
   // Can they read tenant email addresses? Personal data, CSD and mgmt only.
   const { count: contacts } = await db
@@ -124,7 +139,7 @@ for (const u of created) {
   const { error: writeErr } = await db
     .from("calls")
     .insert({
-      account_id: "dorm-166-jpd2",
+      tenant_id: "dorm-166-jpd2",
       period: "2026-05-01",
       outcome: "no_answer",
       reached: "rls test",

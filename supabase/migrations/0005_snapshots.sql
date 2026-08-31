@@ -147,6 +147,27 @@ select
   a.is_onefm, a.late_fee_count, a.legacy_note, a.created_at
 from accounts a;
 
+-- ------------------------------------------- retire the old policies first
+-- A row level security policy holds a reference to every column it names, so
+-- `calls_read`, which reads calls.account_id, prevents that column from being
+-- dropped. They are all replaced further down with the same names, keyed off
+-- tenants instead. Between here and there the tables are protected by RLS
+-- still being enabled with no policy present, which denies everything rather
+-- than allowing it.
+
+drop policy if exists invoices_read   on invoices;
+drop policy if exists invoices_write  on invoices;
+drop policy if exists giro_read       on giro_failures;
+drop policy if exists giro_write      on giro_failures;
+drop policy if exists calls_read      on calls;
+drop policy if exists calls_write     on calls;
+drop policy if exists promises_read   on promises;
+drop policy if exists promises_write  on promises;
+drop policy if exists emails_read     on emails_sent;
+drop policy if exists emails_write    on emails_sent;
+drop policy if exists late_fees_read  on late_fees;
+drop policy if exists late_fees_write on late_fees;
+
 -- ------------------------------------- repoint the work that must survive
 -- These four are the officer's own work. They attach to the tenant, so an
 -- upload cannot touch them.
@@ -165,6 +186,13 @@ alter table calls        alter column tenant_id set not null;
 alter table promises     alter column tenant_id set not null;
 alter table emails_sent  alter column tenant_id set not null;
 alter table late_fees    alter column tenant_id set not null;
+
+-- Indexes and constraints hold a reference to the column, so they go first.
+-- Dropped by name rather than with `cascade`, so that a dependency nobody
+-- expected causes an error here instead of being quietly swept away.
+drop index if exists calls_account_idx;
+drop index if exists emails_account_idx;
+alter table late_fees drop constraint if exists late_fees_account_id_period_key;
 
 alter table calls        drop column account_id;
 alter table promises     drop column account_id;
@@ -197,6 +225,7 @@ update invoices i
          limit 1
        );
 
+drop index if exists invoices_account_idx;
 alter table invoices drop column account_id;
 create index invoices_snapshot_idx on invoices (snapshot_id);
 create index invoices_tenant_idx   on invoices (tenant_id);
@@ -205,6 +234,7 @@ create index invoices_tenant_idx   on invoices (tenant_id);
 -- a table that is about to disappear.
 alter table giro_failures add column tenant_id text references tenants(id) on delete set null;
 update giro_failures set tenant_id = account_id;
+drop index if exists giro_failures_account_idx;
 alter table giro_failures drop column account_id;
 create index giro_failures_tenant_idx on giro_failures (tenant_id);
 
