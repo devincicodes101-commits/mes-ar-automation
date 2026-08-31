@@ -47,8 +47,9 @@ export default function SettingsPage() {
               Send reminders without asking
             </p>
             <p className="mt-1 max-w-2xl text-xs text-ink-secondary">
-              Off: the officer approves each email. On: they go out on the 7th
-              and the 21st unattended.
+              On: reminders go out on the 7th and the 21st unattended, which is
+              what MES asked for. Off: the officer reads and approves each
+              batch first, which is the process in the original proposal.
             </p>
           </div>
 
@@ -75,11 +76,15 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {/* Proposal 4.5 requires a review step. One line is enough to say so. */}
+        {/* Proposal 4.5 asks for a review step. MES asked for automatic
+            instead, so the screen records which of the two is running rather
+            than leaving somebody to discover it from behaviour. */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line-hair bg-surface-alt px-5 py-3">
-          <StatusBadge kind="warning" label="Check with MES" />
+          <StatusBadge kind="neutral" label="Changed at MES's request" />
           <p className="text-[11px] text-ink-muted">
-            The agreed process has an officer approve each email.
+            Proposal 4.5 asked for an officer to approve each email. MES asked
+            for automatic sending instead. Both modes work; this switch decides
+            which one is running.
           </p>
         </div>
       </Card>

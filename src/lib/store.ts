@@ -79,6 +79,13 @@ export interface Template {
   id: string;
   name: string;
   trigger: string;
+  /**
+   * Day of the month this wording goes out on, where MES's cycle has one.
+   * The first reminder is the 7th and the final notice the 21st. Templates
+   * sent in response to something, like the promise confirmation, have no
+   * day and are never sent automatically.
+   */
+  triggerDay?: number;
   subject: string;
   body: string;
 }
@@ -94,17 +101,22 @@ export interface Settings {
   /**
    * Whether reminders go out without an officer approving each one.
    *
-   * Off by default, deliberately. Proposal 4.5 requires "a review step before
-   * anything goes out", and the requirement deck states it as a highlighted
-   * rule: every reminder is drafted, previewed and approved by the CSD officer
-   * before anything is sent. Turning this on overrides that, so the screen
-   * says so plainly.
+   * On by default, at MES's request. It overrides proposal 4.5, which asks
+   * for "a review step before anything goes out", so the screen says which
+   * mode it is in rather than leaving it to be discovered.
+   *
+   * Turning it off returns to the originally agreed process. Both modes are
+   * supported and neither is a workaround.
    */
   autoSendReminders: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  autoSendReminders: false,
+  // MES asked for reminders to go out on their own, confirmed through
+  // DeVinci. It overrides the review step in proposal 4.5, so the change is
+  // recorded here rather than left as an unexplained default. Anyone turning
+  // it off is going back to the originally agreed process, not breaking it.
+  autoSendReminders: true,
 };
 
 export interface StoreState {
@@ -120,6 +132,21 @@ export interface StoreState {
 const KEY = "mes-ar-prototype-v1";
 
 /**
+ * The wording due to go out today, if any.
+ *
+ * MES's cycle puts the first reminder on the 7th and the final notice on the
+ * 21st. A template with no triggerDay is sent in response to something rather
+ * than on a date, so it never fires here.
+ */
+export function templateDueOn(
+  date: Date,
+  templates: Template[],
+): Template | null {
+  const day = date.getDate();
+  return templates.find((t) => t.triggerDay === day) ?? null;
+}
+
+/**
  * The first two are MES's own letters, transcribed from the Word documents
  * they sent, with their mail merge fields swapped for ours. Wording we had
  * written ourselves stood here until then, which was fine for a demo and not
@@ -133,6 +160,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
     id: "reminder-7th",
     name: "First reminder",
     trigger: "7th of the month",
+    triggerDay: 7,
     subject: "Outstanding rental payment, {{company}}",
     body: `Dear {{company}},
 
@@ -176,6 +204,7 @@ Office No: 6337 2666`,
     id: "final-21st",
     name: "Final notice",
     trigger: "21st of the month",
+    triggerDay: 21,
     subject: "Final reminder, outstanding rental payment for {{company}}",
     body: `Dear {{company}},
 

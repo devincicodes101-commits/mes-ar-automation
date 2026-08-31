@@ -1,13 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildQueue,
   formatSgd,
   overdueTotal,
 } from "@/lib/data";
 import { Account } from "@/lib/types";
-import { Template, recordEmail, recordEmails, useStore } from "@/lib/store";
+import {
+  Template,
+  recordEmail,
+  recordEmails,
+  templateDueOn,
+  useStore,
+} from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
@@ -106,6 +112,55 @@ export default function RemindersPage() {
     }
   }, [templateId, queue, store.emails]);
 
+  /**
+   * Automatic sending, which MES asked for and confirmed through DeVinci.
+   *
+   * On the 7th and the 21st the batch goes out on its own. Nobody reads it
+   * first: that is the point of the request, and it overrides the review step
+   * in proposal 4.5, so the screen states which mode it is in.
+   *
+   * Two guards that are not optional. It only ever fires for the wording due
+   * today, and only for tenants who have not already had that wording, so a
+   * page refresh cannot send a second copy. A tenant with no email address is
+   * skipped and stays on the call list rather than being counted as chased.
+   *
+   * This runs in the browser because there is no scheduler yet. When the
+   * backend exists this same decision moves there and the screen only reports
+   * what it did. Nothing about the rules changes.
+   */
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!store.settings.autoSendReminders) return;
+    if (autoRan.current) return;
+
+    const due = templateDueOn(new Date(), store.templates);
+    if (!due) return;
+
+    const alreadySent = new Set(
+      store.emails.filter((e) => e.templateId === due.id).map((e) => e.accountId),
+    );
+    const batch = buildQueue(scope(ds.accounts)).filter(
+      (q) => q.account.hasContact && !alreadySent.has(q.account.id),
+    );
+    if (batch.length === 0) return;
+
+    autoRan.current = true;
+    const n = recordEmails(
+      batch.map((q) => ({
+        accountId: q.account.id,
+        companyName: q.account.companyName,
+        templateId: due.id,
+        templateName: due.name,
+        subject: merge(due.subject, q.account),
+        to: q.account.emails,
+      })),
+    );
+    notify(
+      `${due.name} sent automatically to ${n} tenants`,
+      `Today is the ${due.triggerDay}th. Turn this off in Settings to approve each one instead.`,
+    );
+  }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify]);
+
   const [bulk, setBulk] = useState(false);
   const cannotEmail = queue.filter((q) => !q.account.hasContact);
   const pending = audience.list.filter((q) => !sentIds.has(q.account.id));
@@ -116,7 +171,7 @@ export default function RemindersPage() {
         <StatTile
           label="Ready to send"
           value={String(pending.length)}
-          note="You approve each one first"
+          note="Goes out on the trigger date"
           emphasis
         />
         <StatTile
@@ -125,9 +180,9 @@ export default function RemindersPage() {
           note="All recorded in the activity log"
         />
         <StatTile
-          label="Blocked, no email"
+          label="No email address"
           value={String(cannotEmail.length)}
-          note="Waiting on the contact list from MES"
+          note="Phone these instead"
         />
         <StatTile
           label="Wording templates"
@@ -141,7 +196,7 @@ export default function RemindersPage() {
           title="Choose the wording, then approve the batch"
           hint={
             store.settings.autoSendReminders
-              ? "Automatic sending is on. These go out on the trigger date. You can still send one early."
+              ? "Automatic sending is on. The first reminder goes out on the 7th and the final notice on the 21st, without anyone reading them first. You can still send early."
               : "Nothing is sent automatically. Send the group in one go after reading the list, or open any one of them first."
           }
           right={
