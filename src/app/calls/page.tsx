@@ -36,7 +36,38 @@ export default function CallListPage() {
   const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
   const calledIds = new Set(store.calls.map((c) => c.accountId));
 
-  const todo = queue.filter((q) => !calledIds.has(q.account.id));
+  /**
+   * How many times each tenant has already been rung, from the call log.
+   * MES allow repeat calls and want them counted: a tenant on their fourth
+   * call who still has not paid needs a different approach from a first call.
+   */
+  const callCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of store.calls) {
+      m.set(c.accountId, (m.get(c.accountId) ?? 0) + 1);
+    }
+    return m;
+  }, [store.calls]);
+
+  /**
+   * Everyone stays on the list. MES are explicit that repeat calls are allowed
+   * and counted, and a tenant who was rung once and did not pay still needs
+   * ringing. Dropping them the moment a call was logged made a second call
+   * impossible from this screen, which is the opposite of what was asked for.
+   *
+   * Those not yet called come first, then the rest by fewest calls, so the
+   * officer works down a list that is still in a sensible order.
+   */
+  const todo = useMemo(() => {
+    return [...queue].sort((a, b) => {
+      const ca = callCounts.get(a.account.id) ?? 0;
+      const cb = callCounts.get(b.account.id) ?? 0;
+      if (ca !== cb) return ca - cb;
+      return b.priority - a.priority;
+    });
+  }, [queue, callCounts]);
+
+  const notYetCalled = queue.filter((q) => !calledIds.has(q.account.id));
   const done = queue.filter((q) => calledIds.has(q.account.id));
 
   return (
@@ -44,7 +75,7 @@ export default function CallListPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Still to call"
-          value={String(todo.length)}
+          value={String(notYetCalled.length)}
           note="Work down from the top"
           emphasis
         />
@@ -74,13 +105,13 @@ export default function CallListPage() {
       <Card>
         <CardHeader
           title="Who to phone on the 7th and the 21st"
-          hint="Call from your normal line, then log what was agreed."
+          hint="Call from your normal line, then log what was agreed. Anyone already rung stays on the list, and repeat calls are counted."
         />
 
         {todo.length === 0 ? (
           <EmptyState
-            title="Every tenant on the list has been called"
-            body="Anything logged today is shown below."
+            title="Nobody needs chasing"
+            body="No tenant is overdue on the current figures."
           />
         ) : (
           <ol className="divide-y divide-line-grid">
@@ -130,6 +161,19 @@ export default function CallListPage() {
                     ) : null}
                     {item.account.lateFeeCount > 0 ? (
                       <span>{item.account.lateFeeCount} late fees charged</span>
+                    ) : null}
+                    {/* MES's workflow: "Repeated calls allowed. Call status
+                        count." Somebody rung four times without paying is a
+                        different conversation from a first call, and without
+                        this the officer has to remember. */}
+                    {callCounts.get(item.account.id) ? (
+                      <span className="font-medium text-ink">
+                        Called {callCounts.get(item.account.id)}{" "}
+                        {callCounts.get(item.account.id) === 1
+                          ? "time"
+                          : "times"}{" "}
+                        already
+                      </span>
                     ) : null}
                   </div>
                 </div>

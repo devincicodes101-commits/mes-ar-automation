@@ -3,6 +3,7 @@
 import * as XLSX from "xlsx";
 import { Account, Invoice, PropertyCode } from "./types";
 import { bucketLabelForAge } from "./data";
+import { emailAddresses, looksLikeUnreadableContact } from "./emails";
 
 // The classification rules live on their own so the build can check them
 // against every description MES has ever sent: see scripts/test-revenue.mts.
@@ -443,17 +444,22 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
     for (let i = headerAt + 1; i < rows.length; i += 1) {
       const company = clean(rows[i]?.[0]);
       if (!company) continue;
-      // One cell can hold several addresses separated by semicolons.
-      const emails = clean(rows[i]?.[2])
-        .split(/[;,]/)
-        .map((e) => e.trim())
-        .filter((e) => e.includes("@"));
+      // One cell can hold several addresses, wrapped in display names, quotes
+      // or angle brackets. See emails.ts: the addresses are found inside the
+      // cell rather than the cell being split up.
+      const cell = rows[i]?.[2];
+      const emails = emailAddresses(cell);
       if (emails.length === 0) {
         problems.push({
           sheet: contactName,
           row: i + 1,
           severity: "warning",
-          message: `${company} has no usable email address.`,
+          message: looksLikeUnreadableContact(cell)
+            ? `${company}: there is something in the email column but no ` +
+              `address we can read in it, so no reminder can be sent. ` +
+              `The cell says: ${clean(cell).slice(0, 80)}`
+            : `${company} has no email address, so reminders cannot reach ` +
+              `them. Phone them instead.`,
         });
         continue;
       }

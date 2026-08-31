@@ -19,6 +19,7 @@ import {
   revenueType,
   unrecognisedDescriptions,
 } from "../src/lib/revenue-rules.ts";
+import { emailAddresses, looksLikeUnreadableContact } from "../src/lib/emails.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -122,6 +123,38 @@ check("Sick Bay without 1FM stays Sick Bay", revenueType("Sick Bay Usage"), "Sic
 check("Maintenance without 1FM stays Maintenance", revenueType("Maintenance Works"), "Maintenance");
 check("VAT is not a contains rule", revenueType("REIMBURSEMENT OF VAT ON STAMP DUTY"), "Stamp Duty");
 check("rules are in declared order", REVENUE_RULES.map((r) => r.order).join(","), REVENUE_RULES.map((_, i) => i + 1).join(","));
+
+/* ---------------------------------------------------- contact addresses ---
+ * Every shape MES actually writes, taken from their contact list. The third
+ * is the one that matters: splitting on semicolons and keeping anything with
+ * an "@" yields the whole "AKR engg <...>" string as the address, and a
+ * reminder sent to that bounces while the screen still says it was sent.
+ */
+console.log("\nEmail addresses, as MES actually types them\n");
+const EMAILS: [cell: string, expected: string[]][] = [
+  ["durga@akilaglobal.com.sg", ["durga@akilaglobal.com.sg"]],
+  ["AKR engg <akrpteltd@gmail.com>", ["akrpteltd@gmail.com"]],
+  ["'best.meengineering@gmail.com'", ["best.meengineering@gmail.com"]],
+  ["aeoncontractor@gmail.com; Admin Finance <admin@aeoncontractor.com>",
+   ["aeoncontractor@gmail.com", "admin@aeoncontractor.com"]],
+  ["Kameswaran <kamesh@appali.com>; Appali Account <accounts@appali.com>; Appali Engineering Pte Ltd",
+   ["kamesh@appali.com", "accounts@appali.com"]],
+  [" finance@brightsun.com.sg; sathiya@brightsun.com.sg",
+   ["finance@brightsun.com.sg", "sathiya@brightsun.com.sg"]],
+  ["jeevan@veroengg.com.sg;THIRU  <admin@veroengg.com.sg>; kannan@veroengg.com.sg",
+   ["jeevan@veroengg.com.sg", "admin@veroengg.com.sg", "kannan@veroengg.com.sg"]],
+  ["Sathiya@brightsun.com.sg; sathiya@brightsun.com.sg", ["sathiya@brightsun.com.sg"]],
+  ["", []],
+  ["Appali Engineering Pte Ltd", []],
+];
+for (const [cell, expected] of EMAILS) {
+  check(cell === "" ? "(an empty cell)" : cell.slice(0, 58),
+        emailAddresses(cell).join(" "), expected.join(" "));
+}
+check("an empty cell is a missing contact, not an unreadable one",
+      looksLikeUnreadableContact(""), false);
+check("text with no address in it is flagged as unreadable",
+      looksLikeUnreadableContact("Appali Engineering Pte Ltd"), true);
 
 console.log("\nThe fallback means \"we do not recognise this\"\n");
 check("MES's own \"Other Charges\" is not a miss", matchRule("Other Charges")?.order, 19);

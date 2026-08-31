@@ -7,7 +7,7 @@ import {
   overdueTotal,
 } from "@/lib/data";
 import { Account } from "@/lib/types";
-import { Template, recordEmail, useStore } from "@/lib/store";
+import { Template, recordEmail, recordEmails, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
@@ -53,6 +53,7 @@ function longDate(d: Date): string {
 export default function RemindersPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
+  const { notify } = useToast();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
@@ -105,6 +106,7 @@ export default function RemindersPage() {
     }
   }, [templateId, queue, store.emails]);
 
+  const [bulk, setBulk] = useState(false);
   const cannotEmail = queue.filter((q) => !q.account.hasContact);
   const pending = audience.list.filter((q) => !sentIds.has(q.account.id));
 
@@ -136,24 +138,36 @@ export default function RemindersPage() {
 
       <Card>
         <CardHeader
-          title="Choose the wording, then approve each email"
+          title="Choose the wording, then approve the batch"
           hint={
             store.settings.autoSendReminders
               ? "Automatic sending is on. These go out on the trigger date. You can still send one early."
-              : "Nothing is sent automatically. You read every email and press send yourself."
+              : "Nothing is sent automatically. Send the group in one go after reading the list, or open any one of them first."
           }
           right={
-            <select
-              value={templateId}
-              onChange={(e) => setTemplateId(e.target.value)}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
-            >
-              {store.templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
+              >
+                {store.templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {/* MES send these as one batch, not one at a time. Their
+                  workflow calls the 7th and the 21st a bulk email. */}
+              <button
+                type="button"
+                onClick={() => setBulk(true)}
+                disabled={pending.length === 0 || !canAct}
+                className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Send all {pending.length}
+              </button>
+            </div>
           }
         />
 
@@ -219,22 +233,45 @@ export default function RemindersPage() {
         )}
       </Card>
 
+      {/* A tenant with no address is not simply skipped. They are still owed
+          money and still need chasing, so they are named, their balance is
+          shown, and they are pointed at the phone. Listing them as bare tags
+          made them read as an inconvenience rather than as work. */}
       {cannotEmail.length > 0 ? (
         <Card>
           <CardHeader
-            title="Cannot email these tenants yet"
-            hint="No email address on file."
+            title="No email address, so phone these instead"
+            hint="They stay on the call list. Add an address on Outstanding Balances and they join the next send."
+            right={
+              <StatusBadge
+                kind="warning"
+                label={`SGD ${formatSgd(
+                  cannotEmail.reduce((n, q) => n + q.overdue, 0),
+                )} unreachable`}
+              />
+            }
           />
-          <div className="flex flex-wrap gap-2 px-5 py-4">
-            {cannotEmail.slice(0, 24).map((q) => (
-              <Tag key={q.account.id}>{q.account.companyName}</Tag>
+          <ul className="divide-y divide-line-grid">
+            {cannotEmail.map((q) => (
+              <li
+                key={q.account.id}
+                className="flex flex-wrap items-center gap-4 px-5 py-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <span className="text-sm font-medium text-ink">
+                    {q.account.companyName}
+                  </span>
+                  <span className="ml-2 text-[11px] text-ink-muted">
+                    {q.account.customerCode} · {q.account.propertyName}
+                  </span>
+                </div>
+                <span className="tabular shrink-0 text-xs text-ink-secondary">
+                  overdue SGD {formatSgd(q.overdue)}
+                </span>
+                <StatusBadge kind="warning" label="Phone only" />
+              </li>
             ))}
-            {cannotEmail.length > 24 ? (
-              <span className="text-[11px] text-ink-muted">
-                and {cannotEmail.length - 24} more
-              </span>
-            ) : null}
-          </div>
+          </ul>
         </Card>
       ) : null}
 
@@ -270,6 +307,89 @@ export default function RemindersPage() {
           template={template}
           onClose={() => setDrafting(null)}
         />
+      ) : null}
+
+      {bulk ? (
+        <Modal
+          wide
+          title={`Send the ${template.name.toLowerCase()} to ${pending.length} tenants`}
+          onClose={() => setBulk(false)}
+        >
+          <p className="text-xs leading-relaxed text-ink-secondary">
+            The same wording goes to everyone below, with each tenant&apos;s own
+            name and balance filled in. Nothing has been sent yet.
+          </p>
+
+          <div className="mt-3 max-h-[42vh] overflow-auto rounded border border-line-hair">
+            <table className="w-full border-collapse text-xs">
+              <thead className="sticky top-0 bg-surface-alt">
+                <tr className="text-left">
+                  <th className="border-b border-line-grid px-3 py-2 font-medium text-ink-muted">
+                    Tenant
+                  </th>
+                  <th className="border-b border-line-grid px-3 py-2 font-medium text-ink-muted">
+                    Going to
+                  </th>
+                  <th className="border-b border-line-grid px-3 py-2 text-right font-medium text-ink-muted">
+                    Owes
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((q) => (
+                  <tr key={q.account.id} className="border-b border-line-grid">
+                    <td className="px-3 py-1.5 text-ink">
+                      {q.account.companyName}
+                    </td>
+                    <td className="px-3 py-1.5 text-ink-muted">
+                      {q.account.emails.join(", ")}
+                    </td>
+                    <td className="tabular px-3 py-1.5 text-right text-ink">
+                      {formatSgd(q.account.total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                const n = recordEmails(
+                  pending.map((q) => ({
+                    accountId: q.account.id,
+                    companyName: q.account.companyName,
+                    templateId: template.id,
+                    templateName: template.name,
+                    subject: merge(template.subject, q.account),
+                    to: q.account.emails,
+                  })),
+                );
+                notify(
+                  `${template.name} sent to ${n} tenants`,
+                  "Each one recorded separately in the activity log",
+                );
+                setBulk(false);
+              }}
+              className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+            >
+              Send all {pending.length}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulk(false)}
+              className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
+            >
+              Cancel
+            </button>
+            <p className="text-[11px] text-ink-muted">
+              {pending.reduce((n, q) => n + q.account.emails.length, 0)}{" "}
+              recipients in total
+            </p>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

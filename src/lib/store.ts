@@ -361,15 +361,52 @@ export function recordCall(
 }
 
 export function recordEmail(input: Omit<SentEmail, "id" | "at">): void {
-  const email: SentEmail = { ...input, id: id(), at: now() };
+  recordEmails([input]);
+}
+
+/**
+ * Sends the whole group at once, which is how MES work: their AR Workflow
+ * calls the 7th and the 21st a "Bulk Email" and they run it today as a Word
+ * mail merge.
+ *
+ * One commit rather than one per tenant, so forty reminders cannot end up half
+ * recorded if something fails midway. Every tenant still gets their own audit
+ * entry, because "who was chased and when" has to be answerable per tenant,
+ * and a batch line is added on top so the run itself is visible as one act.
+ */
+export function recordEmails(
+  inputs: Omit<SentEmail, "id" | "at">[],
+): number {
+  if (inputs.length === 0) return 0;
+
+  const stamp = now();
+  const emails: SentEmail[] = inputs.map((input) => ({
+    ...input,
+    id: id(),
+    at: stamp,
+  }));
+
+  const perTenant = emails.map((e) =>
+    log(`Sent the ${e.templateName.toLowerCase()}`, e.companyName),
+  );
+
+  const batch =
+    emails.length > 1
+      ? [
+          log(
+            `Sent the ${emails[0].templateName.toLowerCase()} to ${emails.length} tenants`,
+            "Bulk send",
+          ),
+        ]
+      : [];
+
   commit({
     ...state,
-    emails: [email, ...state.emails],
-    audit: [
-      log(`Sent the ${email.templateName.toLowerCase()}`, email.companyName),
-      ...state.audit,
-    ],
+    emails: [...emails, ...state.emails],
+    audit: [...batch, ...perTenant, ...state.audit],
   });
+
+  return emails.length;
 }
 
 /** Marks a promise as confirmed to the tenant, per proposal section 3. */
