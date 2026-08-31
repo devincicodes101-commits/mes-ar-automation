@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}</style>
 <title>MES Collections Lifecycle</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -289,6 +289,63 @@
     display: flex; flex-wrap: wrap; gap: 8px 28px;
   }
 
+
+  /* ----------------------------------------------------------- file cards */
+  .group-head { margin: 34px 0 16px; }
+  .files { display: grid; gap: 14px; }
+  @media (min-width: 860px) { .files { grid-template-columns: 1fr 1fr; } }
+
+  .file {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--ok);
+    border-radius: 5px; padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .file.bad { border-left-color: var(--warn); }
+  .file-h { margin-bottom: 10px; }
+  .file-h h3 { margin: 0 0 2px; font-size: 16px; }
+  .file-sub {
+    font-size: 11px; color: var(--ink-3);
+    letter-spacing: .03em;
+  }
+  .file p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .file p.pt { margin-top: 11px; }
+  .file b { color: var(--ink); font-weight: 600; }
+
+  .snippet {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    background: var(--surface-alt); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 11px 13px; margin: 11px 0 0;
+    overflow-x: auto; color: var(--ink-2); white-space: pre;
+  }
+  .quote {
+    margin: 11px 0 0; padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--line);
+    font-family: Newsreader, Georgia, serif; font-size: 15.5px;
+    line-height: 1.5; color: var(--ink-2);
+  }
+  .quote b { color: var(--ink); font-weight: 600; }
+
+  /* -------------------------------------------------------------- alert */
+  .alert {
+    margin-top: 22px; background: var(--warn-soft);
+    border: 1px solid var(--line-soft); border-left: 3px solid var(--warn);
+    border-radius: 4px; padding: 16px 20px;
+  }
+  .alert.acc { background: var(--accent-soft); border-left-color: var(--accent); }
+  .alert h3 { margin-bottom: 6px; }
+  .alert p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .alert p + p { margin-top: 9px; }
+  .alert b { color: var(--ink); font-weight: 600; }
+
+  /* --------------------------------------------------- question backstory */
+  ol.qs li { padding: 18px 0; }
+  ol.qs .story {
+    font-size: 14px; color: var(--ink-2); margin: 0 0 8px;
+    padding-left: 12px; border-left: 2px solid var(--line-soft);
+  }
+  ol.qs .story b { color: var(--ink); font-weight: 600; }
+
   @media (max-width: 620px) {
     .spine { grid-template-columns: 62px 1fr; gap: 0 14px; }
     .track { padding-left: 18px; }
@@ -544,68 +601,227 @@
   <section>
     <div class="sec-head col">
       <span class="eyebrow">Source files</span>
-      <h2>What we have, and what we are unsure about</h2>
+      <h2>The eight files, one by one</h2>
       <p>
-        MES has sent seven files. Most are clear. Four raise questions we cannot
-        answer by reading them.
+        MES has sent eight things. Four are clean and moved us forward. Four have
+        gaps. Every gap turns into a question rather than a piece of work.
       </p>
     </div>
 
-    <div class="scroll">
-      <table>
-        <thead>
-          <tr><th>File</th><th>What it gives us</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>AR report</strong><br><span class="mono" style="color:var(--ink-3)">JPD1 / JPD2 / BSD / LEO tabs</span></td>
-            <td>What every tenant owes, split across the five age bands, per dormitory.</td>
-            <td class="nowrap"><span class="chip ok">clear</span></td>
-          </tr>
-          <tr>
-            <td><strong>Client contact list</strong></td>
-            <td>110 companies, 228 email addresses. Unblocks reminders entirely.</td>
-            <td class="nowrap"><span class="chip ok">clear</span></td>
-          </tr>
-          <tr>
-            <td><strong>Reminder letters</strong><br><span class="mono" style="color:var(--ink-3)">first and final</span></td>
-            <td>The real wording, and the $100 fee rule stated in writing.</td>
-            <td class="nowrap"><span class="chip ok">clear</span></td>
-          </tr>
-          <tr>
-            <td><strong>AR Collections Cycle</strong><br><span class="mono" style="color:var(--ink-3)">plus the Flow and Formula tabs</span></td>
-            <td>The monthly timetable, and the exact formula for how late a charge is.</td>
-            <td class="nowrap"><span class="chip ok">clear</span></td>
-          </tr>
-          <tr>
-            <td><strong>Finance AR Download</strong><br><span class="mono" style="color:var(--ink-3)">169 invoice lines</span></td>
-            <td>Should tell us what each individual charge was for. The amount column is blank on every row.</td>
-            <td class="nowrap"><span class="chip stop">unusable</span></td>
-          </tr>
-          <tr>
-            <td><strong>Manager mockups</strong><br><span class="mono" style="color:var(--ink-3)">Harry&rsquo;s and Ray&rsquo;s</span></td>
-            <td>The layout of the manager report. But the two files have different columns, and two of them have no formula we can work out.</td>
-            <td class="nowrap"><span class="chip warn">conflicting</span></td>
-          </tr>
-          <tr>
-            <td><strong>Report placeholder tabs</strong><br><span class="mono" style="color:var(--ink-3)">SD / PF / LP / SD / RM</span></td>
-            <td>Names five reports MES wants. All five tabs are completely empty.</td>
-            <td class="nowrap"><span class="chip warn">no data</span></td>
-          </tr>
-          <tr>
-            <td><strong>Revenue categories list</strong></td>
-            <td>MES&rsquo;s own list of charge types. Promised in their workflow document.</td>
-            <td class="nowrap"><span class="chip stop">not sent</span></td>
-          </tr>
-        </tbody>
-      </table>
+    <h3 class="group-head"><span class="chip ok">these four are clear</span></h3>
+
+    <div class="files">
+
+      <article class="file">
+        <div class="file-h">
+          <h3>The AR report</h3>
+          <span class="mono file-sub">four tabs &middot; JPD1, JPD2, BSD, LEO</span>
+        </div>
+        <p>
+          One tab per dormitory. Every tenant with what they owe split across five age
+          columns, a grand total, and an <span class="mono">Update</span> column where
+          Jacqueline types notes after a phone call.
+        </p>
+        <p class="pt">
+          <b>This is the file the system actually runs on today.</b> Every balance on
+          every screen comes from here. It is clean and we have had no trouble with it.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h">
+          <h3>The client contact list</h3>
+          <span class="mono file-sub">110 companies &middot; 228 addresses</span>
+        </div>
+        <p>
+          <b>This unblocked the whole reminder feature.</b> We had eight addresses out
+          of fifty three. The reminder screens were built and could reach almost nobody.
+        </p>
+        <p class="pt">
+          One catch worth knowing: the addresses arrive in several different formats,
+          sometimes several in the same cell.
+        </p>
+        <pre class="snippet">aeoncontractor@gmail.com; Admin Finance &lt;admin@aeoncontractor.com&gt;
+AKR engg &lt;akrpteltd@gmail.com&gt;
+Kameswaran &lt;kamesh@appali.com&gt;; Appali Account &lt;accounts@appali.com&gt;</pre>
+        <p class="pt">
+          So we have to pull the addresses out rather than use the text as it stands.
+          Not difficult, but it has to be right &mdash; a mangled address means a
+          reminder that silently never arrives.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h">
+          <h3>The two reminder letters</h3>
+          <span class="mono file-sub">first reminder and final notice</span>
+        </div>
+        <p>
+          The real letters MES sends today, replacing wording we had written ourselves.
+        </p>
+        <p class="pt">
+          <b>They settled the late fee question.</b> We had two conflicting answers for
+          months. Their own letter says it plainly:
+        </p>
+        <blockquote class="quote">
+          &ldquo;if payment is not received by the 15th day of each calendar month, an
+          administrative fee for late payment amounting to <b>$100.00 (before prevailing
+          GST)</b> will be charged.&rdquo;
+        </blockquote>
+        <p class="pt">
+          It also mentions a <b>$50 fee for paying by cheque</b>, which nobody had told
+          us about. And the letters only need <b>two things filled in</b> &mdash; the
+          company name and the total owed &mdash; which makes them far simpler to build
+          than we expected.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h">
+          <h3>The AR Collections Cycle</h3>
+          <span class="mono file-sub">plus the Flow and Formula tabs</span>
+        </div>
+        <p>
+          The monthly timetable, and the exact rule MES uses to decide how late a
+          charge is.
+        </p>
+        <pre class="snippet">15 days or less   Current
+16 to 45          30 days
+46 to 75          60 days
+76 to 105         90 days
+106 or more       More than 90 days</pre>
+        <p class="pt">
+          <b>We checked this against all 173 rows in their file and it matches every
+          one.</b> So their logic is now written down rather than guessed at.
+        </p>
+      </article>
+
     </div>
 
-    <p class="note col">
-      One further note on the contact list: it contains real company names and real
-      email addresses, where everything sent previously was anonymised. That changes
-      how the file should be stored and who should have access to it.
-    </p>
+    <h3 class="group-head"><span class="chip warn">these four have gaps</span></h3>
+
+    <div class="files">
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>Finance AR Download</h3>
+          <span class="mono file-sub">169 invoice lines &middot; no amounts</span>
+        </div>
+        <p>
+          <b>This should be the most valuable tab in the file. Right now it is
+          unusable.</b>
+        </p>
+        <p class="pt">
+          It lists every unpaid invoice line and what each one was for &mdash; rent,
+          VAT, maintenance, parking, deposit. That is how the system knows what a
+          balance is actually made of.
+        </p>
+        <p class="pt"><b>Every single amount is blank.</b> All 169 rows.</p>
+        <p class="pt">
+          The detail that makes this worth reporting: <b>four credit note rows sitting
+          in the same tab do have amounts.</b> So the column is not missing and the
+          export is not broken in general. It looks like a filter that was left on and
+          only hid the invoice rows.
+        </p>
+        <p class="pt">
+          <b>This is the one thing that genuinely stops us</b> &mdash; and we think we
+          know why it happened.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>The two manager mockups</h3>
+          <span class="mono file-sub">Harry&rsquo;s and Ray&rsquo;s &middot; they disagree</span>
+        </div>
+        <p>
+          These were genuinely useful. They answered a question open since June:
+          <b>where do the security deposit figures come from?</b> The answer is that
+          they are a column on the manager report. It is one report, not two.
+        </p>
+        <p class="pt"><b>But there are two problems.</b></p>
+        <p class="pt">First, the files disagree with each other.</p>
+        <pre class="snippet">Harry's:  Company | Status | Sales Rep | age columns | Grand Total
+Ray's:    ...plus Overdue Total, Update, Security Deposit, Risk Exposure</pre>
+        <p class="pt">
+          <b>Same report. Nine columns versus thirteen.</b> Somebody has to say which
+          one is real.
+        </p>
+        <p class="pt">
+          Second, two of the columns have no formula. Overdue Total and Risk Exposure
+          are typed-in numbers that follow no rule we can find, and two are negative.
+        </p>
+        <pre class="snippet">SUN PTE LTD    Grand Total 1,898.78    Risk Exposure  -3,162.60
+DLIGHT         Grand Total 1,898.78    Risk Exposure    -457.59</pre>
+        <p class="pt">
+          A risk exposure of minus three thousand does not obviously mean anything.
+          Being a mockup, invented numbers are fine &mdash; but it does mean we cannot
+          work the formulas out from the examples.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>Five report placeholder tabs</h3>
+          <span class="mono file-sub">SD / PF / LP / SD / RM &middot; all empty</span>
+        </div>
+        <p>
+          The workbook has tabs named <span class="mono">Security Deposit(SD)</span>,
+          <span class="mono">Parking Fee(PF)</span>,
+          <span class="mono">Late Payment(LP)</span>,
+          <span class="mono">Stamp Duty(SD)</span> and <span class="mono">RM</span>.
+        </p>
+        <p class="pt">
+          <b>All five are completely empty.</b> Not sparse. Zero cells with anything in
+          them.
+        </p>
+        <p class="pt">
+          Their purpose is to name the reports MES wants, because their workflow says
+          every upload should group results by dormitory and then by these categories.
+          <b>So they tell us what to build, but not what goes inside.</b>
+        </p>
+        <p class="pt">
+          Also worth noting: <b>&ldquo;SD&rdquo; is used twice</b>, once for Security
+          Deposit and once for Stamp Duty. Their own tab names do it. That needs
+          clearing up before we build a dropdown from the list.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>The revenue categories list</h3>
+          <span class="mono file-sub">promised, not sent</span>
+        </div>
+        <p>
+          MES listed this in their own workflow document as one of four things they
+          would provide. <b>The other three have arrived. This one has not.</b>
+        </p>
+        <p class="pt">
+          It is their official list of charge types &mdash; what counts as rent, what
+          counts as maintenance, and so on.
+        </p>
+        <p class="pt">
+          <b>We have built our own</b> by reading 345 real descriptions, and it
+          classifies every single one of them. But it is our reading of their
+          categories, not their list. These names end up on their reports and on their
+          tenants&rsquo; statements, so they should confirm them.
+        </p>
+      </article>
+
+    </div>
+
+    <div class="alert">
+      <h3>One thing to sort out before it spreads</h3>
+      <p>
+        The contact list has <b>real company names and real email addresses</b> in it.
+        Everything MES sent before this was anonymised.
+      </p>
+      <p>
+        That changes where the file should be kept and who should have a copy. Worth
+        deciding now, rather than after it has been forwarded around.
+      </p>
+    </div>
+
   </section>
 
   <!-- =========================================================== BLOCKERS -->
@@ -684,69 +900,172 @@
   <section>
     <div class="sec-head col">
       <span class="eyebrow">Open questions</span>
-      <h2>What we need from MES</h2>
+      <h2>Nine questions, each answerable in a sentence</h2>
       <p>
-        Each of these is a sentence to answer, not a piece of work. Together they
-        unblock the reporting and the charge breakdown.
+        None of these asks MES to do a piece of work. Each one is a fact only they
+        know. Together they unblock the reporting and the charge breakdown.
       </p>
     </div>
 
     <ol class="qs">
+
       <li>
         <div>
-          <p class="q">Why is the Open Balance column empty on all 169 invoice rows?</p>
-          <p class="why">The four credit note rows in the same tab do have amounts, so it looks like a filter rather than a missing column. Knowing which is faster than a blind re-export.</p>
+          <p class="q">Why is the amount column empty on all 169 invoice rows?</p>
+          <p class="story">
+            <b>How we got here.</b> The file arrived twice, a week apart, and both times
+            every invoice amount was blank. We assumed a broken export until we noticed
+            that <b>four credit note rows in the very same tab do have amounts</b>. That
+            means the column exists and the export works.
+          </p>
+          <p class="why">
+            So it looks like a filter that was left on. Knowing which is far faster than
+            asking for a blind re-export and hoping.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
           <p class="q">How are Overdue Total and Risk Exposure calculated?</p>
-          <p class="why">Neither follows a rule we can see in the mockup, and two Risk Exposure figures are negative.</p>
+          <p class="story">
+            <b>How we got here.</b> Both appear as columns on Ray&rsquo;s manager report
+            mockup. We tried every obvious rule &mdash; total minus current, total minus
+            deposit &mdash; against every row and none of them fits. <b>Two of the Risk
+            Exposure figures are negative.</b>
+          </p>
+          <p class="why">
+            It is a mockup, so invented numbers are expected. But it means we cannot work
+            the formulas out ourselves and have to be told.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
-          <p class="q">Harry&rsquo;s and Ray&rsquo;s mockups have different columns. Which one is the report to build?</p>
-          <p class="why">Ray&rsquo;s adds Overdue Total, Update, Security Deposit and Risk Exposure. Harry&rsquo;s has none of them.</p>
+          <p class="q">Harry&rsquo;s and Ray&rsquo;s mockups have different columns. Which one do we build?</p>
+          <p class="story">
+            <b>How we got here.</b> Two mockups arrived together, both described as the
+            manager report. Harry&rsquo;s has nine columns. Ray&rsquo;s has thirteen,
+            adding Overdue Total, Update, Security Deposit and Risk Exposure.
+          </p>
+          <p class="why">
+            Whichever we pick, half of MES gets a report that does not match what they
+            were shown.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
-          <p class="q">In the list SD / PF / 1FM / LP / SD / RM, which SD is Security Deposit and which is Stamp Duty?</p>
-          <p class="why">The abbreviation is used twice, in the workflow note and again in the tab names.</p>
+          <p class="q">In the list SD / PF / 1FM / LP / SD / RM, which SD is which?</p>
+          <p class="story">
+            <b>How we got here.</b> That list appears in MES&rsquo;s workflow note as the
+            grouping every upload should use. <b>&ldquo;SD&rdquo; appears twice.</b> The
+            tab names confirm it: one tab is Security Deposit(SD) and another is Stamp
+            Duty(SD).
+          </p>
+          <p class="why">
+            We need to know which is which before building a dropdown that lists them.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
           <p class="q">Should 1FM credit notes count as 1FM?</p>
-          <p class="why">1FM invoices are numbered JP1FM. Two 1FM credit notes are numbered JP1CN, so a rule based on the invoice prefix alone would miss them.</p>
+          <p class="story">
+            <b>How we got here.</b> MES&rsquo;s own file says 1FM charges are identified
+            by invoice number, and those numbers begin
+            <span class="mono">JP1FM</span>. But we found two 1FM refunds numbered
+            <span class="mono">JP1CN</span>, where CN means credit note.
+          </p>
+          <p class="why">
+            A rule based only on the JP1FM prefix would miss them, and they are money
+            going the other way.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
-          <p class="q">Is credit measured from the billing date or from the 1st of the month it covers?</p>
-          <p class="why">The workflow calls the 1st the 14-day point, but it is 17 days after a 15 July bill. Counting from the 1st makes both figures line up.</p>
+          <p class="q">Is credit counted from the billing date, or from the 1st of the month it covers?</p>
+          <p class="story">
+            <b>How we got here.</b> The workflow calls the 1st the fourteen-day point.
+            But a bill sent on 15 July is <b>seventeen days</b> before 1 August, not
+            fourteen. Counting from the 1st instead makes both their figures line up
+            exactly.
+          </p>
+          <p class="why">
+            It does not break anything today, because we read the due date printed on
+            each invoice. But it should be stated so nobody recalculates it differently
+            later.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
           <p class="q">Should reminder letters use different bank details per dormitory?</p>
-          <p class="why">The letters we have quote MES &amp; JPD Housing Pte Ltd, which is the JPD1 company. BSD and LEO sit under different entities.</p>
+          <p class="story">
+            <b>How we got here.</b> The letters MES sent quote a DBS account belonging to
+            <b>MES &amp; JPD Housing Pte Ltd</b>. That is the company behind JPD1. But
+            BSD sits under KT Mesdorm Pte Ltd and LEO under Kaki Bukit Developments, per
+            MES&rsquo;s own spreadsheet headers.
+          </p>
+          <p class="why">
+            Right now every letter would carry the same bank details. If a BSD tenant
+            should be paying a different account, that is a real problem and an easy one
+            to fix before go-live.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
-          <p class="q">Six companies appear on a dormitory tab but not on the contact list. Missing, or deliberately excluded?</p>
-          <p class="why">Those six cannot be sent a reminder at all until an address exists for them.</p>
+          <p class="q">Six companies are on a dormitory tab but not on the contact list. Missing, or excluded?</p>
+          <p class="story">
+            <b>How we got here.</b> The contact list has four tabs. The three dormitory
+            tabs hold 116 distinct companies between them, but the combined tab with the
+            email addresses holds 110.
+          </p>
+          <p class="why">
+            Those six cannot be sent a reminder at all. If they simply have no address on
+            file, that is fine and we will show them as phone-only.
+          </p>
         </div>
       </li>
+
       <li>
         <div>
-          <p class="q">The revenue categories list has not arrived yet.</p>
-          <p class="why">We have built our own from 345 real descriptions and it classifies all of them, but it is our reading of their categories rather than their own list.</p>
+          <p class="q">The revenue categories list has still not arrived.</p>
+          <p class="story">
+            <b>How we got here.</b> MES listed four documents they would provide. Three
+            have come. This one has not.
+          </p>
+          <p class="why">
+            We built our own list by reading 345 real descriptions and it classifies every
+            one of them. But three of the names are ours, not theirs, and those names end
+            up on reports and on tenants&rsquo; statements.
+          </p>
         </div>
       </li>
+
     </ol>
+
+    <div class="alert acc">
+      <h3>The one that matters most</h3>
+      <p>
+        If MES only answers one of these, it should be the first. <b>Everything to do
+        with what a balance is made of waits on the invoice amounts</b> &mdash; the
+        charge breakdown, the revenue split, the late fee calculation and four of the
+        six reports.
+      </p>
+      <p>
+        The other eight can be answered alongside the work rather than before it.
+      </p>
+    </div>
+
   </section>
 
   <footer>
