@@ -289,6 +289,68 @@
     display: flex; flex-wrap: wrap; gap: 8px 28px;
   }
 
+
+  /* ------------------------------------------------------------- glossary */
+  .glossary { display: grid; gap: 0; margin: 0; }
+  @media (min-width: 780px) { .glossary { grid-template-columns: 1fr 1fr; gap: 0 32px; } }
+  .glossary > div { padding: 15px 0; border-top: 1px solid var(--line-soft); }
+  .glossary dt { font-weight: 600; font-size: 14.5px; color: var(--ink); margin-bottom: 4px; }
+  .glossary dd { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+  .glossary dd b { color: var(--ink); font-weight: 600; }
+
+  /* ----------------------------------------------------------- file cards */
+  .group-head { margin: 34px 0 16px; }
+  .files { display: grid; gap: 14px; }
+  @media (min-width: 860px) { .files { grid-template-columns: 1fr 1fr; } }
+
+  .file {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--ok);
+    border-radius: 5px; padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .file.bad { border-left-color: var(--warn); }
+  .file-h { margin-bottom: 10px; }
+  .file-h h3 { margin: 0 0 2px; font-size: 16px; }
+  .file-sub { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; }
+  .file p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .file p.pt { margin-top: 11px; }
+  .file b { color: var(--ink); font-weight: 600; }
+
+  .snippet {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    background: var(--surface-alt); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 11px 13px; margin: 11px 0 0;
+    overflow-x: auto; color: var(--ink-2); white-space: pre;
+  }
+  .quote {
+    margin: 11px 0 0; padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--line);
+    font-family: Newsreader, Georgia, serif; font-size: 15.5px;
+    line-height: 1.5; color: var(--ink-2);
+  }
+  .quote b { color: var(--ink); font-weight: 600; }
+
+  /* --------------------------------------------------------------- alert */
+  .alert {
+    margin-top: 22px; background: var(--warn-soft);
+    border: 1px solid var(--line-soft); border-left: 3px solid var(--warn);
+    border-radius: 4px; padding: 16px 20px;
+  }
+  .alert.acc { background: var(--accent-soft); border-left-color: var(--accent); }
+  .alert h3 { margin-bottom: 6px; }
+  .alert p { font-size: 14.5px; color: var(--ink-2); margin: 0; }
+  .alert p + p { margin-top: 9px; }
+  .alert b { color: var(--ink); font-weight: 600; }
+
+  /* --------------------------------------------------- question backstory */
+  ol.qs li { padding: 18px 0; }
+  ol.qs .story {
+    font-size: 14px; color: var(--ink-2); margin: 0 0 8px;
+    padding-left: 12px; border-left: 2px solid var(--line-soft);
+  }
+  ol.qs .story b { color: var(--ink); font-weight: 600; }
+
   @media (max-width: 620px) {
     .spine { grid-template-columns: 62px 1fr; gap: 0 14px; }
     .track { padding-left: 18px; }
@@ -305,9 +367,10 @@
     <span class="eyebrow">MES Group &middot; Accounts Receivable</span>
     <h1>One month, one tenant, six ways it ends</h1>
     <p class="standfirst">
-      The collections cycle as MES actually runs it, traced with real accounts from
-      their own May report. Plus the files we are still unsure about, and the
-      questions we need answered before the next stage.
+      MES Group rents dormitory rooms to companies in Singapore, and some of them
+      pay late. This is how chasing that money works month to month, traced with
+      real accounts from their own report, plus what we still need from them.
+      Written to be read cold, with no prior knowledge of the project.
     </p>
     <div class="meta">
       <span><b>Prepared by</b> DeVinci Codes</span>
@@ -316,8 +379,156 @@
     </div>
   </header>
 
-  <!-- ============================================================ LIFECYCLE -->
+  <!-- ============================================================== PRIMER -->
   <section style="margin-top:0">
+    <div class="sec-head col">
+      <span class="eyebrow">Start here</span>
+      <h2>What this is about</h2>
+    </div>
+
+    <div class="col">
+      <p>
+        <b>MES Group runs worker dormitories in Singapore.</b> Construction and
+        marine companies rent rooms there for their staff, and MES invoices those
+        companies every month. Roughly a hundred and fifty of them, across four
+        dormitories.
+      </p>
+      <p>
+        Some of those companies pay late. Chasing them is a real job, and today it
+        is one person&rsquo;s job, done entirely by hand.
+      </p>
+    </div>
+
+    <div class="grid two" style="margin-top:26px">
+      <div class="card">
+        <h3>What she does now</h3>
+        <p>
+          Several times a month she downloads a list of who owes what from the
+          accounting system. Then she works out how late each charge is, sorts it
+          by dormitory and by type, writes reminder letters by mail merge, phones
+          people, writes down what they said, and emails each account manager a
+          spreadsheet of their own late customers.
+        </p>
+        <p class="pt">
+          <b>Every month. Several times a month. All of it by hand.</b>
+        </p>
+      </div>
+      <div class="card">
+        <h3>What we are building</h3>
+        <p>
+          Software that does the repetitive part. She uploads the same file she
+          already downloads, and the system works out who is late, drafts the
+          reminders, ranks who to call first, keeps a record of every call and
+          promise, and produces the reports.
+        </p>
+        <p class="pt">
+          <b>She still decides who to chase and still clicks send.</b> Nothing
+          goes out on its own.
+        </p>
+      </div>
+    </div>
+
+    <div class="alert acc" style="margin-top:22px">
+      <h3>The one number that explains the whole product</h3>
+      <p>
+        A company owing <b>$1,590</b> tells you almost nothing. That same $1,590
+        might be one invoice from this month, or it might be four unpaid months
+        stacked up with the biggest and oldest at the bottom.
+      </p>
+      <p>
+        <b>Those are completely different phone calls</b>, and today she has to
+        spot the difference herself by reading across a spreadsheet. Splitting
+        every balance by how old it is turns out to be most of the value.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ GLOSSARY -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">The words</span>
+      <h2>Nine terms that appear below</h2>
+      <p>
+        Most of these are either Singaporean or MES&rsquo;s own shorthand. None of
+        them are technical.
+      </p>
+    </div>
+
+    <dl class="glossary">
+      <div>
+        <dt>Dormitory</dt>
+        <dd>
+          Purpose-built housing for foreign workers. MES runs four:
+          <span class="mono">JPD1</span>, <span class="mono">JPD2</span>,
+          <span class="mono">BSD</span> and <span class="mono">LEO</span>. A
+          company can rent at more than one, and owes at each separately.
+        </dd>
+      </div>
+      <div>
+        <dt>Tenant</dt>
+        <dd>
+          The company renting the rooms, not the worker living in them. MES bills
+          the employer.
+        </dd>
+      </div>
+      <div>
+        <dt>GIRO</dt>
+        <dd>
+          Singapore&rsquo;s direct debit. The tenant signs a form once and the bank
+          collects automatically each month. Most tenants pay this way.
+        </dd>
+      </div>
+      <div>
+        <dt>Ageing, and the age bands</dt>
+        <dd>
+          How overdue a charge is, grouped into <b>Current</b>, <b>30 days</b>,
+          <b>60 days</b>, <b>90 days</b> and <b>more than 90 days</b>. Each band is
+          roughly a month older than the last.
+        </dd>
+      </div>
+      <div>
+        <dt>1FM</dt>
+        <dd>
+          MES&rsquo;s maintenance side. Repairs, sick bay use, putting a room back
+          in order after someone leaves. Billed separately from rent and handled by
+          a different team.
+        </dd>
+      </div>
+      <div>
+        <dt>Relationship manager, or RM</dt>
+        <dd>
+          The MES salesperson who owns a set of tenant companies. Each one gets a
+          monthly list of their own late customers and is expected to chase them.
+        </dd>
+      </div>
+      <div>
+        <dt>The AR report</dt>
+        <dd>
+          <b>Accounts receivable</b> means money owed to MES. The AR report is the
+          spreadsheet listing every unpaid invoice, exported from their accounting
+          system. It is the one file the whole system runs on.
+        </dd>
+      </div>
+      <div>
+        <dt>NetSuite</dt>
+        <dd>
+          The accounting system MES already uses. We do not replace it or connect
+          to it. A person exports a file from it, and a person loads the finished
+          file back in.
+        </dd>
+      </div>
+      <div>
+        <dt>Live and Terminated</dt>
+        <dd>
+          Whether the tenant is still renting. A terminated tenant has moved out,
+          which does not mean they have paid.
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ============================================================ LIFECYCLE -->
+  <section>
     <div class="sec-head col">
       <span class="eyebrow">The cycle</span>
       <h2>From bill to final warning</h2>
