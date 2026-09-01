@@ -438,6 +438,51 @@ export function recordEmails(
   return emails.length;
 }
 
+/**
+ * A promise that did not come from a phone call.
+ *
+ * Until now every promise was a by-product of the call form, so a tenant who
+ * replied to a reminder saying "paying on the 29th" could not be recorded at
+ * all. MES's own letters invite exactly that: they ask tenants to email
+ * payment confirmation to ar@dormitory.com.sg.
+ *
+ * The officer reads that reply in her mailbox and types it here. The system
+ * does not read her mailbox, which is a separate and much larger piece of
+ * work, so the source is recorded to make plain where the commitment came
+ * from and who heard it.
+ */
+export function recordPromise(input: {
+  accountId: string;
+  companyName: string;
+  amount: number;
+  promisedFor: string;
+  source: PromiseRecord["source"];
+  note?: string;
+}): void {
+  const promise: PromiseRecord = {
+    id: id(),
+    accountId: input.accountId,
+    companyName: input.companyName,
+    amount: input.amount,
+    promisedFor: input.promisedFor,
+    createdAt: now(),
+    source: input.source,
+    confirmationSentAt: null,
+  };
+  commit({
+    ...state,
+    promises: [promise, ...state.promises],
+    audit: [
+      log(
+        `Recorded a promise to pay by ${input.promisedFor}` +
+          (input.source === "email" ? ", from an email reply" : ""),
+        input.companyName,
+      ),
+      ...state.audit,
+    ],
+  });
+}
+
 /** Marks a promise as confirmed to the tenant, per proposal section 3. */
 export function markPromiseConfirmed(promiseId: string): void {
   commit({

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { accountById, formatSgd } from "@/lib/data";
+import { useMemo, useState } from "react";
+import { accountById, allAccounts, formatSgd } from "@/lib/data";
 import {
   PROMISE_STATE_LABEL,
   PromiseRecord,
@@ -9,12 +9,14 @@ import {
   promiseState,
   markPromiseConfirmed,
   recordEmail,
+  recordPromise,
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
+  Modal,
   EmptyState,
   StatTile,
   StatusBadge,
@@ -33,6 +35,7 @@ export default function PromisesPage() {
   const store = useStore();
   const { canAct } = useSession();
   const { notify } = useToast();
+  const [adding, setAdding] = useState(false);
 
   const template = store.templates.find((t) => t.id === "promise-confirmation");
 
@@ -106,7 +109,17 @@ export default function PromisesPage() {
       <Card>
         <CardHeader
           title="Every promise to pay"
-          hint="Confirmed paid when the tenant drops off next month's failed payment report."
+          hint="From a phone call, or from a reply the officer read in her inbox."
+          right={
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              disabled={!canAct}
+              className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Record a promise
+            </button>
+          }
         />
 
         {store.promises.length === 0 ? (
@@ -175,6 +188,127 @@ export default function PromisesPage() {
         )}
 
       </Card>
+
+      {/* Until now a promise could only exist as a by-product of the call
+          form, so a tenant who replied to a reminder saying "paying on the
+          29th" could not be recorded at all. MES's own letters invite exactly
+          that: they ask for payment confirmation by email. The system does not
+          read anybody's mailbox, so the officer types what she read, and the
+          source records where it came from. */}
+      {adding ? <RecordPromise onClose={() => setAdding(false)} /> : null}
     </div>
+  );
+}
+
+function RecordPromise({ onClose }: { onClose: () => void }) {
+  const { notify } = useToast();
+  const accounts = allAccounts();
+  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState("");
+  const [source, setSource] = useState<"email" | "call">("email");
+
+  const account = accounts.find((a) => a.id === accountId);
+  const ready = account && date !== "" && Number(amount) > 0;
+
+  return (
+    <Modal title="Record a promise to pay" onClose={onClose}>
+      <p className="text-xs leading-relaxed text-ink-secondary">
+        For a commitment that did not come from a logged call, such as a reply
+        to a reminder. The system does not read your mailbox, so type what the
+        tenant said.
+      </p>
+
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <label className="block sm:col-span-2">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Tenant
+          </span>
+          <select
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          >
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.companyName} · {a.customerCode} · {a.property}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Amount promised, SGD
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={account ? formatSgd(account.total) : ""}
+            className="tabular w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Promised to pay by
+          </span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          />
+        </label>
+
+        <label className="block sm:col-span-2">
+          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
+            Where it came from
+          </span>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value as "email" | "call")}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          >
+            <option value="email">A reply to a reminder</option>
+            <option value="call">A phone call</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={() => {
+            if (!account) return;
+            recordPromise({
+              accountId: account.id,
+              companyName: account.companyName,
+              amount: Number(amount),
+              promisedFor: date,
+              source,
+            });
+            notify(
+              `Promise recorded for ${account.companyName}`,
+              `SGD ${formatSgd(Number(amount))} by ${date}`,
+            );
+            onClose();
+          }}
+          className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Record it
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
+        >
+          Cancel
+        </button>
+      </div>
+    </Modal>
   );
 }
