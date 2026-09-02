@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{color-scheme:light dark}body{margin:0}img{max-width:100%}</style>
+<title>NetSuite Export Format</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground:#f4f6f8; --surface:#fff; --surface-alt:#eef1f5;
+    --line:#d9e0e8; --line-soft:#e7ecf1;
+    --ink:#171c22; --ink-2:#414c58; --ink-3:#6f7d8c;
+    --accent:#1b4965; --accent-soft:#e3edf4;
+    --ok:#2d6a4f; --ok-soft:#e2efe8;
+    --warn:#9a5b09; --warn-soft:#f7ecdb;
+    --shadow:0 1px 2px rgba(23,28,34,.05),0 1px 12px rgba(23,28,34,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:#101418; --surface:#171d23; --surface-alt:#1e252c;
+      --line:#2c353e; --line-soft:#232b33;
+      --ink:#e8ecf0; --ink-2:#b3bec9; --ink-3:#7f8d9b;
+      --accent:#7fb2d4; --accent-soft:#1a2a36;
+      --ok:#7fc4a3; --ok-soft:#17271f;
+      --warn:#dda75b; --warn-soft:#2a2114;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 1px 12px rgba(0,0,0,.2);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#101418; --surface:#171d23; --surface-alt:#1e252c;
+    --line:#2c353e; --line-soft:#232b33;
+    --ink:#e8ecf0; --ink-2:#b3bec9; --ink-3:#7f8d9b;
+    --accent:#7fb2d4; --accent-soft:#1a2a36;
+    --ok:#7fc4a3; --ok-soft:#17271f;
+    --warn:#dda75b; --warn-soft:#2a2114;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 1px 12px rgba(0,0,0,.2);
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,"Segoe UI",sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:900px; margin:0 auto; padding:0 24px 96px; }
+  .col { max-width:66ch; }
+
+  header.top { border-bottom:1px solid var(--line); padding:52px 0 28px; margin-bottom:44px; }
+  .eyebrow {
+    font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:500;
+    letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3);
+  }
+  h1 {
+    font-family:Newsreader,Georgia,serif; font-weight:500;
+    font-size:clamp(32px,5vw,46px); line-height:1.1; letter-spacing:-.015em;
+    text-wrap:balance; margin:14px 0 0;
+  }
+  .standfirst {
+    font-family:Newsreader,Georgia,serif; font-size:clamp(17px,2.2vw,19px);
+    line-height:1.5; color:var(--ink-2); max-width:58ch; margin:14px 0 0;
+  }
+  .meta {
+    display:flex; flex-wrap:wrap; gap:8px 26px; margin-top:24px;
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);
+  }
+  .meta b { color:var(--ink-2); font-weight:500; }
+
+  h2 {
+    font-family:Newsreader,Georgia,serif; font-weight:500; font-size:27px;
+    line-height:1.15; letter-spacing:-.01em; text-wrap:balance; margin:0 0 6px;
+  }
+  h3 { font-size:15px; font-weight:600; margin:0 0 8px; }
+  section { margin-top:58px; }
+  .sec-head { margin-bottom:24px; }
+  .sec-head .eyebrow { display:block; margin-bottom:9px; }
+  .sec-head p { color:var(--ink-2); margin:6px 0 0; max-width:62ch; }
+  p { margin:0 0 14px; }
+  .mono, code { font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.875em; }
+
+  .chip {
+    display:inline-flex; align-items:center; font-family:"IBM Plex Mono",monospace;
+    font-size:10.5px; font-weight:500; letter-spacing:.07em; text-transform:uppercase;
+    padding:3px 8px; border-radius:3px; border:1px solid var(--line);
+    color:var(--ink-2); background:var(--surface-alt); white-space:nowrap;
+  }
+  .chip.ok { color:var(--ok); background:var(--ok-soft); border-color:transparent; }
+  .chip.warn { color:var(--warn); background:var(--warn-soft); border-color:transparent; }
+
+  .scroll {
+    overflow-x:auto; border:1px solid var(--line); border-radius:5px;
+    background:var(--surface); box-shadow:var(--shadow); margin-bottom:16px;
+  }
+  table { border-collapse:collapse; width:100%; min-width:620px; font-size:14px; }
+  th {
+    text-align:left; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+    font-weight:500; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-3); padding:11px 16px; border-bottom:1px solid var(--line);
+    background:var(--surface-alt); white-space:nowrap;
+  }
+  td { padding:11px 16px; border-bottom:1px solid var(--line-soft); color:var(--ink-2); vertical-align:top; }
+  tr:last-child td { border-bottom:0; }
+  td strong { color:var(--ink); font-weight:600; }
+  td.nowrap { white-space:nowrap; }
+
+  pre.snippet {
+    font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:11.5px; line-height:1.7;
+    background:var(--surface); border:1px solid var(--line); border-radius:5px;
+    padding:14px 16px; margin:0 0 16px; overflow-x:auto; color:var(--ink-2);
+    white-space:pre; box-shadow:var(--shadow);
+  }
+
+  .card {
+    background:var(--surface); border:1px solid var(--line); border-radius:5px;
+    padding:18px 20px; box-shadow:var(--shadow); margin-bottom:14px;
+  }
+  .card p { font-size:14.5px; color:var(--ink-2); margin:0; }
+  .card p + p { margin-top:10px; }
+  .card b { color:var(--ink); font-weight:600; }
+
+  ol.qs { list-style:none; margin:0; padding:0; counter-reset:q; }
+  ol.qs li {
+    counter-increment:q; display:grid; grid-template-columns:34px 1fr; gap:14px;
+    padding:18px 0; border-bottom:1px solid var(--line-soft);
+  }
+  ol.qs li:last-child { border-bottom:0; }
+  ol.qs li::before {
+    content:"Q" counter(q); font-family:"IBM Plex Mono",monospace;
+    font-size:11px; font-weight:500; color:var(--ink-3); padding-top:3px;
+  }
+  ol.qs .q { font-weight:600; color:var(--ink); margin:0 0 5px; font-size:15px; }
+  ol.qs .why { font-size:14px; color:var(--ink-2); margin:0; }
+  ol.qs .why b { color:var(--ink); font-weight:600; }
+  ol.qs .now {
+    display:block; margin-top:7px; font-family:"IBM Plex Mono",monospace;
+    font-size:11px; color:var(--ink-3);
+  }
+
+  .alert {
+    background:var(--warn-soft); border:1px solid var(--line-soft);
+    border-left:3px solid var(--warn); border-radius:4px; padding:16px 20px; margin-top:20px;
+  }
+  .alert h3 { margin-bottom:6px; }
+  .alert p { font-size:14.5px; color:var(--ink-2); margin:0; }
+  .alert p + p { margin-top:9px; }
+  .alert b { color:var(--ink); font-weight:600; }
+
+  footer {
+    margin-top:70px; padding-top:22px; border-top:1px solid var(--line);
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-3);
+    display:flex; flex-wrap:wrap; gap:8px 26px;
+  }
+  @media (max-width:620px) { .wrap { padding:0 18px 72px; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header class="top">
+    <span class="eyebrow">MES Group &middot; AR Automation &middot; for confirmation</span>
+    <h1>What goes back into NetSuite</h1>
+    <p class="standfirst">
+      The system does not connect to NetSuite. Somebody downloads a file from it
+      and loads that file in. This is what is in the file today, and the five
+      things we need MES to confirm before it can be relied on.
+    </p>
+    <div class="meta">
+      <span><b>From</b> DeVinci Codes</span>
+      <span><b>Status</b> draft, awaiting MES confirmation</span>
+      <span><b>Needs</b> a reply to the five questions at the end</span>
+    </div>
+  </header>
+
+  <section style="margin-top:0">
+    <div class="sec-head col">
+      <span class="eyebrow">Why this document exists</span>
+      <h2>Nobody has agreed a format yet</h2>
+    </div>
+    <div class="col">
+      <p>
+        The proposal promises &ldquo;clean exports of all activity for manual
+        upload back into NetSuite&rdquo;, and names what has to be in them:
+        <b>emails sent, calls logged and promise-to-pay commitments</b>. The
+        system produces exactly those.
+      </p>
+      <p>
+        What no document says &mdash; not the proposal, not the MES process flow
+        &mdash; is <b>what the file should look like</b>. No column list, no date
+        format, no file type.
+      </p>
+      <p>
+        So this is not a record of something already agreed. It is a proposal:
+        here is what comes out today, and here is what only MES can decide.
+      </p>
+    </div>
+    <div class="alert">
+      <h3>The reason to settle it now</h3>
+      <p>
+        If NetSuite wants the customer code and we send the company name, the
+        upload fails. If it wants <span class="mono">07/08/2026</span> and we
+        send <span class="mono">2026-08-07</span>, it fails.
+      </p>
+      <p>
+        <b>Found in week 7, that is not a document problem. It is a rebuild</b>,
+        because every screen that records an action would need its data
+        reshaped. Found now, it is an afternoon.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">The main file</span>
+      <h2>Activity export</h2>
+      <p>
+        Everything the team did during the period, one row per action. This is
+        the file the whole system exists to produce.
+      </p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Column</th><th>Holds</th><th>Example</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Date</strong></td><td>When the action happened</td><td class="mono nowrap">2026-08-07</td></tr>
+          <tr><td><strong>Customer</strong></td><td>The tenant company</td><td class="mono">SOVEREIGN PTE. LTD</td></tr>
+          <tr><td><strong>Activity</strong></td><td>Email, Call, or Promise to pay</td><td class="mono">Email</td></tr>
+          <tr><td><strong>Detail</strong></td><td>Which reminder, what was said, or the date promised</td><td class="mono">First reminder</td></tr>
+          <tr><td><strong>Amount SGD</strong></td><td>Only where there is one. Blank on an email</td><td class="mono nowrap">2,132.44</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <pre class="snippet">"Date","Customer","Activity","Detail","Amount SGD"
+"2026-08-07","SOVEREIGN PTE. LTD","Email","Outstanding rental payment",""
+"2026-08-07","SOVEREIGN PTE. LTD","Call","promised to pay, spoke to Wei Ming","2,132.44"
+"2026-08-07","SOVEREIGN PTE. LTD","Promise to pay","due 2026-08-29","2,132.44"</pre>
+
+    <div class="card">
+      <h3>File details</h3>
+      <p>
+        <b>Name</b> &nbsp; <span class="mono">MES_NetSuite_Activity_20260525.csv</span>
+        &nbsp;&mdash; the date is the period, so files do not overwrite each other.
+      </p>
+      <p>
+        <b>Format</b> &nbsp; CSV, UTF-8 with a byte order mark so Excel on
+        Windows opens it correctly, every value quoted, rows ending CRLF.
+      </p>
+      <p>
+        <b>Order</b> &nbsp; newest action first.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">The other three</span>
+      <h2>Report exports</h2>
+      <p>
+        These are read by people rather than loaded into NetSuite, so the
+        columns matter less. Listed for completeness.
+      </p>
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Report</th><th>Columns</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Industry breakdown</strong><br><span class="mono" style="color:var(--ink-3)">to management</span></td>
+            <td class="mono">Business Type &middot; Tenants &middot; Overdue SGD &middot; Total Outstanding SGD</td>
+            <td class="nowrap"><span class="chip ok">works</span></td>
+          </tr>
+          <tr>
+            <td><strong>Security deposits</strong><br><span class="mono" style="color:var(--ink-3)">to CSD</span></td>
+            <td class="mono">Customer Code &middot; Company Name &middot; Property &middot; Status &middot; Deposit Held &middot; Being Offset &middot; Outstanding</td>
+            <td class="nowrap"><span class="chip warn">needs data</span></td>
+          </tr>
+          <tr>
+            <td><strong>Manager balances</strong><br><span class="mono" style="color:var(--ink-3)">to each RM</span></td>
+            <td class="mono">Relationship Manager &middot; Customer Code &middot; Company Name &middot; Property &middot; Status &middot; Overdue &middot; Total Outstanding</td>
+            <td class="nowrap"><span class="chip warn">columns to confirm</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="col" style="font-size:14px;color:var(--ink-3)">
+      The manager report columns above are our own. MES have since sent two
+      mockups which show a different set, and the two mockups differ from each
+      other. That is covered separately.
+    </p>
+  </section>
+
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">What we need</span>
+      <h2>Five questions</h2>
+      <p>
+        Each is a fact only MES know. Together they turn this draft into
+        something that can be relied on.
+      </p>
+    </div>
+
+    <ol class="qs">
+      <li>
+        <div>
+          <p class="q">How does NetSuite identify a customer on an import?</p>
+          <p class="why">
+            We send the company name. NetSuite may want the customer code, or an
+            internal id. <b>If it expects the code and receives the name, the
+            import fails on every row.</b>
+          </p>
+          <span class="now">we send today: SOVEREIGN PTE. LTD &nbsp;·&nbsp; the code would be: DORM-1220</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">What date format does it expect?</p>
+          <p class="why">
+            We send year first, which sorts correctly and is unambiguous.
+            NetSuite may want day first.
+          </p>
+          <span class="now">we send today: 2026-08-07</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">One file, or one per activity type?</p>
+          <p class="why">
+            We produce a single file with emails, calls and promises together.
+            <b>Accounting systems often import notes and commitments through
+            different screens</b>, which would mean three files rather than one.
+          </p>
+          <span class="now">we produce today: one file, all three</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Should late payment fees be in this file?</p>
+          <p class="why">
+            They are not, today. The proposal lists emails, calls and promises,
+            so that is what we built. <b>But a fee is a charge rather than a
+            note, and most systems import those through a different route.</b>
+            If they should be here, we need to know; if they should be their
+            own file, we need to know that too.
+          </p>
+          <span class="now">we produce today: not included</span>
+        </div>
+      </li>
+      <li>
+        <div>
+          <p class="q">Is anything else expected in it?</p>
+          <p class="why">
+            The proposal names three things. If NetSuite also expects an invoice
+            reference, a user id, or a category on each row, now is the time to
+            say so.
+          </p>
+          <span class="now">we produce today: five columns, as above</span>
+        </div>
+      </li>
+    </ol>
+
+    <div class="alert">
+      <h3>One of these is already causing a problem</h3>
+      <p>
+        <b>Question 4.</b> The Late Payment Fees screen currently tells the
+        officer that fees are &ldquo;included in the file you load back into
+        NetSuite&rdquo;. They are not.
+      </p>
+      <p>
+        So today a fee is approved on screen and then has to be keyed into
+        NetSuite by hand, which is the sort of thing this system exists to
+        remove. <b>We have not guessed a fix, because whether fees belong in
+        this file or a separate one is a decision about your accounting
+        process, not ours.</b>
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <span>DeVinci Codes &middot; MES AR Automation</span>
+    <span>Draft for confirmation</span>
+    <span>All amounts SGD</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
