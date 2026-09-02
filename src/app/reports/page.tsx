@@ -66,6 +66,10 @@ export default function ReportsPage() {
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
   const [preview, setPreview] = useState<"netsuite" | null>(null);
+  // Which scheduled report is being looked at before it is exported. The
+  // columns only existed inside the downloaded file, so the two that are
+  // waiting on MES were invisible unless somebody opened it in Excel.
+  const [looking, setLooking] = useState<ReportDef | null>(null);
 
   const accounts = useMemo(() => scope(ds.accounts), [ds, scope]);
 
@@ -181,6 +185,13 @@ export default function ReportsPage() {
                   </div>
                 ) : null}
               </div>
+              <button
+                type="button"
+                onClick={() => setLooking(r)}
+                className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+              >
+                Preview
+              </button>
               <button
                 type="button"
                 disabled={!canAct}
@@ -327,6 +338,14 @@ export default function ReportsPage() {
         </table>
       </Card>
 
+      {looking ? (
+        <ReportPreview
+          report={looking}
+          accounts={accounts}
+          onClose={() => setLooking(null)}
+        />
+      ) : null}
+
       {preview === "netsuite" ? (
         <ExportPreview onClose={() => setPreview(null)} />
       ) : null}
@@ -457,6 +476,98 @@ function Cell({ label, value }: { label: string; value: string }) {
       </dt>
       <dd className="mt-1.5 text-xl font-semibold text-ink">{value}</dd>
     </div>
+  );
+}
+
+/**
+ * What a scheduled report contains, before anybody downloads it.
+ *
+ * Added because the columns only existed inside the file. Two of the manager
+ * report's columns are deliberately empty, headed "awaiting MES" and
+ * "awaiting formula", and nobody could see that without opening the export in
+ * Excel. A report that asks a question is no use if the question is hidden.
+ */
+function ReportPreview({
+  report,
+  accounts,
+  onClose,
+}: {
+  report: ReportDef;
+  accounts: ReturnType<typeof allAccounts>;
+  onClose: () => void;
+}) {
+  const built = buildReport(report.id, accounts);
+  const waiting = built.headers.filter((h) => /awaiting/i.test(h));
+
+  return (
+    <Modal wide title={report.name} onClose={onClose}>
+      <p className="text-xs leading-relaxed text-ink-secondary">
+        {built.rows.length} row{built.rows.length === 1 ? "" : "s"}, sent to{" "}
+        {report.goesTo}. This is exactly what the downloaded file contains.
+      </p>
+
+      {waiting.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded border border-line-hair bg-surface-alt px-4 py-2.5">
+          <StatusBadge kind="warning" label={`${waiting.length} columns empty`} />
+          <p className="text-[11px] leading-relaxed text-ink-muted">
+            {waiting.join(" and ")} stay blank until MES supply them. They are
+            left in rather than removed, so it is obvious what is missing.
+          </p>
+        </div>
+      ) : null}
+
+      {built.rows.length === 0 ? (
+        <div className="mt-4">
+          <EmptyState
+            title="Nothing to report"
+            body={built.emptyReason ?? "No rows for this period."}
+          />
+        </div>
+      ) : (
+        <div className="mt-3 max-h-[50vh] overflow-auto rounded border border-line-hair">
+          <table className="w-full border-collapse text-xs">
+            <thead className="sticky top-0 bg-surface-alt">
+              <tr className="text-left">
+                {built.headers.map((h) => (
+                  <th
+                    key={h}
+                    className={`whitespace-nowrap border-b border-line-grid px-3 py-2 font-medium ${
+                      /awaiting/i.test(h) ? "text-[var(--warn,#9a5b09)]" : "text-ink-muted"
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {built.rows.slice(0, 40).map((row, i) => (
+                <tr key={i} className="border-b border-line-grid">
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className={`whitespace-nowrap px-3 py-1.5 ${
+                        /awaiting/i.test(built.headers[j] ?? "")
+                          ? "text-ink-muted"
+                          : "text-ink-secondary"
+                      }`}
+                    >
+                      {String(cell) === "" ? "—" : String(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {built.rows.length > 40 ? (
+        <p className="mt-2 text-[11px] text-ink-muted">
+          Showing the first 40 of {built.rows.length}. The file has all of them.
+        </p>
+      ) : null}
+    </Modal>
   );
 }
 
