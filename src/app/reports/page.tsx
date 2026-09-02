@@ -55,7 +55,7 @@ const REPORTS: ReportDef[] = [
     name: "Relationship manager balances",
     goesTo: "Each RM",
     when: "Ongoing",
-    what: "One list per manager covering only their own tenants.",
+    what: "One list per manager covering only their own tenants, in the layout of the mockup MES sent. Two columns wait on them: the deposit figures, and how Risk Exposure is worked out.",
     confirmed: false,
   },
 ];
@@ -371,15 +371,29 @@ function buildReport(
 
   if (id === "rm") {
     const reports = rmReports(accounts);
+    // Ray's mockup, column for column. Ten of the thirteen are filled from the
+    // AR report. Security Deposit and Risk Exposure are left saying what they
+    // are waiting for rather than being dropped: a missing column tells MES
+    // nothing, an empty one named "awaiting MES" tells them exactly what to
+    // send. Overdue Total is our own definition and labelled as such, because
+    // the figures in the mockup do not follow any rule we could derive.
     return {
       headers: [
-        "Relationship Manager",
+        "Sales Rep",
         "Customer Code",
         "Company Name",
-        "Property",
         "Status",
-        "Overdue SGD",
-        "Total Outstanding SGD",
+        "Property",
+        "Current",
+        "30 days",
+        "60 days",
+        "90 days",
+        "More than 90 days",
+        "Grand Total",
+        "Overdue Total (our calculation)",
+        "Update",
+        "Security Deposit (awaiting MES)",
+        "Risk Exposure (awaiting formula)",
       ],
       // One file covering every manager, each row tagged with whose it is, so
       // it can be split per manager when it is actually sent out.
@@ -388,10 +402,18 @@ function buildReport(
           rep.name,
           a.customerCode,
           a.companyName,
-          a.property,
           a.status,
-          overdueTotal(a).toFixed(2),
+          a.property,
+          a.buckets.current.toFixed(2),
+          a.buckets.d30.toFixed(2),
+          a.buckets.d60.toFixed(2),
+          a.buckets.d90.toFixed(2),
+          a.buckets.d90plus.toFixed(2),
           a.total.toFixed(2),
+          overdueTotal(a).toFixed(2),
+          a.legacyNote ?? "",
+          "",
+          "",
         ]),
       ),
       emptyReason: "No tenants are assigned to a relationship manager.",

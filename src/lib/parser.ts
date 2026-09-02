@@ -153,6 +153,42 @@ function rowsOf(wb: XLSX.WorkBook, sheetName: string): unknown[][] {
   }) as unknown[][];
 }
 
+/**
+ * Column positions by header name, so a moved or inserted column does not
+ * silently shift every field after it.
+ *
+ * MES's newer export added "End User: Industry Type" at position four and
+ * "Primary Sales Rep" at the end. Reading by fixed offset, that pushed every
+ * column along by one: the open balance became the aging label and the
+ * description became a date. Nothing errored. The rows were simply wrong.
+ */
+function columnsOf(headerRow: unknown[]): Map<string, number> {
+  const m = new Map<string, number>();
+  headerRow.forEach((cell, i) => {
+    const name = norm(cell);
+    if (name !== "" && !m.has(name)) m.set(name, i);
+  });
+  return m;
+}
+
+/**
+ * The index of the first header that exists, or a fallback position.
+ *
+ * The fallback keeps the older export working: it has no "Aging" column and
+ * spells some headers differently, and both files have to be readable.
+ */
+function col(
+  cols: Map<string, number>,
+  names: string[],
+  fallback: number,
+): number {
+  for (const n of names) {
+    const at = cols.get(norm(n));
+    if (at !== undefined) return at;
+  }
+  return fallback;
+}
+
 /** Finds the header row rather than assuming it sits at a fixed offset. */
 function findHeaderRow(rows: unknown[][], firstHeading: string): number {
   for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
@@ -360,6 +396,11 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
   const contacts: ParsedDetail["contacts"] = [];
   const industries: ParsedDetail["industries"] = [];
   const rmAssignments: ParsedDetail["rmAssignments"] = [];
+
+  // Manager and trade picked up off the invoice lines of the newer export.
+  // Keyed by normalised company name, which is all the detail sheet carries.
+  const lineReps = new Map<string, Set<string>>();
+  const lineIndustries = new Map<string, string>();
   const managers: ParsedDetail["managers"] = [];
   let asOf: string | null = null;
 
@@ -367,13 +408,24 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
     wb.SheetNames.find((n) => norm(n) === norm(want)) ?? null;
 
   /* ------------------------------------------------ Detailed Full Report */
-  const mainName = sheet("Detailed Full Report");
+  // MES have renamed this tab twice: "Detailed Full Report", then "Sheet1",
+  // then "Finance AR Download". The name is not the thing that identifies it,
+  // the Customer header row is, so any of them is accepted and an unfamiliar
+  // name is tried rather than refused.
+  const mainName =
+    sheet("Detailed Full Report") ??
+    sheet("Finance AR Download") ??
+    sheet("Sheet1") ??
+    wb.SheetNames.find((n) => findHeaderRow(rowsOf(wb, n), "Customer") !== -1);
+
   if (!mainName) {
     problems.push({
       sheet: "-",
       row: null,
       severity: "error",
-      message: 'This workbook has no "Detailed Full Report" tab.',
+      message:
+        "No tab in this workbook has a Customer header row, so there is no " +
+        "invoice detail to read.",
     });
   } else {
     const rows = rowsOf(wb, mainName);
@@ -391,6 +443,28 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         message: 'Could not find the "Customer" header row.',
       });
     } else {
+      // Read by header name, not by position. MES's newer export inserted a
+      // column at position four and appended another at the end, which by
+      // offset alone turned the open balance into an aging label and the
+      // description into a date, with no error anywhere. The fallbacks are the
+      // older export's positions, so both files stay readable.
+      const cols = columnsOf(rows[headerAt] ?? []);
+      const COL = {
+        txType: col(cols, ["Transaction Type"], 1),
+        company: col(cols, ["Company Name"], 2),
+        date: col(cols, ["Date"], 3),
+        description: col(cols, ["Description"], 4),
+        document: col(cols, ["Document Number"], 5),
+        contract: col(cols, ["Linked Contract"], 6),
+        dueDate: col(cols, ["Due Date"], 9),
+        age: col(cols, ["Age"], 10),
+        bucket: col(cols, ["Aging", "Bucket"], 11),
+        balance: col(cols, ["Open Balance"], 12),
+        rep: col(cols, ["Primary Sales Rep"], -1),
+        industry: col(cols, ["End User: Industry Type"], -1),
+      };
+      const at = (row: unknown[], i: number) => (i < 0 ? "" : row[i]);
+
       for (let i = headerAt + 1; i < rows.length; i += 1) {
         const row = rows[i] ?? [];
         const customerCell = clean(row[0]);
@@ -398,11 +472,25 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         // Customer heading, or the "Total - X" line that closes them out.
         if (customerCell !== "") continue;
 
-        const txType = clean(row[1]);
-        const company = clean(row[2]);
+        const txType = clean(row[COL.txType]);
+        const company = clean(row[COL.company]);
         if (txType === "" || company === "") continue;
 
-        const balance = money(row[12]);
+        // The newer export carries the manager and the trade on every invoice
+        // line, which replaces the two RM tabs the older file used. Those tabs
+        // held contradictory data anyway: the same customer code appeared
+        // against different companies on each one.
+        const repCell = clean(at(row, COL.rep));
+        if (repCell !== "") {
+          const key = norm(company);
+          const seen = lineReps.get(key) ?? new Set<string>();
+          seen.add(repCell);
+          lineReps.set(key, seen);
+        }
+        const industryCell = clean(at(row, COL.industry));
+        if (industryCell !== "") lineIndustries.set(norm(company), industryCell);
+
+        const balance = money(row[COL.balance]);
         if (balance === null) {
           problems.push({
             sheet: mainName,
@@ -413,8 +501,8 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
           continue;
         }
 
-        const description = clean(row[4]);
-        const ageRaw = row[10];
+        const description = clean(row[COL.description]);
+        const ageRaw = row[COL.age];
         const age =
           typeof ageRaw === "number"
             ? Math.round(ageRaw)
@@ -428,7 +516,7 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         // to work the bucket out here and the two are compared. Theirs is kept
         // either way, because the file is what they will point at, but a
         // disagreement is reported rather than silently inherited.
-        const theirBucket = clean(row[11]);
+        const theirBucket = clean(row[COL.bucket]);
         if (age !== null && theirBucket !== "") {
           const ours = bucketLabelForAge(age);
           if (ours !== theirBucket) {
@@ -447,16 +535,16 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         invoices.push({
           companyName: company.replace(/\.$/, ""),
           transactionType: txType,
-          date: excelDate(row[3]),
-          dueDate: excelDate(row[9]),
+          date: excelDate(row[COL.date]),
+          dueDate: excelDate(row[COL.dueDate]),
           description: description.slice(0, 400),
-          documentNumber: clean(row[5]),
-          linkedContract: clean(row[6]) || null,
+          documentNumber: clean(row[COL.document]),
+          linkedContract: clean(row[COL.contract]) || null,
           age,
           bucket: theirBucket,
           openBalance: balance,
-          revenueType: revenueType(description, clean(row[5])),
-          isOneFm: isOneFm(description, clean(row[5])),
+          revenueType: revenueType(description, clean(row[COL.document])),
+          isOneFm: isOneFm(description, clean(row[COL.document])),
         });
       }
     }
@@ -539,6 +627,60 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
       // Some cells have the customer code pasted inside the name field.
       company = company.replace(/^DORM-\d+\s+/i, "").replace(/\.$/, "");
       rmAssignments.push({ companyName: company, rm: key });
+    }
+  }
+
+  /* ------------------------------- managers from the invoice lines instead */
+  // The newer export has no RM tabs at all. It carries "Primary Sales Rep" on
+  // every line, which is better: it is one source rather than two that
+  // disagreed, and it comes from NetSuite rather than being maintained by
+  // hand. Used only when the tabs are absent, so the older file is unchanged.
+  if (managers.length === 0 && lineReps.size > 0) {
+    // Every rep who appears anywhere, so the list is complete even where a
+    // company is split between two of them.
+    const allReps = new Set<string>();
+    for (const set of Array.from(lineReps.values())) {
+      for (const r of Array.from(set)) allReps.add(r);
+    }
+
+    const keyByName = new Map<string, string>();
+    for (const repName of Array.from(allReps).sort()) {
+      const key = `rm${keyByName.size + 1}`;
+      keyByName.set(repName, key);
+      managers.push({ key, name: repName });
+    }
+
+    for (const [companyKey, set] of Array.from(lineReps)) {
+      const reps = Array.from(set).sort();
+      if (reps.length > 1) {
+        // Real case in MES's own export: THOMAS EDISON appears as two blocks
+        // under two different reps. Taking whichever came last would put the
+        // whole balance on one manager's report and leave it off the other's,
+        // with nothing to say so. The first is used and the split is named.
+        problems.push({
+          sheet: mainName ?? "-",
+          row: null,
+          severity: "warning",
+          message:
+            `${companyKey} appears under more than one sales rep ` +
+            `(${reps.join(", ")}). Assigned to the first. If they really are ` +
+            `shared, the manager report will understate one of them.`,
+        });
+      }
+      const key = keyByName.get(reps[0]);
+      if (key) rmAssignments.push({ companyName: companyKey, rm: key });
+    }
+  }
+
+  // Same for the trade, which the older file kept on its own Industry tab.
+  if (industries.length === 0 && lineIndustries.size > 0) {
+    for (const [companyKey, industry] of Array.from(lineIndustries)) {
+      industries.push({
+        companyName: companyKey,
+        industry,
+        entity: "",
+        property: "",
+      });
     }
   }
 
