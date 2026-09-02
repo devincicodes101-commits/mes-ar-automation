@@ -382,9 +382,9 @@
     <h1>One month, one tenant, six ways it ends</h1>
     <p class="standfirst">
       MES Group rents dormitory rooms to companies in Singapore, and some of them
-      pay late. This is how chasing that money works month to month, traced with
-      real accounts from their own report, plus what we still need from them.
-      Written to be read cold, with no prior knowledge of the project.
+      pay late. This is how chasing that money works month to month, where the
+      build has got to, and what we still need from MES. Written to be read
+      cold, with no prior knowledge of the project.
     </p>
     <div class="meta">
       <span><b>Prepared by</b> DeVinci Codes</span>
@@ -539,6 +539,232 @@
         </dd>
       </div>
     </dl>
+  </section>
+
+  <!-- ============================================================== STATUS -->
+  <section>
+    <div class="sec-head col">
+      <span class="eyebrow">Where we are</span>
+      <h2>What works, what waits, what has not started</h2>
+      <p>
+        Three lists. The first is finished. The second is finished but cannot
+        be switched on yet. The third has not been begun.
+      </p>
+    </div>
+
+    <h3 class="group-head"><span class="chip ok">this works today</span></h3>
+    <div class="files">
+
+      <article class="file">
+        <div class="file-h"><h3>Reading the report</h3></div>
+        <p>
+          The officer uploads the file she already downloads. The system reads
+          it, works out how late every charge is, and sorts each one into what
+          it is for &mdash; rent, tax, maintenance, parking, deposit.
+        </p>
+        <p class="pt">
+          <b>It reads their newest file too.</b> MES have changed the layout
+          twice and renamed a tab three times. It copes with both.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>Deciding who to chase first</h3></div>
+        <p>
+          Everyone who owes money is put in order, with the oldest and most
+          persistent at the top. A company late four months running comes above
+          one who owes more but has never been late.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>The reminder letters</h3></div>
+        <p>
+          MES&rsquo;s own two letters, word for word, with the company name and
+          the amount filled in. They go out <b>on their own</b> on the 7th and
+          the 21st, which is what MES asked for.
+        </p>
+        <p class="pt">
+          They can be switched back to a reviewed batch instead, if MES change
+          their mind.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>The $100 late fee</h3></div>
+        <p>
+          Set from MES&rsquo;s own letter: a flat $100 before GST if payment has
+          not arrived by the 15th. The system works out who that applies to
+          from the dates on the invoices.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>Calls and promises</h3></div>
+        <p>
+          A call list for the 7th and the 21st. Nobody drops off it after one
+          call, and the number of times each tenant has been rung is shown, so
+          a fourth call looks different from a first.
+        </p>
+        <p class="pt">
+          A promise to pay can be recorded from a phone call <b>or from a reply
+          the officer read in her inbox</b>, which was not possible before.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>Two of the three reports</h3></div>
+        <p>
+          The <b>trade breakdown</b> for management is finished and produces
+          real figures.
+        </p>
+        <p class="pt">
+          The <b>manager report</b> is now built to the exact layout MES sent
+          us. Ten of its thirteen columns are filled. The other three say
+          plainly what they are waiting for.
+        </p>
+      </article>
+
+      <article class="file">
+        <div class="file-h"><h3>The file that goes back to NetSuite</h3></div>
+        <p>
+          Every email, call and promise, one row each, ready to load back into
+          the accounting system. What is in it has been written up and sent to
+          MES for confirmation.
+        </p>
+      </article>
+
+    </div>
+
+    <h3 class="group-head"><span class="chip warn">built, but waiting on something</span></h3>
+    <div class="files">
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>Proper storage</h3>
+          <span class="mono file-sub">waiting on: a login screen</span>
+        </div>
+        <p>
+          Everything is currently kept in the web browser on one machine. Close
+          it the wrong way and it is gone; two people get two separate sets of
+          records.
+        </p>
+        <p class="pt">
+          <b>The real storage is built and tested.</b> It handles being uploaded
+          to several times a month and it cannot lose a phone call. Nothing uses
+          it yet, because the security correctly refuses to hand data to
+          somebody who has not signed in, and there is no sign-in screen.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>Emails actually leaving</h3>
+          <span class="mono file-sub">waiting on: Outlook</span>
+        </div>
+        <p>
+          The system writes every reminder and records that it went. <b>Nothing
+          is actually sent yet.</b> That needs access to MES&rsquo;s email
+          account.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>What each charge was for</h3>
+          <span class="mono file-sub">waiting on: MES</span>
+        </div>
+        <p>
+          We can say what every tenant owes in total. We cannot yet break it
+          down into rent, maintenance and so on, because <b>the file MES sent
+          has every amount blank</b> &mdash; 169 rows, no figures.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>The deposits report</h3>
+          <span class="mono file-sub">waiting on: MES</span>
+        </div>
+        <p>
+          Built, and produces an almost empty sheet. Their whole file contains
+          deposit figures for <b>two tenants out of fifty three</b>. Every
+          tenant pays one, so the rest live somewhere we have never been sent.
+        </p>
+      </article>
+
+      <article class="file bad">
+        <div class="file-h">
+          <h3>Two columns on the manager report</h3>
+          <span class="mono file-sub">waiting on: MES</span>
+        </div>
+        <p>
+          <b>Security Deposit</b> needs the figures above. <b>Risk Exposure</b>
+          needs a formula: we checked every row of their example and could not
+          work out how it is calculated, and two of the numbers are negative.
+        </p>
+      </article>
+
+    </div>
+
+    <h3 class="group-head"><span class="chip stop">not started</span></h3>
+    <div class="files">
+
+      <article class="file bad" style="border-left-color:var(--stop)">
+        <div class="file-h">
+          <h3>The login screen</h3>
+          <span class="mono file-sub">ours to build &middot; unblocks the rest</span>
+        </div>
+        <p>
+          Nothing else can move until this exists. The roles are already built
+          and tested &mdash; a manager can only see their own tenants, and only
+          credit control can send anything &mdash; but they need somebody signed
+          in to apply to.
+        </p>
+      </article>
+
+      <article class="file bad" style="border-left-color:var(--stop)">
+        <div class="file-h">
+          <h3>Connecting the screens to the storage</h3>
+          <span class="mono file-sub">ours to build &middot; the largest piece left</span>
+        </div>
+        <p>
+          Needs the login first. After that, records stop living in one
+          browser and start being shared properly.
+        </p>
+      </article>
+
+      <article class="file bad" style="border-left-color:var(--stop)">
+        <div class="file-h">
+          <h3>Three handover documents</h3>
+          <span class="mono file-sub">ours to write &middot; due at final testing</span>
+        </div>
+        <p>
+          The proposal promises five things at handover. The code and the
+          NetSuite file format are done. Still to write: a user manual, a design
+          document, and installation notes.
+        </p>
+        <p class="pt">
+          <b>They need nothing from MES</b>, and they are as contractual as the
+          software itself.
+        </p>
+      </article>
+
+    </div>
+
+    <div class="alert acc">
+      <h3>The shortest honest answer</h3>
+      <p>
+        <b>The thinking works.</b> Read the file, work out who is late, decide
+        who to chase, write the right letter, keep a record. All of that is
+        built and tested against MES&rsquo;s own data.
+      </p>
+      <p>
+        <b>It cannot be used as a real system yet</b>, because there is no way
+        to sign in and no email actually leaves. Both of those are ours to
+        build and neither is waiting on MES.
+      </p>
+    </div>
   </section>
 
   <!-- ============================================================ DIAGRAMS -->
