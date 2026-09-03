@@ -118,6 +118,25 @@ check("Sick Bay line on a 1FM invoice", revenueType("Sick Bay Usage", "JP1FM/265
 check("Maintenance line on a 1FM invoice", revenueType("Maintenance Works", "JP1FM/2659"), "1FM Maintenance");
 check("Opening Balance on a 1FM invoice", revenueType("Opening Balance - AR", "JP1FM/2159"), "1FM Maintenance");
 check("MES's own spelling, JPD1FM", revenueType("VAT", "JPD1FM/0001"), "1FM Maintenance");
+
+/* Every dormitory numbers its own 1FM invoices, and the prefix is that
+ * dormitory's code rather than JPD. Built around JPD because JPD1 was the only
+ * dormitory we had ever been sent; the BSD export then arrived with 542 of
+ * these and the pattern matched none of them. One row per dormitory, so the
+ * next one MES send is a one line addition and not another silent zero. */
+check("BSD numbers its own, BSDFM", revenueType("VAT", "BSDFM/1598"), "1FM Maintenance");
+check("and the maintenance line on it", revenueType("Maintenance Works", "BSDFM/1471"), "1FM Maintenance");
+check("LEO would number LEOFM", revenueType("VAT", "LEOFM/0001"), "1FM Maintenance");
+check("JPD2 would number JPD2FM", revenueType("VAT", "JPD2FM/0001"), "1FM Maintenance");
+check("isOneFm agrees on BSD too", isOneFm("Tenant Transfer", "BSDFM/1598"), true);
+
+/* The prefixes that live alongside them in the same BSD file and must not be
+ * swept up. KTM is the KT Mesdorm entity, REC a payment receipt, BSDCN a
+ * credit note, and BSD-786 the ordinary occupancy invoice run. */
+check("an ordinary BSD invoice is untouched", revenueType("VAT", "BSD-786/002070"), "VAT");
+check("the KT Mesdorm entity prefix is untouched", revenueType("Opening Balance - AR", "KTM-1251"), "Opening Balance");
+check("a BSD credit note is untouched", revenueType("VAT", "BSDCN/017"), "VAT");
+check("a payment receipt is untouched", revenueType("Occupancy Fee Charges", "REC-BSD367"), "Occupancy Fee");
 check("a 1FM credit note, caught by the wording", revenueType("ADMISSION TO SICKBAY AS PER ONEFM", "JP1CN/070"), "1FM Maintenance");
 check("an ordinary invoice is untouched", revenueType("VAT", "JPD1-786/002429"), "VAT");
 check("ordinary sick bay stays Sick Bay", revenueType("Sick Bay Usage", "JPD1-786/002430"), "Sick Bay");

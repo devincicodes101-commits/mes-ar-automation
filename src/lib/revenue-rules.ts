@@ -46,9 +46,18 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 1,
     type: "1FM Maintenance",
     keywords: ["ONEFM", "ONE FM"],
-    // MES's own note: 1FM = DOCUMENT NUMBER "JPD1FM...". Their exports use
-    // JP1FM, so both spellings are matched, and JPD2 would give JP2FM.
-    document: /^JPD?\d*FM/,
+    // The prefix is the dormitory's own code followed by FM, not a JPD one.
+    //
+    // MES first showed us this as DOCUMENT NUMBER "JPD1FM..." on a tab of the
+    // JPD1 workbook, and the pattern was built around JPD because JPD1 was the
+    // only dormitory we had ever been sent. The BSD export then arrived headed
+    // 1FM, Prefix "DORMFM", Example BSDFM/1598, where DORMFM means the code
+    // plus FM rather than the literal word. So JPD1FM, JP1FM, BSDFM and LEOFM
+    // are all the same thing and only the first two used to match.
+    //
+    // On the BSD file the old pattern found 0 of 542. On every older file the
+    // new one finds exactly what the old one did, so this only ever adds.
+    document: /^[A-Z]+\d*FM/,
     means: "Anything raised through 1FM, whatever the underlying charge is.",
     ordering:
       "First, and it has to be. These descriptions also contain SICKBAY, " +
@@ -62,7 +71,14 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "but the invoice number does. Reading descriptions alone found 17 of " +
       "the 45 real 1FM lines. The description test is kept as well, because " +
       "1FM credit notes are numbered JP1CN and the number alone would miss " +
-      "those.",
+      "those. " +
+      "Open with MES: a 1FM invoice also carries VAT and a brought-forward " +
+      "opening balance, and this rule being first claims those too. At BSD " +
+      "that is $14,400 of the $36,776 it reports, so 1FM is either the whole " +
+      "invoice or only the 1FM work on it. Asked, not yet answered. Nothing " +
+      "here is arranged around a guess at the answer: if MES say the tax and " +
+      "the opening balance stay where they are, the change is to let the VAT " +
+      "and Opening Balance rules run before this one.",
   },
   {
     order: 2,
