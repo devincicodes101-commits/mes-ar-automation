@@ -6,7 +6,8 @@
  * This file is the specification. The table below is one row per distinct
  * shape of description, with the type it must produce. Changing a rule in
  * revenue-rules.ts without changing this table means the build fails, which is
- * the point: Occupancy Fee alone is 92% of the value in the sample.
+ * the point: Occupancy Fee alone is 75% of the value in the sample, and 51%
+ * of MES's real BSD export.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

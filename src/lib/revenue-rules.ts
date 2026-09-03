@@ -8,10 +8,10 @@
  * tidy up. Each rule that depends on its position says so.
  *
  * The rules stay in code rather than becoming an editable setting. Occupancy
- * Fee alone is 92% of the value in the sample: a drag handle in the UI would
- * be a way to silently reclassify thousands of dollars with no error and no
- * audit trail. Same reasoning as the note in data.ts about keeping AI away
- * from queue ranking.
+ * Fee alone is 75% of the sample and 51% of MES's real BSD export, where that
+ * is $1.4m: a drag handle in the UI would be a way to silently reclassify it
+ * with no error and no audit trail. Same reasoning as the note in data.ts
+ * about keeping AI away from queue ranking.
  *
  * MES writes this text by hand and new wordings appear monthly. The list will
  * never be complete. The goal is not to get every description right, it is to
@@ -74,7 +74,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "those. " +
       "Open with MES: a 1FM invoice also carries VAT and a brought-forward " +
       "opening balance, and this rule being first claims those too. At BSD " +
-      "that is $14,400 of the $36,776 it reports, so 1FM is either the whole " +
+      "that is $14,400 of the $36,686 it reports, so 1FM is either the whole " +
       "invoice or only the 1FM work on it. Asked, not yet answered. Nothing " +
       "here is arranged around a guess at the answer: if MES say the tax and " +
       "the opening balance stay where they are, the change is to let the VAT " +
@@ -148,7 +148,8 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     keywords: ["OCCUPANCY FEE"],
     means: "The core bed rental charge.",
     ordering:
-      "92% of all value in the sample. Any change that moves this is a " +
+      "75% of all value in the sample and 51% of the real BSD export, the " +
+      "largest single type in both. Any change that moves this is a " +
       "serious change and the reconciliation test will catch it.",
   },
   {

@@ -88,7 +88,7 @@ npm run dev                  # http://localhost:3000
 
 ## The database
 
-Seven migrations, applied in order. `migrate.mjs` tracks what has run in a
+Eight migrations, applied in order. `migrate.mjs` tracks what has run in a
 `schema_migrations` table and skips anything already applied, so re-running it
 is safe.
 
@@ -101,6 +101,7 @@ is safe.
 | `0005_snapshots.sql` | Splits tenants from snapshots so uploads cannot destroy call records |
 | `0006_view_security.sql` | Makes `current_accounts` obey row level security |
 | `0007_import.sql` | `import_ar_report`, the all-or-nothing import |
+| `0008_category.sql` | Keeps MES's own Categories value beside the type we derive |
 
 ### Two gates, not one
 
@@ -132,7 +133,7 @@ npm run test:import       # needs the database
 
 | Suite | Guards against |
 |---|---|
-| **revenue** | A change to charge classification quietly moving money between categories. Occupancy Fee alone is 92% of the value |
+| **revenue** | A change to charge classification quietly moving money between categories. Occupancy Fee alone is 75% of the sample and 51% of the real BSD export |
 | **snapshots** | Multiple uploads in one month failing, or an upload losing a phone call |
 | **rls** | A manager reading another manager's tenants, or the audit log being rewritten |
 | **import** | The import reaching a table it must not touch |
