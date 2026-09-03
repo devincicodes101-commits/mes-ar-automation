@@ -280,12 +280,101 @@ export function matchRule(
   return null;
 }
 
-/** Works out what a charge is for, from the description and invoice number. */
+/* ------------------------------------------------- MES's own Categories ---
+ * The aging detail export carries a Categories column: NetSuite's own answer
+ * to the question these rules exist to guess at. It is translated onto our
+ * names rather than used as written, because the two spellings collide.
+ * "Security deposit" is not "Security Deposit", and the deposit report does an
+ * exact match, so their casing would empty it with no error at all. Their
+ * "Occupancy Fee Charges" against our "Occupancy Fee" would split $1.4m over
+ * two rows of the revenue report.
+ *
+ * It is a fallback and not the primary source, which is the opposite of what
+ * it looks like it should be. Their categories are coarser than these rules in
+ * the places MES's own reports need detail: their Admin fee holds 48 lines
+ * that are 12 admin fees, 27 late payment fees and 9 rejected GIRO fees, and
+ * they have asked us for a late payment report their own column cannot
+ * produce. Their Reimbursement is five stamp duty reimbursements, and they
+ * have a stamp duty tab too.
+ *
+ * Where these rules do claim a line it wins. Where they do not, this fills the
+ * gap: on the BSD export that is 10 lines, 7 vending machine commissions and 3
+ * bad debt write offs, neither of which we had any rule for.
+ */
+export const MES_CATEGORY_TYPES: Record<string, string> = {
+  "OCCUPANCY FEE CHARGES": "Occupancy Fee",
+  "SERVICE & CONSERVANCY CHARGES": "Service & Conservancy",
+  "FURNITURE & FITTINGS CHARGES": "Furniture & Fittings",
+  "CREAM SERVICES CHARGES": "CREAM Services",
+  "VAT": "VAT",
+  "OPENING BALANCE - AR": "Opening Balance",
+  "ADMIN FEE": "Admin Fee",
+  "SECURITY DEPOSIT": "Security Deposit",
+  "ONE-TIME ISSUANCE FEE": "Issuance Fee",
+  "SICK BAY/ISOLATION": "Sick Bay",
+  "MAINTENANCE WORKS": "Maintenance",
+  // The five with no rule of their own. Tenant Transfer and Unit
+  // Reinstatement are invisible on the BSD file only because they all sit on
+  // 1FM invoices and rule 1 claims those; they appear the moment MES answer
+  // whether 1FM means the whole invoice or only the 1FM work on it.
+  "TENANT TRANSFER": "Tenant Transfer",
+  "UNIT REINSTATEMENT WORKS": "Unit Reinstatement",
+  "COMMISSION": "Commission",
+  "REIMBURSEMENT": "Reimbursement",
+  "BAD DEBTS": "Bad Debt",
+};
+
+/** MES's category translated onto our naming, or null if we do not know it. */
+export function typeForCategory(category?: string): string | null {
+  const key = normaliseDescription(category ?? "");
+  if (key === "") return null;
+  return MES_CATEGORY_TYPES[key] ?? null;
+}
+
+/**
+ * Works out what a charge is for.
+ *
+ * Three sources, in this order:
+ *
+ *   1. the invoice number, for 1FM, which MES gave us as an explicit rule
+ *   2. these rules, read off the description
+ *   3. MES's own Categories column, where the rules found nothing
+ *
+ * The first two are `matchRule`. The third only ever fills a gap, never
+ * overrides, for the reasons on MES_CATEGORY_TYPES above.
+ */
 export function revenueType(
   description: string,
   documentNumber?: string,
+  category?: string,
 ): string {
-  return matchRule(description, documentNumber)?.type ?? FALLBACK_TYPE;
+  const rule = matchRule(description, documentNumber);
+  if (rule) return rule.type;
+  return typeForCategory(category) ?? FALLBACK_TYPE;
+}
+
+/**
+ * MES's category disagrees with what our rules made of the same line.
+ *
+ * Not an error. It is a short list somebody can actually read, and every item
+ * on it is one of three things: our rule is wrong, their category is broader
+ * than ours, or it is a real question. Finding that their Admin fee was three
+ * different charges came from reading this list rather than 3,117 rows.
+ *
+ * Lines our rules did not claim are excluded: those are gaps being filled, not
+ * disagreements. So are lines with no category, which the older exports are
+ * entirely made of.
+ */
+export function categoryDisagrees(
+  description: string,
+  documentNumber?: string,
+  category?: string,
+): boolean {
+  const theirs = typeForCategory(category);
+  if (theirs === null) return false;
+  const rule = matchRule(description, documentNumber);
+  if (rule === null) return false;
+  return rule.type !== theirs;
 }
 
 /**

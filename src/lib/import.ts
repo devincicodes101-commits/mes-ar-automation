@@ -66,6 +66,8 @@ export interface InvoiceRow {
   open_balance: number;
   revenue_type: string;
   is_onefm: boolean;
+  /** MES's own Categories value, verbatim, or null on exports without it. */
+  category: string | null;
 }
 
 export interface ImportPlan {
@@ -175,6 +177,7 @@ export function buildImportPlan(
       open_balance: inv.openBalance,
       revenue_type: inv.revenueType,
       is_onefm: inv.isOneFm,
+      category: inv.category ?? null,
     });
   }
 

@@ -13,10 +13,12 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
   REVENUE_RULES,
+  categoryDisagrees,
   isOneFm,
   matchRule,
   normaliseDescription,
   revenueType,
+  typeForCategory,
   unrecognisedDescriptions,
 } from "../src/lib/revenue-rules.ts";
 import { emailAddresses, looksLikeUnreadableContact } from "../src/lib/emails.ts";
@@ -417,6 +419,57 @@ check("the 22nd sends nothing", dueOn(22), null);
 check("the 7th can never fire the final notice", dueOn(7)?.id === "final-21st", false);
 check("templates with no trigger day exist and never fire",
       DEFAULT_TEMPLATES.some((t) => t.triggerDay === undefined), true);
+
+/* ------------------------------------------------- MES's own Categories ---
+ * Their column fills gaps and never overrides. It looks like it should be the
+ * other way round, so these say plainly why it is not: their categories are
+ * coarser than these rules exactly where MES's own reports need the detail.
+ */
+console.log("\nMES's Categories column\n");
+
+// Where our rules claim the line, ours wins. All three of these sit inside
+// MES's single "Admin fee" category, and MES have asked for a late payment
+// report their own column could not produce.
+check("a late payment fee stays a late payment fee",
+      revenueType("Admin Fee For Late Payment - JUN'26", "BSD-786/1", "Admin fee"), "Late Payment Fee");
+check("a rejected GIRO fee stays its own thing",
+      revenueType("Admin Fee for Rejected Giro - 01-JUL-26", "BSD-786/1", "Admin fee"), "Rejected GIRO Fee");
+check("and a real admin fee is still an admin fee",
+      revenueType("Administration Fee - NON-REFUNDABLE", "BSD-786/1", "Admin fee"), "Admin Fee");
+check("stamp duty beats their Reimbursement",
+      revenueType("Reimbursement of Stamp Duty", "BSD-786/1", "Reimbursement"), "Stamp Duty");
+
+// Where our rules find nothing, theirs is used. These are the 10 real lines
+// on the BSD export that we had no rule for at all.
+check("a vending machine commission comes from their column",
+      revenueType("COMMISSION FOR THE VENDING MACHINE AT BSD FOR JAN' 2026", "BSD-786/1", "Commission"), "Commission");
+check("a bad debt write off comes from their column",
+      revenueType("BEING BAD DEBTS WRITTEN OFF. - LCK CONSTRUCTION PTE. LTD.", "KTM-1", "Bad debts"), "Bad Debt");
+check("with no category it still falls back to Other Charges",
+      revenueType("SOMETHING NOBODY HAS EVER WRITTEN", "BSD-786/1"), "Other Charges");
+check("an unknown category is not invented into a type",
+      revenueType("SOMETHING NOBODY HAS EVER WRITTEN", "BSD-786/1", "Marmalade"), "Other Charges");
+
+// Their spelling must never reach a type name. The deposit report does an
+// exact match on "Security Deposit" and their small d would empty it.
+check("their casing is translated, not copied",
+      typeForCategory("Security deposit"), "Security Deposit");
+check("and their longer wording too", typeForCategory("Occupancy Fee Charges"), "Occupancy Fee");
+check("a category we do not know maps to nothing", typeForCategory("Marmalade"), null);
+check("no category maps to nothing", typeForCategory(""), null);
+
+// The disagreement flag. Gaps are not disagreements, and neither is a line
+// with no category, which the older exports consist entirely of.
+check("a disagreement is flagged",
+      categoryDisagrees("Admin Fee For Late Payment - JUN'26", "BSD-786/1", "Admin fee"), true);
+check("agreement is not",
+      categoryDisagrees("Occupancy Fee Charges", "BSD-786/1", "Occupancy Fee Charges"), false);
+check("a gap we filled is not a disagreement",
+      categoryDisagrees("COMMISSION FOR THE VENDING MACHINE", "BSD-786/1", "Commission"), false);
+check("no category is not a disagreement",
+      categoryDisagrees("Occupancy Fee Charges", "BSD-786/1"), false);
+check("1FM against their category is flagged, which is the open question",
+      categoryDisagrees("VAT", "BSDFM/1598", "VAT"), true);
 
 /* ------------------------------------------ the aging detail export shape ---
  * "Custom A/R Aging Detail - With Description" is the fourth shape MES have

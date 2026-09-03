@@ -59,6 +59,16 @@ export interface Invoice {
   openBalance: number;
   revenueType: string;
   isOneFm: boolean;
+  /**
+   * MES's own Categories value, exactly as their export wrote it, kept
+   * alongside our answer rather than instead of it. Null on every export
+   * before the aging detail one, which had no such column.
+   *
+   * It costs one field and buys a second opinion on every line, every month,
+   * from their system rather than our rules. Comparing the two is what
+   * surfaced that their Admin fee was hiding the late payment fees.
+   */
+  category: string | null;
 }
 
 export interface Contact {

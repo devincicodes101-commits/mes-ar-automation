@@ -8,7 +8,7 @@ import { emailAddresses, looksLikeUnreadableContact } from "./emails.ts";
 // The classification rules live on their own so the build can check them
 // against every description MES has ever sent: see scripts/test-revenue.mts.
 // Re-exported because parser.ts has always been where callers found it.
-import { isOneFm, revenueType } from "./revenue-rules.ts";
+import { categoryDisagrees, isOneFm, revenueType } from "./revenue-rules.ts";
 
 export { revenueType };
 
@@ -477,6 +477,10 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
     // Recovered from the data instead: age is days past the due date, so the
     // due date plus the age is the day the export was actually run.
     let dataAsOf: string | null = null;
+    // Lines where MES's own Categories value and our rules reached different
+    // answers. Counted rather than listed per row: on the BSD export it is 594
+    // of 3,117 and a problem each would bury everything else.
+    let categoryConflicts = 0;
 
     const headerAt = findHeaderRow(rows, "Customer");
     if (headerAt === -1) {
@@ -510,6 +514,9 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         balance: col(cols, ["Open Balance"], 12),
         rep: col(cols, ["Primary Sales Rep"], -1),
         industry: col(cols, ["End User: Industry Type"], -1),
+        // NetSuite's own answer to what each charge is. Only the aging detail
+        // export carries it, so no positional fallback: absent is absent.
+        category: col(cols, ["Categories"], -1),
       };
       const at = (row: unknown[], i: number) => (i < 0 ? "" : row[i]);
 
@@ -550,6 +557,9 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         }
 
         const description = clean(row[COL.description]);
+        const category = COL.category < 0 ? "" : clean(row[COL.category]);
+        if (categoryDisagrees(description, clean(row[COL.document]), category))
+          categoryConflicts += 1;
         const ageRaw = row[COL.age];
         const age =
           typeof ageRaw === "number"
@@ -596,8 +606,9 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
           age,
           bucket: theirBucket !== "" ? theirBucket : ourBucket,
           openBalance: balance,
-          revenueType: revenueType(description, clean(row[COL.document])),
+          revenueType: revenueType(description, clean(row[COL.document]), category),
           isOneFm: isOneFm(description, clean(row[COL.document])),
+          category: category === "" ? null : category,
         });
       }
 
@@ -620,6 +631,25 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
             `with MES which date the export was really run on.`,
         });
       }
+      // A short list somebody can actually read, and the number itself is the
+      // useful part: stable month to month means nothing changed, a jump means
+      // MES altered a wording, added a category, or one of our rules stopped
+      // matching. Reading this list is how we found their Admin fee was 12
+      // admin fees, 27 late payment fees and 9 rejected GIRO fees in one box.
+      if (categoryConflicts > 0) {
+        problems.push({
+          sheet: mainName,
+          row: null,
+          severity: "warning",
+          message:
+            `${categoryConflicts} line${categoryConflicts === 1 ? "" : "s"} ` +
+            `where MES's own Categories column disagrees with how we ` +
+            `classified them. Our answer was kept. Worth reviewing: it is ` +
+            `either a rule of ours that has gone stale, a category of theirs ` +
+            `that covers more than one charge, or a genuine question.`,
+        });
+      }
+
       asOf = dataAsOf ?? titleAsOf;
     }
   }
