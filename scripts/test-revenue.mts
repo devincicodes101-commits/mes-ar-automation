@@ -29,6 +29,8 @@ import {
 } from "../src/lib/import.ts";
 import { DEFAULT_FEE_RULE, feesDue } from "../src/lib/data.ts";
 import { DEFAULT_TEMPLATES, templateDueOn } from "../src/lib/store.ts";
+import * as XLSX from "xlsx";
+import { detectKind, parseDetail } from "../src/lib/parser.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
@@ -396,6 +398,76 @@ check("the 22nd sends nothing", dueOn(22), null);
 check("the 7th can never fire the final notice", dueOn(7)?.id === "final-21st", false);
 check("templates with no trigger day exist and never fire",
       DEFAULT_TEMPLATES.some((t) => t.triggerDay === undefined), true);
+
+/* ------------------------------------------ the aging detail export shape ---
+ * "Custom A/R Aging Detail - With Description" is the fourth shape MES have
+ * sent and the app refused it outright: the tab name matched none of the
+ * three we knew, so the whole file came back unreadable.
+ *
+ * The workbooks below are built here rather than read from disk. The real one
+ * carries 190 named tenants and their balances, which does not belong in a
+ * repository, and the three things being checked are structural.
+ */
+console.log("\nThe aging detail export\n");
+
+const book = (tab: string, rows: unknown[][]) => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), tab);
+  return wb;
+};
+
+// Header on row seven, company on its own row, no Aging column, and a title
+// date that disagrees with the ages underneath it. All four are real.
+const AGING_HEADER = [
+  "Customer", "Transaction Type", "Company Name", "Date", "Description",
+  "Categories", "Document Number", "Linked Contract", "Contract Item Start Date",
+  "P.O. No.", "Due Date", "Age", "Open Balance", "Item: Item Type",
+];
+const agingRows: unknown[][] = [
+  ["Mini Environment Service Pte Ltd (MOH)"],
+  ["Consol : Mini Environment Service Pte Ltd : KT Mesdorm Pte Ltd"],
+  ["Custom A/R Aging Detail - With Description"],
+  ["As of 17 August 2026"],
+  [],
+  [],
+  AGING_HEADER,
+  ["DORM-10 A STAR TECHNICAL SERVICES PTE. LTD."],
+  ["", "Invoice", "A STAR TECHNICAL SERVICES PTE. LTD.", "2026-08-15",
+   "Occupancy Fee Charges", "Occupancy Fee Charges", "BSD-786/002070",
+   "BS/3753/KT/2025-SH", "2026-01-01", "", "2026-08-30", -2, 3024, "Service"],
+  ["Total - A STAR TECHNICAL SERVICES PTE. LTD."],
+];
+
+const aging = book("Custom A_R Aging Detail - With ", agingRows);
+check("an unfamiliar tab name is still recognised as invoice detail",
+      detectKind(aging), "ar-detail");
+
+const parsed = parseDetail(aging);
+check("and it reads", parsed.invoices.length, 1);
+check("with the balance intact", parsed.invoices[0]?.openBalance, 3024);
+
+// The title says the 17th. Due 30 August less 2 days of age is the 28th, and
+// the $100 fee turns on a 14 day window, so eleven days is most of it.
+check("the report date comes from the ages, not the title", parsed.asOf, "2026-08-28");
+check("and the disagreement is reported",
+      parsed.problems.some((p) => p.message.includes("2026-08-17") &&
+                                  p.message.includes("2026-08-28")), true);
+
+// Position eleven in this layout is Age. A positional fallback filed a raw day
+// count as the bucket on every row, then warned that it disagreed with itself.
+check("the bucket is worked out from the age", parsed.invoices[0]?.bucket, "Current");
+check("and no bucket disagreement is invented",
+      parsed.problems.some((p) => p.message.includes("by MES's own formula")), false);
+
+/* The new check is last of the four so it can never shadow a known shape. */
+const contactish = book("JPD1", [["Company Name", "Status", "Email Address"]]);
+check("a contact list is still a contact list", detectKind(contactish), "contact-list");
+
+const summaryish = book("BSD", [["Company Name", "Status", "Current", "Grand Total"]]);
+check("a balances export is still a balances export", detectKind(summaryish), "ar-summary");
+
+const nothing = book("Notes", [["hello"]]);
+check("and something unrelated is still refused", detectKind(nothing), "unreadable");
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

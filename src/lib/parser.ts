@@ -135,6 +135,20 @@ function excelDate(v: unknown): string | null {
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
 }
 
+/**
+ * Adds a number of days to a calendar date, staying in calendar terms for the
+ * same reason excelDate does. Constructed at local noon so that a daylight
+ * saving shift, which Singapore does not observe but a developer's machine
+ * might, cannot round the result onto the neighbouring day.
+ */
+function addDays(iso: string, days: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** Splits "DORM-1584 CROISSANT PTE. LTD." into its two halves. */
 function splitCustomer(cell: unknown): { code: string; name: string } | null {
   const m = /^(DORM-\d+)\s+(.+)$/i.exec(clean(cell));
@@ -212,7 +226,29 @@ export function detectKind(wb: XLSX.WorkBook): ParseResult["kind"] {
 
   if (names.some((n) => Object.keys(PROPERTY_NAMES).includes(n)))
     return "ar-summary";
+
+  // "Custom A/R Aging Detail - With Description", the fourth shape MES have
+  // sent. One tab, a name we have never seen, and the header on row seven.
+  // Nothing in the tab name identifies it, so the header row does: a Customer
+  // column with Document Number beside it is invoice detail whatever the tab
+  // is called. Checked last so it can never shadow the three known shapes.
+  if (hasInvoiceDetail(wb)) return "ar-detail";
+
   return "unreadable";
+}
+
+/**
+ * A tab whose header row starts with Customer and carries a document number.
+ * Deliberately not tied to a tab name: MES have renamed this export four
+ * times and the name has never once been the thing that identified it.
+ */
+function hasInvoiceDetail(wb: XLSX.WorkBook): boolean {
+  return wb.SheetNames.some((sheetName) => {
+    const rows = rowsOf(wb, sheetName);
+    const at = findHeaderRow(rows, "Customer");
+    if (at === -1) return false;
+    return (rows[at] ?? []).some((c) => norm(c) === "DOCUMENT NUMBER");
+  });
 }
 
 function hasEmailColumn(wb: XLSX.WorkBook): boolean {
@@ -429,10 +465,18 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
     });
   } else {
     const rows = rowsOf(wb, mainName);
+
+    // The date printed in the title, which is a line of text somebody typed.
+    // It is not necessarily the date the figures were calculated on: see the
+    // reconciliation against the Age column below.
+    let titleAsOf: string | null = null;
     for (let i = 0; i < Math.min(rows.length, 8); i += 1) {
       const m = /^as of\s+(.+)$/i.exec(clean(rows[i]?.[0]));
-      if (m && !asOf) asOf = excelDate(m[1]) ?? clean(m[1]);
+      if (m && !titleAsOf) titleAsOf = excelDate(m[1]) ?? clean(m[1]);
     }
+    // Recovered from the data instead: age is days past the due date, so the
+    // due date plus the age is the day the export was actually run.
+    let dataAsOf: string | null = null;
 
     const headerAt = findHeaderRow(rows, "Customer");
     if (headerAt === -1) {
@@ -458,7 +502,11 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         contract: col(cols, ["Linked Contract"], 6),
         dueDate: col(cols, ["Due Date"], 9),
         age: col(cols, ["Age"], 10),
-        bucket: col(cols, ["Aging", "Bucket"], 11),
+        // No positional fallback. The aging detail export has no bucket column
+        // at all, and position 11 is its Age, so a fallback here filed a raw
+        // day count as the bucket on every row and disagreed with itself 3,118
+        // times. Absent is absent, and the bucket is worked out from the age.
+        bucket: col(cols, ["Aging", "Bucket"], -1),
         balance: col(cols, ["Open Balance"], 12),
         rep: col(cols, ["Primary Sales Rep"], -1),
         industry: col(cols, ["End User: Industry Type"], -1),
@@ -516,9 +564,14 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
         // to work the bucket out here and the two are compared. Theirs is kept
         // either way, because the file is what they will point at, but a
         // disagreement is reported rather than silently inherited.
-        const theirBucket = clean(row[COL.bucket]);
+        const dueIso = excelDate(row[COL.dueDate]);
+        if (dataAsOf === null && age !== null && dueIso !== null)
+          dataAsOf = addDays(dueIso, age);
+
+        const theirBucket = COL.bucket < 0 ? "" : clean(row[COL.bucket]);
+        const ourBucket = age === null ? "" : bucketLabelForAge(age);
         if (age !== null && theirBucket !== "") {
-          const ours = bucketLabelForAge(age);
+          const ours = ourBucket;
           if (ours !== theirBucket) {
             problems.push({
               sheet: mainName,
@@ -536,17 +589,38 @@ export function parseDetail(wb: XLSX.WorkBook): ParsedDetail {
           companyName: company.replace(/\.$/, ""),
           transactionType: txType,
           date: excelDate(row[COL.date]),
-          dueDate: excelDate(row[COL.dueDate]),
+          dueDate: dueIso,
           description: description.slice(0, 400),
           documentNumber: clean(row[COL.document]),
           linkedContract: clean(row[COL.contract]) || null,
           age,
-          bucket: theirBucket,
+          bucket: theirBucket !== "" ? theirBucket : ourBucket,
           openBalance: balance,
           revenueType: revenueType(description, clean(row[COL.document])),
           isOneFm: isOneFm(description, clean(row[COL.document])),
         });
       }
+
+      // Which day the report is "as of" decides every age, and the $100 fee
+      // turns on a 14 day window, so an error here is not cosmetic. MES's
+      // aging detail export carried a title reading 17 August while all 3,117
+      // rows were calculated on the 28th, an eleven day gap that moved five
+      // companies in and out of the fee. The data wins, because every age in
+      // the file is consistent with it and nothing is consistent with the
+      // title, but the disagreement is reported rather than absorbed.
+      if (dataAsOf !== null && titleAsOf !== null && dataAsOf !== titleAsOf) {
+        problems.push({
+          sheet: mainName,
+          row: null,
+          severity: "warning",
+          message:
+            `This file is titled "as of ${titleAsOf}" but every age in it is ` +
+            `calculated as of ${dataAsOf}. Using ${dataAsOf}, because the ` +
+            `figures agree with it and the title does not. Worth confirming ` +
+            `with MES which date the export was really run on.`,
+        });
+      }
+      asOf = dataAsOf ?? titleAsOf;
     }
   }
 
