@@ -428,10 +428,24 @@ export const DEFAULT_FEE_RULE: FeeRule = {
 
 /**
  * Charged when a tenant pays by cheque, from 1 August 2022, per the same
- * letter. Nothing raises it yet: the AR report does not say how anyone paid,
- * so this is recorded rather than applied.
+ * letter that gives us the $100.
+ *
+ * Nothing raises it and nothing can. No export MES have sent records how a
+ * payment was made, so a cheque is indistinguishable from a transfer, a PayNow
+ * or a GIRO deduction. That was equally true before the DBS report was
+ * removed, so it is not a gap that more code closes: it needs a payment method
+ * from somewhere, which is a scope conversation rather than a change.
+ *
+ * Shown read-only on the Late Fee screen beside the $100 rather than left as a
+ * constant nobody reads. MES's letter names two charges and that screen used
+ * to show one, which read as the whole fee picture. Saying plainly that this
+ * one is theirs to raise is a better answer than silence.
+ *
+ * The Cheque Admin Fee classification rule, revenue-rules.ts order 4, already
+ * catches the line when MES do raise it and it arrives on a later AR report.
  */
 export const CHEQUE_ADMIN_FEE = 50;
+export const CHEQUE_ADMIN_FEE_FROM = "1 August 2022";
 
 export interface FeeLine {
   account: Account;

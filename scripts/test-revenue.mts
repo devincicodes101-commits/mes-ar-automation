@@ -31,7 +31,12 @@ import {
   buildImportPlan,
   periodOf,
 } from "../src/lib/import.ts";
-import { DEFAULT_FEE_RULE, feesDue } from "../src/lib/data.ts";
+import {
+  CHEQUE_ADMIN_FEE,
+  CHEQUE_ADMIN_FEE_FROM,
+  DEFAULT_FEE_RULE,
+  feesDue,
+} from "../src/lib/data.ts";
 import { DEFAULT_TEMPLATES, templateDueOn } from "../src/lib/store.ts";
 import * as XLSX from "xlsx";
 import { detectKind, parseDetail } from "../src/lib/parser.ts";
@@ -410,6 +415,30 @@ check("and says so rather than presenting it as fact", bucketsOnly[0]?.approxima
  * Foreign Manpower Regulations and raises disruption of services, to somebody
  * who is six days late.
  */
+/* The two charges in MES's reminder letter. The $100 the system raises, and
+ * the $50 it cannot, because no export MES send records how a payment was
+ * made. Both figures are read off that letter and neither should drift
+ * silently. The second is asserted to reach the screen as well as exist,
+ * because it spent months as a constant nothing imported, which read as though
+ * we had missed the charge rather than decided we could not apply it. */
+console.log("\nThe two charges in MES's letter\n");
+check("the late fee is $100", DEFAULT_FEE_RULE.value, 100);
+check("the cheque admin fee is $50", CHEQUE_ADMIN_FEE, 50);
+check("and it dates from MES's letter", CHEQUE_ADMIN_FEE_FROM, "1 August 2022");
+
+const lateFeeScreen = readFileSync(
+  path.join(ROOT, "src/app/late-fees/page.tsx"),
+  "utf8",
+);
+check("the cheque fee reaches the screen, not just the constant",
+      lateFeeScreen.includes("CHEQUE_ADMIN_FEE"), true);
+check("and the screen says plainly that we do not raise it",
+      lateFeeScreen.includes("Not raised here"), true);
+check("nothing charges it, because nothing can",
+      feesDue([feeAcct("q", 5000)], DEFAULT_FEE_RULE, [
+        feeInv("FEE q PTE. LTD.", 40, 5000),
+      ]).some((l) => l.fee === CHEQUE_ADMIN_FEE), false);
+
 console.log("\nWhich reminder is due today\n");
 const dueOn = (day: number) => templateDueOn(new Date(2026, 7, day), DEFAULT_TEMPLATES);
 check("the 7th sends the first reminder", dueOn(7)?.id, "reminder-7th");

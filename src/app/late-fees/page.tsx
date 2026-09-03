@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
+  CHEQUE_ADMIN_FEE,
+  CHEQUE_ADMIN_FEE_FROM,
   DEFAULT_FEE_RULE,
   FeeBasis,
   FeeRule,
@@ -171,6 +173,7 @@ export default function LateFeesPage() {
           </label>
         </div>
 
+        <ChequeAdminFee />
       </Card>
 
       {/* ------------------------------------------------------------ lines */}
@@ -350,6 +353,49 @@ export default function LateFeesPage() {
           </ul>
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The second charge in MES's reminder letter, which we cannot raise.
+ *
+ * The letter names two: the $100 late fee and a $50 cheque admin fee. The
+ * screen used to show only the first, which read as though it were the whole
+ * fee picture. It is half of it.
+ *
+ * We cannot raise the cheque fee because no export MES have sent records how
+ * anyone paid. Cheque, transfer, PayNow and GIRO are indistinguishable to us,
+ * and that was true before the DBS report was removed as well, so it is not a
+ * gap more code closes.
+ *
+ * Shown rather than left as a constant nobody reads, so the boundary is
+ * visible to MES: we captured the rule, here is why it is not applied, and it
+ * is theirs to raise. The Cheque Admin Fee classification rule already picks
+ * the line up when one arrives on an AR report.
+ */
+function ChequeAdminFee() {
+  return (
+    <div className="border-t border-line-hair px-5 py-4">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+        <h3 className="text-xs font-medium text-ink-secondary">
+          Cheque admin fee
+        </h3>
+        <span className="tabular text-sm text-ink">
+          SGD {formatSgd(CHEQUE_ADMIN_FEE)}
+        </span>
+        <span className="text-[11px] text-ink-muted">
+          from {CHEQUE_ADMIN_FEE_FROM}
+        </span>
+        <StatusBadge kind="warning" label="Not raised here" />
+      </div>
+      <p className="mt-1.5 max-w-prose text-[11px] leading-relaxed text-ink-muted">
+        MES&rsquo;s reminder letter charges this when a tenant pays by cheque.
+        The system cannot work out who that is: no export MES send records how
+        a payment was made, so a cheque looks the same as a transfer. MES raise
+        this one, and when it appears on a later AR report it is classified as
+        a cheque admin fee rather than a general admin fee.
+      </p>
     </div>
   );
 }
