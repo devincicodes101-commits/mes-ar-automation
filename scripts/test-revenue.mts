@@ -15,6 +15,7 @@ import {
   REVENUE_RULES,
   categoryDisagrees,
   isOneFm,
+  isUnrecognised,
   matchRule,
   normaliseDescription,
   revenueType,
@@ -231,7 +232,7 @@ const amountByType = Array.from(byType.values()).reduce((n, r) => n + r.amount, 
 check("every invoice lands in exactly one type", linesByType, sample.invoices.length);
 check("sum of the types equals the sum of the invoices", Math.round(amountByType * 100), Math.round(total * 100));
 
-const missed = unrecognisedDescriptions(sample.invoices.map((i) => i.description));
+const missed = unrecognisedDescriptions(sample.invoices);
 check("no unrecognised description in the sample", missed.length, 0);
 for (const m of missed) console.log(`         ${String(m.count).padStart(3)}  ${m.description}`);
 
@@ -457,6 +458,26 @@ check("their casing is translated, not copied",
 check("and their longer wording too", typeForCategory("Occupancy Fee Charges"), "Occupancy Fee");
 check("a category we do not know maps to nothing", typeForCategory("Marmalade"), null);
 check("no category maps to nothing", typeForCategory(""), null);
+
+/* What the Upload screen reports as "we could not understand this". It has to
+ * ask the same question the classifier asks, or it reports lines that were
+ * named perfectly well by the invoice number or by MES's own column. On the
+ * BSD export that was 37 reported against 3 real, and a panel that is mostly
+ * noise is a panel nobody reads by month two. */
+check("a line named by its invoice number is not a miss",
+      isUnrecognised("TENANT TRANSFER", "BSDFM/1598"), false);
+check("a line named by MES's category is not a miss",
+      isUnrecognised("BEING BAD DEBTS WRITTEN OFF.", "KTM-1", "Bad debts"), false);
+check("a line nothing can name still is",
+      isUnrecognised("SOMETHING NOBODY HAS EVER WRITTEN", "BSD-786/1"), true);
+check("and an unknown category does not rescue it",
+      isUnrecognised("SOMETHING NOBODY HAS EVER WRITTEN", "BSD-786/1", "Marmalade"), true);
+check("the counted list agrees",
+      unrecognisedDescriptions([
+        { description: "TENANT TRANSFER", documentNumber: "BSDFM/1598" },
+        { description: "BEING BAD DEBTS WRITTEN OFF.", documentNumber: "KTM-1", category: "Bad debts" },
+        { description: "SOMETHING NOBODY HAS EVER WRITTEN", documentNumber: "BSD-786/1" },
+      ]).length, 1);
 
 // The disagreement flag. Gaps are not disagreements, and neither is a line
 // with no category, which the older exports consist entirely of.

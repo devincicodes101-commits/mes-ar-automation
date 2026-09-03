@@ -532,9 +532,16 @@ function ParseReport({
 function Unclassified({
   invoices,
 }: {
-  invoices: { description: string }[];
+  // The whole line, not just its wording. The invoice number and MES's own
+  // category name most of what the description alone cannot, and passing only
+  // the description had this reporting 37 misses against 3 real ones.
+  invoices: {
+    description: string;
+    documentNumber?: string;
+    category?: string | null;
+  }[];
 }) {
-  const missed = unrecognisedDescriptions(invoices.map((i) => i.description));
+  const missed = unrecognisedDescriptions(invoices);
   const lines = missed.reduce((n, m) => n + m.count, 0);
 
   return (
@@ -567,7 +574,16 @@ function Unclassified({
                   {m.count} line{m.count === 1 ? "" : "s"}
                 </span>
                 <span className="text-[11px] leading-relaxed text-ink-secondary">
-                  {m.description}
+                  {/* MES's aging detail carries three payment receipts with no
+                      description and no category at all. Rendering the empty
+                      string leaves a blank row that says nothing, and no
+                      keyword can ever be written for it, so it is named for
+                      what it is. */}
+                  {m.description === "" ? (
+                    <em className="text-ink-muted">no description in the file</em>
+                  ) : (
+                    m.description
+                  )}
                 </span>
               </li>
             ))}

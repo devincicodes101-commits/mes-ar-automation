@@ -387,28 +387,50 @@ export function isOneFm(description: string, documentNumber?: string): boolean {
 }
 
 /**
- * True when no rule claimed the description, so it fell through to the
- * fallback rather than being classified.
+ * True when nothing at all could name this line, so it fell through to the
+ * fallback.
  *
- * This is what the Upload screen reports. A line reading "Other Charges"
- * because MES wrote those words is not a miss and must not be reported as
- * one, or the panel cries wolf on every upload and gets ignored by month two.
+ * It has to ask the same question revenueType asks, which means all three
+ * inputs. Checking the description alone reports a line as a miss when the
+ * invoice number or MES's category named it perfectly well: on the BSD export
+ * that was 37 reported against 3 real, 24 of them TENANT TRANSFER lines
+ * sitting on 1FM invoices and correctly filed as 1FM.
+ *
+ * Which matters because this is the only thing that tells us a rule has gone
+ * stale. MES type these descriptions by hand and new wordings arrive monthly.
+ * A panel that is 92% noise is a panel nobody reads by month two, and then the
+ * real one goes past unseen. That was already the warning on this function
+ * before it started happening.
  */
-export function isUnrecognised(description: string): boolean {
-  return matchRule(description) === null;
+export function isUnrecognised(
+  description: string,
+  documentNumber?: string,
+  category?: string,
+): boolean {
+  if (matchRule(description, documentNumber) !== null) return false;
+  return typeForCategory(category) === null;
 }
 
 /**
- * Descriptions no rule claimed, counted and ordered by how often they appear,
- * so the keyword list grows from real misses rather than guesses.
+ * Lines nothing could name, counted and ordered by how often they appear, so
+ * the keyword list grows from real misses rather than guesses.
+ *
+ * Takes whole lines rather than bare descriptions for the reason above: the
+ * invoice number and the category are half the answer and the caller already
+ * has both sitting next to the description.
  */
 export function unrecognisedDescriptions(
-  descriptions: readonly string[],
+  lines: readonly {
+    description: string;
+    documentNumber?: string;
+    category?: string | null;
+  }[],
 ): { description: string; count: number }[] {
   const counts = new Map<string, number>();
-  for (const raw of descriptions) {
-    if (!isUnrecognised(raw)) continue;
-    const d = normaliseDescription(raw);
+  for (const line of lines) {
+    if (!isUnrecognised(line.description, line.documentNumber, line.category ?? undefined))
+      continue;
+    const d = normaliseDescription(line.description);
     counts.set(d, (counts.get(d) ?? 0) + 1);
   }
   return Array.from(counts, ([description, count]) => ({ description, count }))
