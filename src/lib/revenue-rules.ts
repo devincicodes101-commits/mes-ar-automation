@@ -35,6 +35,17 @@ export interface RevenueRule {
    * belongs to it whatever that individual line happens to say.
    */
   readonly document?: RegExp;
+  /**
+   * Matched against MES's own Categories column, exactly, case insensitively.
+   *
+   * The September export tags every line with what it is for, which is a
+   * better signal than the description text because MES pick it from a list
+   * rather than typing it. It is checked last within a rule, not first, so
+   * that the document number still decides 1FM: a 1FM maintenance line is
+   * categorised "Maintenance Works", and category-first would file it as
+   * ordinary maintenance and take it off the 1FM report.
+   */
+  readonly categories?: readonly string[];
   /** Plain English, shown to MES in Settings. */
   readonly means: string;
   /** Why this rule sits at this position. Only where the order is load bearing. */
@@ -46,9 +57,18 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 1,
     type: "1FM Maintenance",
     keywords: ["ONEFM", "ONE FM"],
-    // MES's own note: 1FM = DOCUMENT NUMBER "JPD1FM...". Their exports use
-    // JP1FM, so both spellings are matched, and JPD2 would give JP2FM.
-    document: /^JPD?\d*FM/,
+    // MES's note on the September export reads: 1FM = Prefix "DORMFM", worked
+    // example BSDFM/1598. The prefix is the dormitory code with FM after it,
+    // so every dormitory has its own: BSDFM, JPD1FM, JPD2FM, LEOFM. Their
+    // older exports abbreviate JPD1 to JP1, so the D is optional.
+    //
+    // This regex used to read /^JPD?\d*FM/, which only ever matched the JPD
+    // dormitories. On the August export, which is entirely Blue Stars, that
+    // found 98 of the 542 real 1FM lines: only the ones whose description
+    // happened to say ONEFM. The other 444, including every VAT line on a
+    // 1FM invoice, were filed as ordinary charges and were missing from the
+    // 1FM report altogether.
+    document: /^(JPD?[12]|BSD|LEO)FM\b/,
     means: "Anything raised through 1FM, whatever the underlying charge is.",
     ordering:
       "First, and it has to be. These descriptions also contain SICKBAY, " +
@@ -120,6 +140,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     keywords: [],
     exact: "VAT",
     startsWith: "VAT",
+    categories: ["VAT"],
     means: "Tax charged on another line. The most common description by far.",
     ordering:
       "Exact match or starts with, never contains. 98 lines carry the bare " +
@@ -130,6 +151,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 8,
     type: "Occupancy Fee",
     keywords: ["OCCUPANCY FEE"],
+    categories: ["Occupancy Fee Charges"],
     means: "The core bed rental charge.",
     ordering:
       "92% of all value in the sample. Any change that moves this is a " +
@@ -139,18 +161,21 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 9,
     type: "Service & Conservancy",
     keywords: ["SERVICE & CONSERVANCY"],
+    categories: ["Service & Conservancy Charges"],
     means: "Shared services and upkeep of common areas.",
   },
   {
     order: 10,
     type: "Furniture & Fittings",
     keywords: ["FURNITURE"],
+    categories: ["Furniture & Fittings Charges"],
     means: "Beds, lockers and fittings supplied with the room.",
   },
   {
     order: 11,
     type: "CREAM Services",
     keywords: ["CREAM SERVICE"],
+    categories: ["CREAM Services Charges"],
     means: "Cleaning, repair and maintenance package.",
     ordering:
       "Singular CREAM SERVICE, so it catches both \"CREAM Services\" and " +
@@ -160,6 +185,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
     order: 12,
     type: "Security Deposit",
     keywords: ["SECURITY DEPOSIT"],
+    categories: ["Security deposit"],
     means: "Refundable deposit held against the tenancy.",
   },
   {
@@ -176,8 +202,47 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
   },
   {
     order: 15,
+    type: "Tenant Transfer",
+    keywords: ["TENANT TRANSFER"],
+    categories: ["Tenant Transfer"],
+    means: "Moving a tenant's workers between rooms or blocks.",
+    ordering:
+      "Below 1FM, like Sick Bay and Maintenance. Most transfers are raised " +
+      "through 1FM and belong on that report; only a transfer billed " +
+      "directly reaches here.",
+  },
+  {
+    order: 16,
+    type: "Unit Reinstatement",
+    keywords: ["REINSTATEMENT"],
+    categories: ["Unit reinstatement works"],
+    means: "Making a room good again after a tenant vacates it.",
+    ordering: "Below 1FM, same reason as Tenant Transfer.",
+  },
+  {
+    order: 17,
+    type: "Commission",
+    keywords: ["COMMISSION"],
+    categories: ["Commission"],
+    means: "Vending machine and similar concession income billed on.",
+  },
+  {
+    order: 18,
+    type: "Bad Debt Written Off",
+    keywords: ["BAD DEBT"],
+    categories: ["Bad debts"],
+    means: "A balance MES has given up on and written out of the ledger.",
+    ordering:
+      "Its own type rather than Other Charges. The amount is negative and " +
+      "large, and a write off appearing inside a catch all would look like a " +
+      "credit note or a mis-read row. It also must never be chased: an " +
+      "account whose balance is a write off is not a collections case.",
+  },
+  {
+    order: 19,
     type: "Sick Bay",
     keywords: ["SICK BAY", "SICKBAY"],
+    categories: ["Sick bay/Isolation"],
     means: "Use of the on site sick bay.",
     ordering:
       "Below 1FM on purpose. A sick bay admission raised through 1FM is " +
@@ -186,30 +251,34 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "decision to treat 1FM as a revenue type. Do not \"fix\" it.",
   },
   {
-    order: 16,
+    order: 20,
     type: "Maintenance",
     keywords: ["MAINTENANCE"],
+    categories: ["Maintenance Works"],
     means: "Repairs and replacements billed directly.",
     ordering:
       "Near the bottom so that 1FM maintenance, which is most of it, is " +
       "claimed by rule 1 first. Only direct maintenance reaches here.",
   },
   {
-    order: 17,
+    order: 21,
     type: "Issuance Fee",
     keywords: ["ISSUANCE FEE"],
+    categories: ["One-time issuance fee"],
     means: "One off charge for bed board, storage box, bin and broom.",
   },
   {
-    order: 18,
+    order: 22,
     type: "Opening Balance",
     keywords: ["OPENING BALANCE"],
+    categories: ["Opening Balance - AR"],
     means: "Balance carried in when the account was opened in NetSuite.",
   },
   {
-    order: 19,
+    order: 23,
     type: "Admin Fee",
     keywords: ["ADMIN FEE", "ADMINISTRATION FEE"],
+    categories: ["Admin fee"],
     means: "General administration charge.",
     ordering:
       "Second to last, because it is the loosest fee keyword in the list. " +
@@ -217,7 +286,7 @@ export const REVENUE_RULES: readonly RevenueRule[] = [
       "ADMINISTRATION FEE, and MES uses both.",
   },
   {
-    order: 20,
+    order: 24,
     type: "Other Charges",
     keywords: [],
     exact: "OTHER CHARGES",
@@ -252,14 +321,18 @@ export function normaliseDescription(description: string): string {
 export function matchRule(
   description: string,
   documentNumber?: string,
+  category?: string,
 ): RevenueRule | null {
   const d = normaliseDescription(description);
   const doc = normaliseDescription(documentNumber ?? "");
+  const cat = normaliseDescription(category ?? "");
   for (const rule of REVENUE_RULES) {
     if (rule.document && doc !== "" && rule.document.test(doc)) return rule;
     if (rule.exact && d === rule.exact) return rule;
     if (rule.startsWith && d.startsWith(rule.startsWith)) return rule;
     if (rule.keywords.some((k) => d.includes(k))) return rule;
+    if (cat !== "" && rule.categories?.some((c) => normaliseDescription(c) === cat))
+      return rule;
   }
   return null;
 }
@@ -268,8 +341,9 @@ export function matchRule(
 export function revenueType(
   description: string,
   documentNumber?: string,
+  category?: string,
 ): string {
-  return matchRule(description, documentNumber)?.type ?? FALLBACK_TYPE;
+  return matchRule(description, documentNumber, category)?.type ?? FALLBACK_TYPE;
 }
 
 /**
@@ -277,8 +351,14 @@ export function revenueType(
  * than to collections. Same answer as revenueType, expressed as a flag because
  * that is what the screens filter on.
  */
-export function isOneFm(description: string, documentNumber?: string): boolean {
-  return matchRule(description, documentNumber)?.type === "1FM Maintenance";
+export function isOneFm(
+  description: string,
+  documentNumber?: string,
+  category?: string,
+): boolean {
+  return (
+    matchRule(description, documentNumber, category)?.type === "1FM Maintenance"
+  );
 }
 
 /**
@@ -290,6 +370,15 @@ export function isOneFm(description: string, documentNumber?: string): boolean {
  * one, or the panel cries wolf on every upload and gets ignored by month two.
  */
 export function isUnrecognised(description: string): boolean {
+  // A blank description is not an unrecognised one. There is nothing there to
+  // recognise, and nothing a keyword could ever be grown from, so reporting it
+  // is noise in the one panel that has to stay worth reading.
+  //
+  // MES's September export has three: they are Payment rows, the receipts
+  // numbered REC-BSD367 and friends, and a receipt has no description by
+  // nature. They still classify as Other Charges and still carry their amount,
+  // which is what the reconciliation test checks.
+  if (normaliseDescription(description) === "") return false;
   return matchRule(description) === null;
 }
 

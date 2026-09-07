@@ -10,6 +10,15 @@ import { emailAddresses, looksLikeUnreadableContact } from "./emails.ts";
 // Re-exported because parser.ts has always been where callers found it.
 import { isOneFm, revenueType } from "./revenue-rules.ts";
 
+// MES's September export is a different shape from either file this module
+// was written for, so it has its own parser. It is dispatched from here
+// because parseWorkbook is the one door every upload comes through.
+import {
+  type ParsedAgingDetail,
+  isAgingDetail,
+  parseAgingDetail,
+} from "./aging-detail.ts";
+
 export { revenueType };
 
 /**
@@ -72,8 +81,11 @@ export interface ParsedContacts {
 export type ParseResult =
   | ParsedSummary
   | ParsedDetail
+  | ParsedAgingDetail
   | ParsedContacts
   | { kind: "unreadable"; problems: ParseProblem[] };
+
+export type { ParsedAgingDetail };
 
 /* -------------------------------------------------------------- utilities */
 
@@ -201,6 +213,13 @@ function findHeaderRow(rows: unknown[][], firstHeading: string): number {
 
 export function detectKind(wb: XLSX.WorkBook): ParseResult["kind"] {
   const names = wb.SheetNames.map((n) => norm(n));
+
+  // Checked before everything else. The September export also has a Customer
+  // header row, so the older detail parser would take it and then read the
+  // wrong columns: it has no Aging column and an extra Categories one, and by
+  // position that turns the open balance into a date.
+  if (isAgingDetail(wb)) return "ar-aging-detail";
+
   if (names.some((n) => n.startsWith("DETAILED FULL REPORT"))) return "ar-detail";
 
   // The contact list is checked before the summary, and has to be. Its tabs
@@ -867,6 +886,7 @@ export async function parseWorkbook(file: File): Promise<ParseResult> {
   }
 
   const kind = detectKind(wb);
+  if (kind === "ar-aging-detail") return parseAgingDetail(wb);
   if (kind === "ar-summary") return parseSummary(wb);
   if (kind === "ar-detail") return parseDetail(wb);
   if (kind === "contact-list") return parseContacts(wb);
@@ -881,8 +901,9 @@ export async function parseWorkbook(file: File): Promise<ParseResult> {
         message:
           `"${file.name}" was opened but is not a report we recognise. ` +
           `Tabs found: ${wb.SheetNames.join(", ")}. Expected one tab per ` +
-          "dormitory (JPD1, JPD2, BSD, LEO), a Detailed Full Report tab, or " +
-          "a contact list with an Email Address column.",
+          "dormitory (JPD1, JPD2, BSD, LEO), a Custom A/R Aging Detail " +
+          "export, a Detailed Full Report tab, or a contact list with an " +
+          "Email Address column.",
       },
     ],
   };

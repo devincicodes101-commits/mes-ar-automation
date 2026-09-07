@@ -1,10 +1,11 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Account, Invoice } from "./types";
-import { data as seed } from "./data";
+import type { Account, Invoice } from "./types";
+import { data as seed } from "./data.ts";
 import type {
   ParseResult,
+  ParsedAgingDetail,
   ParsedContacts,
   ParsedDetail,
   ParsedSummary,
@@ -124,17 +125,82 @@ export function mergeParsed(
   };
 }
 
+/**
+ * The September export, which carries balances and invoice lines in one file.
+ *
+ * The older pair needed merging because the buckets were in one workbook and
+ * the invoices in another. This one has already been rolled up by the parser,
+ * so there is nothing to join: the accounts and the lines came from the same
+ * rows and cannot disagree.
+ */
+export function datasetFromAgingDetail(
+  parsed: ParsedAgingDetail,
+  period: string,
+  contactList: ParsedContacts | null,
+): Dataset {
+  const accounts: Account[] = parsed.accounts.map((a) => ({ ...a }));
+  const invoices: Invoice[] = parsed.invoices.map((i, n) => ({
+    ...i,
+    id: `inv-${n + 1}`,
+  }));
+
+  if (contactList) {
+    // On customer code, never company name. The AR export and the contact
+    // list spell the same company differently often enough that names lose
+    // matches, and a lost match is a tenant silently dropped from a send.
+    const byCode = new Map(
+      contactList.contacts.map((c) => [c.customerCode.toUpperCase(), c.emails]),
+    );
+    for (const a of accounts) {
+      const found = byCode.get(a.customerCode.toUpperCase());
+      if (!found || found.length === 0) continue;
+      a.emails = Array.from(new Set([...a.emails, ...found]));
+      a.hasContact = a.emails.length > 0;
+    }
+  }
+
+  const managers: Manager[] = Array.from(
+    new Set(
+      accounts
+        .map((a) => (a as Account & { rm?: string }).rm)
+        .filter((r): r is string => Boolean(r)),
+    ),
+  )
+    .sort()
+    .map((name) => ({ key: name, name }));
+
+  return {
+    source: "uploaded",
+    label: "AR aging detail",
+    asOf: parsed.asOf ?? seed.asOfSummary,
+    period,
+    accounts,
+    invoices,
+    managers,
+  };
+}
+
 /** Pulls whichever of the file kinds are present out of a parse run. */
 export function datasetFromResults(
   results: ParseResult[],
   period: string,
 ): Dataset | null {
+  const contacts =
+    (results.find((r) => r.kind === "contact-list") as ParsedContacts) ?? null;
+
+  // Preferred when present: it is the export MES actually send now, and it
+  // needs no second file to be complete.
+  const aging =
+    (results.find((r) => r.kind === "ar-aging-detail") as ParsedAgingDetail) ??
+    null;
+  if (aging && aging.accounts.length > 0) {
+    return datasetFromAgingDetail(aging, period, contacts);
+  }
+
   const summary =
     (results.find((r) => r.kind === "ar-summary") as ParsedSummary) ?? null;
   const detail =
     (results.find((r) => r.kind === "ar-detail") as ParsedDetail) ?? null;
-  const contacts =
-    (results.find((r) => r.kind === "contact-list") as ParsedContacts) ?? null;
   if (!summary && !detail) return null;
   return mergeParsed(summary, detail, period, contacts);
 }
