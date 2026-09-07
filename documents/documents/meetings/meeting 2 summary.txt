@@ -1,0 +1,74 @@
+MES Group ~ AI Automation Team
+June 17, 2026
+Attendees: dev.hamadyousaf@gmail.com, dev.zakihaider@gmail.com, raman@mesgroup.com.sg, Taha Sheikh
+
+Overview
+
+Taha Sheikh and Raman Palaniappan discussed the timeline and requirements for an AI automation project. The initial proposal was for 10 weeks, but a prototype of the GUI is needed for user feedback. Data security and privacy were emphasized, with a preference for zero data retention (ZDR) to avoid storing sensitive information. Taha proposed using Live Kit for voice agents, noting potential reductions in accuracy and efficiency. Raman suggested a cost-effective solution involving call logs and transcripts instead of audio recordings. They also discussed hosting options, with AWS and VPS being considered, and the need for a secure platform with password protection and encryption.
+
+Action Items
+
+- Create and deliver a GUI prototype (screenshots, screen flow, buttons, and transitions) for the AR/collections automation system so users can review and provide feedback before development begins. (Taha Sheikh)
+- Document in the proposal the planned AI analytics and dashboard inferences (e.g., client segmentation, deterioration, and default prediction) that will be derived from accumulated time-series data once the MVP is in production. (Taha Sheikh)
+- Implement a call log form in the platform that allows users to capture call summaries and relevant details after they place calls from their landlines, and keep the AI voice agent as an optional alternative in the proposal. (Taha Sheikh)
+- Implement secure login credentials and follow the agreed security protocols (e.g., password protection, encryption) for the system as part of the development work. (Taha Sheikh)
+- Update the proposal to incorporate all discussed changes (GUI prototype, AI analytics/dashboard inferences, call log form as the primary solution with the AI voice agent as an optional alternative, and a milestone structure including prototype acceptance and subsequent development/UAT within the 10-week timeline) and resend it to the client. (Taha Sheikh)
+- Arrange an AWS subscription for hosting the platform and provide the domain and email domain credentials to the vendor for use during the pilot.
+
+Outline
+
+Prototype and Timeline Discussion
+
+- Taha Sheikh confirms the initial proposal timeline was 10 weeks.
+- Raman Palaniappan emphasizes the need for a prototype of the GUI to gather user feedback before development.
+- Raman Palaniappan inquires about the AI analytics capabilities, such as predicting client defaulting and segmentation.
+- Taha Sheikh suggests that insights will be clearer once the system is in production and data is accumulated.
+
+Data Security and Privacy Concerns
+
+- Raman Palaniappan raises concerns about data security and privacy, especially with sensitive client information.
+- Taha Sheikh explains the use of LLM for generating follow-up emails and Web API for voice calling agents.
+- Taha Sheikh discusses the zero data retention (ZDR) plan and its implications on recording capabilities.
+- Raman Palaniappan suggests a cost-effective solution involving transcripts instead of audio recordings.
+
+Alternative Solutions for Data Retention
+
+- Taha Sheikh proposes using Live Kit for creating a voice calling agent with reduced accuracy and efficiency.
+- Raman Palaniappan expresses concerns about the suitability of voice calling agents for process automation.
+- Taha Sheikh suggests informing callers about the AI call to mitigate any issues with latency.
+- Raman Palaniappan prefers a transcript over an audio recording to keep costs down.
+
+Cost-Effective Solutions and Implementation
+
+- Raman Palaniappan suggests a call log form for capturing call details instead of using a voice agent.
+- Taha Sheikh agrees and mentions the possibility of using a VPS for hosting.
+- Raman Palaniappan prefers using AWS for hosting and suggests a cost-effective solution for transcripts.
+- Taha Sheikh confirms the use of OpenAI for generating emails and discusses the use of templates.
+
+Hosting and Subscription Plans
+
+- Raman Palaniappan inquires about the hosting requirements and suggests using AWS for testing.
+- Taha Sheikh explains the cost-effectiveness of using a VPS for hosting both the AI and the next JS website.
+- Raman Palaniappan prefers providing the domain and email domain to the vendor partners.
+- Taha Sheikh agrees and mentions the need for security protocols like password protection and encryption.
+
+Finalizing the Proposal and Next Steps
+
+- Raman Palaniappan requests Taha Sheikh to tweak the proposal and resend it.
+- Taha Sheikh agrees and mentions including the voice agent as an option in the proposal.
+- Raman Palaniappan emphasizes the need for a call log form as the main proposal.
+- Taha Sheikh confirms the inclusion of AI analytics and dashboard details in the proposal.
+
+AR Reports and Data Integration
+
+- Raman Palaniappan discusses the AR reports and their relevance to the dashboard.
+- Taha Sheikh asks for clarification on the AR input and its integration into the dashboard.
+- Raman Palaniappan explains the various worksheets and parameters in the AR reports.
+- Taha Sheikh acknowledges the need for further discussion during the development phase.
+
+Meeting Conclusion
+
+- Taha Sheikh thanks Raman Palaniappan for the meeting and wishes him a nice day.
+- Raman Palaniappan reciprocates the thanks and ends the meeting.
+
+Generated by https://otter.ai

@@ -1,0 +1,438 @@
+<title>MES AR Test Plan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#151B21;--muted:#5A6873;--faint:#8A97A1;--line:#DDE4E9;--soft:#F1F5F7;
+  --accent:#12608A;--accent-w:#E7F1F7;
+  --good:#256B4A;--good-w:#E3F1E9;
+  --warn:#94540F;--warn-w:#FBEFE0;
+  --stop:#96301F;--stop-w:#F9E8E4;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --display:"Archivo",var(--sans);
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#FFF;color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px;margin:0 auto;padding:40px 22px 90px}
+h1{font-family:var(--display);font-size:clamp(1.8rem,4vw,2.5rem);font-weight:700;letter-spacing:-.022em;line-height:1.07;margin:0 0 10px}
+h2{font-family:var(--display);font-size:1.26rem;font-weight:600;letter-spacing:-.01em;margin:0}
+h3{font-family:var(--display);font-size:1rem;font-weight:600;margin:24px 0 9px}
+p{margin:0 0 12px}
+code{font-family:var(--mono);font-size:.84em;background:var(--soft);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.kicker{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+.mast{border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:22px}
+.stand{font-size:1rem;color:var(--muted);max-width:66ch;margin:0}
+
+.prog{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.95);backdrop-filter:blur(6px);
+  border-bottom:1px solid var(--line);padding:10px 0 11px;margin:0 0 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.bar{flex:1;min-width:170px;height:8px;background:var(--soft);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--good);transition:width .25s}
+.prog b{font-family:var(--mono);font-size:.8rem;font-weight:600}
+.prog button{font-family:var(--mono);font-size:.7rem;border:1px solid var(--line);background:#FFF;color:var(--muted);
+  border-radius:5px;padding:4px 9px;cursor:pointer}
+.prog button:hover{border-color:var(--faint);color:var(--ink)}
+
+section{margin:0 0 30px;scroll-margin-top:64px}
+.shead{display:flex;align-items:baseline;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-bottom:12px}
+.snum{font-family:var(--mono);font-size:.76rem;color:var(--faint);flex:none;padding-top:3px}
+.tag{font-family:var(--mono);font-size:.63rem;letter-spacing:.09em;text-transform:uppercase;margin-left:auto;
+  padding:3px 8px;border-radius:4px;align-self:center;white-space:nowrap}
+.t-auto{background:var(--accent-w);color:var(--accent)}
+.t-man{background:var(--warn-w);color:var(--warn)}
+.t-gap{background:var(--stop-w);color:var(--stop)}
+
+.tc{border:1px solid var(--line);border-radius:9px;margin:0 0 11px;background:#FFF}
+.tc.done{background:var(--good-w);border-color:#BFD9CC}
+.tc-top{display:flex;gap:11px;padding:12px 15px;align-items:flex-start}
+.tc input[type=checkbox]{margin:3px 0 0;width:16px;height:16px;accent-color:var(--good);flex:none;cursor:pointer}
+.tc-id{font-family:var(--mono);font-size:.68rem;color:var(--faint);flex:none;padding-top:3px;width:38px}
+.tc-body{min-width:0;flex:1}
+.tc-do{font-weight:600;font-size:.97rem;margin:0 0 9px}
+.tc-why{font-size:.84rem;color:var(--muted);margin:10px 0 0;padding-top:9px;border-top:1px dashed var(--line)}
+
+.cols{display:grid;grid-template-columns:1fr 1.25fr;gap:0;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+@media (max-width:720px){.cols{grid-template-columns:1fr}}
+.col{padding:9px 12px 11px;min-width:0}
+.col:first-child{background:var(--soft);border-right:1px solid var(--line)}
+@media (max-width:720px){.col:first-child{border-right:0;border-bottom:1px solid var(--line)}}
+.lbl{font-family:var(--mono);font-size:.62rem;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin:0 0 6px}
+ol.do,ol.does{margin:0;padding-left:19px}
+ol.do li,ol.does li{font-size:.88rem;margin:0 0 5px;line-height:1.5}
+ol.does li::marker{color:var(--good);font-weight:600}
+ol.do li::marker{color:var(--faint)}
+.val{font-family:var(--mono);font-size:.87rem;font-weight:600;color:var(--accent)}
+.val.g{color:var(--good)}.val.s{color:var(--stop)}
+
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:10px 0 2px}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.yes{color:var(--good);font-weight:600}.no{color:var(--stop);font-weight:600}
+.scroll{overflow-x:auto}
+
+.box{border-left:3px solid var(--accent);background:var(--accent-w);padding:11px 14px;border-radius:0 7px 7px 0;margin:14px 0}
+.box.stop{border-color:var(--stop);background:var(--stop-w)}
+.box h5{margin:0 0 4px;font-size:.79rem;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.box p{margin:0;font-size:.9rem}
+pre{background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:11px 13px;overflow-x:auto;
+  font-family:var(--mono);font-size:.78rem;line-height:1.6;margin:10px 0}
+.foot{border-top:2px solid var(--ink);margin-top:40px;padding-top:14px;font-family:var(--mono);font-size:.72rem;color:var(--faint);line-height:1.8}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<div class="mast">
+  <p class="kicker">MES Group &middot; AR Automation</p>
+  <h1>Test Plan</h1>
+  <p class="stand">42 checks against MES&rsquo;s real September export. Each one is a pair: what you do, and exactly what the system does back. Every figure comes from that file, so if a number differs, something has changed.</p>
+</div>
+
+<div class="prog">
+  <b id="count">0 / 42</b>
+  <div class="bar"><i id="fill"></i></div>
+  <button type="button" id="reset">Clear all</button>
+</div>
+
+<section id="setup">
+<div class="shead"><span class="snum">00</span><h2>Before you start</h2><span class="tag t-auto">setup</span></div>
+<p>Everything runs against one folder. Nothing else is used, and nothing is invented.</p>
+<pre>AR Automation-20260903T201835Z-1-001/AR Automation/
+  3. CustomA_RAgingDetail-WithDescription.xlsx   the AR report &mdash; 1 sheet, 3,505 rows
+  4. Client Contact List/R1 - 20260511.xlsx      email addresses &mdash; 4 sheets</pre>
+
+<h3>Sign-in details</h3>
+<div class="scroll"><table>
+<thead><tr><th>Email</th><th>Password</th><th>Role</th><th>Use it to test</th></tr></thead>
+<tbody>
+<tr><td><code>admin@mesgroup.com</code></td><td><code>admin@2026</code></td><td>Admin</td><td>the whole cycle</td></tr>
+<tr><td><code>superadmin@mesgroup.com</code></td><td><code>superadmin@2026</code></td><td>Super Admin</td><td>user management</td></tr>
+<tr><td><code>csd@mesgroup.com</code></td><td><code>csd@2026</code></td><td>CSD Officer</td><td>daily work, no settings</td></tr>
+<tr><td><code>rm@mesgroup.com</code></td><td><code>rm@2026</code></td><td>Relationship Manager</td><td>read-only, own tenants</td></tr>
+<tr><td><code>management@mesgroup.com</code></td><td><code>management@2026</code></td><td>Management</td><td>read-only, all tenants</td></tr>
+</tbody></table></div>
+
+<h3>Commands</h3>
+<pre>npm run dev          then open http://localhost:3000
+npm run simulate     the whole cycle printed in the terminal
+npm run build        runs all three suites, then builds
+npm run compare      both MES exports, feature by feature</pre>
+</section>
+<section id="auto"><div class="shead"><span class="snum">A</span><h2>Automated &mdash; run these first</h2><span class="tag t-auto">4 commands</span></div><p>If any of these fail, stop. The manual tests below will be misleading.</p><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="A1"><span class="tc-id">A1</span>
+<div class="tc-body"><p class="tc-do">Run <code>npm run test:pipeline</code></p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open a terminal in the project folder</li><li>Run the command</li><li>Wait about 5 seconds</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Prints one line per check, each starting <code>PASS</code></li><li>Ends with <span class="val g">184 PASS</span> and <span class="val g">ALL CHECKS PASS</span></li><li>Exits with code 0</li></ol></div>
+</div><p class="tc-why">184 facts about the real export &mdash; the aging formula, 1FM detection, the GIRO split, both letters. The one that matters most: our total matches MES&rsquo;s own customer subtotals to the cent.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="A2"><span class="tc-id">A2</span>
+<div class="tc-body"><p class="tc-do">Run <code>npm run test:revenue</code></p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Run the command</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Ends with <span class="val g">109 PASS</span></li><li>Prints the charge-type rules in order, each with the wording it matches</li></ol></div>
+</div><p class="tc-why">Every charge-type rule against every description MES has ever sent. Occupancy Fee alone is most of the money, so a rule moving is a serious change.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="A3"><span class="tc-id">A3</span>
+<div class="tc-body"><p class="tc-do">Run <code>npm run test:auth</code></p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Run the command</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Ends with <span class="val g">54 PASS</span></li><li>Prints a permission grid: rows are screens, columns are the five roles</li></ol></div>
+</div><p class="tc-why">Wrong passwords, expired sessions, and a forged session claiming <code>role: &quot;root&quot;</code> are all refused.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="A4"><span class="tc-id">A4</span>
+<div class="tc-body"><p class="tc-do">Run <code>npm run simulate</code></p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Run the command</li><li>Read it top to bottom &mdash; it is about 250 lines</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Section 1 prints <span class="val">2026-08-17</span>, <span class="val">3117</span> lines, <span class="val">190</span> accounts, <span class="val">$2,782,348.27</span></li><li>Problems line reads <span class="val g">0 errors</span>, 68 warnings</li><li>Sections 2&ndash;9 walk the month: by dorm, the six tabs, the 16th, defaulters, the 7th, the 21st</li><li>Ends with <b>SIMULATION COMPLETE &mdash; nothing was sent</b></li></ol></div>
+</div><p class="tc-why">The fastest way to understand what the system actually does. Every figure is parsed live from the folder.</p></div></div></div></section><section id="login"><div class="shead"><span class="snum">B</span><h2>Getting in</h2><span class="tag t-man">browser</span></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="B1"><span class="tc-id">B1</span>
+<div class="tc-body"><p class="tc-do">The landing page is locked</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign out if you are signed in</li><li>Type <code>http://localhost:3000/</code> in the address bar</li><li>Press Enter</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Briefly shows a spinner reading <b>Signing you in</b> while it checks storage</li><li>Redirects to <span class="val">/login</span></li><li>No sidebar, no figures, no tenant names at any point</li></ol></div>
+</div><p class="tc-why">The landing page is locked, not just the inner screens.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="B2"><span class="tc-id">B2</span>
+<div class="tc-body"><p class="tc-do">So is every other screen</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>While signed out, type each of <code>/upload</code>, <code>/reports</code>, <code>/users</code>, <code>/settings</code></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Each one lands on <span class="val">/login</span></li><li>None of them flashes its content first</li></ol></div>
+</div><p class="tc-why">Typing a URL is the obvious way round a menu.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="B3"><span class="tc-id">B3</span>
+<div class="tc-body"><p class="tc-do">A wrong password is refused, and says nothing useful</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>On <code>/login</code>, type <code>admin@mesgroup.com</code></li><li>Type <code>wrongpassword</code></li><li>Press <b>Sign in</b></li><li>Then try <code>nobody@mesgroup.com</code> with any password</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Button becomes <b>Checking</b> with a spinner and goes disabled &mdash; a second click does nothing</li><li>After roughly half a second the spinner stops</li><li>A red-bordered box appears: <span class="val s">That username and password do not match.</span></li><li>The Password field is emptied. The Email field keeps what you typed</li><li>You stay on /login</li><li><b>The message for the unknown user is identical, character for character</b></li></ol></div>
+</div><p class="tc-why">A different message would tell an attacker which accounts are real. Both paths also take the same time, so absence cannot be detected by how fast it fails.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="B4"><span class="tc-id">B4</span>
+<div class="tc-body"><p class="tc-do">Signing in, and staying signed in</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as <code>admin@mesgroup.com</code> / <code>admin@2026</code></li><li>Note the top right</li><li>Press F5</li><li>Close the tab, reopen it</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Spinner, then you land on Outstanding Balances</li><li>Top right shows <span class="val">Darren Phua</span> above <span class="val">Admin</span>, with a <b>Sign out</b> button</li><li>After F5: a brief <b>Signing you in</b>, then the same screen. Still signed in</li><li>After reopening: still signed in. The session lasts 8 hours</li></ol></div>
+</div><p class="tc-why">A refresh mid-cycle must not throw you out.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="B5"><span class="tc-id">B5</span>
+<div class="tc-body"><p class="tc-do">Signing out actually signs you out</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Press <b>Sign out</b></li><li>Press the browser Back button</li><li>Press Back again</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Straight to <span class="val">/login</span></li><li>Back does not restore the previous screen &mdash; it bounces to /login again</li><li>The sidebar never reappears</li></ol></div>
+</div></div></div></div></section><section id="upload"><div class="shead"><span class="snum">C</span><h2>Upload &mdash; the routine that runs every time</h2><span class="tag t-man">browser</span></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="C1"><span class="tc-id">C1</span>
+<div class="tc-body"><p class="tc-do">Upload the AR report</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as Admin</li><li>Open <b>Upload Reports</b></li><li>Drop in <code>3. CustomA_RAgingDetail-WithDescription.xlsx</code></li><li>Press <b>Read the file</b></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Button text changes to <b>Reading the file</b> and goes disabled</li><li>A grey skeleton appears where the results will be</li><li>After a second or two the skeleton is replaced by figures</li><li>Tenant accounts <span class="val">190</span> &middot; Total owed <span class="val">SGD 2,782,348.27</span></li><li>A green badge reads <span class="val g">Read cleanly</span></li><li>Below: <span class="val">3117</span> invoice lines across <span class="val">13</span> charge types, of which <span class="val">543</span> are 1FM</li><li>A <b>Start again</b> button appears next to the first one</li><li>A bar asks <b>&ldquo;Use this file across the whole application?&rdquo;</b> with a <b>Use this data</b> button</li></ol></div>
+</div><p class="tc-why">If the total differs by even a cent from MES&rsquo;s own subtotals, the parse is wrong.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="C2"><span class="tc-id">C2</span>
+<div class="tc-body"><p class="tc-do">Apply it, and watch every screen follow</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Press <b>Use this data</b></li><li>Open Outstanding Balances</li><li>Open Reports &amp; Export</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>A toast appears: <span class="val g">190 tenants loaded</span></li><li>The period in the sidebar changes to match the report</li><li>Outstanding Balances shows the same 190 accounts and the same total</li><li>Reports shows the six tabs filled from the same file</li></ol></div>
+</div><p class="tc-why">One upload changes the whole application, not one page.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="C3"><span class="tc-id">C3</span>
+<div class="tc-body"><p class="tc-do">The contact list is recognised on its own</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Upload <code>R1 - 20260511.xlsx</code> from the Client Contact List folder</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>It is <b>not</b> treated as a second AR report</li><li>It reports companies with an email address</li><li>Warnings name each tenant on a dorm tab with no address</li><li>Back on Outstanding Balances, 5 accounts now show an email</li></ol></div>
+</div><p class="tc-why">The system identifies files by looking inside them &mdash; the contact list is the one with an Email Address column &mdash; so they can be dropped in any order.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="C4"><span class="tc-id">C4</span>
+<div class="tc-body"><p class="tc-do">Re-uploading the same file changes nothing</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Upload the same AR file a second time</li><li>Compare every figure</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Identical account count, identical total</li><li>Report date still <span class="val">2026-08-17</span>, not today&rsquo;s date</li><li>No tenant has moved between aging buckets</li></ol></div>
+</div><p class="tc-why">Aging keys off the date inside the file. If today&rsquo;s date leaked in, tenants would drift buckets every day.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="C5"><span class="tc-id">C5</span>
+<div class="tc-body"><p class="tc-do">A picture is refused, not guessed at</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Try to upload a PNG or a PDF</li><li>Press Read the file</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>A red badge: <span class="val s">Nothing usable</span></li><li>The reason says amounts and account numbers cannot be read reliably from a picture</li><li>No figures change. The previous dataset stays</li></ol></div>
+</div><p class="tc-why">A misread digit means chasing the wrong tenant for the wrong sum.</p></div></div></div></section><section id="numbers"><div class="shead"><span class="snum">D</span><h2>The figures on screen</h2><span class="tag t-man">browser</span></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="D1"><span class="tc-id">D1</span>
+<div class="tc-body"><p class="tc-do">The aging buckets use MES&rsquo;s own formula</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Outstanding Balances</b></li><li>Read the five bucket totals across the top</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>They match exactly:</li></ol></div>
+</div><div class="scroll"><table>
+<thead><tr><th class="n">Current</th><th class="n">30 days</th><th class="n">60 days</th><th class="n">90 days</th><th class="n">More than 90</th></tr></thead>
+<tbody><tr><td class="n">2,343,823.91</td><td class="n">308,697.95</td><td class="n">14,479.15</td><td class="n">2,118.96</td><td class="n">113,228.30</td></tr></tbody>
+</table></div><p class="tc-why">The boundaries are <b>15 / 45 / 75 / 105</b> days, not 30/60/90. An invoice 30 days past due sits in &ldquo;30 days&rdquo;; one 15 days past due is still Current. Getting this wrong would misclassify every invoice in the file.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="D2"><span class="tc-id">D2</span>
+<div class="tc-body"><p class="tc-do">Long tables scroll inside themselves</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Scroll down the tenant table</li><li>Keep scrolling to the bottom</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>The table scrolls <b>within its own panel</b></li><li>The column headers stay pinned at the top of the panel</li><li>The five bucket totals above the table stay on screen throughout</li><li>The page itself barely moves</li></ol></div>
+</div><p class="tc-why">190 accounts would otherwise push the figures off the top of the window.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="D3"><span class="tc-id">D3</span>
+<div class="tc-body"><p class="tc-do">The largest debtor, and the problem it reveals</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sort or scan for the biggest balance</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">DORM-63 ALTUS FACILITIES ENGINEERING</span> at <span class="val s">$245,047.78</span></li><li>It has <b>no email address</b></li><li>So it appears on the call list, never on a reminder run</li></ol></div>
+</div><p class="tc-why">The largest debt in the file cannot be emailed. That is blocker 4, visible in a single row.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="D4"><span class="tc-id">D4</span>
+<div class="tc-body"><p class="tc-do">The six report tabs</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Reports &amp; Export</b></li><li>Check each tab&rsquo;s line count and total</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>They match exactly:</li></ol></div>
+</div><div class="scroll"><table>
+<thead><tr><th>Report tab</th><th class="n">Lines</th><th class="n">Total</th><th>Note</th></tr></thead><tbody>
+<tr><td>1FM Maintenance</td><td class="n">543</td><td class="n">$36,686.41</td><td>found by document prefix, not description</td></tr>
+<tr><td>Late Payment (LP)</td><td class="n">27</td><td class="n">$2,700.00</td><td>exactly 27 &times; $100</td></tr>
+<tr><td>Security Deposit (SD)</td><td class="n">14</td><td class="n">$46,308.00</td><td>includes two negative offsets</td></tr>
+<tr><td>Stamp Duty (SD)</td><td class="n">5</td><td class="n">$2,787.00</td><td>MES categorise these as Reimbursement</td></tr>
+<tr><td>Parking Fee (PF)</td><td class="n">0</td><td class="n">$0.00</td><td>genuinely empty in this export</td></tr>
+<tr><td>RM &mdash; clients by dorm</td><td class="n no">0</td><td class="n">&mdash;</td><td class="no">blocked, see section G</td></tr>
+</tbody></table></div></div></div></div></section><section id="cycle"><div class="shead"><span class="snum">E</span><h2>The monthly cycle, in order</h2><span class="tag t-man">browser</span></div><p>This is the sequence MES actually runs. Do these in order and the system reads as one process rather than nine screens.</p><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E1"><span class="tc-id">E1</span>
+<div class="tc-body"><p class="tc-do">The 7th &mdash; who a reminder can reach</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Reminder Emails</b></li><li>Look at the first reminder section</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">186</span> tenants are in scope &mdash; everyone with a balance, excluding those who have moved out</li><li><span class="val g">5</span> can actually be sent</li><li><span class="val s">181</span> are blocked, and each one is <b>named</b> with the reason &ldquo;no email address&rdquo;</li><li>The blocked list is sorted largest balance first</li></ol></div>
+</div><p class="tc-why">A tenant with no address is never silently skipped. &ldquo;Sent to 5&rdquo; without saying 181 failed would be a lie by omission.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E2"><span class="tc-id">E2</span>
+<div class="tc-body"><p class="tc-do">The first reminder letter, merged</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open the draft for <b>AVR ENGINEERING PTE. LTD.</b></li><li>Read it in full</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>&ldquo;As of today, <span class="val">17th August 2026</span>&rdquo; &mdash; ordinal, from the report date</li><li>&ldquo;the outstanding amount stands at <span class="val">$27,678.58</span>&rdquo;</li><li>&ldquo;settle your outstanding dues latest by <span class="val">23 August 2026</span>&rdquo; &mdash; plain, not ordinal, and 6 days out</li><li>Mentions the $100 admin fee and the $50 cheque fee</li><li>Carries DBS 011-901192-0 and PayNow UEN 200412284W</li><li>Signed Jacqueline, Credit Control Officer</li><li><b>No <code>{{placeholder}}</code> is left anywhere in the text</b></li></ol></div>
+</div><p class="tc-why">Two different date formats in one letter, because that is how MES wrote it. Both are reproduced rather than unified.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E3"><span class="tc-id">E3</span>
+<div class="tc-body"><p class="tc-do">The 21st &mdash; the final notice escalates</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Switch to the final notice for the same tenant</li><li>Compare it to the first</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Dated <span class="val">31 August 26</span> &mdash; short year, a third format</li><li>Gives <span class="val">7 September 26</span> to pay &mdash; <span class="val">+7</span> days, not 6</li><li>Opens with <b>&ldquo;Despite our reminders&rdquo;</b></li><li>Cites the <span class="val s">Employment of Foreign Manpower (Work Passes) Regulations 2012</span></li><li>Raises <span class="val s">disruption of our services</span> and all available legal options</li><li><b>Drops</b> the cheque-fee paragraph entirely</li></ol></div>
+</div><p class="tc-why">If the final notice reads like the first, the template is wrong. This is a legal escalation, not a reminder.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E4"><span class="tc-id">E4</span>
+<div class="tc-body"><p class="tc-do">Send one, then inspect exactly what went</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Press send on one tenant</li><li>Open <b>Sent Mail</b> from the sidebar</li><li>Click the tenant in the left list</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>The tenant appears at the top of the list with the wording name and timestamp</li><li>The right pane shows <b>the full letter as sent</b></li><li>Above it: the recipient addresses, the subject, and the exact time</li><li>A <b>Copy</b> button puts subject and body on the clipboard</li><li>If anything still reads <code>{{company}}</code> it is called out in a <span class="val s">red badge</span> above the text</li></ol></div>
+</div><p class="tc-why">This is the screen for debugging templates. Every merge field, date and amount is decided at send time, so the rendered body is the only place a fault is visible.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E5"><span class="tc-id">E5</span>
+<div class="tc-body"><p class="tc-do">The other half of Sent Mail</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Scroll down on the same screen</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>A second card: <b>Owed money, but no address</b>, badged <span class="val s">185 unreachable</span></li><li>Sorted largest first, starting with ALTUS at $245,047.78</li><li>Each row shows tenant, dormitory and amount</li></ol></div>
+</div><p class="tc-why">A send that reached 5 of 190 is not a successful send. A screen showing only what went out would report it as one.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E6"><span class="tc-id">E6</span>
+<div class="tc-body"><p class="tc-do">The 16th &mdash; the late payment listing</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Late Payment Fees</b></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">78</span> tenants to charge, <span class="val">$7,800</span> in fees</li><li>Top of the list: <span class="val">DORM-63 ALTUS</span>, <span class="val">$122,444.32</span> overdue, charged <span class="val">0</span> times before</li><li>Further down: <span class="val">DORM-117 AVR ENGINEERING</span>, charged <span class="val">7</span> times already</li><li>The rule shown as $100 flat, on anything more than 14 calendar days past due</li></ol></div>
+</div><p class="tc-why">$100 before GST, from MES&rsquo;s own reminder letter. Note it selects on <b>invoice dates</b>, not on the aging buckets.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E7"><span class="tc-id">E7</span>
+<div class="tc-body"><p class="tc-do">GIRO clients are excluded &mdash; and listed</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>On the same screen, find the excluded section</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">6</span> tenants excluded, each named</li><li>Largest is <span class="val">DORM-1224 SUN MOON MARINE</span> at <span class="val">$44,899.50</span></li><li>Each row says why: carries a rejected-GIRO fee</li><li>None of the 6 appears on the charging list above</li></ol></div>
+</div><p class="tc-why">They are found by carrying an <code>Admin Fee for Rejected Giro</code> line. Six tenants have that fee and six <b>different</b> ones have the ordinary late fee &mdash; never both. That is how GIRO is known without the bank statement MES dropped.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E8"><span class="tc-id">E8</span>
+<div class="tc-body"><p class="tc-do">Calls, and calling again</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Call List</b></li><li>Log a call on any tenant &mdash; fill who you reached and what was agreed</li><li>Log a <b>second</b> call on the same tenant</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>The form pre-fills the client name, amount owed and aging bucket</li><li>After the first: the tenant shows <b>Called 1 time</b></li><li>After the second: <b>Called 2 times</b> &mdash; the first is not overwritten</li><li>Both appear in the Activity Log with times</li><li>If you recorded a promise, it appears on Payment Promises with its date</li></ol></div>
+</div><p class="tc-why">MES&rsquo;s Flow tab: &ldquo;Repeated calls allowed &middot; Call status count&rdquo;.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E9"><span class="tc-id">E9</span>
+<div class="tc-body"><p class="tc-do">Repeat defaulters, without the bank file</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Repeat Defaulters</b></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">DORM-1372 VAGRANT STEEL</span> &mdash; <span class="val s">3</span> bounced deductions</li><li>Months listed as <span class="val">2026-01, 2026-02, 2026-03</span></li><li><span class="val">DORM-117 AVR ENGINEERING</span> &mdash; charged the late fee <span class="val">7</span> times</li></ol></div>
+</div><p class="tc-why">This feature was supposed to need the DBS statement MES dropped. It survives because every bounced deduction leaves a dated fee line in the AR report itself.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="E10"><span class="tc-id">E10</span>
+<div class="tc-body"><p class="tc-do">Emailing a report on demand</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open <b>Reports &amp; Export</b></li><li>Scroll to <b>Email a report</b></li><li>Pick <b>1FM Maintenance</b> from the dropdown</li><li>Tick one recipient</li><li>Press <b>Prepare email</b></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>A <span class="val s">warning badge</span>: cannot send yet, naming who has no address</li><li>Now open Settings, add an address against that person, and return</li><li>Press Prepare again &mdash; a <span class="val g">green badge</span>: ready to send</li><li>Below it: the covering note in Jacqueline&rsquo;s wording, the recipient list, and the workbook name</li><li><b>Nothing is sent.</b> It shows you the message and stops</li></ol></div>
+</div><p class="tc-why">MES have never sent an internal email address &mdash; their screenshots show &ldquo;To: Ray, Cc: Jamie&rdquo; with Outlook resolving the rest &mdash; so recipients start empty rather than invented.</p></div></div></div></section><section id="roles"><div class="shead"><span class="snum">F</span><h2>Who can do what</h2><span class="tag t-man">sign in as each</span></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="F1"><span class="tc-id">F1</span>
+<div class="tc-body"><p class="tc-do">The sidebar changes with the role</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as each of the five accounts in turn</li><li>Count the sidebar items each time</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Super Admin sees every screen</li><li>Admin sees everything except User Management</li><li>CSD loses Settings and User Management as well</li><li>Management sees only Outstanding Balances, Reports and Activity Log</li><li>RM sees only Outstanding Balances</li></ol></div>
+</div><div class="scroll"><table>
+<thead><tr><th>Screen</th><th>Super Admin</th><th>Admin</th><th>CSD</th><th>RM</th><th>Management</th></tr></thead><tbody>
+<tr><td>Outstanding Balances</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+<tr><td>Upload / Reminders / Calls / Sent Mail</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+<tr><td>Late Payment Fees</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+<tr><td>Reports &amp; Export</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td><td class="yes">yes</td></tr>
+<tr><td>Settings</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td><td class="no">no</td></tr>
+<tr><td>User Management</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="no">no</td></tr>
+</tbody></table></div><p class="tc-why">The nav offers only what the role can open, so nobody is invited to click into a refusal.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="F2"><span class="tc-id">F2</span>
+<div class="tc-body"><p class="tc-do">A forbidden URL bounces</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as <code>csd@mesgroup.com</code></li><li>Type <code>/settings</code> in the address bar</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Bounced back to Outstanding Balances</li><li>The Settings screen never renders, not even briefly</li></ol></div>
+</div></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="F3"><span class="tc-id">F3</span>
+<div class="tc-body"><p class="tc-do">Admin is not Super Admin</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as <code>admin@mesgroup.com</code></li><li>Type <code>/users</code></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Bounced. Only Super Admin manages users</li><li>Sign in as <code>superadmin@mesgroup.com</code> and the same URL opens</li></ol></div>
+</div></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="F4"><span class="tc-id">F4</span>
+<div class="tc-body"><p class="tc-do">Management can look but not touch</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as <code>management@mesgroup.com</code></li><li>Look on every screen you can reach for a Send, Log a call, or Raise fee button</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>There are none</li><li>Figures and reports are all readable</li><li>Export is available; nothing that changes a tenant&rsquo;s state is</li></ol></div>
+</div></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="F5"><span class="tc-id">F5</span>
+<div class="tc-body"><p class="tc-do">An RM sees their own book, and no addresses</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Sign in as <code>rm@mesgroup.com</code></li><li>Look at the account list</li><li>Look for any email address</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Only the tenants assigned to that manager</li><li><b>No tenant email address appears anywhere on any screen</b></li><li>No action buttons at all</li></ol></div>
+</div><p class="tc-why">Addresses are personal data under the PDPA and a relationship manager has no reason to hold them.</p></div></div></div></section><section id="gaps"><div class="shead"><span class="snum">G</span><h2>These will not work &mdash; and that is expected</h2><span class="tag t-gap">waiting on MES</span></div><p>Four things are blocked on data MES has not sent. <b>Please do not raise these as defects.</b></p><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="G1"><span class="tc-id">G1</span>
+<div class="tc-body"><p class="tc-do">The RM report builds nothing</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open Reports &amp; Export</li><li>Look for the manager report</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val s">0</span> manager reports built</li><li>A message explains the export has no <code>Primary Sales Rep</code> column</li><li>The 13-column layout is present and correct, waiting for the column</li></ol></div>
+</div><p class="tc-why">Blocker 2. Two of the six reports MES drew cannot be built from any file they have sent.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="G2"><span class="tc-id">G2</span>
+<div class="tc-body"><p class="tc-do">Two columns on the RM layout stay empty</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Look at the Security Deposit and Risk Exposure columns</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Both are empty and marked <b>no source</b></li><li>Hovering shows the reason for each</li></ol></div>
+</div><p class="tc-why">Deposit held is a balance-sheet figure not in the AR report. Risk Exposure has no definition &mdash; MES&rsquo;s own mock-up does not reconcile with itself on any of its 10 rows.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="G3"><span class="tc-id">G3</span>
+<div class="tc-body"><p class="tc-do">Nobody shows as Terminated</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Look at the Status column across all 190 accounts</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>All <span class="val">190</span> read <b>Live</b></li><li>None reads Terminated</li></ol></div>
+</div><p class="tc-why">No export carries a Status column. This is a live risk: a company that has moved out could still receive the final notice citing employment law.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="G4"><span class="tc-id">G4</span>
+<div class="tc-body"><p class="tc-do">The Parking Fee tab is empty</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Open the Parking Fee tab</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li><span class="val">0</span> lines</li><li>A note says no parking line appears anywhere in this export</li></ol></div>
+</div><p class="tc-why">The rule is built from MES&rsquo;s earlier wording and has never matched real data. It will stay untested until a real parking line arrives.</p></div></div></div><div class="box stop"><h5>Nothing is ever actually emailed</h5>
+<p>There is no mail transport in this build &mdash; no server, no credential, no address to configure. &ldquo;Send&rdquo; renders the letter, records it, and stops. These letters chase money and cite employment law; a prototype that could accidentally send one is a prototype that will.</p></div></section><section id="edge"><div class="shead"><span class="snum">H</span><h2>Things that should fail properly</h2><span class="tag t-man">optional</span></div><p>Open DevTools &rarr; Application &rarr; Local Storage for these.</p><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="H1"><span class="tc-id">H1</span>
+<div class="tc-body"><p class="tc-do">Deleting the session signs you out</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Delete the key <code>mes-ar-session-v1</code></li><li>Refresh</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Signed out, back to /login</li></ol></div>
+</div></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="H2"><span class="tc-id">H2</span>
+<div class="tc-body"><p class="tc-do">A forged role is refused</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Edit that key to <code>{"role":"root"}</code></li><li>Refresh</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Treated as <b>no session at all</b>, not as a partial one</li><li>Back to /login</li></ol></div>
+</div><p class="tc-why">A half-understood session is how somebody ends up with a role they were never granted. Anything malformed is discarded rather than repaired.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="H3"><span class="tc-id">H3</span>
+<div class="tc-body"><p class="tc-do">An expired session is refused</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Set <code>expiresAt</code> to yesterday</li><li>Refresh</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>Signed out. Sessions last 8 hours from sign-in</li></ol></div>
+</div></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="H4"><span class="tc-id">H4</span>
+<div class="tc-body"><p class="tc-do">Hand-typed addresses survive an upload</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Add an email by hand against a tenant that has none</li><li>Re-upload the AR report</li><li>Find that tenant again</li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>The address is still there</li><li>That tenant now appears in the sendable count, not the blocked one</li></ol></div>
+</div><p class="tc-why">Somebody may spend an afternoon collecting addresses. An upload must not wipe them.</p></div></div></div><div class="tc"><div class="tc-top">
+<input type="checkbox" data-id="H5"><span class="tc-id">H5</span>
+<div class="tc-body"><p class="tc-do">The other MES export cannot be used</p>
+<div class="cols">
+<div class="col"><p class="lbl">You do</p><ol class="do"><li>Upload <code>Detailed AR report(Final).xlsx</code> instead</li><li>Read the totals</li><li>Then run <code>npm run compare</code></li></ol></div>
+<div class="col"><p class="lbl">It does</p><ol class="does"><li>It parses without crashing</li><li>But the total comes out near <span class="val s">&minus;$654</span> &mdash; almost every amount is blank</li><li>An error says there is no &ldquo;As of&rdquo; date row</li><li><code>npm run compare</code> puts both exports side by side, feature by feature</li></ol></div>
+</div><p class="tc-why">That file is a format sample, not a live export. This is the evidence behind question 1 to Raman, and it stops the reply &ldquo;just use the other file&rdquo;.</p></div></div></div></section>
+<div class="foot">
+MES AR Automation &middot; DeVinci Codes<br>
+42 checks &middot; every figure from <span style="color:var(--muted)">3. CustomA_RAgingDetail-WithDescription.xlsx</span>, report dated 17 August 2026<br>
+Your ticks are saved in this browser only.
+</div>
+</div>
+
+<script>
+(function () {
+  var KEY = "mes-test-plan-v1";
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".tc input[type=checkbox]"));
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { state = {}; }
+
+  function paint() {
+    var done = 0;
+    boxes.forEach(function (b) {
+      var card = b.closest(".tc");
+      if (b.checked) { done += 1; card.classList.add("done"); }
+      else { card.classList.remove("done"); }
+    });
+    var pct = boxes.length ? Math.round((done / boxes.length) * 100) : 0;
+    document.getElementById("count").textContent = done + " / " + boxes.length;
+    document.getElementById("fill").style.width = pct + "%";
+  }
+
+  boxes.forEach(function (b) {
+    var id = b.getAttribute("data-id");
+    b.checked = !!state[id];
+    b.addEventListener("change", function () {
+      state[id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+      paint();
+    });
+  });
+
+  document.getElementById("reset").addEventListener("click", function () {
+    boxes.forEach(function (b) { b.checked = false; });
+    state = {};
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    paint();
+  });
+
+  paint();
+})();
+</script>

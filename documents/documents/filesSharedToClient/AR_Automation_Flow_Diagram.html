@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MES Group - AR Automation Proposal | DeVinci Codes</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --blue: #1E4D8C;
+            --blue-light: #2563a8;
+            --dark: #1a1a1a;
+            --gray: #666666;
+            --light-gray: #f8f8f8;
+            --border: #e5e5e5;
+            --green: #2e7d32;
+            --amber: #b45309;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #fff;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 60px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--blue);
+        }
+
+        .page-header img {
+            height: 240px;
+        }
+
+        .page-title {
+            font-size: 0.9em;
+            color: var(--blue);
+            font-weight: 500;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .section-number {
+            width: 36px;
+            height: 36px;
+            background: var(--blue);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        /* Flow Diagrams */
+        .flow-diagram {
+            border: 1px solid var(--border);
+            margin-bottom: 25px;
+        }
+
+        .flow-header {
+            padding: 15px 20px;
+            background: var(--light-gray);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .flow-title {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .flow-trigger {
+            font-size: 0.8em;
+            color: var(--gray);
+            margin-top: 3px;
+        }
+
+        .flow-body {
+            padding: 25px;
+            overflow-x: auto;
+        }
+
+        .flow-steps {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .flow-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .step {
+            padding: 10px 14px;
+            font-size: 0.8em;
+            text-align: center;
+            border: 1px solid var(--border);
+            background: #fff;
+            min-width: 85px;
+        }
+
+        .step small {
+            display: block;
+            font-size: 0.85em;
+            color: var(--gray);
+            margin-top: 2px;
+        }
+
+        .step.trigger {
+            background: var(--blue);
+            color: #fff;
+            border-color: var(--blue);
+        }
+
+        .step.action {
+            background: #f0f4f8;
+            border-color: var(--blue);
+        }
+
+        .step.decision {
+            background: #f0f4f8;
+            border-color: var(--blue-light);
+            font-weight: 500;
+        }
+
+        .step.success {
+            background: #e8f5e9;
+            border-color: var(--green);
+            color: var(--green);
+            font-weight: 500;
+        }
+
+        .step.alert {
+            background: #fef3c7;
+            border-color: var(--amber);
+            color: var(--amber);
+        }
+
+        .arrow {
+            color: var(--blue);
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        .branch {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background: var(--light-gray);
+            border: 1px dashed var(--border);
+        }
+
+        .branch-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .branch-label {
+            font-size: 0.7em;
+            font-weight: 500;
+            color: var(--gray);
+            background: #fff;
+            padding: 2px 8px;
+            border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .branch-inline {
+            display: flex;
+            gap: 8px;
+        }
+
+        .reports-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Case Study */
+        .case-study {
+            border: 1px solid var(--border);
+            margin-bottom: 50px;
+        }
+
+        .case-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 25px 30px;
+            background: var(--light-gray);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .case-company {
+            font-size: 1.15em;
+            font-weight: 600;
+            color: var(--blue);
+        }
+
+        .case-meta {
+            font-size: 0.85em;
+            color: var(--gray);
+            margin-top: 4px;
+        }
+
+        .case-details {
+            text-align: right;
+            font-size: 0.85em;
+            color: var(--gray);
+        }
+
+        .case-details strong {
+            color: var(--dark);
+        }
+
+        .case-body {
+            padding: 30px;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 140px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 118px;
+            top: 8px;
+            bottom: 8px;
+            width: 1px;
+            background: var(--border);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 25px;
+        }
+
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+
+        .timeline-date {
+            position: absolute;
+            left: -140px;
+            width: 110px;
+            text-align: right;
+            font-size: 0.85em;
+            font-weight: 500;
+            color: var(--blue);
+        }
+
+        .timeline-dot {
+            position: absolute;
+            left: -26px;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--blue);
+        }
+
+        .timeline-dot.success {
+            background: var(--green);
+        }
+
+        .timeline-dot.alert {
+            background: var(--amber);
+        }
+
+        .timeline-content h4 {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 4px;
+        }
+
+        .timeline-content p {
+            font-size: 0.85em;
+            color: var(--gray);
+        }
+
+        .timeline-tag {
+            display: inline-block;
+            font-size: 0.7em;
+            padding: 2px 8px;
+            background: var(--light-gray);
+            border: 1px solid var(--border);
+            color: var(--blue);
+            margin-top: 6px;
+        }
+
+        .doc-footer {
+            text-align: center;
+            padding: 40px;
+            border-top: 2px solid var(--blue);
+            margin-top: 60px;
+        }
+
+        .doc-footer img {
+            height: 240px;
+        }
+
+        .doc-footer p {
+            font-size: 0.8em;
+            color: var(--gray);
+            margin-top: 15px;
+        }
+
+        @media print {
+            .container {
+                padding: 40px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 30px;
+            }
+            .timeline {
+                padding-left: 100px;
+            }
+            .timeline::before {
+                left: 88px;
+            }
+            .timeline-date {
+                left: -100px;
+                width: 80px;
+                font-size: 0.75em;
+            }
+            .timeline-dot {
+                left: -16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="page-header">
+            <img src="companylogo_final.jpg" alt="DeVinci Codes">
+            <div class="page-title">MES Group | AR Automation Proposal</div>
+        </div>
+
+        <!-- Process Flow Diagrams -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-number">01</div>
+                <div class="section-title">Process Flow Diagrams</div>
+            </div>
+
+            <!-- Flow 1 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 1: Statement of Account (SOA) Billing</div>
+                    <div class="flow-trigger">Trigger: 15th & 30th of Month</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">Scheduler<br><small>15th / 30th</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Pull Active Tenants<br><small>from NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Generate SOA<br><small>per Customer</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Email SOA<br><small>to Customer</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Log Activity<br><small>in NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step success">Complete</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 2 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 2: Failed GIRO Reconciliation</div>
+                    <div class="flow-trigger">Trigger: DBS Bank Report Received</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">DBS Report<br><small>Uploaded</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Parse Report<br><small>Extract Failures</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Match Customer<br><small>in NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step decision">Check Reason</div>
+                        <span class="arrow">→</span>
+                        <div class="branch">
+                            <div class="branch-row">
+                                <span class="branch-label">NO DDA</span>
+                                <div class="step">Flag: GIRO Setup Required</div>
+                            </div>
+                            <div class="branch-row">
+                                <span class="branch-label">REFER PAYING PARTY</span>
+                                <div class="step">Flag: Payment Issue</div>
+                            </div>
+                        </div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Update NetSuite</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Add to Queue</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 3 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 3: AR Aging Detection & Reminder Emails</div>
+                    <div class="flow-trigger">Trigger: Daily (Aging) + 7th & 21st (Reminders)</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-row">
+                        <div class="step trigger">Daily Scheduler</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Pull AR Aging<br><small>from NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Filter 30+ Days</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Segment by<br><small>GIRO & Property</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step decision">7th or 21st?</div>
+                    </div>
+                    <div class="flow-row" style="padding-left: 40px;">
+                        <div class="branch">
+                            <div class="branch-row">
+                                <span class="branch-label">7th of Month</span>
+                                <div class="step">Send 1st Reminder</div>
+                            </div>
+                            <div class="branch-row">
+                                <span class="branch-label">21st of Month</span>
+                                <div class="step">Send Final Warning</div>
+                            </div>
+                        </div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Log Email<br><small>in NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step success">Complete</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 4 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 4: AI Phone Call Automation</div>
+                    <div class="flow-trigger">Trigger: 14th-15th of Month</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">14th-15th<br><small>Scheduler</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Pull Outstanding<br><small>Accounts</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Get Contact Info</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">AI Dials<br><small>Customer</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Deliver<br><small>Reminder</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Capture<br><small>Response</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Log Call<br><small>in NetSuite</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step decision">Promise to Pay?</div>
+                        <span class="arrow">→</span>
+                        <div class="branch-inline">
+                            <div class="step success">Yes: Track</div>
+                            <div class="step alert">No: Escalate</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 5 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 5: 1FM Portfolio Routing</div>
+                    <div class="flow-trigger">Trigger: 3rd Week of Month</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">3rd Week<br><small>Scheduler</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Query NetSuite</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Filter '1FM' Tag</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Load Special<br><small>Template</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Send Communication</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Log in NetSuite</div>
+                        <span class="arrow">→</span>
+                        <div class="step success">Complete</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 6 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 6: Automatic Activity Logging</div>
+                    <div class="flow-trigger">Trigger: Real-Time (Every Communication)</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">Communication<br><small>Occurs</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step decision">Type?</div>
+                        <span class="arrow">→</span>
+                        <div class="branch">
+                            <div class="branch-row">
+                                <span class="branch-label">Email</span>
+                                <div class="step">Capture Email Data</div>
+                            </div>
+                            <div class="branch-row">
+                                <span class="branch-label">Phone Call</span>
+                                <div class="step">Capture Call & Outcome</div>
+                            </div>
+                            <div class="branch-row">
+                                <span class="branch-label">Promise to Pay</span>
+                                <div class="step">Capture Commitment</div>
+                            </div>
+                        </div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Match Customer</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Write to NetSuite</div>
+                        <span class="arrow">→</span>
+                        <div class="step success">Audit Trail Created</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 7 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 7: Late Payment Fee Calculation</div>
+                    <div class="flow-trigger">Trigger: 16th of Month</div>
+                </div>
+                <div class="flow-body">
+                    <div class="flow-steps">
+                        <div class="step trigger">16th<br><small>Scheduler</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Pull Overdue<br><small>Accounts</small></div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Calculate Penalty</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Generate Invoice</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Add to Balance</div>
+                        <span class="arrow">→</span>
+                        <div class="step action">Send Fee Notice</div>
+                        <span class="arrow">→</span>
+                        <div class="step success">Complete</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow 8 -->
+            <div class="flow-diagram">
+                <div class="flow-header">
+                    <div class="flow-title">Flow 8: Recurring Reports Distribution</div>
+                    <div class="flow-trigger">Trigger: Scheduled (Monday / 1st / Ongoing)</div>
+                </div>
+                <div class="flow-body">
+                    <div class="reports-flow">
+                        <div class="flow-row">
+                            <div class="step trigger">Every Monday</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Generate Security Deposit Report</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Email to CSD</div>
+                            <span class="arrow">→</span>
+                            <div class="step success">Done</div>
+                        </div>
+                        <div class="flow-row">
+                            <div class="step trigger">1st Working Day</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Generate Industry Segment Analysis</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Email to Mgmt</div>
+                            <span class="arrow">→</span>
+                            <div class="step success">Done</div>
+                        </div>
+                        <div class="flow-row">
+                            <div class="step trigger">Ongoing</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Generate RM Balance Logs</div>
+                            <span class="arrow">→</span>
+                            <div class="step action">Email to RMs</div>
+                            <span class="arrow">→</span>
+                            <div class="step success">Done</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Example Case Study -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-number">02</div>
+                <div class="section-title">Example Case: Complete AR Lifecycle</div>
+            </div>
+
+            <div class="case-study">
+                <div class="case-header">
+                    <div>
+                        <div class="case-company">ABC Construction Pte Ltd</div>
+                        <div class="case-meta">Tenant at Westlite Dormitory | Account #DRM-2024-0847</div>
+                    </div>
+                    <div class="case-details">
+                        <div><strong>Monthly Rent:</strong> SGD 12,500</div>
+                        <div><strong>GIRO Status:</strong> Enrolled</div>
+                        <div><strong>Segment:</strong> Construction</div>
+                    </div>
+                </div>
+
+                <div class="case-body">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-date">15th May</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>SOA Generated & Sent</h4>
+                                <p>System auto-generates Statement of Account for SGD 12,500 and emails to ABC Construction's finance contact.</p>
+                                <span class="timeline-tag">NetSuite → Auto-Email</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">20th May</div>
+                            <div class="timeline-dot alert"></div>
+                            <div class="timeline-content">
+                                <h4>GIRO Collection Failed</h4>
+                                <p>DBS attempts GIRO deduction. Transaction fails with reason: "REFER PAYING PARTY" (insufficient funds).</p>
+                                <span class="timeline-tag">DBS Bank</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">21st May</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>Failed GIRO Auto-Processed</h4>
+                                <p>Bot parses DBS Bulk Collection Report → Matches ABC Construction in NetSuite → Flags account as "Payment Issue" → Adds to follow-up queue.</p>
+                                <span class="timeline-tag">DBS Parser → NetSuite API</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">30th May</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>Second SOA Sent</h4>
+                                <p>System sends second SOA reminder showing SGD 12,500 outstanding.</p>
+                                <span class="timeline-tag">NetSuite → Auto-Email</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">1st June</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>AR Aging Trigger</h4>
+                                <p>Daily aging report detects ABC Construction has crossed 30-day threshold. Account queued for reminder sequence.</p>
+                                <span class="timeline-tag">NetSuite API → Queue</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">7th June</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>First Reminder Email Sent</h4>
+                                <p>Automated first reminder sent. Template selected based on: GIRO-enrolled + Westlite property. Email logged to customer profile.</p>
+                                <span class="timeline-tag">Email Engine → NetSuite Log</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">14th June</div>
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>Phone Call Executed</h4>
+                                <p>AI voice agent calls ABC Construction. Customer confirms payment will be made by 20th June. Promise-to-pay logged automatically.</p>
+                                <span class="timeline-tag">AI Voice → NetSuite Log</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">16th June</div>
+                            <div class="timeline-dot alert"></div>
+                            <div class="timeline-content">
+                                <h4>Late Fee Calculated</h4>
+                                <p>System calculates admin fee of SGD 125 (1%). Penalty invoice generated. New balance: SGD 12,625. Notice sent to customer.</p>
+                                <span class="timeline-tag">Fee Engine → NetSuite Invoice</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-item">
+                            <div class="timeline-date">20th June</div>
+                            <div class="timeline-dot success"></div>
+                            <div class="timeline-content">
+                                <h4>Payment Received</h4>
+                                <p>ABC Construction pays SGD 12,625 via bank transfer. Payment matched and applied. Account cleared. Activity logged.</p>
+                                <span class="timeline-tag">NetSuite Payment → Log</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="doc-footer">
+            <img src="companylogo_final.jpg" alt="DeVinci Codes">
+            <p>Confidential | DeVinci Codes | May 2026</p>
+        </div>
+    </div>
+
+</body>
+</html>

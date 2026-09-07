@@ -1,0 +1,227 @@
+Raman Palaniappan  00:07
+hi, Taha. I'm good. You're rather soft. Can't hear you well.
+
+Speaker 1  00:16
+Yeah, I'm also doing it. I'm just waiting for the treatment. They're about to join, so
+
+Raman Palaniappan  00:22
+yeah, okay, we have to about 30 to 40 minutes, because I have another call at 40 minutes time, so just to give you some expectation on the time at your end,
+
+Speaker 2  00:40
+yeah, they're just about to join in a minute,
+
+Raman Palaniappan  00:43
+okay, do
+
+Speaker 3  01:20
+What I'm
+
+Speaker 2  02:27
+Your voice is not that clear, still not audible, I Can you repeat it again?
+
+zaki haider  02:48
+Hello,
+
+Speaker 2  02:50
+yeah. Is it much better now?
+
+Raman Palaniappan  02:53
+Okay, can Sherry start, or if any other team members?
+
+Speaker 2  02:58
+Yeah, we can start.
+
+Raman Palaniappan  03:00
+Okay, maybe you would like to share your screen, so then we can go through any clarifications that you have on the flow.
+
+zaki haider  03:10
+Yeah, you sent us the AR flow of your dormitory properties, so we try to create the flows from it, which can be automated, and we sent you a document that had the flows. We had a few questions. Let me share my screen, and we can then get started with those. I Alright, so I think this is the I Yep, so first of all, these flows, have you reviewed them? Did you find them correct, or did you find that they need to be there? Is a need of any adjustment, etc.
+
+Raman Palaniappan  04:16
+Okay, I mean, I've gone through them, but they're quite a lot, so I, because I'm not sure how you're going to design the back end, but maybe we can establish the high level flow we are using now, so based on this, right, for example, statement account, you have a scheduler and a pool active tenants, okay? Here with the client from Netflix,
+
+Speaker 3  04:45
+yeah,
+
+Raman Palaniappan  04:45
+okay. We are not looking towards any integration to any of the systems in house, right? So, assuming the user extract two reports, one is the AR report and the other, the bank statement for unsuccessful gyro. So, let's say that is downloaded and put in a folder. Then, how does the AI agent automation agent take from there and go through the reconciliation, and the other thing is, once the reconciliation is done, a list is given to the user, who then, based on that, will send out email, right? And then make a call where we like the call to be recorded, if possible, or at least the minutes documented, so that because we will upload this back to the client record in Netsuite, so you can assume that a tweet is on its own, so whatever needs to be done, we do it both ways, so
+
+zaki haider  05:47
+okay,
+
+Raman Palaniappan  05:47
+yeah, so we don't need the integration at this point,
+
+zaki haider  05:51
+yeah, so for instance, the first thing can be done is like, for example, in the let's take the first flow, the statement of account billing, so in this thing I think we discussed this before as well, that we can simply extract all the customers from Netsuite, and then we can put that into the dashboard, and then these can be done automatically, like the other thing, like for example, generation of SOA, emailing them, and then it can also provide you a log activity, so that the person can easily go and put that into the net suit whenever he wants to, and for the failed gyro reconciliation, just to confirm, we, it's going to be the same process. The dashboard is going to have a upload option where the DBS report can be uploaded, it's going to pass and find out all the unsuccessful gyro transactions, and then it's going to monitor them for aging, like for example, if it is more than 30 days, then it can start sending them the reminders. This is correct, right?
+
+Raman Palaniappan  06:55
+Yes. So, so you know, so the AI report will have aging as well, right? The status, so 30 days, 60 days, 90 days. So, usually reminders are sent, you know, when there's a gentle reminder, reminder when they are within the aging period, then there's another reminder when they've exceeded, and then there's probably another reminder, so those need to be automated. The templates can be, you know, we can share the templates, and it should be automated, but the bank requests, the bank statement already tells us that these clients have the gyro. Okay, gyro, I'm not sure you're familiar, it's actually a bank deduction on a pre scheduled date, right? So if it's failed, then that statement will be shown, and the user reconcile this against the aging, and then we'll call the user, you know, and may send a notification as well. Yeah,
+
+zaki haider  07:56
+so one question I have is that, for example, let's say we have a failed gyro transaction, and then we have sent them the first reminder. How is the system going to know that we don't have to send them the second call on 14 and 15, and basically, how the system is going to know that the person has already paid that transaction or already made a successful transaction after our first reminder?
+
+Raman Palaniappan  08:20
+Yeah, yeah, so if you saw the requirement document, so bank statement account, there are two two dates of a month is generated,
+
+zaki haider  08:30
+15 and 30th,
+
+Raman Palaniappan  08:32
+yeah, 15 and 30th, right? Then after that, on the seventh, so on the seventh of the month, the first reminder is dispatch, right. And then the mid month, there's another one. So, so I think here we have mentioned, if you look at it on the seventh of month, first reminder dispatch notification are dynamically grouped by gyro enrollment status. Okay, so here's where that two groups of users, right? One who have not subscribed to Gyro, so we'll encourage them to go on to Gyro application, and the other one is where the Gyro deduction fail, right? Then they will just send a reminder to answer your question, how they know, so I think they will only know in the next month. In this process, it is repeated.
+
+Speaker 3  09:30
+Okay,
+
+Raman Palaniappan  09:32
+that particular record won't be there in the unsuccessful bank statement.
+
+zaki haider  09:37
+Can you repeat the last thing you said, please?
+
+Raman Palaniappan  09:40
+Okay, so let's say in the current month there's a bank statement, all the unsuccessful deduction, then they follow up with a phone call and a reminder asking them to have enough funds in their bank, and your question is, How they know after that that they are paid, right? Yeah, so this will only happen when the next statement comes in in the following month.
+
+zaki haider  10:03
+Okay, so it might happen that they like, for example, it might happen that the phone call that we are doing to them, that the AI is doing to them, he's talking to a person that has, that might have already done, like revived their bank account,
+
+Raman Palaniappan  10:20
+yeah,
+
+Speaker 3  10:21
+and
+
+zaki haider  10:21
+it's just going to then flag him that, okay? This, this has paid, and he's not going to send the third week reminder,
+
+Raman Palaniappan  10:30
+yeah, because the net speed will only capture you when the next statement comes, right? So, so verbally they will share, they will just record it, and we'll keep you in the system. I think the other thing we would like to know is, you know, once the system starts recording all these rocks, right? How what's the recurring pattern, you know, who are the customers who frequently, you know, the gyro is defaulted and things like that.
+
+zaki haider  10:57
+Yeah, yeah, we can know them from the aging report as well as from maybe from the classification of the recordings.
+
+Raman Palaniappan  11:05
+Yeah,
+
+zaki haider  11:07
+okay, all right. So this was like one little question. So the first flow is clear that it's going to, we are going to Apache is going to upload a sheet of tenants or customers, and it's going to generate this way, email them. The second is the failed jar reconciliation, where it's going to monitor the people who hasn't paid. He's going to send them the reminder on 715 and 21st and then he's also going to, we are also going to show the logs in the dashboard, where those can be downloaded and easily put into Netsuite, and we can also add some kind of classification of the call summary, what was happened, so that it is easy for the person to analyze, etc. So I think this is another thing, Ai Jen detection, which is again the part of the gyro reconciliation, and so there was this thing, which is which was one FM portfolio routing, so I'm not sure how this is going to come into place, like it had a different from from the video that you shared, but I understood that.
+
+Raman Palaniappan  12:10
+Yeah, so, so one FM is actually is our platform application enterprise application news at the dormitory, right? So, when the aging report is generated, there are different types of services. I think in the document we captured, there could be a rental revenue, there could be maintenance revenue, there could be admin fee, there could be security deposit, you know, so is in the AR is tagged, right, so when is tagged as one FM, the user knows that this is maintenance outstanding, they have not paid, so they will then go into one FM and do some reconciliation. I mean, we don't need the integration, but I think it is the intention is to to bifurcate by the different revenue services that comes out of the AR report.
+
+zaki haider  13:09
+Okay. Okay, so this was this automatic activity logging. This is simple late payment fee calculation. I'm not sure about the late payment fee calculation, like when it is, I'm not sure about this thing. Can you please tell about this? I think it was mentioned in the Ai process flow that the,
+
+Raman Palaniappan  13:31
+yeah, could you go back to the AR document, the workflow document
+
+Speaker 3  13:36
+at
+
+Raman Palaniappan  13:38
+the bottom right? auxiliary reporting, so late payment on the 16th of each month, specialized admissions fee assessment report officially compiled. This reports automatically calculate the NLT parameters. Okay, we will try to get you clarity on this one. What is the source of this document, or how is it computed from the AR, right? Or is it generated from the AR through some predefined calculation? So, this one we will check. Darren, you're on the call, right? Just take note of this one. Okay? All the security deposit lead deposit. We will clarify whether it's, it's something is already in the AR, and they want us to just give them a strike of it as a report, or they need us to do some analysis there.
+
+zaki haider  14:39
+I think these, they were these four reports, all of them, I think, had this thing that they are coming from the Ai, and we just need to do some kind of a extraction from it and create the report from it, like, yeah,
+
+Speaker 3  14:53
+correct,
+
+Raman Palaniappan  14:54
+but I just want to confirm, at least on our side, we have all the source document as well, otherwise we will be stuck when, if you decide to go ahead with this project. Yeah,
+
+zaki haider  15:03
+okay, all right, yeah. I think this was a simple pipe life cycle
+
+Raman Palaniappan  15:11
+of a
+
+zaki haider  15:11
+simple example case. So, I think this was it. I had a.. Do you have any question?
+
+Raman Palaniappan  15:18
+Yeah, I think when you are trying to put in the proposal, maybe a few things you can help us understand is what AI platform you'll be using, because we are going to share sensitive data, so we are very particular about the security, the information, so are you using AI Cloud or Gemini or Copilot, and
+
+Speaker 3  15:44
+what
+
+Raman Palaniappan  15:44
+kind of secure environment will this be operating on? That's one thing, and the other is, I mean, post implementation, it'll be where will it be hosted, right? I mean, it just something we okay is this something we can locally host, or if it's on the cloud, then we just have to make sure certain guardrails and safeguards are put in place, so data is not mishandled by any including users, right? So the security part is what we would like to understand more than anything. Then you mentioned there's a dashboard, and all. I just wanted to know whether it's an in-app conversation that can be built with the client. It is a bit difficult because the user will call the client on a landline and then talking to them, so I'm not sure how minutes can be taken, or if that is not possible. Alternatively, what we can do in your app, right, the dashboard, we can put in a form template, a conversation form template. So, what happens after the call, which is done offline via the normal telephone line. Then the user can just fill up that form, save it, you know, export and upload to network. That's the minimum we can put in if you're not able to make any conversation from app to a phone line,
+
+zaki haider  17:22
+yeah, we can actually get the conversation, every detail of it, like the transcript, the call recording, the number of minutes, etc.
+
+Raman Palaniappan  17:32
+Yeah, but for that, then the call has to be on a platform, right, because the users, the client, they usually answer our calls from a landline, so um how do we connect to them from your platform? That's the question.
+
+zaki haider  17:48
+Okay, okay, I will include
+
+Raman Palaniappan  17:50
+it. Yeah, yeah, but we can keep it simple, let the user talk to them over the forward, but after that they can capture the essence of the conversation on a template form, and then they just save it and upload it, but we will just get it at e form, so they just have to fill up the certain details can be extracted from the dashboard at the database, and the rest they can fill up.
+
+zaki haider  18:10
+All right, the certain thing that can be extracted from a database, can you explain this? Elaborate this,
+
+Raman Palaniappan  18:18
+okay? Because we have the AR report, right, and we have the bank statement, so we know from the report the client name, how much they are owing, and so on, right, the date, and so all that can be instructor, yeah,
+
+zaki haider  18:30
+okay,
+
+Raman Palaniappan  18:32
+yeah, and the date, date of deduction fail, date of aging, and so on, yeah,
+
+zaki haider  18:38
+all right, all right, I was also like previously we were thinking like for the AI calls that they can also be a list that can be extracted for the calling for the AR team, for example, so a team can simply see that which persons they have to
+
+Raman Palaniappan  18:54
+call, yeah,
+
+zaki haider  18:56
+so
+
+Raman Palaniappan  18:56
+correct,
+
+zaki haider  18:57
+but I think that the extraction, like, even though, if the agent is calling to the landline number, it's not going to be any issue.
+
+Raman Palaniappan  19:08
+Yeah, yeah, I mean, it also depends on the local telco, right? Whether they allow that, and
+
+zaki haider  19:17
+you're into Singapore, right? And all the kids are in Singapore.
+
+Raman Palaniappan  19:21
+Yeah,
+
+zaki haider  19:21
+I think we will check regarding the compliances, etc. I think that in USA and UK there are some compliances, and in Europe there are some. USA has some particular street compliances where the call has to be mentioned that this is an AI-generated code and stuff like that, but I'm not sure about Singapore, so I will check, check that.
+
+Raman Palaniappan  19:43
+Yeah, Ken, can you, you can help us to check. We'll also internally check whether they are calling from a number which the clients are all aware of, right?
+
+zaki haider  19:54
+The number, yeah, we usually get the number from Twitter, so it is going to be a Singaporean number, yeah. Okay, so we are going to send you the proposal, and we're going to include all the details. Is there any thing else?
+
+Raman Palaniappan  20:11
+No, nothing. Yeah, we'll just check on few things on our end and email it back to you. Yeah,
+
+zaki haider  20:16
+okay, perfect.
+
+Speaker 3  20:17
+Sounds good.
+
+Raman Palaniappan  20:18
+Okay,
+
+zaki haider  20:20
+all right. Thank you.
+
+Raman Palaniappan  20:21
+Thank you. Thank you. Bye.
+
+
+Transcribed by https://otter.ai

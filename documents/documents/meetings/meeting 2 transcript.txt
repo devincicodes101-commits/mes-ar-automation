@@ -1,0 +1,146 @@
+Taha Sheikh  00:13
+Here I Okay, so this is your me taker made not taking something we don't yet sharing. Yeah, you're basically asking about the timeline that we propose, yeah,
+
+Raman Palaniappan  00:39
+yeah, based on your initial proposal, is it a four weeks?
+
+Taha Sheikh  00:46
+Yeah, it was 10 weeks,
+
+Raman Palaniappan  00:49
+10 weeks, right. Okay, okay. The other thing is, okay, usually when we embark on projects like this, you know, we don't want to wait until the very much later we see what we should be seeing in the final product for solution, so you like to request a prototype of the GUI, so that you know that there did not be anything behind that, you know the working of it can come later. The development work, but at least a GUI interface, the screenshots, the screen flow with buttons and all transition, and so on. So we can quickly get the user to give feedback, you know. And once that is frozen, then the development can start. Will that be something you'll be able to do? Yeah, prototyping the screen flows. Yeah, okay. Then the third thing is just very keen to understand based on all the data that comes in, and you're passing it through the system, and then you are displaying the aging and who to call, when to call, and all that is quite straightforward, but how, how much of the AI analytics can be put into the system to give us inferences, summaries, and so on. For example, right, once the system is up and running, we should be based on the database predict which are the type of clients, which client or which sector of clients are likely to continue defaulting, which clients who have, we have, we have improved in terms of their collection, you know, and the customer segmentation segments that are deteriorating and things like that, so I just want to understand, because all that cannot be decided at this point on the proposal stage, so at what stage in the project you will be telling us, okay, these are all the AI dashboard inferences and conclusion we can help you make. Oh, I think that the summary of that at the proposal itself.
+
+Taha Sheikh  03:13
+Yeah, yeah, I think that once we have a group MVP that we are using and you have seen that the system is being used in the, in the production for some time, so we can see that how the data accumulates with the passage of time, and what kind of insights we can get from that time series data, and I think that once, once the first thing is done, then we can, we can shift to the second thing.
+
+Raman Palaniappan  03:39
+Okay, so, so you may want to capture this in the proposal, so there's no miss misalignment at a later stage, right? Okay, okay. Then the third thing is the data security and data privacy, right, because we are going to share the client information, the contact information, because there'll be a voice agent for us to, I mean, a voice module for us to call, and so on. Then there is a lot of data, which is sensitive. So, if you're using AI, generative AI, what are you proposing? I think in your proposed, in one of the email, I had that question, and you said we can get certain subscribe subscription plans, and so on. So, what will be the platform you are recommending for this
+
+Taha Sheikh  04:35
+one? Yeah, so basically, there are two things we are, in terms of AI, we are using one thing is LLM that can use to generate the follow-up emails, etc. The other thing is the voice calling agent, for that we are using Web API now. The thing is that in Web API we have this thing that we can have 1000 order plan on addition that is going to provide zero data retention addition with the with the conversational layer, which means that our data is not going to be stored at any level of the platform. Basically, we had three levels: we have STT, LLM, and TTS in the conversational platform, which means the first of all speech is converted to text, and then the text is sent to LLM. LLM generates a response, and that is that text is again converted to a speech. So this, when we are using zero data retention, they are making sure that none of our data is used anywhere, for first of all, for trading or for retaining at any any stage. So the problem with this is that we will not be able to get the recordings, because our data is not going to be stored anywhere in this specific plan, so that challenge with the voice agent, that if we are using ZDR, then we cannot, we cannot have the recordings. There is a solution for that, and that is that we can create a conversational platform using Live Kit. Live Kit is basically a open source framework that provides us the ability to create voice calling agents, etc. Now, when we are creating with Live Kit, the thing is that we need to, we need to use our own STT and our TTS open source. We can, we can choose any of the open source ones, and there is going to be some reduction in the accuracy and efficiency, like for example, accuracy and efficiency in terms of voice calling agent comes with the type of responses, how it is interrupting the, or how it is basically taking the interruptions, etc. into and where it is, how it is calculating the end of speech? There are different, different things into it, and what is the latency of the response? How quickly it is responding to the questions of the person, or in the conversation naturally. So these kind of things mildly reduces,
+
+Speaker 1  06:59
+because
+
+Taha Sheikh  06:59
+probably in normal conversation, when we are speaking with each other, it is normally a latency of less than two seconds. When you're going to say something, I'm going to respond less than two seconds, and if it is more than that, it might feel a little bit unnatural. So, but the thing is that if we have already informed our, like, callers that you are going to receive an AI call, because ultimately we need to tell them a number that you're, that it is going to be receiving call from them. I think, then they might, you know, accept this kind of small discretizes, but I'm not sure about that. This is kind of thing that you, yeah,
+
+Raman Palaniappan  07:36
+okay, I'm not sure whether voice calling agent will be suitable for this process automation, because it's involving dollars and cents and gyro transaction, and so on. I will still like our colleagues to make the call, right? So, okay, if we can't have our audio file, that's fine, but at least we should have a transcript. Yeah,
+
+Taha Sheikh  08:08
+yeah. So this is the chat, because if we need.. I have one question. Like, for example, when we are calling to the person, because in during the call, the main thing the the agent will be discussing with the client is regarding the their payment that they haven't done, yeah, and when they are going to do that. So, is it also a sensitive data? Because if it is classified as sensitive, then obviously we can, we need to have a ZDL, and we, if we are going that way, then it obviously has more complications.
+
+Raman Palaniappan  08:45
+Okay, you know, sometimes we, we get calls from the bank, and then they say this call is recorded for training purpose and quality control, and so on. What kind of platform are they using? Because they're just calling us on our mobile phone, and there's a yeah,
+
+Taha Sheikh  09:03
+there are different dialers for that, so dialers provide these kind of options for recording, so yeah, so that's, yeah, kind of like,
+
+Raman Palaniappan  09:14
+so in our case, we don't need the conversation to be audio recorded, because I don't think that's necessary, but at least when the call is finished, a transcript is there, then the user can go through the transcript, see everything is verified, is correct, save it, and then upload to our finance system under the client account, so that there's a trail, and also in this platform, there's a trail when we call and what was discussed, right, so sensitivity wise I don't think there's anything very sensitive as long the data is not, they don't have access to the database, but here, because if you're going at $1,000 monthly, that's quite a huge running cost, so we have to have a bit more cost effective, we are basically looking for a transcript, and they can call from the platform. Otherwise, if they come out of the platform, then you won't be able to generate the transcript. Am I correct?
+
+Taha Sheikh  10:12
+Yeah, we like you're asking that. If we are not like using ZDR, then we are not being able to generate the transcript, like if this idea
+
+Raman Palaniappan  10:24
+is yes,
+
+Taha Sheikh  10:25
+we won't be able to get the transcript in that case as well.
+
+Raman Palaniappan  10:30
+I think we need to have a bit more cost-effective solution on this. If now you can suggest other alternative, essentially at the end, we just need a transcript, and the call is to meet from the platform, so everything is recorded by the transcript voice recording, no need, because at 15 cents per minute, that's a lot. Some conversation goes on for 1015, minutes, and imagine we have a list, you could see the list, call our aging AR clients, so if you call everyone, we just going to back up the bills.
+
+Taha Sheikh  11:08
+Yeah, if everyone is speaking up, and again, I think that this metric I'm going to reconcile, but this is for the AI. For example, if it is a 10 minute call, then AI speaking for five minutes, then this five minutes is going to be of Japan, but it is not very easy to calculate this thing, because they are multiple sub services being used in. Okay,
+
+Raman Palaniappan  11:31
+why don't I suggest an alternative issue? Let me know what you think. So one is the user decide to call, and he may call from his landline, so that's outside the system, right. And then, then, while he's talking to the client, right, in our platform, right, we can have a button to say, okay, they're calling the client, right, but it's not a call that is connected, but it shows a call log form, which will then capture the relevant details from the database. Then we provide certain boxes for them to capture the essence of the summary of the call,
+
+Taha Sheikh  12:16
+that
+
+Raman Palaniappan  12:17
+way. Then we just save it as a form, right? Then we log it, then we can trace back to that by using date and time, and so on. I think that'll be more cost-effective.
+
+Taha Sheikh  12:29
+Yep, yep, yeah. I think that this can be one thing. I just have a one more nuance. I don't think that it is going to be a very good thing, but I think that regarding ZDR, it means that we are not retaining data at any stage of the of the of the pipeline. What can be done is that if we like, for example, turn off CDR, and we can delete the recordings when we have that stored in our own database. So, for example, it's going to the platform WebP is going to have the recording of it, and we can then first of all fetch that, put that into our own database, and delete it from there. That can be one thing as well, but the only nuance in this is that the pipeline in it is not guaranteeing anything of like, we are not guaranteeing that, for example, the STD that they are using is also going to delete it. So this is just like one small thing that if you think that it is okay in that sense, then we can go with that as well. If you think that if it is okay, but I get the point of what you said as well, like the person can fill out a form after they are having having a call and fill out some things, some things are coming from from the previous already data that we have for the client, and something the person is putting up. So, yeah, yeah,
+
+Raman Palaniappan  13:55
+I mean, the reason is because I want to be mindful of the running costs on a monthly basis, right? If there's a $1,000 fees and then the per minute charges for the calls and all that, then it's not sustainable to be very honest to start with.
+
+Taha Sheikh  14:14
+Yeah, yeah, I can look into some other options as well, but I, for I think that for the prototype we can go with the with the option, I think that is really,
+
+Raman Palaniappan  14:26
+yeah, let's do the call log form right, it's easier to implement, also because this is a pilot we are trying to do, and then maybe the improvement needs to be done, then we do it later, okay, then the other thing is the AI platform that we are using. I think you mentioned what is it,
+
+Speaker 1  14:51
+Open AI. So, there,
+
+Taha Sheikh  14:55
+yeah, so there are few platforms, like for example, first of all, I discussed about the database that was super base few, if you see, I have mentioned about Open A. Open Ai has the ZDR with for free, basically. So we can easily go with them.
+
+Raman Palaniappan  15:15
+Okay, but is there any gut rail protecting the data on that, or it can be used by them for training,
+
+Taha Sheikh  15:23
+no, no, it, they won't, they won't use that, yeah, and I was also thinking, like, currently AI is particularly, we are, we are choosing this for basically generating the emails, essentially, and not because all of the lot of the things in the automation is going to be calculated through formulas, etc. so that we can have a deterministic behavior. If everything is doing with the LLM, then it's ultimately going to be risky. So I was thinking, like, if it is only for the for the emails, then maybe we can have a template image, and the AI can fill out those template emails with the information. Sorry, we can fill out those template emails instead of writing everything from a that can also be a thing to even eliminate that part as well, but I think that it is like for example, if the if you want the emails to be more personalized, then I think that we can, we can use the AIO. Yeah,
+
+Raman Palaniappan  16:24
+you know, some of the projects what we have done, we keep the EA email templates in the system, so it's configurable in the sense the user can change the text anytime they want and save the template, then the program will then call the template at the various trigger points, and they just have to input certain information, which is then embedded in the email and sent out. I think that's what you're referring, so I think that that is fine. Don't have to be too sophisticated on that. Okay, the other thing is, okay, there are some ongoing subscription is because of the hosting on Azure. Is it?
+
+Taha Sheikh  17:08
+Yeah, so we can. So, do you have any already VPS that you are using, or any like in-house server that you are using? Okay,
+
+Raman Palaniappan  17:18
+most of our platforms are on AWS, so we don't have on premise a lot, so we, what we do is, on a project basis, we take a subscription plan with AWS, but in this case, if a zero is more cost effective, what we can do is, you know, for testing, you can use your server, but once we want to migrate, right, then you just guide us to take a subscription with Azure, and then we can port over.
+
+Taha Sheikh  17:46
+Yeah, it can be either a zero heads, I think. Headstart is the most cheapest one. We like it, is I think three to $4 a month. Yeah,
+
+Speaker 1  17:55
+so
+
+Taha Sheikh  17:57
+I think two to $3 something like that. So we just need a VPS for hosting, so it can be because I think there are some other AWS subscriptions as well that provide hosting for for the different, different platforms. I think either way that can be if the company prioritize prioritizes AWS, then we can also go that, or if, like for example, a VPS is just a virtual private server, which provides us a completely went to server that can host anything. So, since we are going to host anything as well, so we can use the same VPS for both hosting of the aniton and the next JS website, or into the front end and the back end of the of the dashboard.
+
+Raman Palaniappan  18:41
+Yeah, so what we normally do with our vendor partners is we'll take the subscription and then we'll provide them with the domain and email domain and all that. So then you are using that rather than you take it for us, and later on, if we want to migrate to something else, we don't have to come back to you, you know. And I don't think we need to, Leo, and as we discuss. Okay, okay. Then I think, okay, so I think it's quite straightforward. I, of course, when you develop it, then all the other things become necessary. The login credential, we have to follow certain security protocol, password protection, encryption, and so on. Okay, so maybe based on what we have discussed, can you tweak the proposal and resend it to me?
+
+Taha Sheikh  19:40
+Yep, yep, I will do that. In
+
+Raman Palaniappan  19:43
+you can put the voice agent, what you mentioned here, as an option, so that at least I can present that and at least decide whether it go or no go. I don't want to preclude it all together at this point, but your main proposal, you can say, is a log form for call recording, yeah, and then and then mention a bit on the AI analytics that that can be brought in once we have the data running, yeah,
+
+Speaker 1  20:14
+yeah, yeah, yeah,
+
+Raman Palaniappan  20:16
+okay, okay, and of course we will have a dashboard, and also in your proposal, please include that maybe the faces is initially is a prototype acceptance from the our site. Once that is done, then we go, you go into development at UAT, and so on, the general milestone within the 10 weeks.
+
+Speaker 1  20:37
+Okay. Alright, makes sense. Okay.
+
+Raman Palaniappan  20:40
+And okay, right. Anything else
+
+Taha Sheikh  20:44
+early? You sent me some AR reports, final, like they were the.. like it looks like they are the AR input that is going to be done in that's going to be into the dashboard. Can you, like, is there anything relevant over here? From, okay, so
+
+Raman Palaniappan  21:01
+if you look at the most recent document Excel we send, there are a lot of worksheets, right? So what the user gets from the various system is all those worksheets, so on the platform they should be able to upload this and then from there pass through your your engine at the back end, and then it should then say the 30 days, 60 days, and who has been defaulting, who doesn't have gyro, and you know, and things as such. So the various report has various parameters, so I think those details will become clearer when we have discussion during the development phase, but that's a source of human at this point of time.
+
+Speaker 1  21:45
+Okay, yeah, makes sense. All right, okay. Thank you so much. Thank you so much for yesterday, and I hope you have a really
+
+Taha Sheikh  21:54
+nice day.
+
+Raman Palaniappan  21:55
+Okay, thank you. Thank you, Saki. Yeah, thank you, Taha. Bye.
+
+
+Transcribed by https://otter.ai

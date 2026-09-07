@@ -1,0 +1,1016 @@
+<title>MES AR Handbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#151B21;--muted:#5A6873;--faint:#8A97A1;--line:#DDE4E9;--line-soft:#EFF3F6;
+  --accent:#12608A;--accent-soft:#E7F1F7;
+  --warn:#94540F;--warn-soft:#FBEFE0;
+  --good:#256B4A;--good-soft:#E3F1E9;
+  --stop:#96301F;--stop-soft:#F9E8E4;
+  --violet:#54488A;--violet-soft:#ECEAF5;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --display:"Archivo",var(--sans);
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#FFF;color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:44px 22px 90px}
+h1{font-family:var(--display);font-size:clamp(2rem,4.4vw,2.9rem);font-weight:700;letter-spacing:-.024em;line-height:1.05;margin:0 0 12px}
+h2{font-family:var(--display);font-size:1.42rem;font-weight:600;letter-spacing:-.014em;margin:0}
+h3{font-family:var(--display);font-size:1.06rem;font-weight:600;margin:26px 0 8px}
+h4{font-size:.82rem;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:500}
+p{margin:0 0 13px;max-width:74ch}
+.kicker{font-family:var(--mono);font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin:0 0 12px}
+.standfirst{font-size:1.05rem;color:var(--muted);max-width:66ch;margin:0}
+.masthead{border-bottom:2px solid var(--ink);padding-bottom:20px;margin-bottom:26px}
+.toc{border-bottom:1px solid var(--line);padding:16px 0 20px;margin-bottom:34px}
+.toc ol{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:3px 26px;counter-reset:t}
+.toc a{font-family:var(--mono);font-size:.75rem;color:var(--muted);text-decoration:none;display:block;padding:2px 0;border-bottom:1px solid transparent}
+.toc a:hover,.toc a:focus-visible{color:var(--accent);border-bottom-color:var(--accent)}
+.toc a b{color:var(--faint);font-weight:400;margin-right:7px}
+.part{border-top:2px solid var(--ink);margin:54px 0 26px;padding-top:16px}
+.part p{font-family:var(--mono);font-size:.71rem;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin:0 0 5px}
+.part.stop p{color:var(--stop)}
+.part h2{font-size:1.8rem}
+section{margin:0 0 40px;scroll-margin-top:20px}
+.sect-head{display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--line);padding-top:16px;margin-bottom:10px}
+.sect-num{font-family:var(--mono);font-size:.78rem;color:var(--faint);flex:none;padding-top:4px}
+.tag{font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;margin-left:auto;padding:3px 9px;border-radius:4px;align-self:center;white-space:nowrap}
+.t-built{background:var(--good-soft);color:var(--good)}
+.t-block{background:var(--stop-soft);color:var(--stop)}
+.t-info{background:var(--accent-soft);color:var(--accent)}
+.t-rule{background:var(--warn-soft);color:var(--warn)}
+.dia{overflow-x:auto;background:#FFF;border:1px solid var(--line);border-radius:10px;padding:20px 16px;margin:14px 0 6px;text-align:center}
+.dia pre.mermaid{margin:0;background:none;border:0;padding:0}
+.cap{font-size:.83rem;color:var(--muted);margin:8px 0 0;max-width:74ch}
+.cap b{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.86em;background:var(--line-soft);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+table{border-collapse:collapse;width:100%;font-size:.86rem;margin:12px 0}
+th,td{text-align:left;padding:7px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--mono);font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--line-soft)}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.yes{color:var(--good);font-weight:600}.no{color:var(--stop);font-weight:600}
+.box{border-left:3px solid var(--accent);background:var(--accent-soft);padding:13px 16px;margin:16px 0;border-radius:0 6px 6px 0}
+.box.warn{border-color:var(--warn);background:var(--warn-soft)}
+.box.stop{border-color:var(--stop);background:var(--stop-soft)}
+.box.good{border-color:var(--good);background:var(--good-soft)}
+.box h5{margin:0 0 6px;font-size:.78rem;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.box p{margin:0 0 8px}.box p:last-child{margin:0}
+.ask{border:2px solid var(--stop);border-radius:8px;padding:16px 18px;margin:18px 0;background:#FFF}
+.ask h5{margin:0 0 8px;font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stop)}
+.ask blockquote{margin:0;font-size:1.02rem;line-height:1.5;border-left:3px solid var(--line);padding-left:14px;color:var(--ink)}
+.why{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:16px 0}
+.why div{background:#FFF;padding:12px 14px}
+.why dt{font-family:var(--mono);font-size:.64rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.why dd{margin:0;font-size:.88rem}
+.foot{border-top:2px solid var(--ink);padding-top:16px;margin-top:50px;font-family:var(--mono);font-size:.73rem;color:var(--muted);line-height:1.9}
+</style>
+
+<div class="wrap">
+<div class="masthead">
+<p class="kicker">MES Group &middot; dormitory accounts receivable</p>
+<h1>System Handbook</h1>
+<p class="standfirst">Architecture, every flow, every feature, and every open question &mdash; with what to ask MES and why it matters. Diagrams use C4 for structure and UML sequence notation for behaviour.</p>
+</div>
+
+<nav class="toc"><ol>
+<li><a href="#s0"><b>00</b>What the business does</a></li>
+<li><a href="#sup"><b>U</b>What gets uploaded</a></li>
+<li><a href="#sf"><b>F</b>The folder, file by file</a></li>
+<li><a href="#s1"><b>01</b>System context &middot; C4 L1</a></li>
+<li><a href="#s2"><b>02</b>Containers &middot; C4 L2</a></li>
+<li><a href="#s3"><b>03</b>The monthly cycle</a></li>
+<li><a href="#s4"><b>04</b>Flow &middot; upload &amp; parse</a></li>
+<li><a href="#s5"><b>05</b>Rule &middot; aging buckets</a></li>
+<li><a href="#s6"><b>06</b>Rule &middot; charge classification</a></li>
+<li><a href="#s7"><b>07</b>Flow &middot; first reminder</a></li>
+<li><a href="#s8"><b>08</b>Flow &middot; the call</a></li>
+<li><a href="#s9"><b>09</b>Flow &middot; late payment fee</a></li>
+<li><a href="#s10"><b>10</b>Flow &middot; final notice</a></li>
+<li><a href="#s11"><b>11</b>Flow &middot; sending a report</a></li>
+<li><a href="#s12"><b>12</b>Flow &middot; back into NetSuite</a></li>
+<li><a href="#bold"><b>Q0</b>Is it in the old files?</a></li>
+<li><a href="#b1"><b>Q1</b>Blocker &middot; split columns</a></li>
+<li><a href="#b2"><b>Q2</b>Blocker &middot; the deposit</a></li>
+<li><a href="#b3"><b>Q3</b>Blocker &middot; Risk Exposure</a></li>
+<li><a href="#b4"><b>Q4</b>Blocker &middot; contact list</a></li>
+<li><a href="#sd"><b>D</b>Deliverables</a></li>
+<li><a href="#snext"><b>N</b>What we do next</a></li>
+<li><a href="#email"><b>&rarr;</b>The email to send</a></li>
+</ol></nav>
+
+<!-- =============================================== 00 -->
+<section id="s0">
+<div class="sect-head"><span class="sect-num">00</span><h2>What the business actually does</h2><span class="tag t-info">context</span></div>
+<p>MES Group owns worker dormitories in Singapore. They rent bed-space to <b>construction and marine companies</b>, who house their migrant workers there. So the customer is an employer, not a worker &mdash; which is why every account in the data is a company, and why chasing payment means emailing a finance department.</p>
+<p>Many pay late. Today the CSD team exports spreadsheets from NetSuite, reads them by eye, types reminder emails, phones the late payers, and writes notes like <code>Payment by 29.05.26</code> into a column. This system replaces that.</p>
+<table>
+<thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><b>AR</b></td><td>Accounts Receivable &mdash; money invoiced but not yet paid</td></tr>
+<tr><td><b>GIRO</b></td><td>Singapore's direct-debit scheme. MES pulls money from the tenant's bank account automatically</td></tr>
+<tr><td><b>Aging bucket</b></td><td>How overdue a charge is: Current / 30 / 60 / 90 / 90+ days</td></tr>
+<tr><td><b>1FM</b></td><td>MES's own maintenance app. A charge raised through it is tagged 1FM</td></tr>
+<tr><td><b>CSD</b></td><td>Customer Service Department &mdash; the team that chases the money</td></tr>
+<tr><td><b>RM</b></td><td>Relationship Manager &mdash; the salesperson who owns a set of clients</td></tr>
+<tr><td><b>SD / PF / LP</b></td><td>Security Deposit / Parking Fee / Late Payment &mdash; report names</td></tr>
+</tbody></table>
+</section>
+
+
+<!-- =============================================== files -->
+<section id="sf">
+<div class="sect-head"><span class="sect-num">F</span><h2>The folder, file by file</h2><span class="tag t-info">source material</span></div>
+<p>Everything MES sent on 3 September. Three of these files are <b>requirements</b>, two are <b>real data</b>, and the rest are <b>templates</b> showing the wording and layout they expect. Knowing which is which matters: the empty sheets are the specification, not missing data.</p>
+
+<h3>Detailed AR report(Final).xlsx <span style="font-weight:400;color:#5A6873;font-size:.9rem">&mdash; 13 sheets, and the most important file here</span></h3>
+<table>
+<thead><tr><th>Sheet</th><th class="n">Rows</th><th>What it is</th><th>What we do with it</th></tr></thead>
+<tbody>
+<tr><td><b>Flow</b></td><td class="n">31</td><td class="no">THE SPECIFICATION</td><td>The whole requirement, written as a dated calendar. Every feature in this system traces to a line on it.</td></tr>
+<tr><td><b>Formula</b></td><td class="n">3</td><td class="no">THE AGING RULE</td><td>MES's own Excel formula. Gives the 15/45/75/105 boundaries.</td></tr>
+<tr><td>Finance AR Download</td><td class="n">186</td><td>sample of their <em>other</em> export</td><td>Proves <code>Primary Sales Rep</code> and <code>Industry Type</code> exist in NetSuite. Its amounts are blank.</td></tr>
+<tr><td>JPD1 / JPD2 / BSD / LEO</td><td class="n">26/20/18/18</td><td>per-dorm balance summaries</td><td>Shows the layout they read today, and the free-text <code>Update</code> column our promise tracker replaces.</td></tr>
+<tr><td><b>Security Deposit(SD)</b></td><td class="n">0</td><td class="yes">DELIVERABLE</td><td rowspan="5">Five blank sheets. <b>The blankness is the ask</b> &mdash; these are the reports to build. Four are done; RM is blocked.</td></tr>
+<tr><td><b>Parking Fee(PF)</b></td><td class="n">0</td><td class="yes">DELIVERABLE</td></tr>
+<tr><td><b>Late Payment(LP)</b></td><td class="n">0</td><td class="yes">DELIVERABLE</td></tr>
+<tr><td><b>Stamp Duty(SD)</b></td><td class="n">0</td><td class="yes">DELIVERABLE</td></tr>
+<tr><td><b>RM</b></td><td class="n">0</td><td class="yes">DELIVERABLE</td></tr>
+<tr><td>1FM</td><td class="n">7</td><td>a note, not data</td><td>One line: <code>DOCUMENT NUMBER "JPD1FM..."</code> &mdash; how to identify a 1FM charge.</td></tr>
+</tbody></table>
+<div class="box warn"><h5>Careful with "SD"</h5>
+<p>MES use <b>SD twice</b> &mdash; Security Deposit and Stamp Duty &mdash; and their shorthand reads <code>SD/PF/1FM/LP/SD/RM</code>. The sheet names are what disambiguate them, so we take the codes from the tab names rather than the shorthand.</p></div>
+
+<h3>3. CustomA_RAgingDetail-WithDescription.xlsx <span style="font-weight:400;color:#5A6873;font-size:.9rem">&mdash; the real input</span></h3>
+<p>One sheet, <b>3,505 rows</b>. This is the file the officer uploads each cycle and everything is built from. Entity is KT Mesdorm, dated 17 August 2026.</p>
+<table>
+<thead><tr><th>Part of the sheet</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td>Rows 1&ndash;4</td><td>Entity, report title, and <code>As of 17 August 2026</code> &mdash; the date every aging figure pivots on. MES also wrote a note in G2:I2 explaining the 1FM prefix.</td></tr>
+<tr><td>Row 7</td><td>Column headers: Customer, Transaction Type, Company Name, Date, Description, <b>Categories</b>, Document Number, Linked Contract, Contract Item Start Date, P.O. No., Due Date, Age, Open Balance, Item Type.</td></tr>
+<tr><td>Rows 8+</td><td>Three interleaved row types: a customer heading, that customer's invoice lines (column A blank), then a <code>Total - DORM-x</code> subtotal.</td></tr>
+</tbody></table>
+<p><b>3,117 invoice lines &middot; 190 accounts &middot; $2,782,348.27</b> &mdash; and our totals match their subtotals to the cent.</p>
+
+<h3>4. Client Contact List / R1 - 20260511.xlsx</h3>
+<table>
+<thead><tr><th>Sheet</th><th class="n">Rows</th><th>Contents</th><th>Emails?</th></tr></thead>
+<tbody>
+<tr><td>JPD1</td><td class="n">65</td><td>company names + Status</td><td class="no">no</td></tr>
+<tr><td>JPD2</td><td class="n">62</td><td>company names + Status</td><td class="no">no</td></tr>
+<tr><td>BSD</td><td class="n">23</td><td>company names + Status</td><td class="no">no</td></tr>
+<tr><td><b>Total</b></td><td class="n">50</td><td>49 companies + <b>Email Address</b></td><td class="yes">yes</td></tr>
+</tbody></table>
+<p>Only the <code>Total</code> sheet carries addresses, and its 49 companies are mostly JPD tenants &mdash; which is blocker <a href="#b4">Q4</a>. Every Status value in the whole workbook reads "Live", which is half of blocker <a href="#b1">Q1</a>.</p>
+
+<h3>1. First_Final Reminder Email Template</h3>
+<table>
+<thead><tr><th>File</th><th>What it gives us</th></tr></thead>
+<tbody>
+<tr><td><code>JPD1 - First_Reminder - 20260407.docx</code></td><td>The 7th letter, verbatim. Two merge fields (<code>Company_Name</code>, <code>Grand_Total_</code>); everything else is prose we compute. Confirms the <b>$100 late fee</b> and the <b>$50 cheque fee</b>, and gives <b>+6 days</b> to pay.</td></tr>
+<tr><td><code>J1 - Final Reminder - 20260420.docx</code></td><td>The 21st letter. Adds the Employment of Foreign Manpower citation and the disruption-of-services warning; drops the cheque paragraph; gives <b>+7 days</b>.</td></tr>
+</tbody></table>
+
+<h3>2. RM_AR_Email Template</h3>
+<table>
+<thead><tr><th>File</th><th>What it gives us</th></tr></thead>
+<tbody>
+<tr><td><code>RM Email Template.png</code></td><td>Jacqueline&rsquo;s covering note to a manager. Short: &ldquo;refer to the enclosed as of&hellip; revert by 2pm on&hellip;&rdquo;</td></tr>
+<tr><td><code>AR Email Template.png</code></td><td>Her note to the AR team for the late fee &mdash; and the line <em>&ldquo;check if I might have included the giro clients&hellip;&rdquo;</em>, which is the rule behind <a href="#s9">section 09</a>.</td></tr>
+<tr><td>Harry&rsquo;s mock-up</td><td>4 sheets, one per dorm, <b>9 columns</b>. Dated 17 Aug.</td></tr>
+<tr><td>Ray&rsquo;s mock-up</td><td>1 sheet with 3 stacked dorm blocks, <b>13 columns</b> &mdash; adds Overdue Total, Update, Security Deposit, Risk Exposure. Dated 27 Aug.</td></tr>
+</tbody></table>
+<div class="box stop"><h5>The two mock-ups disagree</h5>
+<p>Different layouts, ten days apart. Ray&rsquo;s is newer and its columns are a superset, so it is the one built &mdash; but two of its columns are blockers <a href="#b2">Q2</a> and <a href="#b3">Q3</a>.</p></div>
+
+<h3>AR Collections Cycle.pdf</h3>
+<p>The <code>Flow</code> sheet drawn as a timeline. Same content, easier to read &mdash; useful for showing MES what we understood.</p>
+</section>
+
+
+<!-- =============================================== upload -->
+<section id="sup">
+<div class="sect-head"><span class="sect-num">U</span><h2>What the officer actually uploads</h2><span class="tag t-info">start here</span></div>
+<p>This is the question everything else depends on, so plainly: <b>one file every cycle</b>, and <b>a second file only when it changes</b>.</p>
+
+<table>
+<thead><tr><th>File</th><th>Sheets</th><th>How often</th><th>Why</th></tr></thead>
+<tbody>
+<tr>
+  <td><b>The AR report</b><br/><code>3. CustomA_RAgingDetail-WithDescription.xlsx</code></td>
+  <td><b>1 sheet</b><br/><small>3,505 rows</small></td>
+  <td class="yes">every cycle<br/><small>4th, 7th, 16th &mdash; or any day</small></td>
+  <td>Who owes what, line by line. Everything on every screen comes from this.</td>
+</tr>
+<tr>
+  <td><b>The contact list</b><br/><code>R1 - 20260511.xlsx</code></td>
+  <td>4 sheets<br/><small>only <code>Total</code> has emails</small></td>
+  <td>once, then only when it changes</td>
+  <td>Email addresses. It is a reference list, not cycle data &mdash; the system keeps it until you replace it.</td>
+</tr>
+</tbody></table>
+
+<div class="box"><h5>So: one sheet or two?</h5>
+<p><b>One sheet, from one file, each cycle.</b> The AR report is a single-sheet workbook and that is the only thing that has to be re-uploaded. The contact list is a second file uploaded once and reused; the officer can also type a missing address straight into the app, which is saved and survives the next AR upload.</p>
+<p>The system tells the two apart by looking inside them &mdash; the contact list is the one with an <code>Email Address</code> column &mdash; so they can be dropped in any order.</p></div>
+
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart LR
+  subgraph ns["In NetSuite"]
+    direction TB
+    e1["Run the saved search"]
+    e2["Export to Excel"]
+  end
+  subgraph up["In the dashboard"]
+    direction TB
+    u1["Drop the file"]
+    u2["System recognises which file it is"]
+    u3["Parse, age, group by dorm"]
+  end
+  subgraph res["Immediately after"]
+    direction TB
+    r1["Aging board"]
+    r2["Collections queue"]
+    r3["Six reports"]
+    r4["Reminder drafts"]
+  end
+  e1 --> e2 --> u1 --> u2 --> u3
+  u3 --> r1
+  u3 --> r2
+  u3 --> r3
+  u3 --> r4
+  cl["Contact list<br>uploaded once"] -.->|adds email addresses| u3
+
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  class e1,e2 ext
+  class u1,u2,u3 core
+  class r1,r2,r3,r4 good
+  class cl warn
+</pre></div>
+<p class="cap">There is no &ldquo;set up the month&rdquo; step and no configuration. <b>Drop the file, and every screen is current.</b></p>
+
+<h3>What the system does with it, in one picture</h3>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TB
+  f(["AR report uploaded"]) --> d["Read the date inside the file"]
+  d --> a["Work out how overdue each line is"]
+  a --> g["Group by dormitory"]
+  g --> t["Split into the six reports"]
+  g --> q["Rank who to chase first"]
+  q --> em["Draft reminders for the 7th and 21st"]
+  q --> ca["Build the calling list"]
+  em --> log
+  ca --> log
+  t --> log["Record every action"]
+  log --> x(["Export back to NetSuite"])
+
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  class f,x ext
+  class d,a,g,t,q core
+  class em,ca,log good
+</pre></div>
+<p class="cap">The officer&rsquo;s only inputs are: upload the file, approve the reminders, make the calls, fill the form. Everything else is derived.</p>
+</section>
+
+<div class="part"><p>Part one</p><h2>Architecture</h2></div>
+
+<!-- =============================================== 01 -->
+<section id="s1">
+<div class="sect-head"><span class="sect-num">01</span><h2>System context</h2><span class="tag t-info">C4 level 1</span></div>
+<p>The widest view: who uses the system, and what it exchanges with the outside world. Note that <b>every arrow to NetSuite and to the bank is a file a person carries</b> &mdash; there are no integrations, by MES's own instruction.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TB
+  officer["CSD Officer"]
+  rm["Relationship Manager"]
+  mgmt["Management"]
+  tenant["Tenant company"]
+  sys["MES AR Automation"]
+  ns[("NetSuite")]
+  bank["DBS bank"]
+
+  officer -->|uploads reports| sys
+  sys -->|queue and drafts| officer
+  sys -->|clients by dorm| rm
+  sys -->|industry report| mgmt
+  sys -.->|reminder email| tenant
+  tenant -.->|pays or promises| officer
+  ns -.->|exported file| sys
+  sys -.->|activity file| ns
+  bank -.->|GIRO result becomes a fee line| ns
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class officer,rm,mgmt,tenant person
+  class sys core
+  class ns,bank ext
+</pre></div>
+<p class="cap"><b>Dotted lines are manual.</b> The bank connection was dropped by MES in August &mdash; GIRO outcomes now reach the system only as invoice lines inside the AR export.</p>
+</section>
+
+<!-- =============================================== 02 -->
+<section id="s2">
+<div class="sect-head"><span class="sect-num">02</span><h2>Containers</h2><span class="tag t-info">C4 level 2</span></div>
+<p>One level in: the parts the system is actually made of, and which technology each uses.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TB
+  officer["CSD Officer"]
+  subgraph app["MES AR Automation"]
+    ui["Dashboard"]
+    parser["Parser"]
+    pipe["Pipeline"]
+    rep["Six reports"]
+    let["Letter engine"]
+    out["Outbox"]
+    db[("Supabase")]
+  end
+  ns[("NetSuite")]
+  tenant["Tenant"]
+
+  officer -->|drops file| ui
+  ui --> parser
+  parser -->|3117 lines| pipe
+  pipe --> rep
+  pipe --> let
+  let --> out
+  pipe --> db
+  out --> db
+  db -->|calls and audit| ui
+  ns -.->|AR export| parser
+  db -.->|activity export| ns
+  out -.->|blocked in prototype| tenant
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class officer person
+  class ui,parser,pipe,rep,let,out core
+  class db good
+  class ns,tenant ext
+</pre></div>
+<p class="cap">Parsing happens <b>in the browser</b>, so tenant data never crosses a network on the way in. Only the officer's own actions are stored.</p>
+</section>
+
+<div class="part"><p>Part two</p><h2>The cycle, and every flow inside it</h2></div>
+
+<!-- =============================================== 03 -->
+<section id="s3">
+<div class="sect-head"><span class="sect-num">03</span><h2>The monthly cycle</h2><span class="tag t-rule">MES's Flow tab</span></div>
+<p>MES billed on 15 July for August. Everything after that is the chase. The dates below are <em>when a human does something</em> &mdash; they never affect how a figure is calculated.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart LR
+  b["15 Jul: billing"]
+  a1["1 Aug: GIRO runs"]
+  a4["4 Aug: upload"]
+  a7["7 Aug: reminder plus calls"]
+  a15["15 Aug: 30 day credit ends"]
+  a16["16 Aug: late payment report"]
+  a21["21 Aug: final notice plus calls"]
+  nxt(["next billing"])
+  b --> a1 --> a4 --> a7 --> a15 --> a16 --> a21 --> nxt
+  nxt -.repeats.-> b
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class b person
+  class a1,a15 warn
+  class a4,a16 core
+  class a7 good
+  class a21 stop
+</pre></div>
+<div class="box"><h5>The rule that governs everything</h5>
+<p>MES's Flow tab opens with <b>"Pivot: AR Report Date"</b>. Every figure is keyed off the date printed inside the uploaded file, not today's date. Upload the same file next week and you get identical numbers.</p></div>
+</section>
+
+<!-- =============================================== 04 -->
+<section id="s4">
+<div class="sect-head"><span class="sect-num">04</span><h2>Upload and parse</h2><span class="tag t-built">built</span></div>
+<p>One routine runs on <em>every</em> import, whatever day it happens on. MES spell it out: tag the date, apply the aging formula, group by dorm.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+sequenceDiagram
+  autonumber
+  actor O as CSD Officer
+  participant UI as Dashboard
+  participant P as Parser
+  participant PL as Pipeline
+  participant R as Report builder
+
+  O->>UI: drops CustomA_RAgingDetail.xlsx
+  UI->>+P: read workbook
+  P->>P: header rows 1-7<br>entity, "As of 17 Aug 2026"
+  Note over P: the report date becomes<br>the pivot for all aging
+  P->>P: walk rows: customer heading,<br>invoice lines, "Total -" subtotal
+  P-->>-UI: 3,117 lines &middot; 190 accounts
+
+  UI->>+PL: build the dataset
+  PL->>PL: 1. tag DATE
+  PL->>PL: 2. apply aging formula
+  PL->>PL: 3. group by dormitory
+  PL->>PL: compare our totals to MES's subtotals
+
+  alt totals agree
+    PL-->>UI: reconciled &mdash; $2,782,348.27
+  else totals differ
+    PL-->>UI: flag the customer and the gap
+  end
+
+  PL->>+R: classified invoice lines
+  R-->>-R: SD, PF, 1FM, LP, Stamp Duty, RM
+  PL-->>-UI: every screen now follows this file
+  UI-->>O: what was read, and anything that could not be
+</pre></div>
+<p class="cap"><b>Step 9 is the safety net.</b> MES print a subtotal under each of their 190 customers; ours are built from the lines above them. On their August file the two agree to the cent.</p>
+</section>
+
+<!-- =============================================== 05 -->
+<section id="s5">
+<div class="sect-head"><span class="sect-num">05</span><h2>Rule &middot; which aging bucket</h2><span class="tag t-rule">MES's Formula tab</span></div>
+<p>This is MES's own spreadsheet formula, transcribed. The boundaries are <b>15 / 45 / 75 / 105</b> &mdash; not 30/60/90, because MES allow fifteen days of grace before the clock starts.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TD
+  s(["Age in days"]) --> q1{"15 or less?"}
+  q1 -->|yes| c["Current"]
+  q1 -->|no| q2{"45 or less?"}
+  q2 -->|yes| d30["30 days"]
+  q2 -->|no| q3{"75 or less?"}
+  q3 -->|yes| d60["60 days"]
+  q3 -->|no| q4{"105 or less?"}
+  q4 -->|yes| d90["90 days"]
+  q4 -->|no| d90p["More than 90 days"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class c ext
+  class d30 core
+  class d60,d90 warn
+  class d90p stop
+</pre></div>
+<div class="box warn"><h5>Why this matters more than it looks</h5>
+<p>An invoice <b>30 days</b> past due lands in the <em>30 days</em> bucket, and one <b>15 days</b> past due is still <em>Current</em>. Both the earlier SOP and our own proposal described a "30-day trigger line", which would have put thousands of invoices in the wrong column. The system computes the bucket itself and compares it to the one MES print, reporting any disagreement rather than inheriting it.</p></div>
+</section>
+
+<!-- =============================================== 06 -->
+<section id="s6">
+<div class="sect-head"><span class="sect-num">06</span><h2>Rule &middot; what a charge is for</h2><span class="tag t-rule">order is the specification</span></div>
+<p>Every invoice line is classified so it can land on the right report. The order matters: a 1FM maintenance line also contains the word "maintenance", so the more specific test must run first.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TD
+  s(["Invoice line"]) --> q1{"Document number<br>starts with a dorm code<br>followed by FM?"}
+  q1 -->|yes| fm["1FM Maintenance"]
+  q1 -->|no| q2{"Description matches<br>a known rule?"}
+  q2 -->|yes| typed["That charge type"]
+  q2 -->|no| q3{"Categories column<br>filled in?"}
+  q3 -->|yes| cat["The category"]
+  q3 -->|no| q4{"Description blank?"}
+  q4 -->|yes| pay["Other Charges"]
+  q4 -->|no| miss["Other Charges<br>and flagged for review"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class fm,typed,cat good
+  class miss warn
+  class pay ext
+</pre></div>
+<div class="box stop"><h5>A real bug this caught</h5>
+<p>The 1FM test used to read <code>/^JPD?\d*FM/</code>, which only matched the JPD dormitories. On MES's August export &mdash; entirely Blue Stars &mdash; that found <b>98 of the 542</b> real 1FM lines: only the ones whose description happened to say "ONEFM". The other 444, including every VAT line on a 1FM invoice, were filed as ordinary charges and missing from the 1FM report. MES's own note on the export says the prefix is the dorm code plus FM.</p></div>
+</section>
+
+<!-- =============================================== 07 -->
+<section id="s7">
+<div class="sect-head"><span class="sect-num">07</span><h2>The 7th &middot; first reminder</h2><span class="tag t-built">built &middot; simulated</span></div>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+sequenceDiagram
+  autonumber
+  actor O as CSD Officer
+  participant Q as Collections queue
+  participant C as Contact list
+  participant L as Letter engine
+  participant OB as Outbox
+  participant T as Tenant
+
+  O->>+Q: send the first reminder
+  Q->>Q: accounts with a balance, worst first
+  Q-->>-O: 186 tenants in scope
+
+  loop for each tenant
+    Q->>+C: email address for this customer code?
+    alt address on file
+      C-->>-Q: one or more addresses
+      Q->>+L: company, amount, report date
+      L->>L: fill the merge fields<br>company, amount, today, due-by
+      Note over L: dated 17th August 2026<br>pay by 23 August 2026 (+6 days)
+      L-->>-OB: message ready
+      OB->>OB: state = simulated
+    else no address
+      Q->>OB: state = blocked
+      Note over OB: reason: "No email address.<br>Phone them instead."
+    end
+  end
+
+  OB-->>O: 5 would send &middot; 181 blocked, each named
+  OB--x T: nothing actually leaves the prototype
+</pre></div>
+<div class="why">
+<div><dt>Would send</dt><dd><b>5</b> tenants</dd></div>
+<div><dt>Blocked, no address</dt><dd><b>181</b> tenants</dd></div>
+<div><dt>Real transport wired</dt><dd><b>none</b> &mdash; by design</dd></div>
+</div>
+<p class="cap">The <code>alt</code> branch is the important half. A tenant with no address is returned as <b>blocked and named</b>, never quietly skipped, because the officer's real question is "who did <em>not</em> get this".</p>
+</section>
+
+<!-- =============================================== 08 -->
+<section id="s8">
+<div class="sect-head"><span class="sect-num">08</span><h2>Mid-month &middot; the call</h2><span class="tag t-built">built</span></div>
+<p>MES chose the manual path over an AI voice agent, to keep the running cost down. Officers phone from their own lines; only the record of the call enters the system.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+sequenceDiagram
+  autonumber
+  actor O as CSD Officer
+  participant CL as Calling list
+  actor T as Tenant
+  participant F as Call e-form
+  participant P as Promise tracker
+  participant A as Audit trail
+
+  O->>+CL: open the list
+  CL-->>-O: prioritised, biggest overdue first
+
+  loop repeat calls allowed
+    O->>T: phones from an ordinary MES line
+    T-->>O: reached, or no answer
+    O->>+F: complete the form
+    Note over F: pre-filled: client, amount owed,<br>aging bucket, deduction-fail date
+    F->>F: outcome + who was reached + next action
+    alt agreed to pay
+      F->>+P: promise, with a date
+      P-->>-O: tracked, and chased if broken
+    end
+    F->>A: dated record
+    F-->>-O: call count for this account +1
+  end
+</pre></div>
+<p class="cap">Replaces the free-text <code>Update</code> column in MES's spreadsheet, where a promise was typed as <code>Payment by 29.05.26</code> and nothing chased it.</p>
+</section>
+
+<!-- =============================================== 09 -->
+<section id="s9">
+<div class="sect-head"><span class="sect-num">09</span><h2>The 16th &middot; the late payment fee</h2><span class="tag t-built">built</span></div>
+<p>$100 before GST on anything more than 14 calendar days past due &mdash; the rule stated in MES's own reminder letter. The interesting part is who gets <em>left out</em>.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TD
+  s(["3117 open invoice lines"]) --> f1{"More than<br>14 days overdue?"}
+  f1 -->|no| skip["Not chased"]
+  f1 -->|yes| pool["84 overdue tenants"]
+  pool --> f2{"Has a rejected<br>GIRO fee line?"}
+  f2 -->|yes| giro["6 on GIRO. Excluded"]
+  f2 -->|no| charge["78 charged 100 dollars"]
+  charge --> mail["Email listing to AR team"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class skip ext
+  class pool warn
+  class charge,mail good
+  class giro stop
+</pre></div>
+<div class="box good"><h5>How GIRO is known without the bank statement</h5>
+<p>MES dropped the DBS report in August, which looked like it took the GIRO features with it. It didn't &mdash; because a bounced deduction raises <b>its own invoice line</b>: <code>Admin Fee for Rejected Giro - 02-JAN-26</code>.</p>
+<p>In their August export, <b>6 tenants carry that fee and 6 different ones carry the ordinary late payment fee. Not one carries both.</b> Same $100, different fee name, mutually exclusive. That is MES's own rule visible in their own ledger &mdash; and it is exactly what Jacqueline asks the AR team to do by hand: <em>"check if I might have included the giro clients in the listing and remove accordingly."</em></p>
+<p><b>One limit worth stating:</b> this finds tenants whose GIRO has <em>failed</em>. If the report is pulled before that fee has been raised for the current cycle, that tenant looks like an ordinary late payer for one month.</p>
+</div>
+</section>
+
+<!-- =============================================== 10 -->
+<section id="s10">
+<div class="sect-head"><span class="sect-num">10</span><h2>The 21st &middot; final notice</h2><span class="tag t-built">built</span></div>
+<p>Same sequence as the 7th, different letter. The differences are legal, not cosmetic, so MES's wording is reproduced exactly rather than paraphrased.</p>
+<table>
+<thead><tr><th></th><th>First reminder &middot; 7th</th><th>Final notice &middot; 21st</th></tr></thead>
+<tbody>
+<tr><td>Days to pay</td><td class="yes">+6</td><td class="no">+7</td></tr>
+<tr><td>Dates itself</td><td><code>17th August 2026</code></td><td><code>31 August 26</code></td></tr>
+<tr><td>Deadline format</td><td><code>23 August 2026</code></td><td><code>7 September 26</code></td></tr>
+<tr><td>$100 fee warning</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+<tr><td>$50 cheque fee + GIRO form</td><td class="yes">yes</td><td class="no">dropped</td></tr>
+<tr><td>"Despite our reminders"</td><td class="no">no</td><td class="yes">yes</td></tr>
+<tr><td>Cites Employment of Foreign Manpower Regulations 2012</td><td class="no">no</td><td class="yes">yes</td></tr>
+<tr><td>Threatens disruption of services &amp; legal options</td><td class="no">no</td><td class="yes">yes</td></tr>
+</tbody></table>
+<div class="box stop"><h5>Two bugs this table exposed</h5>
+<p>The reminder screen had its own copy of both letters, separate from the send path, and the two had drifted. It gave <b>six days on the final notice</b> where MES give seven, and it dated the letter with <b>today's date</b> rather than the report's. Both sentences sit beside a threat to cut off services, so neither is a rounding matter. The wording now lives in one place and five tests hold the two together.</p></div>
+</section>
+
+<!-- =============================================== 11 -->
+<section id="s11">
+<div class="sect-head"><span class="sect-num">11</span><h2>Sending a report</h2><span class="tag t-built">built</span></div>
+<p>Two lines on MES's Flow tab ask for this: the late payment report to the AR team on the 16th "with one or more RMs from a dropdown", and any of the six reports emailable on demand.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+sequenceDiagram
+  autonumber
+  actor O as CSD Officer
+  participant UI as Reports screen
+  participant S as Settings
+  participant D as Dispatch
+  participant N as Covering note
+
+  O->>UI: pick a report<br>(SD / PF / 1FM / LP / Stamp / late-fee listing)
+  O->>UI: tick one or more recipients
+  UI->>+S: addresses for those people?
+  S-->>-UI: from the editable list
+
+  UI->>+D: report + recipients + report date
+  D->>+N: which covering note?
+  alt the late payment listing
+    N-->>D: "August late payment admin fee"<br>+ the GIRO exclusion instruction
+  else any other report
+    N-->>-D: "Please refer to the enclosed as of&hellip;"<br>+ reply by 2pm
+  end
+
+  alt every recipient has an address
+    D-->>UI: ready &mdash; subject, body, attachment name
+  else someone has none
+    D-->>-UI: blocked, naming exactly who
+  end
+  UI-->>O: preview only &mdash; nothing is sent
+</pre></div>
+<div class="box warn"><h5>Why the recipient list starts empty</h5>
+<p>MES have never sent an email address for anyone internal &mdash; their own screenshots read <em>"To: Ray, Cc: Jamie"</em> with Outlook resolving the rest. Rather than block the feature or invent addresses, the list ships with their names and no addresses, editable in Settings.</p></div>
+</section>
+
+<!-- =============================================== 12 -->
+<section id="s12">
+<div class="sect-head"><span class="sect-num">12</span><h2>Back into NetSuite</h2><span class="tag t-built">built</span></div>
+<p>MES's SOP is explicit: every call, email and promise must end up against the customer's record in NetSuite. There is no API, so the system produces a clean file and a person loads it.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart LR
+  e["Emails sent"] --> exp
+  c["Calls logged"] --> exp
+  p["Promises recorded"] --> exp
+  f["Fees to raise"] --> exp
+  exp["Activity export"] --> prev["Officer previews it"]
+  prev --> file(["clean CSV"])
+  file -.carried by hand.-> ns[("NetSuite")]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class e,c,p,f core
+  class exp,prev,file good
+  class ns ext
+</pre></div>
+</section>
+
+<div class="part stop"><p>Part three</p><h2>The four blockers</h2></div>
+<p>For each: what it stops, why we could not solve it ourselves, the exact question to ask, and what happens if it goes unanswered.</p>
+
+
+<!-- =============================================== old docs -->
+<section id="bold">
+<div class="sect-head"><span class="sect-num">Q0</span><h2>First: is the answer already in the older files?</h2><span class="tag t-info">checked</span></div>
+<p>Before asking MES anything, we searched the earlier folder they sent in June &mdash; <code>documents/filesSharedByClient</code> &mdash; which does contain tabs with promising names: <code>RM - User1</code>, <code>RM - User2</code>, <code>Industry</code>, <code>Contact Details</code>, and per-dorm sheets carrying Status.</p>
+<p>None of it helps, and the reason is the same each time: <b>those files are anonymised June samples covering a different dormitory.</b></p>
+<table>
+<thead><tr><th>Blocker</th><th>Is it in the June files?</th><th class="n">Covers the 190 Aug accounts</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Sales Rep</td><td>Yes &mdash; two RM tabs, 25 clients. But the managers are named <code>VOLDEMORT</code> and <code>LOCKHART</code></td><td class="n">5 of 190</td><td class="no">unusable</td></tr>
+<tr><td>Industry Type</td><td>Yes &mdash; an <code>Industry</code> tab, 9 companies</td><td class="n">1 of 190</td><td class="no">unusable</td></tr>
+<tr><td>Status</td><td>Yes &mdash; 50 companies, <b>with real Live <em>and</em> Terminated values</b></td><td class="n">10 of 190</td><td class="no">unusable</td></tr>
+<tr><td>Security deposit held</td><td>No &mdash; not one header cell anywhere mentions a deposit balance</td><td class="n">0</td><td class="no">absent</td></tr>
+<tr><td>Risk Exposure</td><td>No &mdash; the phrase appears <b>zero times</b> in any file</td><td class="n">0</td><td class="no">absent</td></tr>
+<tr><td>Contact emails</td><td>Yes &mdash; a <code>Contact Details</code> tab, 8 companies: <code>ZUMBA</code>, <code>JOLLY JOLLY</code>, <code>HAWAIIAN</code></td><td class="n">0 of 190</td><td class="no">unusable</td></tr>
+</tbody></table>
+<div class="box good"><h5>One thing this did prove, and it is worth using</h5>
+<p>The June <code>AR Report.xlsx</code> carries Status for 50 companies with <b>both Live and Terminated</b> values in it. So Terminated is a real field in MES&rsquo;s NetSuite, already exportable &mdash; it simply is not on the saved search they now use.</p>
+<p>That turns Q1 from &ldquo;can you add a column?&rdquo; into &ldquo;can you put back a column you were already exporting in June?&rdquo;, which is a much easier request to grant.</p></div>
+<p class="cap">All four blockers stand. None can be answered from anything MES has sent so far.</p>
+</section>
+
+<!-- =============================================== B1 -->
+<section id="b1">
+<div class="sect-head"><span class="sect-num">Q1</span><h2>The columns are split across two exports</h2><span class="tag t-block">blocks 2 of 6 reports</span></div>
+<p>NetSuite can produce the same data through different <b>saved searches</b>, each with its own choice of columns. MES have sent two, and neither carries everything.</p>
+<table>
+<thead><tr><th>Column</th><th>Custom A/R Aging Detail<br/><small>the one we build on</small></th><th>Finance AR Download<br/><small>their other search</small></th></tr></thead>
+<tbody>
+<tr><td>Age, Open Balance, Document Number</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+<tr><td><b>Categories</b> &mdash; what the charge is for</td><td class="yes">✓</td><td class="no">✗</td></tr>
+<tr><td><b>Primary Sales Rep</b> &mdash; which RM owns the client</td><td class="no">✗</td><td class="yes">✓</td></tr>
+<tr><td><b>End User: Industry Type</b></td><td class="no">✗</td><td class="yes">✓</td></tr>
+<tr><td><b>Status</b> &mdash; Live or Terminated</td><td class="no">✗</td><td class="no">✗</td></tr>
+</tbody></table>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart LR
+  a["Aging Detail<br>has Categories"] --> x{"Combine?"}
+  b["Finance Download<br>has Sales Rep"] --> x
+  x -->|"no, two separate exports"| blk["RM report: 0 built<br>Industry report: empty"]
+  fix["Add 3 columns to the Aging Detail"] -.->|resolves| blk
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class a,b core
+  class blk,x stop
+  class fix good
+</pre></div>
+<div class="box stop"><h5>Why we cannot answer this ourselves</h5>
+<p>Which salesperson owns a client is a field held in NetSuite. It is not derivable from invoice data. The two RM mock-ups name 53 clients, of which 20 appear in the AR export &mdash; but those files are titled "Mock-up", and a report covering 20 of 190 clients is not a report.</p>
+<p><b>Status is the one that carries risk.</b> The contact list holds a status for 116 companies and <em>every single one says "Live"</em> &mdash; there is no Terminated value anywhere in any file. So the system treats all 190 accounts as still renting. A company that moved out could receive the final notice citing the Employment of Foreign Manpower Regulations.</p>
+</div>
+<div class="ask"><h5>Ask MES</h5>
+<blockquote>Your <code>Finance AR Download</code> saved search already has <code>Primary Sales Rep</code>, <code>End User: Industry Type</code> and <code>Status</code>. The <code>Custom A/R Aging Detail</code> export doesn't. Can whoever owns that saved search add those three columns?</blockquote></div>
+<div class="why">
+<div><dt>If answered</dt><dd>The RM and industry reports build immediately &mdash; the code already reads all three columns.</dd></div>
+<div><dt>If not</dt><dd>Two of the six reports MES asked for cannot be delivered, and reminders may reach ex-tenants.</dd></div>
+</div>
+</section>
+
+<!-- =============================================== B2 -->
+<section id="b2">
+<div class="sect-head"><span class="sect-num">Q2</span><h2>The security deposit is not in the AR report</h2><span class="tag t-block">2 columns</span></div>
+<p>Ray's report template has a <b>Security Deposit</b> column showing what MES holds for each tenant &mdash; $34,000, $31,400, and so on. That figure is not in the AR report, and here is why.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TD
+  inv(["Deposit invoiced"]) --> q{"Paid yet?"}
+  q -->|"not yet"| open["Shows in the AR report"]
+  q -->|"yes"| gone["Disappears from the AR report"]
+  gone --> bs[("Sits on the balance sheet")]
+  bs -.-> need["What Ray's column needs"]
+  open -.-> have["All we can see:<br>14 lines, 46308 dollars"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class open,have core
+  class gone,bs,need stop
+  class inv,q ext
+</pre></div>
+<div class="box stop"><h5>What we tried before asking</h5>
+<p>The obvious theory is that a deposit is simply a multiple of the monthly rent. We tested it on the 8 companies that have both figures:</p>
+<table><thead><tr><th>Company</th><th class="n">Deposit</th><th class="n">Monthly rent</th><th class="n">Ratio</th></tr></thead>
+<tbody>
+<tr><td>WAH LOON ENGINEERING</td><td class="n">22,720</td><td class="n">3,081.60</td><td class="n">7.37&times;</td></tr>
+<tr><td>AEON CONTRACTOR</td><td class="n">12,800</td><td class="n">3,240.00</td><td class="n">3.95&times;</td></tr>
+<tr><td>NSI CONSTRUCTION</td><td class="n">12,100</td><td class="n">3,384.00</td><td class="n">3.58&times;</td></tr>
+<tr><td>PACIFIC CENTRAL TEKNIK</td><td class="n">12,720</td><td class="n">3,576.00</td><td class="n">3.56&times;</td></tr>
+<tr><td>JABERSON TECHNOLOGY</td><td class="n">3,516</td><td class="n">2,880.00</td><td class="n">1.22&times;</td></tr>
+<tr><td>KOOL M&amp;E</td><td class="n">740</td><td class="n">2,988.00</td><td class="n">0.25&times;</td></tr>
+</tbody></table>
+<p>No pattern &mdash; and in any case those are <em>unpaid deposit invoices</em>, some only part-paid, not deposits held. There is no route to this number from the AR data.</p>
+</div>
+<div class="ask"><h5>Ask MES</h5>
+<blockquote>Which report holds the security deposit you're currently holding for each tenant? The AR report only carries deposit lines that are still open &mdash; 14 rows totalling $46,308 across all 190 accounts &mdash; so it isn't in there. We assume you already produce this for the Monday reconciliation to CSD.</blockquote></div>
+<div class="why">
+<div><dt>If answered</dt><dd>Two columns of the RM report fill in, and the weekly deposit report becomes real.</dd></div>
+<div><dt>If not</dt><dd>The RM report ships with two empty columns, each labelled with why.</dd></div>
+</div>
+</section>
+
+<!-- =============================================== B3 -->
+<section id="b3">
+<div class="sect-head"><span class="sect-num">Q3</span><h2>Risk Exposure has no recoverable formula</h2><span class="tag t-block">1 column</span></div>
+<p>Ray's template has a column called <b>Risk Exposure</b>. We tried to work out the calculation and could not. Then we found out why.</p>
+<h4>The mockup does not reconcile with itself</h4>
+<table>
+<thead><tr><th>Company</th><th class="n">Its aging columns add to</th><th class="n">Grand Total it prints</th><th class="n">Difference</th></tr></thead>
+<tbody>
+<tr><td>TONG CONSTRUCTION</td><td class="n">4,428.16</td><td class="n">6,428.16</td><td class="n no">+2,000.00</td></tr>
+<tr><td>EIGE</td><td class="n">4,724.65</td><td class="n">3,324.65</td><td class="n no">&minus;1,400.00</td></tr>
+<tr><td>HOCONSTRUCTION</td><td class="n">1,998.78</td><td class="n">1,898.78</td><td class="n no">&minus;100.00</td></tr>
+<tr><td>DLIGHT</td><td class="n">249.28</td><td class="n">1,898.78</td><td class="n no">+1,649.50</td></tr>
+<tr><td>SUN</td><td class="n">2,817.04</td><td class="n">14,817.04</td><td class="n no">+12,000.00</td></tr>
+<tr><td>MARINE &amp; OFFSHORE</td><td class="n">11,197.32</td><td class="n">4,417.32</td><td class="n no">&minus;6,780.00</td></tr>
+</tbody></table>
+<p><b>All ten rows fail</b>, not just these six. The workbook contains no formulas &mdash; the numbers were typed in by hand as an illustration.</p>
+<div class="box stop"><h5>Why the obvious guess is wrong</h5>
+<p>You would expect <em>outstanding &minus; deposit held</em>: what MES loses if the tenant walks away. But one row shows <b>$418.64 overdue</b> against <b>$16,640 of deposit</b> and a Risk Exposure of <b>&minus;$3,162.60</b>. We tested roughly a thousand combinations of every column pair and triple. None matched.</p>
+<p>This is not a hard inference. It is an impossible one: the inputs in the sample don't agree with each other, so no formula could reproduce the output.</p>
+</div>
+<div class="ask"><h5>Ask MES</h5>
+<blockquote>How is Risk Exposure calculated? We tried to infer it and couldn't &mdash; on all ten rows of the mock-up the Grand Total differs from the sum of its own aging columns, by anywhere from &minus;6,780 to +12,000, so the figures look illustrative rather than calculated. The formula in words is enough.</blockquote></div>
+<div class="why">
+<div><dt>If answered</dt><dd>One column fills in. Depends on Q2 as well, since the deposit is almost certainly an input.</dd></div>
+<div><dt>If not</dt><dd>The column ships empty. Lowest-cost of the four.</dd></div>
+</div>
+</section>
+
+<!-- =============================================== B4 -->
+<section id="b4">
+<div class="sect-head"><span class="sect-num">Q4</span><h2>The contact list is for different dormitories</h2><span class="tag t-block">blocks the 7th &amp; the 21st</span></div>
+<p>To email a reminder you need an email address. MES sent a contact list with addresses for 49 companies, which sounds sufficient until you check <em>which</em> companies.</p>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TB
+  subgraph cl["Contact list: 49 addresses"]
+    direction LR
+    j1["JPD1: 25"]
+    j2["JPD2: 21"]
+    bs["Blue Stars: 3"]
+  end
+  all["AR export: 190 Blue Stars accounts"]
+  j1 -.->|wrong dormitory| all
+  j2 -.->|wrong dormitory| all
+  bs ==>|only these match| all
+  all --> res["5 reachable by email<br>185 phone only"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class bs good
+  class j1,j2 ext
+  class all,res stop
+</pre></div>
+<div class="box stop"><h5>The scale of it</h5>
+<p>The contact list and the AR export are about <b>different buildings</b>. 44 of the 49 addressed companies do not appear in the AR export at all, and 172 of the 190 accounts are on no list of any kind. Only <b>5 of 190</b> can be emailed &mdash; 2.6%.</p>
+<p>This is the one that blocks the most. The 7th and the 21st are the centre of the whole system, and both depend on it. Email addresses cannot be derived from anything: it is purely a data gap.</p>
+</div>
+<div class="ask"><h5>Ask MES</h5>
+<blockquote>Could you send the client contact list for Blue Stars? Of the 49 companies with an email address in <code>R1 - 20260511.xlsx</code>, 25 are JPD1, 21 are JPD2 and 3 are Blue Stars &mdash; but the August AR export is entirely Blue Stars, with 190 accounts. So 185 of them have no address and can only be phoned.</blockquote></div>
+<div class="why">
+<div><dt>If answered</dt><dd>Bulk reminders work. The import, matching and blocking logic is already built and tested.</dd></div>
+<div><dt>If not</dt><dd>The system's main feature reaches 2.6% of tenants. Everything else becomes a calling list.</dd></div>
+</div>
+</section>
+
+
+<!-- =============================================== plan -->
+<div class="part"><p>Part four</p><h2>What happens next</h2></div>
+
+<section id="sd">
+<div class="sect-head"><span class="sect-num">D</span><h2>Deliverables</h2><span class="tag t-info">handover at UAT</span></div>
+<p>Five things were promised at UAT in the signed proposal, section 12. Here is where each stands.</p>
+<table>
+<thead><tr><th>Deliverable</th><th>State</th><th>Where it is</th></tr></thead>
+<tbody>
+<tr><td>Full application source code</td><td class="yes">done</td><td>the repository</td></tr>
+<tr><td>Functional design documents</td><td class="yes">done</td><td>this handbook + <code>docs/mes-lifecycle.html</code></td></tr>
+<tr><td>Clean NetSuite export format spec</td><td class="yes">done</td><td><code>docs/netsuite-export-format.html</code></td></tr>
+<tr><td>Deployment &amp; configuration docs</td><td class="yes">done</td><td><code>docs/deployment.md</code></td></tr>
+<tr><td>User manual</td><td class="no">not started</td><td>&mdash;</td></tr>
+</tbody></table>
+
+<h3>The six reports MES drew</h3>
+<table>
+<thead><tr><th>Report</th><th class="n">Lines in the Aug export</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>1FM Maintenance</td><td class="n">543</td><td class="yes">built &amp; tested</td></tr>
+<tr><td>Late Payment (LP)</td><td class="n">27</td><td class="yes">built &amp; tested</td></tr>
+<tr><td>Security Deposit (SD)</td><td class="n">14</td><td class="yes">built &amp; tested</td></tr>
+<tr><td>Stamp Duty (SD)</td><td class="n">5</td><td class="yes">built &amp; tested</td></tr>
+<tr><td>Parking Fee (PF)</td><td class="n">0</td><td>built, <b>never matched real data</b> &mdash; no parking line exists in this export</td></tr>
+<tr><td>RM &mdash; clients by dorm</td><td class="n">&mdash;</td><td class="no">blocked on <a href="#b1">Q1</a>; 2 columns also need <a href="#b2">Q2</a> and <a href="#b3">Q3</a></td></tr>
+</tbody></table>
+
+<h3>Features, against MES&rsquo;s Flow tab</h3>
+<table>
+<thead><tr><th>Line on the Flow tab</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>&ldquo;Pivot: AR Report Date&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;Tag DATE for Aging Calculation&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;Insert Column F and apply formula&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;Show by Dorm followed by SD/PF/1FM/LP/SD/RM&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>First &amp; Final reminder, bulk email</td><td class="yes">built &mdash; reaches 5 of 190 until <a href="#b4">Q4</a></td></tr>
+<tr><td>Email list &ldquo;create, edit and save option&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>Call customer &middot; e-form &middot; repeat calls &middot; call status count</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;Late Payment Report &mdash; &gt;14 calendar days credit&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;select one or more RMs from drop down to send email&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;email any of the Reports via email drop down selection&rdquo;</td><td class="yes">built</td></tr>
+<tr><td>&ldquo;AR Report can be uploaded anytime&rdquo;</td><td class="yes">built</td></tr>
+</tbody></table>
+<p class="cap">Verified by <b>293 automated assertions</b> across two suites, run on every build against MES&rsquo;s real files.</p>
+</section>
+
+<section id="snext">
+<div class="sect-head"><span class="sect-num">N</span><h2>What we do next</h2><span class="tag t-block">2 of 4 need MES</span></div>
+<div class="dia"><pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#FFFFFF','fontFamily':'IBM Plex Sans, sans-serif','fontSize':'14px','textColor':'#151B21','lineColor':'#5A6873','primaryColor':'#E7F1F7','primaryTextColor':'#151B21','primaryBorderColor':'#12608A','secondaryColor':'#EFF3F6','secondaryTextColor':'#151B21','secondaryBorderColor':'#8A97A1','tertiaryColor':'#FFFFFF','tertiaryTextColor':'#151B21','tertiaryBorderColor':'#DDE4E9','mainBkg':'#E7F1F7','nodeBorder':'#12608A','nodeTextColor':'#151B21','clusterBkg':'#FBFCFD','clusterBorder':'#DDE4E9','titleColor':'#151B21','edgeLabelBackground':'#FFFFFF','actorBkg':'#ECEAF5','actorBorder':'#54488A','actorTextColor':'#151B21','actorLineColor':'#8A97A1','signalColor':'#5A6873','signalTextColor':'#151B21','labelBoxBkgColor':'#E7F1F7','labelBoxBorderColor':'#12608A','labelTextColor':'#151B21','loopTextColor':'#151B21','altBackground':'#F7FAFC','activationBkgColor':'#E7F1F7','activationBorderColor':'#12608A','sequenceNumberColor':'#FFFFFF','noteBkgColor':'#FBEFE0','noteTextColor':'#151B21','noteBorderColor':'#94540F'}}}%%
+flowchart TB
+  now(["today"]) --> send["Send the 4 questions"]
+  send --> wait{"MES replies"}
+  subgraph side["meanwhile, not blocked"]
+    direction TB
+    man["Write the User Manual"]
+    pol["Functional testing"]
+  end
+  send --> side
+  wait -->|"Q1: 3 columns"| rm["Build RM and industry reports"]
+  wait -->|"Q4: BSD contacts"| mail["Bulk email reaches everyone"]
+  wait -->|"Q2 and Q3"| cols["Fill the last 2 RM columns"]
+  rm --> uat
+  mail --> uat
+  cols --> uat
+  side --> uat
+  uat["UAT with MES"] --> dep["Deploy"]
+  dep --> stab["30 days stabilisation"]
+
+  classDef person fill:#ECEAF5,stroke:#54488A,stroke-width:1.5px,color:#151B21
+  classDef core fill:#E7F1F7,stroke:#12608A,stroke-width:2px,color:#151B21
+  classDef good fill:#E3F1E9,stroke:#256B4A,stroke-width:2px,color:#151B21
+  classDef warn fill:#FBEFE0,stroke:#94540F,stroke-width:1.5px,color:#151B21
+  classDef stop fill:#F9E8E4,stroke:#96301F,stroke-width:2px,color:#151B21
+  classDef ext fill:#F3F6F8,stroke:#8A97A1,stroke-width:1.5px,color:#151B21
+  class send stop
+  class rm,mail,cols,man,pol core
+  class uat,dep,stab good
+  class now,wait ext
+</pre></div>
+
+<h3>In order</h3>
+<table>
+<thead><tr><th class="n">#</th><th>Task</th><th>Depends on</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td class="n">1</td><td><b>Send the four questions to Raman</b></td><td>&mdash;</td><td>today</td></tr>
+<tr><td class="n">2</td><td>Write the User Manual &mdash; the last handover item</td><td>&mdash;</td><td>2&ndash;3 days</td></tr>
+<tr><td class="n">3</td><td>Functional testing pass across all screens</td><td>&mdash;</td><td>2 days</td></tr>
+<tr><td class="n">4</td><td>Build the RM report grouping + industry report</td><td class="no">Q1</td><td>1 day &mdash; the parser already reads those columns</td></tr>
+<tr><td class="n">5</td><td>Wire Live/Terminated so ex-tenants stop being chased</td><td class="no">Q1</td><td>half a day</td></tr>
+<tr><td class="n">6</td><td>Import the Blue Stars contact list; bulk email goes live</td><td class="no">Q4</td><td>none &mdash; import already built &amp; tested</td></tr>
+<tr><td class="n">7</td><td>Fill Security Deposit + Risk Exposure columns</td><td class="no">Q2, Q3</td><td>half a day</td></tr>
+<tr><td class="n">8</td><td>UAT with MES</td><td>1&ndash;7</td><td>1 week</td></tr>
+<tr><td class="n">9</td><td>Deploy to MES-owned cloud, then 30 days stabilisation</td><td>UAT sign-off</td><td>per proposal</td></tr>
+</tbody></table>
+
+<div class="box good"><h5>The important thing about this list</h5>
+<p>Tasks 4, 5, 6 and 7 are all <b>small</b>. The code that consumes those columns is already written and tested &mdash; it is waiting for data, not for development. Almost the entire remaining risk is the four-item email, not the build.</p></div>
+
+<div class="box warn"><h5>Two things MES should also send before go-live</h5>
+<p><b>Email addresses</b> for the AR team, CSD and each RM, so reports can actually be sent from the dropdown. And the <b>sending mailbox</b> for production &mdash; per proposal section 8.4 this is set up by MES as an n8n credential on their own server.</p>
+<p>Also worth confirming: the reminder letters carry <b>MES &amp; JPD Housing&rsquo;s</b> bank details, but the August export is KT Mesdorm. If each entity banks separately, a letter would be asking tenants to pay the wrong company.</p></div>
+</section>
+
+<!-- =============================================== email -->
+<section id="email">
+<div class="sect-head"><span class="sect-num">&rarr;</span><h2>The email to send</h2><span class="tag t-block">4 items</span></div>
+<div class="box"><h5>Subject: AR Automation &mdash; 4 items we need</h5>
+<p>Hi Raman,</p>
+<p>The September files are parsing cleanly &mdash; our totals reconcile exactly to your customer subtotals ($2,782,348.27 across 190 accounts, 3,117 lines, nothing rejected). Four things are blocking the last pieces.</p>
+<p><b>1. Three columns on the <code>Custom A/R Aging Detail</code> export.</b> Your <code>Finance AR Download</code> saved search already has them; this one doesn't: <code>Primary Sales Rep</code> (without it the RM report can't be built at all), <code>End User: Industry Type</code>, and <code>Status</code>. On Status &mdash; the contact list has 116 companies and every one is marked "Live", so there's no way to tell who has moved out. We currently treat all 190 as still renting, which means a company that left could receive the final notice citing the Employment of Foreign Manpower Regulations.</p>
+<p><b>2. Security deposit held, per tenant &mdash; which report?</b> Ray's mock-up shows figures like 34,000. The AR report only carries deposit lines still open (14 rows, $46,308 across all 190 accounts). We also checked whether it's a fixed multiple of monthly rent; it isn't &mdash; the ratios range from 0.25 to 7.4.</p>
+<p><b>3. How is Risk Exposure calculated?</b> We tried to infer it and can't, because the mock-up's own numbers don't reconcile &mdash; on all 10 rows the Grand Total differs from the sum of the aging columns, by anywhere from &minus;6,780 to +12,000. The formula in words is enough.</p>
+<p><b>4. Client contact list for Blue Stars.</b> Of the 49 companies with an email address in <code>R1 - 20260511.xlsx</code>, 25 are JPD1, 21 are JPD2 and 3 are Blue Stars &mdash; but the August export is entirely Blue Stars, with 190 accounts. So 185 have no address and can only be phoned. This blocks the 7th and the 21st.</p>
+<p>Two smaller items when convenient: email addresses for the AR team, CSD and each RM so reports can be sent from the dropdown, and the mailbox reminders should send from in production.</p>
+<p>Everything else is built and tested against your files.</p>
+<p>Best regards,<br/>Taha</p>
+</div>
+<p class="cap"><b>Items 1 and 4 stop work.</b> 2 and 3 affect three columns on one report &mdash; everything else ships without them.</p>
+</section>
+
+<div class="foot">
+MES AR Automation &middot; DeVinci Codes<br>
+Diagrams: C4 model for structure, UML sequence notation for behaviour, flowcharts for decision rules.<br>
+All figures parsed live from the September folder &middot; report dated 17 August 2026 &middot; 3,117 lines &middot; 190 accounts &middot; $2,782,348.27
+</div>
+</div>
