@@ -53,6 +53,10 @@ export default function PromisesPage() {
       templateId: template.id,
       templateName: template.name,
       subject: template.subject.replaceAll("{{company}}", p.companyName),
+      body: template.body
+        .replaceAll("{{company}}", p.companyName)
+        .replaceAll("{{amount}}", formatSgd(p.amount))
+        .replaceAll("{{dueBy}}", p.promisedFor),
       to: account?.emails ?? [],
     });
     markPromiseConfirmed(p.id);

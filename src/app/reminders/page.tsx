@@ -16,6 +16,14 @@ import {
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
+import { LetterView } from "@/components/LetterView";
+import {
+  DEADLINE_DAYS,
+  LETTER_DATE_FORMAT,
+  addDays,
+  fillLetter,
+  type LetterId,
+} from "@/lib/letters";
 import {
   Card,
   CardHeader,
@@ -29,30 +37,49 @@ import {
 /**
  * Fills the {{placeholders}} in a template from one account.
  *
- * MES's letters name today's date and a date to pay by, both written out in
- * full the way their own letters do: "7th April 2026". The pay-by date is six
- * days out, which is the gap in both of the letters they sent.
+ * Two things here used to be wrong, and both showed up in the letter a tenant
+ * would actually receive.
+ *
+ * The date was `new Date()`. Every other figure on every other screen is keyed
+ * off the date inside the uploaded AR report, because MES's Flow tab opens
+ * with "Pivot: AR Report Date". A letter quoting a balance as at 17 August and
+ * dating itself today is quoting a figure it does not carry the date for.
+ *
+ * The deadline was six days for both letters. MES's own samples give six on
+ * the first reminder and seven on the final notice, and the wording sits next
+ * to a threat to disrupt services, so a day short is not a rounding matter.
+ *
+ * Both now come from letters.ts, which is also where the wording itself lives,
+ * so the preview on this screen and the letter a simulation renders cannot
+ * drift apart again.
  */
-function merge(text: string, a: Account): string {
-  const today = new Date();
-  const payBy = new Date(today);
-  payBy.setDate(payBy.getDate() + 6);
+function merge(
+  text: string,
+  a: Account,
+  asOf: string,
+  templateId: string,
+): string {
+  const id: LetterId | null =
+    templateId === "reminder-7th"
+      ? "first-reminder"
+      : templateId === "final-21st"
+        ? "final-notice"
+        : null;
 
-  return text
-    .replaceAll("{{company}}", a.companyName)
-    .replaceAll("{{code}}", a.customerCode)
-    .replaceAll("{{property}}", a.propertyName)
-    .replaceAll("{{amount}}", formatSgd(a.total))
-    .replaceAll("{{overdue}}", formatSgd(overdueTotal(a)))
-    .replaceAll("{{today}}", longDate(today))
-    .replaceAll("{{dueBy}}", longDate(payBy));
-}
+  // Templates that answer something rather than going out on a fixed day (the
+  // promise confirmation, the 1FM note) have no sample from MES, so they take
+  // the first reminder's spacing and its long date form.
+  const fmt = LETTER_DATE_FORMAT[id ?? "first-reminder"];
+  const days = DEADLINE_DAYS[id ?? "first-reminder"];
 
-function longDate(d: Date): string {
-  return d.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
+  return fillLetter(text, {
+    company: a.companyName,
+    code: a.customerCode,
+    property: a.propertyName,
+    amount: a.total,
+    overdue: overdueTotal(a),
+    today: fmt.today(asOf),
+    dueBy: fmt.dueBy(addDays(asOf, days)),
   });
 }
 
@@ -63,6 +90,9 @@ export default function RemindersPage() {
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
+  // Which sent letter is open. The Sent list below is the only place an
+  // officer can see what actually went out to a tenant.
+  const [opened, setOpened] = useState<string | null>(null);
 
   const template =
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
@@ -151,7 +181,8 @@ export default function RemindersPage() {
         companyName: q.account.companyName,
         templateId: due.id,
         templateName: due.name,
-        subject: merge(due.subject, q.account),
+        subject: merge(due.subject, q.account, ds.asOf, due.id),
+        body: merge(due.body, q.account, ds.asOf, due.id),
         to: q.account.emails,
       })),
     );
@@ -335,31 +366,57 @@ export default function RemindersPage() {
           <CardHeader title="Sent" hint="Every one recorded with a timestamp." />
           <ul className="divide-y divide-line-grid">
             {store.emails.map((e) => (
-              <li key={e.id} className="flex flex-wrap gap-4 px-5 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">
-                    {e.companyName}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-ink-muted">
-                    {e.subject}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right text-[11px] text-ink-muted">
-                  <StatusBadge kind="good" label={e.templateName} />
-                  <div className="mt-1">
-                    {new Date(e.at).toLocaleString("en-SG")}
+              <li key={e.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpened(e.id)}
+                  className="flex w-full flex-wrap gap-4 px-5 py-3 text-left hover:bg-surface-alt"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink">
+                      {e.companyName}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-ink-muted">
+                      {e.subject}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-accent">
+                      Read the letter that went out
+                    </p>
                   </div>
-                </div>
+                  <div className="shrink-0 text-right text-[11px] text-ink-muted">
+                    <StatusBadge kind="good" label={e.templateName} />
+                    <div className="mt-1">
+                      {new Date(e.at).toLocaleString("en-SG")}
+                    </div>
+                  </div>
+                </button>
               </li>
             ))}
           </ul>
         </Card>
       ) : null}
 
+      {opened ? (
+        (() => {
+          const e = store.emails.find((x) => x.id === opened);
+          if (!e) return null;
+          return (
+            <Modal
+              wide
+              title={`Sent to ${e.companyName}`}
+              onClose={() => setOpened(null)}
+            >
+              <LetterView email={e} compact />
+            </Modal>
+          );
+        })()
+      ) : null}
+
       {drafting ? (
         <Draft
           account={drafting}
           template={template}
+          asOf={ds.asOf}
           onClose={() => setDrafting(null)}
         />
       ) : null}
@@ -418,7 +475,8 @@ export default function RemindersPage() {
                     companyName: q.account.companyName,
                     templateId: template.id,
                     templateName: template.name,
-                    subject: merge(template.subject, q.account),
+                    subject: merge(template.subject, q.account, ds.asOf, template.id),
+                    body: merge(template.body, q.account, ds.asOf, template.id),
                     to: q.account.emails,
                   })),
                 );
@@ -453,15 +511,22 @@ export default function RemindersPage() {
 function Draft({
   account,
   template,
+  asOf,
   onClose,
 }: {
   account: Account;
   template: Template;
+  /** The uploaded report's date, which is what the letter dates itself by. */
+  asOf: string;
   onClose: () => void;
 }) {
   const { notify } = useToast();
-  const [subject, setSubject] = useState(merge(template.subject, account));
-  const [body, setBody] = useState(merge(template.body, account));
+  const [subject, setSubject] = useState(
+    merge(template.subject, account, asOf, template.id),
+  );
+  const [body, setBody] = useState(
+    merge(template.body, account, asOf, template.id),
+  );
 
   function send() {
     recordEmail({
@@ -470,6 +535,7 @@ function Draft({
       templateId: template.id,
       templateName: template.name,
       subject,
+      body,
       to: account.emails,
     });
     notify(

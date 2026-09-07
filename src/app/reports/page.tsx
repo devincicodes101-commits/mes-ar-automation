@@ -11,6 +11,12 @@ import {
   rmReports,
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
+import { REVENUE_TABS, buildRevenueTab } from "@/lib/reports";
+import {
+  RECIPIENT_KIND_LABEL,
+  simulateReportSend,
+  type ReportDispatch,
+} from "@/lib/dispatch";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { downloadCsv, exportName } from "@/lib/export";
@@ -95,6 +101,22 @@ export default function ReportsPage() {
       rmReports(accounts, ds.managers).filter((m) => m.accounts.length > 0),
     [accounts, ds.managers],
   );
+
+  // The six tabs MES drew as empty sheets in their own workbook. Built from
+  // the uploaded invoice lines, and each one independently sendable, which is
+  // what their Flow tab asks for under Other Notes.
+  const sendable = useMemo(
+    () =>
+      REVENUE_TABS.map((spec) =>
+        buildRevenueTab(spec, ds.invoices, ds.asOf, null),
+      ),
+    [ds.invoices, ds.asOf],
+  );
+  const [sendingCode, setSendingCode] = useState(sendable[0]?.code ?? "");
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [dispatched, setDispatched] = useState<ReportDispatch | null>(null);
+
+  const recipients = store.settings.recipients;
 
   const activityRows =
     store.emails.length + store.calls.length + store.promises.length;
@@ -301,6 +323,138 @@ export default function ReportsPage() {
           </ul>
         </Card>
       </div>
+
+      {/* ------------------------------------------- email a report on demand */}
+      <Card>
+        <CardHeader
+          title="Email a report"
+          hint={
+            "MES's Flow tab asks for two things: any of the six reports " +
+            "emailable on demand from a dropdown, and the late payment report " +
+            "going to the AR team on the 16th with one or more managers " +
+            "chosen from a dropdown. Nothing leaves the prototype — the " +
+            "message is built and shown."
+          }
+        />
+
+        <div className="grid gap-4 border-b border-line-grid px-5 py-4 md:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-ink-muted">
+              Report
+            </span>
+            <select
+              value={sendingCode}
+              onChange={(e) => {
+                setSendingCode(e.target.value);
+                setDispatched(null);
+              }}
+              className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            >
+              {sendable.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name} — {r.lineCount} lines
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <fieldset className="min-w-0">
+            <legend className="mb-1.5 block text-xs font-medium text-ink-muted">
+              Send to (one or more)
+            </legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {recipients.map((r) => (
+                <label key={r.id} className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={chosen.includes(r.id)}
+                    onChange={(e) => {
+                      setChosen((c) =>
+                        e.target.checked
+                          ? [...c, r.id]
+                          : c.filter((x) => x !== r.id),
+                      );
+                      setDispatched(null);
+                    }}
+                    className="h-3.5 w-3.5 accent-[var(--accent)]"
+                  />
+                  <span className="text-xs text-ink-secondary">
+                    {r.name}
+                    {r.email ? null : (
+                      <span className="text-ink-muted"> · no address</span>
+                    )}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+          <button
+            type="button"
+            disabled={!canAct}
+            onClick={() => {
+              const report = sendable.find((r) => r.code === sendingCode);
+              if (!report) return;
+              const picked = recipients.filter((r) => chosen.includes(r.id));
+              const out = simulateReportSend(report, picked, ds.asOf);
+              setDispatched(out);
+              notify(
+                out.state === "simulated"
+                  ? `Prepared "${out.subject}" for ${out.to.length} recipient${out.to.length === 1 ? "" : "s"}. Nothing was sent.`
+                  : out.reason ?? "Could not send.",
+              );
+            }}
+            className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-40"
+          >
+            Prepare email
+          </button>
+          <span className="text-xs text-ink-muted">
+            Addresses are set in Settings. MES have not sent one for anybody
+            internal, so they start empty rather than invented.
+          </span>
+        </div>
+
+        {dispatched ? (
+          <div className="border-t border-line-grid px-5 py-4">
+            <div className="mb-2.5 flex flex-wrap items-center gap-2.5">
+              <StatusBadge
+                kind={dispatched.state === "simulated" ? "good" : "warning"}
+                label={
+                  dispatched.state === "simulated"
+                    ? "Ready to send"
+                    : "Cannot send yet"
+                }
+              />
+              <Tag>{dispatched.rows} rows</Tag>
+              <Tag>{dispatched.attachment}</Tag>
+            </div>
+            {dispatched.reason ? (
+              <p className="mb-2.5 text-xs text-ink-secondary">
+                {dispatched.reason}
+              </p>
+            ) : null}
+            <p className="mb-1 text-xs text-ink-muted">
+              To:{" "}
+              {dispatched.to.length === 0
+                ? "nobody"
+                : dispatched.to
+                    .map(
+                      (r) =>
+                        `${r.name} (${RECIPIENT_KIND_LABEL[r.kind]}${r.email ? ` · ${r.email}` : ""})`,
+                    )
+                    .join(", ")}
+            </p>
+            <p className="mb-2 text-xs text-ink-muted">
+              Subject: <span className="text-ink">{dispatched.subject}</span>
+            </p>
+            <pre className="tabular overflow-x-auto whitespace-pre-wrap rounded border border-line-hair bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-secondary">
+              {dispatched.body}
+            </pre>
+          </div>
+        ) : null}
+      </Card>
 
       {/* ----------------------------------------------- industry breakdown */}
       <Card>

@@ -241,3 +241,76 @@ export function EmptyState({
     </div>
   );
 }
+
+/* ---------------------------------------------------------------- loading */
+
+/**
+ * A spinner, for work that takes long enough to notice.
+ *
+ * Parsing three thousand invoice lines and hashing a password both take a
+ * beat. Without a sign that something is happening, people click twice, which
+ * on a send button is worse than a slow screen.
+ */
+export function Spinner({ size = 14 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent align-[-2px]"
+      style={{ width: size, height: size, opacity: 0.55 }}
+    />
+  );
+}
+
+/** A spinner with a line of text, for a panel that is still filling. */
+export function Loading({
+  label = "Loading",
+  className = "",
+}: {
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`flex items-center justify-center gap-2.5 px-5 py-10 text-xs text-ink-muted ${className}`}
+    >
+      <Spinner />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- scrolling */
+
+/**
+ * A panel that scrolls inside itself instead of lengthening the page.
+ *
+ * The screens read a whole month of invoice lines, so a table left to grow
+ * pushes the totals and the controls above it off the top of the window.
+ * Capping the height keeps the heading, the figures and the first rows all
+ * visible while the rows themselves move.
+ *
+ * `max-height` rather than `height`, so a short list does not leave a band of
+ * empty space under it.
+ */
+export function ScrollPanel({
+  children,
+  max = 380,
+  className = "",
+}: {
+  children: ReactNode;
+  /** Pixels. Roughly ten table rows at the default row height. */
+  max?: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`overflow-y-auto overflow-x-auto overscroll-contain ${className}`}
+      style={{ maxHeight: max }}
+      tabIndex={0}
+    >
+      {children}
+    </div>
+  );
+}

@@ -12,6 +12,7 @@ import { BUCKETS } from "@/lib/types";
 import { CALL_OUTCOMES, useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
+import { recurringDefaulters } from "@/lib/reports";
 import {
   BucketSwatch,
   Card,
@@ -20,6 +21,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  ScrollPanel,
 } from "@/components/ui";
 
 /**
@@ -66,20 +68,43 @@ export default function DefaultersPage() {
     return m;
   }, [store.calls, store.promises]);
 
+  /**
+   * How often a tenant has actually failed.
+   *
+   * This used to count only the late payment fee, which misses half the
+   * population. A tenant on GIRO whose deduction bounces is never charged that
+   * fee at all: they get "Admin Fee for Rejected Giro" instead, and the two are
+   * mutually exclusive in MES's ledger. Counting one and not the other made
+   * the worst repeat offender in the August export invisible here, because all
+   * three of their failures were bounced deductions.
+   *
+   * Both are counted now, and the bounced months are named, because "failed in
+   * January, February and March" is a different conversation from "failed
+   * three times at some point".
+   */
+  const failures = useMemo(
+    () => recurringDefaulters(ds.invoices, ds.accounts, 2),
+    [ds.invoices, ds.accounts],
+  );
+
   const rows = useMemo(() => {
+    const byCode = new Map(failures.map((f) => [f.customerCode.toUpperCase(), f]));
     return scope(ds.accounts)
       .filter((a) => !isInCredit(a))
-      .map((a) => ({
-        account: a,
-        months: a.lateFeeCount,
-        severe: severeTotal(a),
-        overdue: overdueTotal(a),
-      }))
+      .map((a) => {
+        const f = byCode.get(a.customerCode.toUpperCase());
+        return {
+          account: a,
+          months: (f?.failures ?? 0) + (f?.lateFees ?? 0),
+          giroFails: f?.failures ?? 0,
+          bouncedMonths: f?.months ?? [],
+          severe: severeTotal(a),
+          overdue: overdueTotal(a),
+        };
+      })
       .filter((r) => r.months >= 2 || r.severe > 0)
-      .sort(
-        (x, y) => y.months - x.months || y.severe - x.severe,
-      );
-  }, [ds, scope]);
+      .sort((x, y) => y.months - x.months || y.severe - x.severe);
+  }, [ds, scope, failures]);
 
   const chronic = rows.filter((r) => r.months >= 3);
   const atRisk = rows.filter((r) => r.months < 3);
@@ -125,9 +150,9 @@ export default function DefaultersPage() {
             body="Nobody has repeated late fees or a balance over 90 days."
           />
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollPanel max={440}>
             <table className="w-full min-w-[820px] border-collapse text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
                   <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
                     Tenant
@@ -185,6 +210,14 @@ export default function DefaultersPage() {
 
                     <td className="tabular px-3 py-3 text-right text-ink-secondary">
                       {r.months > 0 ? r.months : "-"}
+                      {/* Which months the deduction actually bounced. A tenant
+                          who failed in three consecutive months is a different
+                          case from one who failed three times over a year. */}
+                      {r.bouncedMonths.length > 0 ? (
+                        <span className="mt-0.5 block text-[10px] font-normal text-ink-muted">
+                          {r.giroFails} GIRO · {r.bouncedMonths.join(" ")}
+                        </span>
+                      ) : null}
                     </td>
 
                     {/* Proposal 4.6: outcome classifications from the calls. */}
@@ -230,7 +263,7 @@ export default function DefaultersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollPanel>
         )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line-hair bg-surface-alt px-5 py-2.5">

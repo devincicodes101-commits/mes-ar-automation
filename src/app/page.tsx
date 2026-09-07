@@ -22,6 +22,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  ScrollPanel,
 } from "@/components/ui";
 
 type StatusFilter = "Live" | "Terminated";
@@ -238,9 +239,9 @@ export default function AgingBoardPage() {
             body="Change the property or status filter to see accounts."
           />
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollPanel max={440}>
             <table className="w-full min-w-[900px] border-collapse text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
                   <th
                     aria-sort={sortState("name")}
@@ -329,7 +330,7 @@ export default function AgingBoardPage() {
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollPanel>
         )}
       </Card>
     </div>
@@ -462,9 +463,9 @@ function ChargeTypeTable({
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <ScrollPanel max={440}>
         <table className="w-full min-w-[900px] border-collapse text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-surface">
             <tr className="border-b border-line-grid text-left">
               <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
                 What the charge is for
@@ -533,7 +534,7 @@ function ChargeTypeTable({
             </tr>
           </tfoot>
         </table>
-      </div>
+      </ScrollPanel>
     </>
   );
 }
@@ -631,7 +632,7 @@ function AccountRow({
               </p>
             ) : (
               <table className="w-full text-xs">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-surface">
                   <tr className="text-left text-ink-muted">
                     <th className="py-1.5 pr-4 font-medium">Revenue type</th>
                     <th className="py-1.5 pr-4 font-medium">Document</th>

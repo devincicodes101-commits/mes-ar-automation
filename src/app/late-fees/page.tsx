@@ -11,6 +11,7 @@ import {
 import { recordExport, useStore } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
+import { giroEnrolled } from "@/lib/reports";
 import {
   Card,
   CardHeader,
@@ -19,6 +20,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  ScrollPanel,
 } from "@/components/ui";
 
 /**
@@ -36,9 +38,34 @@ export default function LateFeesPage() {
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
   const [preview, setPreview] = useState(false);
 
-  const lines = useMemo(
+  const all = useMemo(
     () => feesDue(scope(ds.accounts), rule, ds.invoices),
     [ds, rule, scope],
+  );
+
+  /**
+   * Tenants on GIRO, held back from the listing.
+   *
+   * Jacqueline's standing note to the AR team: "check if I might have included
+   * the giro clients in the listing and remove accordingly." She does it by
+   * hand every month.
+   *
+   * They are identifiable without the bank statement MES dropped, because a
+   * bounced deduction raises its own invoice line. In their August export six
+   * tenants carry a rejected-GIRO fee and six different ones carry the
+   * ordinary late payment fee, and not one carries both.
+   *
+   * Held back and listed, never dropped: an exclusion nobody can see is an
+   * exclusion nobody can check.
+   */
+  const onGiro = useMemo(() => giroEnrolled(ds.invoices), [ds.invoices]);
+  const lines = useMemo(
+    () => all.filter((l) => !onGiro.has(l.account.customerCode.toUpperCase())),
+    [all, onGiro],
+  );
+  const excluded = useMemo(
+    () => all.filter((l) => onGiro.has(l.account.customerCode.toUpperCase())),
+    [all, onGiro],
   );
   // Where an upload carried no line detail the selection falls back to the
   // aging buckets, which cannot express "14 days past due". Said out loud
@@ -196,9 +223,9 @@ export default function LateFeesPage() {
             body="No tenant meets the rule above."
           />
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollPanel max={440}>
             <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
                   <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
                     Tenant
@@ -272,9 +299,60 @@ export default function LateFeesPage() {
                 </tr>
               </tfoot>
             </table>
-          </div>
+          </ScrollPanel>
         )}
       </Card>
+
+      {/* The exclusion, shown rather than silently applied. */}
+      {excluded.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Held back because they are on GIRO"
+            hint="Jacqueline removes these by hand each month. They are identified by carrying a rejected-GIRO fee, so no bank statement is needed."
+            right={
+              <StatusBadge
+                kind="warning"
+                label={`${excluded.length} excluded`}
+              />
+            }
+          />
+          <ScrollPanel max={280}>
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-surface">
+                <tr className="border-b border-line-grid text-left">
+                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
+                    Tenant
+                  </th>
+                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">
+                    Overdue
+                  </th>
+                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
+                    Why
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {excluded.map((l) => (
+                  <tr key={l.account.id} className="border-b border-line-grid">
+                    <td className="px-5 py-2.5">
+                      <span className="text-ink">{l.account.companyName}</span>
+                      <span className="ml-2 text-[11px] text-ink-muted">
+                        {l.account.customerCode}
+                      </span>
+                    </td>
+                    <td className="tabular px-3 py-2.5 text-right text-ink-secondary">
+                      {formatSgd(l.overdue)}
+                    </td>
+                    <td className="px-5 py-2.5 text-[11px] text-ink-muted">
+                      Carries a rejected-GIRO fee
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollPanel>
+        </Card>
+      ) : null}
 
       {preview ? (
         <Modal

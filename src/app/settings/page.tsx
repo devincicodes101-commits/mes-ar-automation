@@ -9,6 +9,7 @@ import {
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { REVENUE_RULES } from "@/lib/revenue-rules";
+import { RECIPIENT_KIND_LABEL } from "@/lib/dispatch";
 import {
   Card,
   CardHeader,
@@ -151,6 +152,48 @@ export default function SettingsPage() {
             sent before they can be released, rather than being editable here.
           </p>
         </div>
+      </Card>
+
+      {/* ------------------------------------------------ internal recipients */}
+      <Card>
+        <CardHeader
+          title="Who reports can be emailed to"
+          hint="The people the Reports screen offers in its dropdown. MES have never sent an address for anybody internal, so these start empty rather than guessed."
+        />
+        <ul className="divide-y divide-line-grid">
+          {store.settings.recipients.map((r) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-ink">{r.name}</p>
+                <p className="text-xs text-ink-muted">
+                  {RECIPIENT_KIND_LABEL[r.kind]}
+                </p>
+              </div>
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Email address for {r.name}</span>
+                <input
+                  type="email"
+                  value={r.email ?? ""}
+                  placeholder="no address yet"
+                  disabled={!canAct}
+                  onChange={(e) => {
+                    const email = e.target.value.trim() || null;
+                    updateSettings({
+                      recipients: store.settings.recipients.map((x) =>
+                        x.id === r.id ? { ...x, email } : x,
+                      ),
+                    });
+                  }}
+                  className="w-full rounded border border-line-hair bg-surface px-3 py-1.5 text-sm text-ink disabled:opacity-50"
+                />
+              </label>
+              <StatusBadge
+                kind={r.email ? "good" : "warning"}
+                label={r.email ? "Can be sent to" : "Cannot be sent to"}
+              />
+            </li>
+          ))}
+        </ul>
       </Card>
 
       {/* ---------------------------------------------------------- wording */}
