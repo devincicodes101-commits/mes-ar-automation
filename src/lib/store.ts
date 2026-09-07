@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { DEFAULT_RECIPIENTS, type Recipient } from "./dispatch.ts";
+import { LETTER_BODIES } from "./letters.ts";
 
 /**
  * Prototype store.
@@ -63,6 +65,25 @@ export interface SentEmail {
   templateId: string;
   templateName: string;
   subject: string;
+  /**
+   * The rendered letter, exactly as it went out.
+   *
+   * Kept because a subject line and a recipient tell you a send happened, not
+   * whether it was right. Every merge field, date and amount is decided at
+   * send time, so the body is the only place a template fault is visible, and
+   * by the time anyone notices, the inputs that produced it have moved on.
+   *
+   * Optional, and the two falsy cases mean different things:
+   *
+   *   undefined  the send predates this field. Nothing was captured, and
+   *              nothing is wrong.
+   *   ""         a letter really did go out with no text in it. That is a
+   *              fault worth shouting about.
+   *
+   * Collapsing them to one empty string, which is what this did first, made
+   * every old record accuse the system of sending blank letters.
+   */
+  body?: string;
   to: string[];
   at: string;
 }
@@ -109,6 +130,17 @@ export interface Settings {
    * supported and neither is a workaround.
    */
   autoSendReminders: boolean;
+  /**
+   * Who inside MES a report can be emailed to.
+   *
+   * MES's Flow tab asks for the late payment report to go to "one or more RMs
+   * from drop down", and for any of the six reports to be emailable on
+   * demand. Neither is possible without an address, and MES have never sent
+   * one for anybody internal: their own screenshots show "To: Ray, Cc: Jamie"
+   * with Outlook resolving the rest. So the list is maintained here instead of
+   * imported, and starts with the names their documents use and no addresses.
+   */
+  recipients: Recipient[];
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -117,6 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // recorded here rather than left as an unexplained default. Anyone turning
   // it off is going back to the originally agreed process, not breaking it.
   autoSendReminders: true,
+  recipients: DEFAULT_RECIPIENTS,
 };
 
 export interface StoreState {
@@ -162,43 +195,10 @@ export const DEFAULT_TEMPLATES: Template[] = [
     trigger: "7th of the month",
     triggerDay: 7,
     subject: "Outstanding rental payment, {{company}}",
-    body: `Dear {{company}},
-
-We hope this finds you well.
-
-We refer to the above subject and would like to bring your attention to your outstanding dues.
-
-Rental is payable on the 1st working day of each calendar month via Giro. However, we would like to bring to your attention that we have yet to receive the outstanding rental payment due from you. As of today, {{today}}, the outstanding amount stands at $ {{amount}}, which consists of rental and maintenance charges.
-
-Please take note that if payment is not received by the 15th day of each calendar month, an administrative fee for late payment amounting to $100.00 (before prevailing GST) will be charged.
-
-If you have already processed payment or paid the outstanding rental, kindly ignore this email.
-
-If you have not, kindly assist us with payment as soon as possible.
-
-If you choose to pay by cheque, kindly take note that a cheque admin fee of $50 is chargeable from 1st August 2022. Please fill in the enclosed Direct Debit Application form and send the original form back to us.
-
-You can make the payment via bank transfer or PayNow and kindly send a screenshot of the transaction to ar@dormitory.com.sg for confirmation.
-
-Bank Transfer Detail
-DBS Account Number: 011-901192-0
-MES & JPD HOUSING PTE LTD
-
-PAYNOW Detail
-UEN: 200412284W, MES & JPD HOUSING PTE LTD
-
-Please indicate invoice no. in the remarks.
-
-We seek your kind understanding and co-operation to settle your outstanding dues latest by {{dueBy}}.
-
-Should you have any further clarifications, please contact me soonest possible.
-
-Best Regards,
-
-Jacqueline
-Credit Control Officer, Finance Department
-DID Tel: 6349 5019
-Office No: 6337 2666`,
+    // MES's wording, from letters.ts. Kept in one place because it used to be
+    // in two, and the two had drifted: this screen was giving six days to pay
+    // on the final notice where MES's own sample gives seven.
+    body: LETTER_BODIES["first-reminder"],
   },
   {
     id: "final-21st",
@@ -206,39 +206,7 @@ Office No: 6337 2666`,
     trigger: "21st of the month",
     triggerDay: 21,
     subject: "Final reminder, outstanding rental payment for {{company}}",
-    body: `Dear {{company}},
-
-We hope this finds you well.
-
-Under the contract we entered, you were to pay rental by the 1st working day of each calendar month via Giro. However, we have yet to receive your outstanding rental payment and maintenance charges of $ {{amount}} as of today, {{today}}. Despite our reminders, we have yet to receive payment.
-
-Please take note that if payment is not received by the 15th day of each calendar month, an administrative fee for late payment amounting to $100.00 (before prevailing GST) will be charged.
-
-Do also take note that employers who fail to pay rent for their foreign workers living in dormitories would be in breach of the Employment of Foreign Manpower (Work Passes) Regulations 2012.
-
-If you have already processed payment or paid the outstanding rental, kindly ignore this email.
-
-If you have not, we strongly urge you to make payment urgently.
-
-You can make the payment via bank transfer or PayNow and kindly send a screenshot of the transaction to ar@dormitory.com.sg for confirmation.
-
-Bank Transfer Detail
-DBS Account Number: 011-901192-0
-MES & JPD HOUSING PTE LTD
-
-PAYNOW Detail
-UEN: 200412284W, MES & JPD HOUSING PTE LTD
-
-Please indicate invoice no. in the remarks.
-
-We seek your kind understanding and co-operation to settle your outstanding dues latest by {{dueBy}}. If you do not make payment within the stipulated time, we shall have no choice but to consider disruption of our services to you and all other available legal options.
-
-Should you have any further clarifications, please contact me soonest possible.
-
-Jacqueline Fong
-Credit Control Officer, Finance Department
-DID Tel: 6349 5019
-Office No: 6337 2666`,
+    body: LETTER_BODIES["final-notice"],
   },
   {
     id: "promise-confirmation",
@@ -299,6 +267,7 @@ function read(): StoreState {
     return {
       calls: parsed.calls ?? [],
       promises: parsed.promises ?? [],
+      // Left undefined on purpose where it was never captured. See SentEmail.
       emails: parsed.emails ?? [],
       audit: parsed.audit ?? [],
       templates: parsed.templates?.length ? parsed.templates : DEFAULT_TEMPLATES,

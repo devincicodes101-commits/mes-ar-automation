@@ -5,21 +5,33 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react";
 import { Account } from "./types";
 import { data } from "./data";
+import {
+  type Capability,
+  type Role,
+  type Session,
+  type User,
+  ROLE_LABEL,
+  ROLE_SUMMARY,
+  SESSION_KEY,
+  can as roleCan,
+  canOpen,
+  readSession,
+} from "./auth.ts";
+import {
+  restore as restoreRemote,
+  signIn as remoteSignIn,
+  signOut as remoteSignOut,
+  usingSupabase,
+} from "./supabase-auth.ts";
 
-/* ------------------------------------------------------------------ roles */
-
-export type Role = "CSD Officer" | "Relationship Manager" | "Management";
-
-export const ROLES: Role[] = [
-  "CSD Officer",
-  "Relationship Manager",
-  "Management",
-];
+export type { Role, Capability, Session, User };
+export { ROLE_LABEL, ROLE_SUMMARY, canOpen };
 
 export interface Manager {
   key: string;
@@ -30,36 +42,125 @@ export const MANAGERS: Manager[] =
   (data as unknown as { managers?: Manager[] }).managers ?? [];
 
 interface SessionValue {
-  role: Role;
-  setRole: (r: Role) => void;
-  /** Which relationship manager is signed in, when the role is RM. */
-  rmKey: string;
-  setRmKey: (k: string) => void;
-  /** Can this role send reminders, log calls, raise fees, export? */
+  /** Null until somebody signs in. Every screen is gated on this. */
+  session: Session | null;
+  /** False during the first render, before local storage has been read. */
+  ready: boolean;
+  role: Role | null;
+  /** Which relationship manager's book is visible, when the role is RM. */
+  rmKey: string | null;
+  /** Shorthand the screens already use: may this person change anything? */
   canAct: boolean;
+  /** The real question, asked per action rather than per role. */
+  can: (capability: Capability) => boolean;
   /** Narrows any account list to what this role is allowed to see. */
   scope: (accounts: Account[]) => Account[];
-  /** One line describing what the current role can see, shown in the header. */
+  /** One line describing what the current role can see. */
   scopeNote: string;
+  signIn: (username: string, password: string) => Promise<string | null>;
+  signOut: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
 
 /**
- * Role based access, proposal 4.9 and 8.1.
+ * Signing in, and what the signed in person may do.
  *
- * In production this is enforced by Supabase row level security, so the
- * database refuses to return rows the signed in user is not entitled to. This
- * provider mirrors the same rules in the prototype so the walkthrough can
- * demonstrate them. It is a demonstration of the policy, not the policy.
+ * The session is kept in local storage so a refresh does not sign anybody out
+ * mid-cycle, and carries its own expiry so an unattended machine does not stay
+ * open indefinitely. `readSession` treats anything malformed or expired as no
+ * session at all rather than trying to repair it.
+ *
+ * What this is not: security. See the note at the top of auth.ts. The gate
+ * lives in the browser, so in production the same rules are enforced again by
+ * Supabase row level security, which is what actually stops a person reading
+ * rows they are not entitled to.
  */
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<Role>("CSD Officer");
-  const [rmKey, setRmKey] = useState<string>(MANAGERS[0]?.key ?? "rm1");
+  const [session, setSession] = useState<Session | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // Local storage is not available while rendering on the server, so the first
+  // client render restores the session. Until it has, `ready` is false and the
+  // shell renders nothing, which also avoids a hydration mismatch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // With a database configured, it is the only authority on who is signed
+      // in. Without one, the browser gate in auth.ts stands in.
+      if (usingSupabase) {
+        const s = await restoreRemote().catch(() => null);
+        if (!cancelled) {
+          setSession(s);
+          setReady(true);
+        }
+        return;
+      }
+      try {
+        if (!cancelled) setSession(readSession(window.localStorage.getItem(SESSION_KEY)));
+      } catch {
+        if (!cancelled) setSession(null);
+      }
+      if (!cancelled) setReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // An expiry that passes while the tab is open should sign the person out,
+  // not wait for the next refresh.
+  useEffect(() => {
+    if (!session) return;
+    // Supabase refreshes its own token, so an expiry passing there is not a
+    // sign out. Only the offline fallback needs a timer.
+    if (usingSupabase) return;
+    const ms = Date.parse(session.expiresAt) - Date.now();
+    if (ms <= 0) {
+      setSession(null);
+      return;
+    }
+    const t = window.setTimeout(() => setSession(null), Math.min(ms, 2 ** 31 - 1));
+    return () => window.clearTimeout(t);
+  }, [session]);
+
+  const signIn = useCallback(async (username: string, password: string) => {
+    const result = await remoteSignIn(username, password);
+    if (!result.ok) return result.reason;
+
+    // Supabase keeps its own session; the local copy is only for the offline
+    // fallback, and writing it in both modes would leave a stale session
+    // behind after a database sign out.
+    if (!usingSupabase) {
+      try {
+        window.localStorage.setItem(SESSION_KEY, JSON.stringify(result.session));
+      } catch {
+        // A private window can refuse storage. The session still works for
+        // this tab, it just will not survive a refresh.
+      }
+    }
+    setSession(result.session);
+    return null;
+  }, []);
+
+  const signOut = useCallback(() => {
+    void remoteSignOut().catch(() => {
+      /* signing out locally matters more than the round trip succeeding */
+    });
+    try {
+      window.localStorage.removeItem(SESSION_KEY);
+    } catch {
+      /* nothing to clear */
+    }
+    setSession(null);
+  }, []);
+
+  const role = session?.role ?? null;
+  const rmKey = session?.rmKey ?? null;
 
   const scope = useCallback(
     (accounts: Account[]) => {
-      if (role !== "Relationship Manager") return accounts;
+      if (role !== "RM") return accounts;
       return accounts.filter(
         (a) => (a as Account & { rm?: string }).rm === rmKey,
       );
@@ -67,23 +168,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [role, rmKey],
   );
 
-  const value = useMemo<SessionValue>(() => {
-    const manager = MANAGERS.find((m) => m.key === rmKey);
-    return {
+  const value = useMemo<SessionValue>(
+    () => ({
+      session,
+      ready,
       role,
-      setRole,
       rmKey,
-      setRmKey,
-      canAct: role === "CSD Officer",
+      canAct: roleCan(role, "send-reminders"),
+      can: (c: Capability) => roleCan(role, c),
       scope,
-      scopeNote:
-        role === "CSD Officer"
-          ? "Every tenant, and you can send, call and raise fees."
-          : role === "Relationship Manager"
-            ? `Only the tenants assigned to ${manager?.name ?? "you"}. View only.`
-            : "Every tenant across all properties. View only.",
-    };
-  }, [role, rmKey, scope]);
+      scopeNote: role ? ROLE_SUMMARY[role] : "Not signed in.",
+      signIn,
+      signOut,
+    }),
+    [session, ready, role, rmKey, scope, signIn, signOut],
+  );
 
   return (
     <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
