@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { data, formatSgd, kpis } from "@/lib/data";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
 import { unrecognisedDescriptions } from "@/lib/revenue-rules";
 import { applyDataset, datasetFromResults, revertToSample, useDataset } from "@/lib/dataset";
+import { checkUpload, worst, type Finding } from "@/lib/upload-checks";
 
 type Phase = "idle" | "parsing" | "done";
 
@@ -42,6 +43,7 @@ export default function UploadPage() {
   const ds = useDataset();
   const [phase, setPhase] = useState<Phase>("idle");
   const [arFile, setArFile] = useState<File | null>(null);
+  const [contactFile, setContactFile] = useState<File | null>(null);
   const [results, setResults] = useState<ParseResult[]>([]);
   const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function UploadPage() {
     setError(null);
     setPhase("parsing");
 
-    const chosen = [arFile].filter(Boolean) as File[];
+    const chosen = [arFile, contactFile].filter(Boolean) as File[];
     if (chosen.length === 0) {
       setResults([]);
       setPhase("done");
@@ -90,6 +92,7 @@ export default function UploadPage() {
   function reset() {
     setPhase("idle");
     setArFile(null);
+    setContactFile(null);
     setResults([]);
     setError(null);
   }
@@ -127,14 +130,24 @@ export default function UploadPage() {
         </Card>
       ) : null}
 
-      {/* One input. The DBS bank report was removed at the client's
-          request: see docs/dbs-removal.md. */}
+      {/* Two inputs, and they are not equals. The AR report is the cycle;
+          the contact list is a reference file that changes rarely. The DBS
+          bank report was removed at the client's request: see
+          docs/dbs-removal.md. */}
       <DropZone
         title="AR Report"
-        hint="The export from NetSuite. This is the only file the system needs."
-        note="Every worksheet in the file is listed back to you once it has been read."
+        hint="The export from NetSuite. Upload this every cycle."
+        note="Custom A/R Aging Detail. One sheet. Everything on every screen comes from it."
         file={arFile}
         onFile={setArFile}
+      />
+
+      <DropZone
+        title="Client contact list"
+        hint="Only when it changes. The system keeps the last one you gave it."
+        note="The workbook with an Email Address column. Without it, reminders cannot be addressed and tenants can only be phoned."
+        file={contactFile}
+        onFile={setContactFile}
       />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -144,7 +157,11 @@ export default function UploadPage() {
           disabled={phase === "parsing" || !canAct}
           className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {phase === "parsing" ? "Reading the file" : "Read the file"}
+          {phase === "parsing"
+            ? "Reading"
+            : [arFile, contactFile].filter(Boolean).length === 2
+              ? "Read both files"
+              : "Read the file"}
         </button>
 
         {phase === "done" ? (
@@ -177,21 +194,42 @@ export default function UploadPage() {
       ) : null}
 
       {ds.source === "uploaded" ? (
-        <Card className="flex flex-wrap items-center gap-3 px-5 py-3">
-          <StatusBadge kind="good" label="Using your uploaded file" />
-          <p className="flex-1 text-xs text-ink-secondary">
-            {ds.accounts.length} tenants, period {ds.period}, as at {ds.asOf}.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              revertToSample();
-              notify("Back to the sample data");
-            }}
-            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
-          >
-            Use the sample instead
-          </button>
+        <Card className="px-5 py-3.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge kind="good" label="Using your uploaded file" />
+            <p className="flex-1 text-xs text-ink-secondary">
+              {ds.accounts.length} tenants, period {ds.period}, as at {ds.asOf}.
+              <span className="font-medium text-ink">
+                {" "}Nothing further to do here.
+              </span>{" "}
+              Every screen is using this file.
+            </p>
+          </div>
+
+          {/* The way out, not the next step.
+              This sat beside the green tick reading "Use the sample instead",
+              which after a successful upload looks like an instruction rather
+              than an undo. It is separated, named for what it does, and says
+              what it costs. */}
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line-hair pt-3">
+            <p className="flex-1 text-[11px] text-ink-muted">
+              Uploaded the wrong file? Discard it and go back to the built-in
+              sample. Your calls, promises and typed-in addresses are kept.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                revertToSample();
+                notify(
+                  "Discarded the uploaded file",
+                  "Back to the built-in sample data.",
+                );
+              }}
+              className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink-muted hover:border-line-strong hover:text-ink"
+            >
+              Discard this file
+            </button>
+          </div>
         </Card>
       ) : null}
 
@@ -223,11 +261,32 @@ function ApplyBar({
   canAct: boolean;
   onApplied: (label: string) => void;
 }) {
+  const active = useDataset();
   const built = datasetFromResults(results, period);
   const errors = results.reduce(
     (n, r) => n + r.problems.filter((p) => p.severity === "error").length,
     0,
   );
+
+  /**
+   * Whether the file just read is already the one every screen is using.
+   *
+   * Without this the screen contradicted itself: after pressing "Use this
+   * data" it went on asking "Use this file across the whole application?"
+   * directly above a green tick saying the file was already in use. Somebody
+   * reading that reasonably concludes the button did not work and presses it
+   * again.
+   *
+   * Compared on the report date and the row counts rather than on a file name,
+   * because MES rename their exports between months and the same figures read
+   * twice are the same dataset whatever the file was called.
+   */
+  const alreadyApplied =
+    built !== null &&
+    active.source === "uploaded" &&
+    active.asOf === built.asOf &&
+    active.accounts.length === built.accounts.length &&
+    active.invoices.length === built.invoices.length;
 
   if (!built) {
     return (
@@ -241,6 +300,10 @@ function ApplyBar({
       </Card>
     );
   }
+
+  // Already in use. The green banner below says so; asking again would only
+  // invite a second press.
+  if (alreadyApplied) return null;
 
   return (
     <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
@@ -371,24 +434,42 @@ function ParseReport({
   const summary = results.find((r) => r.kind === "ar-summary");
   const detail = results.find((r) => r.kind === "ar-detail");
   const contactList = results.find((r) => r.kind === "contact-list");
+
+  // MES's current export. It carries the balances and the invoice lines in
+  // one file, so it stands in for both of the two above rather than for
+  // either: without this every figure on this panel read "not loaded" for
+  // the only file they actually send now.
+  const aging = results.find((r) => r.kind === "ar-aging-detail");
   const problems = results.flatMap((r) => r.problems);
   const errors = problems.filter((p) => p.severity === "error");
   const warnings = problems.filter((p) => p.severity === "warning");
 
   const usingSample = results.length === 0;
+  const active = useDataset();
+  const findings = useMemo(
+    () => (results.length === 0 ? [] : checkUpload(results, active)),
+    [results, active],
+  );
 
-  const accountCount = summary ? summary.accounts.length : fallback.accounts;
-  const total = summary
-    ? summary.accounts.reduce((s, a) => s + a.total, 0)
+  const balances = summary ?? aging ?? null;
+  const lines = aging ?? detail ?? null;
+
+  const accountCount = balances ? balances.accounts.length : fallback.accounts;
+  const total = balances
+    ? balances.accounts.reduce((s, a) => s + a.total, 0)
     : fallback.total;
-  const inCredit = summary
-    ? summary.accounts.filter((a) => a.total < 0).length
+  const inCredit = balances
+    ? balances.accounts.filter((a) => a.total < 0).length
     : 0;
-  const emailCount = detail ? detail.contacts.length : fallback.withEmail;
-  const chargeTypes = detail
-    ? new Set(detail.invoices.map((i) => i.revenueType)).size
+  const emailCount = detail
+    ? detail.contacts.length
+    : aging
+      ? aging.accounts.filter((a) => a.emails.length > 0).length
+      : fallback.withEmail;
+  const chargeTypes = lines
+    ? new Set(lines.invoices.map((i) => i.revenueType)).size
     : 0;
-  const oneFm = detail ? detail.invoices.filter((i) => i.isOneFm).length : 0;
+  const oneFm = lines ? lines.invoices.filter((i) => i.isOneFm).length : 0;
 
   return (
     <Card>
@@ -413,29 +494,41 @@ function ParseReport({
         <Figure label="Total owed" value={`SGD ${formatSgd(total)}`} />
         <Figure
           label="Charge types"
-          value={detail ? String(chargeTypes) : "not loaded"}
+          value={lines ? String(chargeTypes) : "not loaded"}
         />
         <Figure
           label="Email addresses"
-          value={detail || usingSample ? String(emailCount) : "not loaded"}
+          value={detail || aging || usingSample ? String(emailCount) : "not loaded"}
         />
       </dl>
 
-      {summary ? (
+      {balances ? (
         <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-3">
           <Figure
             label="Still renting"
-            value={String(summary.accounts.filter((a) => a.status === "Live").length)}
+            value={String(balances.accounts.filter((a) => a.status === "Live").length)}
           />
           <Figure
             label="Moved out"
-            value={String(summary.accounts.filter((a) => a.status === "Terminated").length)}
+            value={String(balances.accounts.filter((a) => a.status === "Terminated").length)}
           />
           <Figure label="In credit, not chased" value={String(inCredit)} />
         </div>
       ) : null}
 
-      {detail ? (
+      {aging ? (
+        <div className="border-t border-line-hair px-5 py-4">
+          <p className="text-xs text-ink-secondary">
+            {aging.invoices.length} invoice lines across {chargeTypes} charge
+            types, of which{" "}
+            <span className="font-medium text-ink">{oneFm}</span> are 1FM
+            maintenance, found by the document number prefix MES documented on
+            the export. Aging is worked out from the report date,{" "}
+            {aging.asOf ?? "not stated"}, so re-reading this file tomorrow
+            gives the same figures.
+          </p>
+        </div>
+      ) : detail ? (
         <div className="border-t border-line-hair px-5 py-4">
           <p className="text-xs text-ink-secondary">
             {detail.invoices.length} invoices, of which{" "}
@@ -449,7 +542,7 @@ function ParseReport({
 
       {detail ? <SheetsRead sheets={detail.sheets} /> : null}
 
-      {detail ? <Unclassified invoices={detail.invoices} /> : null}
+      {lines ? <Unclassified invoices={lines.invoices} /> : null}
 
       {contactList ? (
         <div className="border-t border-line-hair px-5 py-4">
@@ -473,6 +566,90 @@ function ParseReport({
           ) : null}
         </div>
       ) : null}
+
+      {/* What each file gave us, separately. The figures above are the two
+          files merged, which is what the screens use, but a fault in one of
+          them is invisible in a merged number. */}
+      <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
+        <div className="bg-surface px-5 py-4">
+          <div className="flex items-center gap-2">
+            <StatusBadge
+              kind={aging || summary ? "good" : "critical"}
+              label={aging || summary ? "AR report read" : "No AR report"}
+            />
+          </div>
+          {aging ? (
+            <dl className="mt-2.5 space-y-1 text-[11px] text-ink-muted">
+              <div className="flex justify-between gap-3">
+                <dt>Report date</dt>
+                <dd className="tabular text-ink">{aging.asOf ?? "not stated"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Entity</dt>
+                <dd className="text-ink">{aging.entity ?? "not stated"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Invoice lines</dt>
+                <dd className="tabular text-ink">{aging.invoices.length}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Tenant accounts</dt>
+                <dd className="tabular text-ink">{aging.accounts.length}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Their own subtotals</dt>
+                <dd className="tabular text-ink">{aging.subtotals.length}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-2 text-[11px] text-ink-secondary">
+              Nothing on any screen can be shown without it.
+            </p>
+          )}
+        </div>
+
+        <div className="bg-surface px-5 py-4">
+          <div className="flex items-center gap-2">
+            <StatusBadge
+              kind={contactList ? "good" : "warning"}
+              label={contactList ? "Contact list read" : "No contact list"}
+            />
+          </div>
+          {contactList ? (
+            <dl className="mt-2.5 space-y-1 text-[11px] text-ink-muted">
+              <div className="flex justify-between gap-3">
+                <dt>Dated</dt>
+                <dd className="tabular text-ink">{contactList.asOf ?? "not stated"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Sheets</dt>
+                <dd className="text-ink">{contactList.sheets.join(", ")}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>With an address</dt>
+                <dd className="tabular text-ink">{contactList.contacts.length}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Addresses in total</dt>
+                <dd className="tabular text-ink">
+                  {contactList.contacts.reduce((n, c) => n + c.emails.length, 0)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Listed but no address</dt>
+                <dd className="tabular text-ink">{contactList.missing.length}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-2 text-[11px] text-ink-secondary">
+              Addresses already loaded are kept. Reminders need them.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Faults that only exist between the two files. */}
+      <Findings findings={findings} />
 
       {problems.length > 0 ? (
         <div className="border-t border-line-hair">
@@ -679,5 +856,62 @@ function ParseSkeleton() {
         ))}
       </div>
     </Card>
+  );
+}
+
+/**
+ * Faults that live between the files rather than inside one.
+ *
+ * Kept above the row-by-row problem list because they are the ones that change
+ * what somebody should do next. A tenant row that failed to parse is a
+ * curiosity; a contact list for the wrong dormitory means the reminder run
+ * will reach five people out of a hundred and ninety and say nothing about it.
+ */
+function Findings({ findings }: { findings: Finding[] }) {
+  if (findings.length === 0) return null;
+  const level = worst(findings);
+
+  return (
+    <div className="border-t border-line-hair">
+      <div className="flex flex-wrap items-center gap-2 bg-surface-alt px-5 py-2.5">
+        <span className="text-xs font-medium text-ink">Checks on this upload</span>
+        <StatusBadge
+          kind={
+            level === "error" ? "critical" : level === "warning" ? "warning" : "good"
+          }
+          label={
+            level === "error"
+              ? "Do not use this data"
+              : level === "warning"
+                ? "Usable, but read these first"
+                : "Nothing of concern"
+          }
+        />
+      </div>
+      <ul className="divide-y divide-line-grid">
+        {findings.map((f, i) => (
+          <li key={i} className="flex items-start gap-3 px-5 py-3">
+            <span className="shrink-0 pt-px">
+              <StatusBadge
+                kind={
+                  f.severity === "error"
+                    ? "critical"
+                    : f.severity === "warning"
+                      ? "warning"
+                      : "neutral"
+                }
+                label={f.severity === "note" ? "note" : f.severity}
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-ink">{f.title}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-ink-secondary">
+                {f.detail}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
