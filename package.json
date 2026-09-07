@@ -4,13 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:revenue && next build",
+    "build": "npm run test:revenue && npm run test:pipeline && npm run test:auth && npm run test:wiring && npm run test:behaviour && npm run test:checks && next build",
     "start": "next start",
     "lint": "next lint",
     "test:revenue": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-revenue.mts",
     "test:snapshots": "node scripts/test-snapshots.mjs",
     "test:rls": "node scripts/test-rls.mjs",
-    "test:import": "node scripts/test-import.mjs"
+    "test:import": "node scripts/test-import.mjs",
+    "test:pipeline": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-pipeline.mts",
+    "simulate": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/simulate.mts",
+    "report": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-report.mts",
+    "seed": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-seed.mts",
+    "users": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-users.mts",
+    "compare": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/compare-exports.mts",
+    "test:auth": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-auth.mts",
+    "test:wiring": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-wiring.mts",
+    "audit": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/audit-spec.mts",
+    "test:behaviour": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-behaviour.mts",
+    "verify:db": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/verify-supabase.mts",
+    "test:checks": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-upload-checks.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

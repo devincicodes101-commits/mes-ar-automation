@@ -14,6 +14,7 @@ import path from "node:path";
 import {
   REVENUE_RULES,
   isOneFm,
+  isUnrecognised,
   matchRule,
   normaliseDescription,
   revenueType,
@@ -172,6 +173,15 @@ check("text with no address in it is flagged as unreadable",
 
 console.log("\nThe fallback means \"we do not recognise this\"\n");
 check("MES's own \"Other Charges\" is not a miss", matchRule("Other Charges") !== null, true);
+
+// A receipt has no description by nature. Reporting it as a miss would put
+// three rows in the unrecognised panel on every single upload, which is how
+// that panel stops being read by month two.
+check("a blank description is not a miss", isUnrecognised(""), false);
+check("nor is one that is only whitespace", isUnrecognised("   "), false);
+check("but a real unknown wording still is", isUnrecognised("REFUSE COLLECTION SURCHARGE"), true);
+check("and blanks stay out of the list keywords are grown from",
+      unrecognisedDescriptions(["", "  ", "REFUSE COLLECTION SURCHARGE"]).length, 1);
 for (const d of SHOULD_NOT_MATCH) {
   check(`unrecognised: ${d.slice(0, 40)}`, matchRule(d), null);
   check(`  still typed as`, revenueType(d), "Other Charges");
