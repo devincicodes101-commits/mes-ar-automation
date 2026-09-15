@@ -197,17 +197,38 @@ export function propertyForEntity(entity: string | null): PropertyCode | null {
 
 /* ------------------------------------------------------------- detection */
 
-/** True when this workbook is the Custom A/R Aging Detail export. */
+/**
+ * True when this workbook carries a flat invoice-line export we can read.
+ *
+ * Two shapes qualify, because MES treat them as the same report:
+ *
+ *   Custom A/R Aging Detail   Customer + Open Balance + Categories
+ *   Finance AR Download       Customer + Open Balance + Primary Sales Rep
+ *
+ * Both are one row per invoice line, grouped by a customer heading and closed
+ * by a "Total - DORM-x" row, so one parser reads both. Only the columns
+ * differ, and those are read by name.
+ *
+ * Raman named the second on 14 September: the Aging Detail is a reference
+ * sheet explaining what the columns mean, and Finance AR Download is what
+ * gets uploaded. It lives inside a workbook that also has JPD1, JPD2, BSD and
+ * LEO tabs, so before this it fell through to the summary parser, which read
+ * those four stale May tabs and reported 53 accounts owing $98.58 with no
+ * error at all. detectKind checks this function first for that reason.
+ *
+ * The third column is what keeps the shapes apart. The older Detailed Full
+ * Report also has Customer and Open Balance, but a Bucket column and neither
+ * of these two, so it still goes to the parser written for it.
+ */
 export function isAgingDetail(wb: XLSX.WorkBook): boolean {
   for (const name of wb.SheetNames) {
     const rows = rowsOf(wb, name);
     for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
       if (norm(rows[i]?.[0]) !== "CUSTOMER") continue;
       const cols = columnsOf(rows[i] ?? []);
-      // Categories and Open Balance together are unique to this export. The
-      // older detail report has Open Balance but no Categories, and the
-      // summary export has neither.
-      if (cols.has("CATEGORIES") && cols.has("OPEN BALANCE")) return true;
+      if (!cols.has("OPEN BALANCE")) continue;
+      if (cols.has("CATEGORIES")) return true;
+      if (cols.has("PRIMARY SALES REP")) return true;
     }
   }
   return false;
@@ -223,11 +244,27 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   let asOf: string | null = null;
   let entity: string | null = null;
 
+  // The same signature isAgingDetail matches on, not merely a Customer
+  // heading. Finance AR Download arrives in a workbook of thirteen tabs and
+  // several of the others could grow a Customer column later; picking the
+  // first that merely has one would then read the wrong sheet silently.
+  const looksRight = (n: string) => {
+    const rows = rowsOf(wb, n);
+    for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
+      if (norm(rows[i]?.[0]) !== "CUSTOMER") continue;
+      const cols = columnsOf(rows[i] ?? []);
+      if (!cols.has("OPEN BALANCE")) continue;
+      if (cols.has("CATEGORIES") || cols.has("PRIMARY SALES REP")) return true;
+    }
+    return false;
+  };
   const sheetName =
+    wb.SheetNames.find(looksRight) ??
     wb.SheetNames.find((n) => {
       const rows = rowsOf(wb, n);
       return rows.some((r, i) => i < 25 && norm(r?.[0]) === "CUSTOMER");
-    }) ?? wb.SheetNames[0];
+    }) ??
+    wb.SheetNames[0];
 
   const rows = rowsOf(wb, sheetName);
 
@@ -288,14 +325,26 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   }
   const fallbackProperty: PropertyCode = entityProperty ?? "BSD";
 
+  // The Aging Detail carries "As of 17 August 2026" above its header and the
+  // Finance AR Download carries nothing at all, so a missing one cannot be an
+  // error any more: it would refuse the export MES actually upload.
+  //
+  // It is not fatal because the report date is no longer what aging is keyed
+  // off. Raman, 14 September: "the starting point is the billing date, plus
+  // seven, plus 14, plus 21. In one report you may have several billing
+  // dates." Each line carries its own Date and is measured from that. The
+  // report date only stamps the period, and the upload screen asks the
+  // officer for that outright.
   if (!asOf) {
     problems.push({
       sheet: clean(sheetName),
       row: null,
-      severity: "error",
+      severity: "warning",
       message:
-        'No "As of ..." row above the header. Every aging figure is keyed ' +
-        "off that date, so the report cannot be dated and must not be used.",
+        'No "As of ..." row above the header, which the Finance AR Download ' +
+        "does not carry. Aging is measured from each line's own billing " +
+        "date, so this is not fatal, but the period comes from the one you " +
+        "chose above rather than from the file.",
     });
   }
 
