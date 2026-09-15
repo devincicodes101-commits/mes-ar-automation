@@ -7,11 +7,13 @@ import {
   emptyState,
   markPaid,
   markPromised,
+  outputFor,
   planFor,
   runDay,
   snapshot,
   stillOwing,
   type CycleDay,
+  type DayOutput,
   type SimEvent,
   type SimState,
 } from "@/lib/cycle";
@@ -239,6 +241,8 @@ export default function SimulationPage() {
                     </ul>
                   ) : null}
 
+                  <Evidence output={outputFor(pipeline, state, nextDay)} />
+
                   <button
                     type="button"
                     onClick={() => setState(runDay(pipeline, state, nextDay))}
@@ -454,4 +458,110 @@ function Drop({
 function ordinal(day: number): string {
   if (day % 100 >= 11 && day % 100 <= 13) return "th";
   return ["th", "st", "nd", "rd"][day % 10] ?? "th";
+}
+
+/**
+ * What the day actually produces, rather than a sentence about it.
+ *
+ * "3 tenants get the first reminder" is a claim. The three names, what each
+ * owes, the addresses it would go to and the letter itself is the evidence.
+ * Collapsed by default so the step stays readable, and one click from open,
+ * because in a demo the question is always "show me".
+ *
+ * Skipped tenants sit beside the included ones rather than being left out. An
+ * exclusion nobody can see is indistinguishable from a bug, and the 16th
+ * deliberately skips everybody on GIRO.
+ */
+function Evidence({ output }: { output: DayOutput | null }) {
+  const [open, setOpen] = useState(false);
+  const [showLetter, setShowLetter] = useState(false);
+  if (!output || (output.rows.length === 0 && !output.skipped?.length)) return null;
+
+  const Row = ({ r }: { r: DayOutput["rows"][number] }) => (
+    <li className="flex flex-wrap items-baseline gap-x-3 px-3 py-1.5">
+      <span className="min-w-0 flex-1 truncate text-[11px] text-ink">{r.name}</span>
+      <span className="truncate text-[10px] text-ink-muted">{r.detail}</span>
+      {r.amount !== null ? (
+        <span className="tabular shrink-0 text-[11px] text-ink-secondary">
+          {formatSgd(r.amount)}
+        </span>
+      ) : null}
+    </li>
+  );
+
+  return (
+    <div className="rounded border border-line-hair bg-surface">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left"
+      >
+        <span className="text-[11px] font-medium text-ink-secondary">
+          {open ? "Hide" : "Show me"}: {output.label}
+        </span>
+        <span className="text-[10px] text-ink-muted">
+          {output.rows.length}
+          {output.skipped?.length ? ` + ${output.skipped.length} skipped` : ""}
+        </span>
+      </button>
+
+      {open ? (
+        <div className="border-t border-line-hair">
+          {output.rows.length > 0 ? (
+            <ul className="divide-y divide-line-hair">
+              {output.rows.slice(0, 25).map((r, n) => (
+                <Row key={n} r={r} />
+              ))}
+              {output.rows.length > 25 ? (
+                <li className="px-3 py-1.5 text-[10px] text-ink-muted">
+                  and {output.rows.length - 25} more
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+
+          {output.skipped && output.skipped.length > 0 ? (
+            <>
+              <p className="border-t border-line-hair bg-surface-alt px-3 py-1.5 text-[10px] text-ink-muted">
+                {output.skippedLabel}
+              </p>
+              <ul className="divide-y divide-line-hair opacity-70">
+                {output.skipped.slice(0, 15).map((r, n) => (
+                  <Row key={n} r={r} />
+                ))}
+                {output.skipped.length > 15 ? (
+                  <li className="px-3 py-1.5 text-[10px] text-ink-muted">
+                    and {output.skipped.length - 15} more
+                  </li>
+                ) : null}
+              </ul>
+            </>
+          ) : null}
+
+          {output.letter ? (
+            <div className="border-t border-line-hair px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setShowLetter((v) => !v)}
+                className="text-[11px] font-medium text-ink-secondary underline-offset-2 hover:underline"
+              >
+                {showLetter ? "Hide the letter" : "Read the letter one of them gets"}
+              </button>
+              {showLetter ? (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-[10px] text-ink-muted">
+                    To: {output.letter.to} &middot; pay by {output.letter.deadline}
+                  </p>
+                  <p className="text-[11px] text-ink">{output.letter.subject}</p>
+                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded border border-line-hair bg-surface-alt px-2.5 py-2 text-[10px] leading-relaxed text-ink-secondary">
+                    {output.letter.body}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }

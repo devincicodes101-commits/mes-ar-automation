@@ -2,6 +2,7 @@ import type { Pipeline } from "./pipeline";
 import type { Account } from "./types";
 import { buildQueue, overdueTotal } from "./data.ts";
 import { CAN_SEND_FOR_REAL } from "./outbox.ts";
+import { renderLetter } from "./letters.ts";
 
 /**
  * MES's month as something that runs, rather than six snapshots of one moment.
@@ -101,6 +102,26 @@ export function stillOwing(p: Pipeline, s: SimState): Account[] {
     .filter((q) => !s.paid.includes(q.account.id))
     .filter((q) => !(q.account.id in s.promised))
     .map((q) => q.account);
+}
+
+/**
+ * The thing a day actually produces, rather than a sentence about it.
+ *
+ * A line reading "3 tenants get the first reminder" is a claim. The three
+ * names, their balances, and the letter one of them would receive is the
+ * evidence, and it is what somebody watching a demo needs in order to believe
+ * the first line. Every day that does something carries one of these.
+ */
+export interface DayOutput {
+  /** What kind of thing this is, for the heading. */
+  label: string;
+  /** One row per tenant the day touches. */
+  rows: { name: string; detail: string; amount: number | null }[];
+  /** Tenants the day deliberately skipped, and why. Never hidden. */
+  skipped?: { name: string; detail: string; amount: number | null }[];
+  skippedLabel?: string;
+  /** A real letter, where the day writes one. */
+  letter?: { to: string; subject: string; body: string; deadline: string };
 }
 
 export interface DayPlan {
@@ -273,6 +294,101 @@ export function planFor(p: Pipeline, s: SimState, day: CycleDay): DayPlan {
       };
     }
   }
+}
+
+/**
+ * What a day actually produced, named rather than counted.
+ *
+ * The screen used to say "3 tenants get the first reminder" and stop, which
+ * is a claim. This returns the three names, what each of them owes, and the
+ * letter one of them would receive, so somebody watching can check it rather
+ * than take it on trust.
+ *
+ * Skipped tenants are returned alongside rather than left out. The 16th holds
+ * GIRO tenants back from the fee, and an exclusion nobody can see is
+ * indistinguishable from a bug.
+ */
+export function outputFor(
+  p: Pipeline,
+  s: SimState,
+  day: CycleDay,
+): DayOutput | null {
+  const owing = stillOwing(p, s);
+  const reachable = owing.filter((a) => a.hasContact);
+  const unreachable = owing.filter((a) => !a.hasContact);
+  const sentOn = p.asOf ?? new Date().toISOString().slice(0, 10);
+
+  const row = (a: Account, detail: string) => ({
+    name: a.companyName,
+    detail,
+    amount: overdueTotal(a),
+  });
+
+  if (day === 4) {
+    return {
+      label: "The six tabs MES asked for, built from this file",
+      rows: p.revenueTabs.map((t) => ({
+        name: t.name,
+        detail: `${t.lineCount} line${t.lineCount === 1 ? "" : "s"}`,
+        amount: t.total,
+      })),
+    };
+  }
+
+  if (day === 7 || day === 21) {
+    const already = day === 7 ? s.firstReminder : s.finalNotice;
+    const fresh = reachable.filter((a) => !already.includes(a.id));
+    const first = fresh[0];
+    const letter = first
+      ? renderLetter(day === 7 ? "first-reminder" : "final-notice", {
+          companyName: first.companyName,
+          grandTotal: first.total,
+          sentOn,
+        })
+      : null;
+    return {
+      label:
+        day === 7
+          ? "Who gets the first reminder, and what it says"
+          : "Who gets the final notice, and what it says",
+      rows: fresh.map((a) =>
+        row(a, `${a.emails.length} address${a.emails.length === 1 ? "" : "es"}: ${a.emails.join(", ")}`),
+      ),
+      skippedLabel: "No address, so their letter goes to Send By Hand",
+      skipped: unreachable.map((a) => row(a, a.propertyName)),
+      letter: letter
+        ? {
+            to: first!.emails.join(", "),
+            subject: letter.subject,
+            body: letter.body,
+            deadline: letter.deadline,
+          }
+        : undefined,
+    };
+  }
+
+  if (day === 16) {
+    const due = owing.filter(
+      (a) => !s.charged.includes(a.id) && !p.giroCustomers.has(a.customerCode),
+    );
+    const held = owing.filter((a) => p.giroCustomers.has(a.customerCode));
+    return {
+      label: `Who is charged the $${p.lateFees.fee} fee`,
+      rows: due.map((a) => row(a, `overdue, fee $${p.lateFees.fee}`)),
+      skippedLabel:
+        "On GIRO, so held back. A bounced deduction is the bank's failure, not theirs",
+      skipped: held.map((a) => row(a, a.propertyName)),
+    };
+  }
+
+  if (day === 1 || day === 15) {
+    return {
+      label: day === 1 ? "Who is now past 14 days" : "Who is still owing at 30 days",
+      rows: owing.map((a) => row(a, a.propertyName)),
+    };
+  }
+
+  return null;
 }
 
 /**
