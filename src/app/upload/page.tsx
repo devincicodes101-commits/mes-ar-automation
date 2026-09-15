@@ -137,7 +137,13 @@ export default function UploadPage() {
       <DropZone
         title="AR Report"
         hint="The export from NetSuite. Upload this every cycle."
-        note="Custom A/R Aging Detail. One sheet. Everything on every screen comes from it."
+        // Raman named the sheet on 14 September: Finance AR Download, the
+        // first worksheet of Detailed AR report(Final). The Custom A/R Aging
+        // Detail is a reference sheet explaining the columns, and is still
+        // accepted because it is the only export so far carrying real
+        // amounts. Both are named here rather than only the newer one, so
+        // nobody is told the file they have is the wrong one.
+        note="Finance AR Download, the first sheet of Detailed AR report(Final). Custom A/R Aging Detail is read too. Everything on every screen comes from it."
         file={arFile}
         onFile={setArFile}
       />
