@@ -296,11 +296,26 @@ export const MANAGER_COLUMNS: ReportColumn[] = [
     key: "riskExposure",
     label: "Risk Exposure",
     kind: "money",
+    // Raman answered the formula after the 14 September call: "It is Grand
+    // total minus Security Deposit. So if positive it means AR is more than
+    // SD." Checked against the version of his mock-up he updated at the same
+    // time and it holds on all nine rows, to the cent: 6,428.16 - 34,000 =
+    // -27,572, and 11,216.44 - 11,160 = 56.
+    //
+    // The copy of that workbook in this repository is the one sent before he
+    // added it, and its Risk Exposure column matches nothing. That is why the
+    // figures quoted here as not following from the other columns did not:
+    // they were the old ones.
+    //
+    // So this is no longer waiting on a definition. It is waiting on the
+    // deposit held, which is the other half of the subtraction and is in no
+    // file MES have sent. The moment that arrives this column computes.
     unavailable:
-      "Needs the deposit held, and needs MES to define the calculation. Their " +
-      "mock-up has no formula in it and the values do not follow from the " +
-      "other columns: one row shows 418.64 overdue against 16,640 of deposit " +
-      "and a risk of -3,162.60.",
+      "Grand Total minus Security Deposit, which MES confirmed on 14 " +
+      "September. Cannot be shown yet because the deposit held per tenant is " +
+      "a balance sheet figure and is in none of their files: the AR report " +
+      "carries deposit lines only where they are still unpaid, which is a " +
+      "different number.",
   },
   { key: "rep", label: "Sales Rep", kind: "text" },
 ];

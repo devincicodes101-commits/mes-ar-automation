@@ -11,7 +11,13 @@ import {
   rmReports,
 } from "@/lib/data";
 import { recordExport, useStore } from "@/lib/store";
-import { REVENUE_TABS, buildRevenueTab } from "@/lib/reports";
+import {
+  MANAGER_COLUMNS,
+  MANAGER_UNAVAILABLE,
+  REVENUE_TABS,
+  buildManagerReports,
+  buildRevenueTab,
+} from "@/lib/reports";
 import {
   RECIPIENT_KIND_LABEL,
   simulateReportSend,
@@ -101,6 +107,20 @@ export default function ReportsPage() {
       rmReports(accounts, ds.managers).filter((m) => m.accounts.length > 0),
     [accounts, ds.managers],
   );
+  // Ray's layout, which is the one MES sent last and the one their managers
+  // read. Built all along and, until now, called by nothing: every test
+  // passed while the screen kept showing a four column summary of its own.
+  const managerReports = useMemo(
+    // The entity heads each block, the way it heads Ray's sheet. Taken from
+    // the accounts rather than the dataset, which does not carry one.
+    () =>
+      buildManagerReports(
+        accounts,
+        ds.asOf,
+        accounts.find((a) => a.entity)?.entity ?? null,
+      ),
+    [accounts, ds.asOf],
+  );
 
   // The six tabs MES drew as empty sheets in their own workbook. Built from
   // the uploaded invoice lines, and each one independently sendable, which is
@@ -113,6 +133,8 @@ export default function ReportsPage() {
     [ds.invoices, ds.asOf],
   );
   const [sendingCode, setSendingCode] = useState(sendable[0]?.code ?? "");
+  const [openManager, setOpenManager] =
+    useState<ReturnType<typeof buildManagerReports>[number] | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [dispatched, setDispatched] = useState<ReportDispatch | null>(null);
 
@@ -299,7 +321,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader
             title="Relationship manager balances"
-            hint="One list per manager."
+            hint={`One list per manager, in Ray's layout: ${MANAGER_COLUMN_COUNT} columns, the dormitory blocks stacked down the sheet. Open one to read it.`}
           />
           <ul className="divide-y divide-line-grid">
             {managers.map((m) => (
@@ -318,11 +340,35 @@ export default function ReportsPage() {
                     {formatSgd(m.overdue)} overdue
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenManager(
+                      managerReports.find((r) => r.managerName === m.name) ?? null,
+                    )
+                  }
+                  className="shrink-0 rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
+                >
+                  Open the sheet
+                </button>
               </li>
             ))}
           </ul>
+
+          {MANAGER_UNAVAILABLE.length > 0 ? (
+            <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
+              {MANAGER_UNAVAILABLE.length} of the {MANAGER_COLUMN_COUNT} columns
+              cannot be filled from any file MES have sent:{" "}
+              {MANAGER_UNAVAILABLE.map((c) => c.label).join(" and ")}. They are
+              shown empty, with the reason, rather than left out.
+            </div>
+          ) : null}
         </Card>
       </div>
+
+      {openManager ? (
+        <ManagerSheet report={openManager} onClose={() => setOpenManager(null)} />
+      ) : null}
 
       {/* ------------------------------------------- email a report on demand */}
       <Card>
@@ -819,6 +865,99 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
         <p className="text-[11px] text-ink-muted">
           {rows.length} rows · from the {data.asOfSummary} period
         </p>
+      </div>
+    </Modal>
+  );
+}
+
+/** Ray's thirteen columns, counted once so the copy cannot drift from them. */
+const MANAGER_COLUMN_COUNT = MANAGER_COLUMNS.length;
+
+/**
+ * One manager's sheet, in MES's own layout.
+ *
+ * The two columns that cannot be filled are rendered empty with their reason
+ * on hover rather than dropped. A missing column reads as "there is no such
+ * thing"; an empty one that explains itself is a question somebody can answer,
+ * and both of these are questions still open with MES.
+ */
+function ManagerSheet({
+  report,
+  onClose,
+}: {
+  report: ReturnType<typeof buildManagerReports>[number];
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={report.managerName} onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-[11px] text-ink-muted">
+          {report.entity ?? "MES Group"} &middot; as at {report.asOf ?? "unknown"}{" "}
+          &middot; {report.lineCount} tenants &middot; {formatSgd(report.total)}
+        </p>
+
+        {report.blocks.map((b) => (
+          <div key={b.title}>
+            <h3 className="mb-1.5 text-xs font-medium text-ink-secondary">
+              {b.title}
+              {b.subtitle ? (
+                <span className="ml-2 font-normal text-ink-muted">{b.subtitle}</span>
+              ) : null}
+            </h3>
+            <div className="overflow-x-auto rounded border border-line-hair">
+              <table className="w-full border-collapse text-[11px]">
+                <thead>
+                  <tr className="border-b border-line-grid text-left">
+                    {b.columns.map((c) => (
+                      <th
+                        key={c.key}
+                        title={c.unavailable ?? undefined}
+                        className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${
+                          c.unavailable ? "text-ink-muted italic" : "text-ink-secondary"
+                        } ${c.kind === "money" ? "text-right" : ""}`}
+                      >
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((r, n) => (
+                    <tr key={n} className="border-b border-line-hair last:border-0">
+                      {b.columns.map((c) => {
+                        const v = r[c.key];
+                        return (
+                          <td
+                            key={c.key}
+                            className={`whitespace-nowrap px-2.5 py-1.5 ${
+                              c.kind === "money" ? "tabular text-right" : ""
+                            } ${v === null || v === undefined ? "text-ink-muted" : "text-ink-secondary"}`}
+                          >
+                            {v === null || v === undefined
+                              ? "\u2014"
+                              : c.kind === "money"
+                                ? formatSgd(Number(v))
+                                : String(v)}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+
+        {report.notes.length > 0 ? (
+          <ul className="space-y-1 border-t border-line-hair pt-3">
+            {report.notes.map((n) => (
+              <li key={n} className="text-[11px] leading-relaxed text-ink-muted">
+                {n}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </Modal>
   );

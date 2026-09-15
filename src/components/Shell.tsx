@@ -63,6 +63,16 @@ export const NAV: {
     note: "Write and send the 7th reminder and the 21st final notice.",
   },
   {
+    // Directly under the reminders, because it is the other half of the same
+    // job: the ones the bulk send could not reach. At Blue Stars that is 185
+    // tenants of 190, so it is not a footnote to the send, it is most of it.
+    href: "/no-email",
+    label: "Send By Hand",
+    group: "The cycle",
+    when: "with each send",
+    note: "Tenants with no address. The letter is written, you send it.",
+  },
+  {
     href: "/calls",
     label: "Call List",
     group: "The cycle",
