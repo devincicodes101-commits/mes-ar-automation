@@ -38,6 +38,17 @@ export const NAV: {
     note: "Bring in this month's AR report.",
   },
   {
+    // First in Review rather than in the cycle, because it is not part of the
+    // month. It is how you look at a month without living through one, and
+    // how a file gets tried against the whole flow before it is uploaded for
+    // real.
+    href: "/simulation",
+    label: "Dry Run",
+    group: "Review",
+    when: "any time",
+    note: "Walk a whole month against a file. Nothing is sent.",
+  },
+  {
     href: "/",
     label: "Outstanding Balances",
     group: "The cycle",
