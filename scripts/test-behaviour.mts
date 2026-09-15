@@ -16,6 +16,15 @@ import * as XLSX from "xlsx";
 
 import { parseAgingDetail, propertyFromDocument, round2 } from "../src/lib/aging-detail.ts";
 import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
+import {
+  emptyState,
+  markPaid,
+  markPromised,
+  planFor,
+  runDay,
+  snapshot,
+  stillOwing,
+} from "../src/lib/cycle.ts";
 import { bucketForAge, bucketLabelForAge, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -495,6 +504,76 @@ check("and the line is still counted, at zero",
 check("a real zero is not reported as missing", said(blankSheet([0, 100])), false);
 check("nothing is said when every line has one", said(blankSheet([100, 200])), false);
 check("an empty string counts as missing", said(blankSheet(["", 100])), true);
+
+/* --------------------------------------------------- the month, running ---
+ * What separates a simulation from a report of each day: the state carries.
+ * The first version of that screen computed every day from the same starting
+ * position, so the 21st named the same tenants as the 7th and a tenant who
+ * paid in between was still being chased at the end of the month.
+ */
+console.log("\nA month, with the state carrying forward\n");
+
+const simAcct = (id: string, overdue: number, hasContact = true): never =>
+  ({
+    id, customerCode: `DORM-${id}`, companyName: `${id.toUpperCase()} PTE LTD`,
+    property: "BSD", propertyName: "Blue Stars Dormitory", status: "Live",
+    buckets: { current: 0, d30: overdue, d60: 0, d90: 0, d90plus: 0 },
+    total: overdue, legacyNote: null, emails: hasContact ? [`${id}@x.com`] : [],
+    hasContact, industry: null, entity: null, invoiceCount: 1, isOneFm: false,
+    revenueTypes: [], lateFeeCount: 0,
+  }) as never;
+
+const simPipe = (accounts: unknown[]): never =>
+  ({
+    asOf: "2026-08-17", entity: null, accounts, invoices: [], byProperty: [],
+    revenueTabs: [], managerReports: [], defaulters: [],
+    lateFees: { asOf: "2026-08-17", entity: null, fee: 100, minimumAgeDays: 14, rows: [], giroExcluded: [], notes: [] },
+    giroCustomers: new Set<string>(), problems: [],
+    contactCoverage: { total: 0, withEmail: 0, withoutEmail: 0, addresses: 0 },
+  }) as never;
+
+const a1 = simAcct("a", 1000);
+const a2 = simAcct("b", 2000);
+const a3 = simAcct("c", 3000);
+const pipe = simPipe([a1, a2, a3]);
+
+let st = emptyState();
+check("nobody has been reminded before the month starts", st.firstReminder.length, 0);
+
+st = runDay(pipe, st, 7);
+check("the 7th reminds everyone owing", st.firstReminder.length, 3);
+
+// The part a report cannot do.
+st = markPaid(st, a1 as never, 7);
+st = markPromised(st, a2 as never, "2026-09-05", 7);
+
+check("someone who paid is no longer owing", stillOwing(pipe, st).length, 1);
+check("and a promise holds them too", stillOwing(pipe, st)[0]?.id, "c");
+
+st = runDay(pipe, st, 16);
+check("only the one left is charged the fee", st.charged.length, 1);
+check("not the one who paid", st.charged.includes("a"), false);
+check("nor the one who promised", st.charged.includes("b"), false);
+
+st = runDay(pipe, st, 21);
+check("the final notice goes to the one still owing", st.finalNotice.length, 1);
+check("running the 7th again would not re-send to them",
+      planFor(pipe, st, 7).affected, 0);
+
+const after = snapshot(pipe, st);
+check("the snapshot counts the payment", after.paid, 1);
+check("and the promise, separately", after.promised, 1);
+check("and what is still owed", after.owed, 3000);
+
+// Pure: replaying the same inputs gives the same month.
+let replay = emptyState();
+replay = runDay(pipe, replay, 7);
+replay = markPaid(replay, a1 as never, 7);
+replay = markPromised(replay, a2 as never, "2026-09-05", 7);
+replay = runDay(pipe, replay, 16);
+replay = runDay(pipe, replay, 21);
+check("the same inputs produce the same month",
+      JSON.stringify(snapshot(pipe, replay)), JSON.stringify(after));
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
