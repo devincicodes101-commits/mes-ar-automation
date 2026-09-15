@@ -461,5 +461,40 @@ check("with no report date the runs still group", nodate.cycles.length, 1);
 check("and the line's own age decides overdue", nodate.cycles[0]?.overdue, 100);
 check("but how far through credit is unknown", nodate.cycles[0]?.ageDays, null);
 
+/* ------------------------------------------------ amounts not supplied ---
+ * Raman, 14 September, on the blank Open Balance column: "it will probably be
+ * filled. If there's no data there, then you can't display, so you just put
+ * some kind of note that this data not available."
+ *
+ * Blank is not zero. MES's export as sent has 169 of 173 lines empty, and
+ * without this they read as $0 owed, which does not look like missing data.
+ * It looks like the tenant has paid.
+ */
+console.log("\nAmounts MES have not supplied\n");
+
+const blankSheet = (balances: (number | string | null)[]) => {
+  const head = ["Customer","Transaction Type","Company Name","Date","Description",
+    "Categories","Document Number","Linked Contract","Contract Item Start Date",
+    "P.O. No.","Due Date","Age","Open Balance","Item: Item Type"];
+  const rows: unknown[][] = [["MES"],["Consol : X"],["Title"],["As of 17 August 2026"],[],[],head,
+    ["DORM-1 ACME PTE LTD"]];
+  for (const b of balances)
+    rows.push(["","Invoice","ACME PTE LTD","2026-08-01","Occupancy Fee Charges",
+      "Occupancy Fee Charges","BSD-786/1","C1","2026-08-01","","2026-08-16",1,b,"Service"]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Sheet1");
+  return parseAgingDetail(wb);
+};
+const said = (r: ReturnType<typeof blankSheet>) =>
+  r.problems.some((p) => /no amount in the Open Balance/.test(p.message));
+
+check("a blank amount is reported, not passed off as nil",
+      said(blankSheet([null, 100, 200])), true);
+check("and the line is still counted, at zero",
+      blankSheet([null, 100, 200]).invoices.length, 3);
+check("a real zero is not reported as missing", said(blankSheet([0, 100])), false);
+check("nothing is said when every line has one", said(blankSheet([100, 200])), false);
+check("an empty string counts as missing", said(blankSheet(["", 100])), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

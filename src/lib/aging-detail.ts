@@ -254,6 +254,8 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   let entity: string | null = null;
   // Recovered from the rows when the file states no date of its own.
   let dataAsOf: string | null = null;
+  // Lines whose Open Balance cell was empty rather than zero.
+  let blankBalances = 0;
 
   // The same signature isAgingDetail matches on, not merely a Customer
   // heading. Finance AR Download arrives in a workbook of thirteen tabs and
@@ -428,6 +430,19 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       continue;
     }
 
+    // Blank is not zero, and money() cannot tell them apart: it returns 0 for
+    // an empty cell so a line still lands in the totals. Counted here so the
+    // difference can be said out loud.
+    //
+    // Raman, 14 September, on the amounts missing from the Finance AR
+    // Download: "the open balance will probably be filled. If there's no data
+    // there, then you can't display, so you just put some kind of note that
+    // this data not available." Without that, 169 of its 173 lines read as $0
+    // owed, which does not look like missing data. It looks like paid up.
+    const rawBalance = row[COL.balance];
+    if (rawBalance === null || rawBalance === undefined || clean(rawBalance) === "")
+      blankBalances += 1;
+
     const balance = money(row[COL.balance]);
     if (balance === null) {
       problems.push({
@@ -501,6 +516,22 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       property: propertyFromDocument(documentNumber, fallbackProperty),
       revenueType: revenueType(description, documentNumber, category),
       isOneFm: isOneFm(description, documentNumber, category),
+    });
+  }
+
+  /* ------------------------------------------------- amounts not supplied */
+  if (blankBalances > 0) {
+    problems.push({
+      sheet: clean(sheetName),
+      row: null,
+      severity: "warning",
+      message:
+        `${blankBalances} of ${blankBalances + invoices.length - blankBalances} ` +
+        `line${blankBalances === 1 ? " has" : "s have"} no amount in the Open ` +
+        "Balance column, so what those tenants owe is not known rather than " +
+        "nil. They are counted as 0 in every total on every screen, which " +
+        "makes the figures below a floor and not the answer. MES's sample " +
+        "export is deliberately incomplete here.",
     });
   }
 
