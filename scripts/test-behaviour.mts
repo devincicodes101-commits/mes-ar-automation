@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import * as XLSX from "xlsx";
 
 import { parseAgingDetail, propertyFromDocument, round2 } from "../src/lib/aging-detail.ts";
+import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
 import { bucketForAge, bucketLabelForAge, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -402,6 +403,63 @@ check("millions", currency(2782348.27), "2,782,348.27");
 check("always two decimals", currency(1), "1.00");
 check("round2 does not drift over a thousand additions",
   round2(Array.from({ length: 1000 }, () => 0.01).reduce((a, b) => a + b, 0)), 10);
+
+/* ------------------------------------------------------- billing cycles ---
+ * Raman, 14 September: "the starting point is the billing date, plus seven,
+ * plus 14, plus 21. In one report you may have several billing dates."
+ *
+ * The aging was already measured per line. What these pin is the grouping and
+ * the credit period, because one report date for the whole file would put a
+ * bill from March and one from three days ago in the same place.
+ */
+console.log("\nBilling runs, each with its own clock\n");
+
+const cyc = (date: string | null, amount: number, age: number | null = null) =>
+  ({
+    id: `x${date}${amount}`, companyName: "ACME PTE LTD",
+    transactionType: "Invoice", date, dueDate: null,
+    description: "Occupancy Fee Charges", documentNumber: "BSD-786/1",
+    linkedContract: null, age, bucket: "", openBalance: amount,
+    revenueType: "Occupancy Fee", isOneFm: false,
+  }) as never;
+
+const three = billingCycles(
+  [cyc("2026-07-15", 100), cyc("2026-07-15", 50), cyc("2026-08-03", 25)],
+  "2026-08-17",
+);
+check("lines group by the date they were billed", three.cycles.length, 2);
+check("newest run first", three.cycles[0]?.billedOn, "2026-08-03");
+check("and its lines are added up", three.cycles[1]?.total, 150);
+check("payment falls due 14 days after billing", three.cycles[1]?.dueBy, "2026-07-29");
+check("the second deadline is 30 days", three.cycles[1]?.finalBy, "2026-08-14");
+
+// The whole point: same file, same report date, two different answers.
+check("a run 33 days old is past both deadlines", cycleStage(three.cycles[1]!), "past 30 days");
+check("one billed a fortnight ago is within credit", cycleStage(three.cycles[0]!), "within credit");
+check("so only the older one counts as overdue", three.cycles[1]?.overdue, 150);
+check("and the newer one does not", three.cycles[0]?.overdue, 0);
+
+check(`exactly ${CREDIT_DAYS} days is still within credit`,
+      cycleStage(billingCycles([cyc("2026-08-03", 10)], "2026-08-17").cycles[0]!),
+      "within credit");
+check("one day older is not",
+      cycleStage(billingCycles([cyc("2026-08-02", 10)], "2026-08-17").cycles[0]!),
+      "past 14 days");
+check("billed after the report date is not yet due",
+      cycleStage(billingCycles([cyc("2026-09-01", 10)], "2026-08-17").cycles[0]!),
+      "not yet due");
+
+// Undated lines are reported, never folded into a run they do not belong to.
+const mixed = billingCycles([cyc("2026-07-15", 100), cyc(null, 40)], "2026-08-17");
+check("a line with no billing date joins no run", mixed.cycles.length, 1);
+check("it is counted and said out loud", mixed.undated, 1);
+check("with its value", mixed.undatedTotal, 40);
+
+// No report date at all: grouping still works, staleness cannot be judged.
+const nodate = billingCycles([cyc("2026-07-15", 100, 33)], null);
+check("with no report date the runs still group", nodate.cycles.length, 1);
+check("and the line's own age decides overdue", nodate.cycles[0]?.overdue, 100);
+check("but how far through credit is unknown", nodate.cycles[0]?.ageDays, null);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -90,6 +90,15 @@ function excelDate(v: unknown): string | null {
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
 }
 
+/** Calendar arithmetic, at local noon, for the same reason excelDate is. */
+function addDays(iso: string, days: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function money(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -243,6 +252,8 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
 
   let asOf: string | null = null;
   let entity: string | null = null;
+  // Recovered from the rows when the file states no date of its own.
+  let dataAsOf: string | null = null;
 
   // The same signature isAgingDetail matches on, not merely a Customer
   // heading. Finance AR Download arrives in a workbook of thirteen tabs and
@@ -335,19 +346,6 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   // dates." Each line carries its own Date and is measured from that. The
   // report date only stamps the period, and the upload screen asks the
   // officer for that outright.
-  if (!asOf) {
-    problems.push({
-      sheet: clean(sheetName),
-      row: null,
-      severity: "warning",
-      message:
-        'No "As of ..." row above the header, which the Finance AR Download ' +
-        "does not carry. Aging is measured from each line's own billing " +
-        "date, so this is not fatal, but the period comes from the one you " +
-        "chose above rather than from the file.",
-    });
-  }
-
   /* -------------------------------------------------------- the columns */
   const cols = columnsOf(rows[headerAt] ?? []);
   const COL = {
@@ -476,12 +474,23 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     const statusCell = clean(at(row, COL.status));
     if (statusCell !== "") lineStatus.set(norm(current.code), statusCell);
 
+    const dueIso = excelDate(row[COL.dueDate]);
+
+    // Recover the report date from the data when the file does not state one.
+    // Age is days past the due date, so due date plus age is the day the
+    // export was run. Finance AR Download carries no "As of" row and all 173
+    // of its lines agree on 17 August, so this is the only way to date it.
+    // Without it every billing run reads as "within credit", including one
+    // from March.
+    if (dataAsOf === null && age !== null && dueIso !== null)
+      dataAsOf = addDays(dueIso, age);
+
     invoices.push({
       customerCode: current.code,
       companyName: (company || current.name).replace(/\.$/, ""),
       transactionType: txType,
       date: excelDate(row[COL.date]),
-      dueDate: excelDate(row[COL.dueDate]),
+      dueDate: dueIso,
       description: description.slice(0, 400),
       documentNumber,
       linkedContract: clean(row[COL.contract]) || null,
@@ -492,6 +501,41 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       property: propertyFromDocument(documentNumber, fallbackProperty),
       revenueType: revenueType(description, documentNumber, category),
       isOneFm: isOneFm(description, documentNumber, category),
+    });
+  }
+
+  /* -------------------------------------------------------- the report date */
+  // The Aging Detail states one above its header. Finance AR Download states
+  // nothing, so it is recovered from the rows: age is days past the due date,
+  // so due date plus age is the day the export was run. All 173 of its lines
+  // agree on 17 August.
+  //
+  // Not fatal either way, because the report date is no longer what aging is
+  // keyed off. Raman, 14 September: "the starting point is the billing date,
+  // plus seven, plus 14, plus 21. In one report you may have several billing
+  // dates." Each line is measured from its own. The report date says how far
+  // through each billing run's credit period we are, and stamps the period.
+  if (!asOf && dataAsOf) {
+    asOf = dataAsOf;
+    problems.push({
+      sheet: clean(sheetName),
+      row: null,
+      severity: "warning",
+      message:
+        `No "As of ..." row, which the Finance AR Download does not carry. ` +
+        `Read as ${dataAsOf} from the due dates and ages on the lines ` +
+        "themselves, which all agree.",
+    });
+  } else if (!asOf) {
+    problems.push({
+      sheet: clean(sheetName),
+      row: null,
+      severity: "warning",
+      message:
+        'No "As of ..." row and no line carrying both a due date and an age, ' +
+        "so the report cannot be dated. Aging still works, because each line " +
+        "is measured from its own billing date, but how far through its " +
+        "credit period each billing run is cannot be shown.",
     });
   }
 
