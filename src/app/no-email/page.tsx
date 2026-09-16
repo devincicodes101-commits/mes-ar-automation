@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatSgd, overdueTotal } from "@/lib/data";
+import { downloadCsv } from "@/lib/export";
 import { Account } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
@@ -102,6 +103,40 @@ export default function NoEmailPage() {
           hint="The letter is written for each of them. Open one, copy it, and send it from Outlook. Adding an address here removes the tenant from this list and puts them back into the automatic send."
           right={
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={missing.length === 0}
+                onClick={() => {
+                  // The shape the contact list parser reads back, so the file
+                  // that comes out can be filled in and uploaded straight
+                  // back. Raman, 14 September: "it will just generate an
+                  // exception report, Excel or CSV, which will list those
+                  // clients. Then the user will enter it and re-upload only
+                  // that one for emailing."
+                  //
+                  // Column A is "DORM-x COMPANY" because that is what the
+                  // parser splits on, and the header must read Company Name
+                  // and Email Address or it will not be recognised.
+                  downloadCsv(
+                    `exceptions-no-email-${ds.asOf ?? "latest"}.csv`,
+                    ["Company Name", "Status", "Dormitory", "Outstanding", "Email Address"],
+                    missing.map((a) => [
+                      `${a.customerCode} ${a.companyName}`,
+                      a.status,
+                      a.propertyName,
+                      overdueTotal(a).toFixed(2),
+                      "",
+                    ]),
+                  );
+                  notify(
+                    "Exception list downloaded",
+                    `${missing.length} tenants. Fill in the Email Address column and upload it as a contact list.`,
+                  );
+                }}
+                className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-grid disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Download the list
+              </button>
               <select
                 value={letter}
                 onChange={(e) => setLetter(e.target.value as LetterId)}
@@ -170,8 +205,11 @@ export default function NoEmailPage() {
         <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
           MES&rsquo;s own process for these: send to everyone who has an
           address, list the rest, fill the addresses in, and re-upload only
-          those. Until the addresses arrive, each letter here is written and
-          waiting and has to be sent by hand.
+          those. <b className="text-ink-secondary">Download the list</b> gives
+          you that file with an empty Email Address column. Fill it in and
+          upload it on the Upload screen as a contact list: it adds those
+          addresses and leaves every other tenant alone. Until they arrive,
+          each letter here is written and waiting and has to be sent by hand.
         </div>
       </Card>
 

@@ -36,6 +36,8 @@ import {
   DEADLINE_DAYS, rmEmail, lateFeeEmail, fillLetter, LETTER_BODIES,
 } from "../src/lib/letters.ts";
 import { simulateSend, buildMessage, recipientsFor } from "../src/lib/outbox.ts";
+import { parseContacts } from "../src/lib/parser.ts";
+import { linkContacts } from "../src/lib/pipeline.ts";
 import { simulateReportSend, DEFAULT_RECIPIENTS } from "../src/lib/dispatch.ts";
 import { templateDueOn, DEFAULT_TEMPLATES, promiseState } from "../src/lib/store.ts";
 import { newSession, isExpired, readSession, SEED_USERS, canOpen, can } from "../src/lib/auth.ts";
@@ -574,6 +576,60 @@ replay = runDay(pipe, replay, 16);
 replay = runDay(pipe, replay, 21);
 check("the same inputs produce the same month",
       JSON.stringify(snapshot(pipe, replay)), JSON.stringify(after));
+
+/* ------------------------------------------------- the exception round trip ---
+ * Raman, 14 September: "those that don't have email, it will just generate an
+ * exception report, Excel or CSV, which will list those clients. Then the user
+ * will enter it and re-upload only that one for emailing."
+ *
+ * Two halves. The list has to come out in a shape the contact parser reads
+ * back, and re-uploading a partial one has to ADD those addresses rather than
+ * replace everybody, or correcting three tenants would wipe the other 187.
+ */
+console.log("\nThe exception list, out and back in\n");
+
+const exceptionSheet = (rows: [string, string][]) => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([
+      ["Company Name", "Status", "Dormitory", "Outstanding", "Email Address"],
+      ...rows.map(([who, mail]) => [who, "Live", "Blue Stars", "100.00", mail]),
+    ]),
+    "Total",
+  );
+  return wb;
+};
+
+// The header the download writes must be the header the parser looks for.
+const roundTrip = parseContacts(
+  exceptionSheet([["DORM-63 ALTUS FACILITIES PTE LTD", "ar@altus.com.sg"]]),
+);
+check("the downloaded shape parses as a contact list", roundTrip.kind, "contact-list");
+check("and the address comes back", roundTrip.contacts[0]?.emails[0], "ar@altus.com.sg");
+check("matched to the right customer code",
+      roundTrip.contacts[0]?.customerCode, "DORM-63");
+
+// A row still blank is not an address, and must not read as one.
+const stillBlank = parseContacts(
+  exceptionSheet([["DORM-99 NOT FILLED IN PTE LTD", ""]]),
+);
+check("a row nobody filled in yields no contact", stillBlank.contacts.length, 0);
+
+// The merge. Three corrected tenants must not wipe the rest.
+const before: Account[] = [
+  { customerCode: "DORM-1", companyName: "HAS ONE", emails: ["old@x.com"], hasContact: true } as Account,
+  { customerCode: "DORM-2", companyName: "GETS ONE", emails: [], hasContact: false } as Account,
+  { customerCode: "DORM-3", companyName: "STILL NONE", emails: [], hasContact: false } as Account,
+];
+const partial = parseContacts(exceptionSheet([["DORM-2 GETS ONE", "new@y.com"]]));
+const merged = linkContacts(before.map((a) => ({ ...a })), partial);
+check("the corrected tenant gains the address",
+      merged.find((a) => a.customerCode === "DORM-2")?.emails[0], "new@y.com");
+check("a tenant not in the file keeps the address they had",
+      merged.find((a) => a.customerCode === "DORM-1")?.emails[0], "old@x.com");
+check("and one absent from both is left alone",
+      merged.find((a) => a.customerCode === "DORM-3")?.hasContact, false);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
