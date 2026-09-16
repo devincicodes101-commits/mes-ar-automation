@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { Invoice } from "@/lib/types";
 import {
   allAccounts,
   data,
@@ -13,7 +14,6 @@ import {
 import { recordExport, useStore } from "@/lib/store";
 import {
   MANAGER_COLUMNS,
-  MANAGER_UNAVAILABLE,
   REVENUE_TABS,
   buildManagerReports,
   depositsFromLedger,
@@ -140,6 +140,18 @@ export default function ReportsPage() {
    * One report per manager rather than one RM report, because that is how Ray
    * reads it and how the 16th sends it: one each.
    */
+  const managerRowCount = useMemo(
+    () => managerReports.reduce(
+      (n, r) => n + r.blocks.reduce((m, b) => m + b.rows.length, 0), 0),
+    [managerReports],
+  );
+  const depositRows = useMemo(
+    () => managerReports.reduce(
+      (n, r) => n + r.blocks.reduce(
+        (m, b) => m + b.rows.filter((x) => x.securityDeposit !== null).length, 0), 0),
+    [managerReports],
+  );
+
   const sendable = useMemo(
     () => [
       ...REVENUE_TABS.map((spec) =>
@@ -263,7 +275,7 @@ export default function ReportsPage() {
                 // the reminder permission.
                 disabled={!can("generate-reports")}
                 onClick={() => {
-                  const built = buildReport(r.id, accounts);
+                  const built = buildReport(r.id, accounts, ds.invoices);
                   if (built.rows.length === 0) {
                     notify(
                       `${r.name} has no rows`,
@@ -378,14 +390,40 @@ export default function ReportsPage() {
             ))}
           </ul>
 
-          {MANAGER_UNAVAILABLE.length > 0 ? (
-            <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
-              {MANAGER_UNAVAILABLE.length} of the {MANAGER_COLUMN_COUNT} columns
-              cannot be filled from any file MES have sent:{" "}
-              {MANAGER_UNAVAILABLE.map((c) => c.label).join(" and ")}. They are
-              shown empty, with the reason, rather than left out.
-            </div>
-          ) : null}
+          {/*
+            * Counted off the rows that were actually built, not off the column
+            * definitions.
+            *
+            * This used to read "2 of the 13 columns cannot be filled from any
+            * file MES have sent" whatever the upload contained, because it
+            * asked MANAGER_UNAVAILABLE, which is a constant. Once the deposit
+            * was found in the ledger the sheet beside this note was filling
+            * both columns while the note went on saying they could not be
+            * filled. A screen contradicting itself is worse than a screen
+            * saying nothing.
+            */}
+          <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
+            {depositRows === 0 ? (
+              <>
+                Security Deposit and Risk Exposure are empty on every row: no
+                tenant in this upload carries a deposit line for them to be
+                worked out from. Both columns are shown anyway, with the reason,
+                rather than left out.
+              </>
+            ) : depositRows === managerRowCount ? (
+              <>
+                Security Deposit and Risk Exposure are filled on all{" "}
+                {managerRowCount} rows, from the deposit lines in the AR report.
+              </>
+            ) : (
+              <>
+                Security Deposit and Risk Exposure are filled on {depositRows}{" "}
+                of {managerRowCount} rows, from the deposit lines in the AR
+                report. The rest carry no deposit line, so they are shown empty
+                with the reason rather than as nil.
+              </>
+            )}
+          </div>
         </Card>
       </div>
 
@@ -565,6 +603,7 @@ export default function ReportsPage() {
         <ReportPreview
           report={looking}
           accounts={accounts}
+          invoices={ds.invoices}
           onClose={() => setLooking(null)}
         />
       ) : null}
@@ -585,9 +624,20 @@ export default function ReportsPage() {
 function buildReport(
   id: string,
   accounts: ReturnType<typeof allAccounts>,
+  /*
+   * The charge lines from the upload.
+   *
+   * Required, not optional. depositReport falls back to the bundled sample
+   * data when it is given none, so leaving it out did not fail: it quietly
+   * looked for this month's deposits in last year's demo file and reported
+   * none. The panel beside it, which passed the upload, showed the deposit
+   * correctly at the same moment, so the same screen said both things at
+   * once.
+   */
+  invoices: Invoice[],
 ): { headers: string[]; rows: unknown[][]; emptyReason?: string } {
   if (id === "deposit") {
-    const rows = depositReport(accounts);
+    const rows = depositReport(accounts, invoices);
     return {
       headers: [
         "Customer Code",
@@ -713,13 +763,15 @@ function Cell({ label, value }: { label: string; value: string }) {
 function ReportPreview({
   report,
   accounts,
+  invoices,
   onClose,
 }: {
   report: ReportDef;
   accounts: ReturnType<typeof allAccounts>;
+  invoices: Invoice[];
   onClose: () => void;
 }) {
-  const built = buildReport(report.id, accounts);
+  const built = buildReport(report.id, accounts, invoices);
   const waiting = built.headers.filter((h) => /awaiting/i.test(h));
 
   return (

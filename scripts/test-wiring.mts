@@ -293,5 +293,37 @@ check("and the screen says so on its face",
 check("it does not claim to be the gate",
       CHECKS_PAGE.includes("npm run test:cases"), true);
 
+/* ------------------ a screen must not contradict the panel beside it ---
+ * Two faults of the same shape, both visible on the reports screen at once.
+ *
+ * The scheduled Security deposit report called depositReport without the
+ * uploaded lines. That function falls back to the bundled sample data when it
+ * is given none, so it did not fail: it looked for this month's deposits in
+ * the demo file, found none, and said "0 rows". The panel directly beneath it
+ * had passed the upload and was showing the deposit correctly.
+ *
+ * And the note under the manager reports counted MANAGER_UNAVAILABLE, a
+ * constant, so it went on saying two columns "cannot be filled from any file
+ * MES have sent" while the sheet beside it filled them.
+ */
+section("The reports screen reads the upload, not the sample data");
+
+const REP = page("reports");
+check("the scheduled report is built from the uploaded lines",
+      /buildReport\(r\.id, accounts, ds\.invoices\)/.test(REP), true);
+check("and so is the preview of it",
+      /buildReport\(report\.id, accounts, invoices\)/.test(REP), true);
+check("buildReport requires them rather than defaulting",
+      REP.includes("invoices: Invoice[],"), true);
+check("no call is left without them",
+      /buildReport\([^)]*accounts\)/.test(REP), false);
+
+check("the empty-column note counts the rows that were built",
+      /depositRows === 0/.test(REP), true);
+check("and not a constant list of columns",
+      /MANAGER_UNAVAILABLE\.length > 0/.test(REP), false);
+check("it says how many rows were filled when some were",
+      REP.includes("of {managerRowCount} rows"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
