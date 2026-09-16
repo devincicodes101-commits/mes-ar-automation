@@ -18,6 +18,7 @@ import {
   agingByProperty,
   buildLateFeeListing,
   buildManagerReports,
+  depositsFromLedger,
   buildRevenueTab,
   giroEnrolled,
   recurringDefaulters,
@@ -131,7 +132,18 @@ export function buildPipeline(
     buildRevenueTab(spec, invoices, asOf, entity),
   );
 
-  const managerReports = buildManagerReports(accounts, asOf, entity);
+  // The deposit per tenant, out of the AR report's own Security Deposit
+  // lines. Raman's instruction on 14 September was to take it from this
+  // source rather than from the dormitory tabs, which do not carry it.
+  const depositsHeld = depositsFromLedger(invoices);
+
+  const managerReports = buildManagerReports(
+    accounts,
+    asOf,
+    entity,
+    new Map(),
+    depositsHeld,
+  );
 
   const problems: ParseProblem[] = [...parseProblems];
 

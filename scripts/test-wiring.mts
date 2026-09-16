@@ -225,5 +225,29 @@ check("untouched still means everybody", /if \(rms === null\) return all;/.test(
 check("the report dropdown includes the manager sheets",
       /\.\.\.managerReports,/.test(REPORTS), true);
 
+/* ------------------------ the deposit reaches the screens, not just a test ---
+ * Risk Exposure has been described and not computed once already. The deposit
+ * feeding it can fail the same way: a reader that works, called by nothing.
+ */
+console.log("\nThe deposit reaches the reports\n");
+
+const reportsLib2 = lib("reports.ts");
+check("the ledger reader exists",
+      /export function depositsFromLedger\(/.test(reportsLib2), true);
+check("a spent deposit is not counted as held",
+      /if \(total > 0\) held\.set\(key, total\);/.test(reportsLib2), true);
+check("the pipeline reads it", /depositsFromLedger\(invoices\)/.test(lib("pipeline.ts")), true);
+check("and hands it to the manager reports",
+      /depositsHeld,\n\s*\);/.test(lib("pipeline.ts")), true);
+check("the reports screen reads it too",
+      /depositsFromLedger\(ds\.invoices\)/.test(REPORTS), true);
+
+// The notes on those two columns said no source existed. It does now, and a
+// note claiming otherwise is worse than none.
+check("the deposit column no longer says it has no source",
+      /until MES name a source for it/.test(reportsLib2), false);
+check("nor does risk exposure",
+      /is in none of their files/.test(reportsLib2), false);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

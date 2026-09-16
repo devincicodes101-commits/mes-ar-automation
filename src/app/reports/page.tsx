@@ -16,6 +16,7 @@ import {
   MANAGER_UNAVAILABLE,
   REVENUE_TABS,
   buildManagerReports,
+  depositsFromLedger,
   buildRevenueTab,
 } from "@/lib/reports";
 import {
@@ -118,8 +119,12 @@ export default function ReportsPage() {
         accounts,
         ds.asOf,
         accounts.find((a) => a.entity)?.entity ?? null,
+        new Map(),
+        // Raman, 14 September: take the deposit from the AR report's own
+        // Security Deposit lines, not from the dormitory tabs.
+        depositsFromLedger(ds.invoices),
       ),
-    [accounts, ds.asOf],
+    [accounts, ds.asOf, ds.invoices],
   );
 
   /*

@@ -153,8 +153,10 @@ export const REVENUE_TABS: RevenueTabSpec[] = [
     note:
       "Deposit lines that are still open in the AR ledger: unpaid deposit " +
       "invoices, and offsets where a deposit has been applied against arrears. " +
-      "This is not the deposit held per tenant, which is a balance sheet " +
-      "figure and is in no file MES has sent.",
+      "Raman named these as the source for the Security Deposit column on 14 " +
+      "September, so the manager reports total them per tenant. A tenant " +
+      "whose lines net to nothing or less has had their deposit spent " +
+      "against arrears and is reported as having none held.",
   },
   {
     code: "PF",
@@ -288,9 +290,10 @@ export const MANAGER_COLUMNS: ReportColumn[] = [
     label: "Security Deposit",
     kind: "money",
     unavailable:
-      "The deposit held per tenant is a balance sheet figure. The AR report " +
-      "carries deposit lines only where they are still open, so this cannot " +
-      "be filled until MES name a source for it.",
+      "Totalled from the Security Deposit lines in the AR report, which is " +
+      "the source Raman named on 14 September. Blank where a tenant has no " +
+      "deposit line, or where their deposit has already been offset against " +
+      "arrears and so is no longer held.",
   },
   {
     key: "riskExposure",
@@ -312,15 +315,71 @@ export const MANAGER_COLUMNS: ReportColumn[] = [
     // file MES have sent. The moment that arrives this column computes.
     unavailable:
       "Grand Total minus Security Deposit, which MES confirmed on 14 " +
-      "September. Cannot be shown yet because the deposit held per tenant is " +
-      "a balance sheet figure and is in none of their files: the AR report " +
-      "carries deposit lines only where they are still unpaid, which is a " +
-      "different number.",
+      "September. Shown for every tenant whose AR report carries a deposit " +
+      "line, and blank for the rest, because a tenant with no deposit on " +
+      "file is a different claim from a tenant who lodged nothing.",
   },
   { key: "rep", label: "Sales Rep", kind: "text" },
 ];
 
 export const MANAGER_UNAVAILABLE = MANAGER_COLUMNS.filter((c) => c.unavailable);
+
+/**
+ * The security deposit per tenant, read from the AR report itself.
+ *
+ * Raman told us where to get this on the 14 September call, and I had it
+ * recorded as unanswered. His words, on the master AR report: "go to and
+ * filter the yellow column F, the security deposit is there ... depending
+ * whether you are using this as a source data to come out that table or
+ * you're using JPD one, I would, if I were you, I would use this source
+ * data."
+ *
+ * So: filter the deposit lines out of the Finance AR Download and total them
+ * per tenant. Where there is nothing to total, there is no figure, which he
+ * also covered: "if there's no data there, then you can't display ... you
+ * just can put some kind of note that this data not available."
+ *
+ * Two things about the result are worth knowing before anybody quotes it.
+ *
+ * Only a handful of tenants carry a deposit line at all. In MES's August
+ * export it is ten out of a hundred and ninety, so this fills the column for
+ * ten and leaves the rest saying why they are empty.
+ *
+ * And a tenant whose deposit has been spent shows a negative, because the
+ * offset is booked as a credit: "BEING SECURITY DEPOSIT OF RSP ENGINEERING
+ * P/L HAS BEEN OFFSET AGAINST A/R OUTSTANDING". A negative is not a deposit
+ * being held, and subtracting one would push Risk Exposure *up*, making a
+ * tenant whose deposit is already gone look better covered than one who never
+ * lodged a deposit at all. So a total that is not positive is reported as no
+ * figure rather than as a figure, and the report says which tenants those are.
+ */
+export function depositsFromLedger(
+  invoices: readonly Line[],
+): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const i of invoices) {
+    if (i.revenueType !== "Security Deposit") continue;
+    const key = i.customerCode ? i.customerCode.toUpperCase() : norm(i.companyName);
+    totals.set(key, round2((totals.get(key) ?? 0) + i.openBalance));
+  }
+
+  const held = new Map<string, number>();
+  for (const [key, total] of Array.from(totals)) {
+    if (total > 0) held.set(key, total);
+  }
+  return held;
+}
+
+/** Tenants whose deposit lines net to nothing or less: spent, not held. */
+export function depositsOffset(invoices: readonly Line[]): string[] {
+  const totals = new Map<string, number>();
+  for (const i of invoices) {
+    if (i.revenueType !== "Security Deposit") continue;
+    const key = i.customerCode ? i.customerCode.toUpperCase() : norm(i.companyName);
+    totals.set(key, round2((totals.get(key) ?? 0) + i.openBalance));
+  }
+  return Array.from(totals).filter(([, t]) => t <= 0).map(([k]) => k).sort();
+}
 
 /**
  * Risk Exposure, as MES define it.

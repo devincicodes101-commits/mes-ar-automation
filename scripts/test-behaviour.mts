@@ -14,7 +14,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as XLSX from "xlsx";
 
-import { parseAgingDetail, propertyFromDocument, round2 } from "../src/lib/aging-detail.ts";
+import {
+  parseAgingDetail,
+  propertyFromDocument,
+  round2,
+  withoutCode,
+} from "../src/lib/aging-detail.ts";
 import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
 import {
   emptyState,
@@ -31,6 +36,7 @@ import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
   REVENUE_TABS, agingByProperty, buildManagerReports, riskExposure,
+  depositsFromLedger, depositsOffset,
 } from "../src/lib/reports.ts";
 import {
   addDays, renderLetter, longOrdinalDate, longDate, shortDate, currency,
@@ -770,6 +776,99 @@ check("the 16th says it too",
       planFor(rmPipe, emptyState(), 16).fromFlowTab?.includes("Uploads AR Report"), true);
 check("and the 4th still does",
       planFor(rmPipe, emptyState(), 4).fromFlowTab?.includes("Uploads AR Report"), true);
+
+
+/* ------------------------------ the deposit, out of the AR report itself ---
+ * Raman, 14 September, asked where the Security Deposit column comes from:
+ * "filter the yellow column F, the security deposit is there ... I would, if
+ * I were you, I would use this source data." And for the tenants who have
+ * none: "if there's no data there, then you can't display ... you just can
+ * put some kind of note that this data not available."
+ */
+console.log("\nSecurity deposit, read from the ledger\n");
+
+const sdLine = (code: string, amount: number, desc = "Security Deposit - REFUNDABLE") =>
+  ({
+    companyName: `${code} SOMEBODY PTE LTD`, customerCode: code,
+    transactionType: "Invoice", date: "2026-07-01", dueDate: null,
+    description: desc, documentNumber: "BSD-1/1", linkedContract: null,
+    age: 30, bucket: "", openBalance: amount,
+    revenueType: "Security Deposit", isOneFm: false,
+  }) as never;
+
+const rent = (code: string, amount: number) =>
+  ({
+    companyName: `${code} SOMEBODY PTE LTD`, customerCode: code,
+    transactionType: "Invoice", date: "2026-07-01", dueDate: null,
+    description: "Occupancy Fee Charges", documentNumber: "BSD-1/2",
+    linkedContract: null, age: 30, bucket: "", openBalance: amount,
+    revenueType: "Occupancy Fee", isOneFm: false,
+  }) as never;
+
+const ledger = depositsFromLedger([
+  sdLine("DORM-1", 11360),
+  sdLine("DORM-1", 11360),
+  rent("DORM-1", 5000),
+  sdLine("DORM-2", 932),
+  rent("DORM-3", 40000),
+  sdLine("DORM-4", -21120, "BEING SECURITY DEPOSIT ... OFFSET AGAINST A/R OUTSTANDING"),
+]);
+
+check("two deposit lines for one tenant are totalled", ledger.get("DORM-1"), 22720);
+check("a single line stands on its own", ledger.get("DORM-2"), 932);
+check("rent is not a deposit", ledger.has("DORM-3"), false);
+check("only the tenants with one appear", ledger.size, 2);
+
+// The trap. An offset deposit has been spent, not held, and subtracting a
+// negative would make a tenant with nothing left look better covered than a
+// tenant who never lodged anything.
+check("a deposit already spent is not counted as held", ledger.has("DORM-4"), false);
+check("and is named, so nobody wonders where it went",
+      depositsOffset([sdLine("DORM-4", -21120)]).join(","), "DORM-4");
+check("a deposit that nets exactly to nothing is not held either",
+      depositsFromLedger([sdLine("DORM-5", 500), sdLine("DORM-5", -500)]).has("DORM-5"),
+      false);
+
+// End to end: ledger to the column a manager reads.
+const sdAccounts = [
+  { id: "a", customerCode: "DORM-1", companyName: "HAS ONE", property: "BSD",
+    status: "Live", rm: "Lancelot", total: 30000,
+    buckets: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 30000 },
+    emails: [], hasContact: false },
+  { id: "b", customerCode: "DORM-3", companyName: "HAS NONE", property: "BSD",
+    status: "Live", rm: "Lancelot", total: 40000,
+    buckets: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 40000 },
+    emails: [], hasContact: false },
+] as unknown as Account[];
+
+const sdReport = buildManagerReports(sdAccounts, "2026-08-28", "MES Group", new Map(), ledger);
+const sdRows = sdReport[0]?.blocks[0]?.rows ?? [];
+const pick = (n: string) => sdRows.find((r) => String(r.companyName).includes(n));
+
+check("the tenant with a deposit shows it", pick("HAS ONE")?.securityDeposit, 22720);
+check("and their risk exposure is the difference", pick("HAS ONE")?.riskExposure, 7280);
+check("the tenant without one stays blank", pick("HAS NONE")?.securityDeposit, null);
+check("and so does their risk exposure", pick("HAS NONE")?.riskExposure, null);
+
+/* ------------------------------------- the code is not printed twice over ---
+ * Finance AR Download carries the customer code in its own column and again
+ * at the front of the name, so the manager sheet read "DORM-1600 DORM-1600
+ * MODERN WELLNESS PTE. LTD" on six of MES's seven sample tenants.
+ */
+console.log("\nThe customer code appears once, not twice\n");
+
+check("a name carrying its own code is cleaned",
+      withoutCode("DORM-1600 MODERN WELLNESS PTE. LTD", "DORM-1600"),
+      "MODERN WELLNESS PTE. LTD");
+check("a clean name is left alone",
+      withoutCode("MODERN WELLNESS PTE. LTD", "DORM-1600"),
+      "MODERN WELLNESS PTE. LTD");
+check("case does not matter", withoutCode("dorm-166 BURNING SUN", "DORM-166"), "BURNING SUN");
+check("a different code is not stripped",
+      withoutCode("DORM-17 SOMEBODY", "DORM-1"), "DORM-17 SOMEBODY");
+check("a name that is only its code is kept rather than emptied",
+      withoutCode("DORM-166", "DORM-166"), "DORM-166");
+check("no code, no change", withoutCode("SOMEBODY PTE LTD", ""), "SOMEBODY PTE LTD");
 
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);

@@ -115,6 +115,30 @@ function splitCustomer(cell: unknown): { code: string; name: string } | null {
   return { code: m[1].toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
 }
 
+/**
+ * The company name without the customer code in front of it.
+ *
+ * Finance AR Download puts the code in its own Customer column *and* at the
+ * front of the name on many rows, so a report that prints "code name" got
+ * "DORM-1600 DORM-1600 MODERN WELLNESS PTE. LTD". Six of the seven tenants in
+ * MES's sample read that way on the manager sheet, which is the sheet their
+ * managers actually open.
+ *
+ * Stripped here, at the point the name is read, rather than at each place one
+ * is printed: there are four of those and they would not stay in step.
+ */
+export function withoutCode(name: string, code: string): string {
+  const trimmed = name.trim();
+  if (!code) return trimmed;
+  // Plain prefix test rather than a built regular expression: the code comes
+  // from the file, and interpolating file content into a pattern is how a
+  // stray character becomes a parse error on somebody else's upload.
+  if (!trimmed.toUpperCase().startsWith(code.toUpperCase())) return trimmed;
+  const rest = trimmed.slice(code.length);
+  if (!/^\s/.test(rest)) return trimmed;
+  return rest.trim() || trimmed;
+}
+
 function rowsOf(wb: XLSX.WorkBook, sheetName: string): unknown[][] {
   const ws = wb.Sheets[sheetName];
   if (!ws) return [];
@@ -502,7 +526,7 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
 
     invoices.push({
       customerCode: current.code,
-      companyName: (company || current.name).replace(/\.$/, ""),
+      companyName: withoutCode(company || current.name, current.code).replace(/\.$/, ""),
       transactionType: txType,
       date: excelDate(row[COL.date]),
       dueDate: dueIso,
