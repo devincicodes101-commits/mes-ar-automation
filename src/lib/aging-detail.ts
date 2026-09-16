@@ -90,6 +90,16 @@ function excelDate(v: unknown): string | null {
   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
 }
 
+/** Whole days between two calendar dates, for reporting a disagreement. */
+function diffDays(from: string, to: string): number {
+  const a = /^(\d{4})-(\d{2})-(\d{2})$/.exec(from);
+  const b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(to);
+  if (!a || !b) return 0;
+  const at = new Date(Number(a[1]), Number(a[2]) - 1, Number(a[3]), 12).getTime();
+  const bt = new Date(Number(b[1]), Number(b[2]) - 1, Number(b[3]), 12).getTime();
+  return Math.round((bt - at) / 86400000);
+}
+
 /** Calendar arithmetic, at local noon, for the same reason excelDate is. */
 function addDays(iso: string, days: number): string | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
@@ -570,7 +580,37 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   // plus seven, plus 14, plus 21. In one report you may have several billing
   // dates." Each line is measured from its own. The report date says how far
   // through each billing run's credit period we are, and stamps the period.
-  if (!asOf && dataAsOf) {
+  /*
+   * The header date and the lines can disagree, and on MES's own August
+   * export they do: the title says 17 August, and every one of the 3,117
+   * lines puts the run 11 days later, at 28 August. Due date plus age is
+   * arithmetic NetSuite did; the title is a sentence somebody typed, and it
+   * was evidently typed before the export was finally pulled.
+   *
+   * Eleven days is not cosmetic. It is most of a credit period, so a billing
+   * run that is really past its 14 days reads as still inside it, and the
+   * reader has no way of knowing. Until now nothing said a word: when the
+   * header existed it won, silently.
+   *
+   * The lines win, because 3,117 of them agree and the title is one cell. But
+   * the disagreement is reported either way, naming both dates, because a
+   * report silently dated differently from its own title is exactly the kind
+   * of thing somebody needs to take up with MES rather than discover later.
+   */
+  if (asOf && dataAsOf && asOf !== dataAsOf) {
+    problems.push({
+      sheet: clean(sheetName),
+      row: null,
+      severity: "warning",
+      message:
+        `This report is titled "as of ${asOf}", but its own lines put it at ` +
+        `${dataAsOf}: every line's due date plus its age lands there. Dated ` +
+        `${dataAsOf}, because that is what the data says, and ${diffDays(asOf, dataAsOf)} ` +
+        "days is enough to move a billing run in or out of its credit period. " +
+        "Worth asking MES which is right.",
+    });
+    asOf = dataAsOf;
+  } else if (!asOf && dataAsOf) {
     asOf = dataAsOf;
     problems.push({
       sheet: clean(sheetName),
@@ -736,5 +776,15 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
 
 /** Money adds up in binary and drifts. Rounded once, at the boundary. */
 export function round2(n: number): number {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+  // Half away from zero, which is what money does. Math.round breaks ties
+  // towards positive infinity, so it rounded 1.005 up to 1.01 and -1.005 in
+  // to -1.00: a half cent treated one way on an invoice and the other on a
+  // credit note. This file is full of credit notes, and deposits offset
+  // against arrears are all negative.
+  // The epsilon is applied as a ratio, not added. 1.005 is held as
+  // 1.00499999999999989, so scaling gives 100.49999999999999 and adding an
+  // epsilon sized for 1.0 moves nothing at all at that magnitude. Multiplying
+  // scales the nudge with the number.
+  const cents = Math.round(Math.abs(n) * 100 * (1 + Number.EPSILON));
+  return ((n < 0 ? -cents : cents) / 100) || 0;
 }

@@ -54,7 +54,7 @@ check("and says the two files are about different dormitories",
   has(both, "different dormitories"), true);
 check("it warns the contact list is out of date",
   has(both, "older than the AR report"), true);
-check("and gives the gap in days", has(both, "98 days"), true);
+check("and gives the gap in days", has(both, "109 days"), true);
 check("it does not claim there is no AR report", has(both, "No AR report"), false);
 
 /* ============================================== the AR report on its own */
@@ -87,7 +87,7 @@ const older = { ...ar, asOf: "2026-06-30" };
 const back = checkUpload([older, cl], current);
 check("it notices the step backwards",
   has(back, "older than the one currently loaded"), true);
-check("and says how far", has(back, "48 days"), true);
+check("and says how far", has(back, "59 days"), true);
 
 const forward = checkUpload([{ ...ar, asOf: "2026-09-30" }, cl], current);
 check("a newer report raises nothing",

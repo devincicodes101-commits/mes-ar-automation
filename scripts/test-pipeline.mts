@@ -94,7 +94,19 @@ check("the file is recognised as the aging detail export", isAgingDetail(wb), tr
 
 const p = parseAgingDetail(wb);
 
-check("the report date is read from the header block", p.asOf, "2026-08-17");
+/*
+ * The header block says 17 August and every one of the 3,117 lines says 28
+ * August, via its own due date plus its own age. The lines win, and the
+ * disagreement is reported rather than resolved in silence. Eleven days is
+ * most of a credit period: a billing run that is really past its 14 days
+ * would otherwise read as still inside it.
+ */
+check("the report is dated from its lines, not its title", p.asOf, "2026-08-28");
+check("and the disagreement with the title is reported",
+  p.problems.some((x) => x.message.includes("2026-08-17") && x.message.includes("2026-08-28")),
+  true);
+check("naming the gap, because a reader has to judge whether it matters",
+  p.problems.some((x) => x.message.includes("11 days")), true);
 check("so is the legal entity", p.entity, "KT Mesdorm Pte Ltd");
 check("every invoice line is read", p.invoices.length, 3117);
 check("customers become accounts", p.accounts.length, 190);
@@ -130,7 +142,7 @@ check(
 const again = parseAgingDetail(XLSX.read(readFileSync(AGING), { cellDates: true }));
 check("re-reading the same file gives the same total", round2(again.accounts.reduce((n, a) => n + a.total, 0)), ourTotal);
 check("and the same account count", again.accounts.length, p.accounts.length);
-check("and the same date, not today's", again.asOf, "2026-08-17");
+check("and the same date, not today's", again.asOf, "2026-08-28");
 
 /* ================================================== which dormitory a line is */
 
@@ -478,7 +490,7 @@ const ds = datasetFromResults(results, "2026-08");
 check("a dataset is built from the upload", ds !== null, true);
 check("with every account", ds?.accounts.length, 190);
 check("and every invoice line", ds?.invoices.length, 3117);
-check("dated from the file, not from today", ds?.asOf, "2026-08-17");
+check("dated from the file, not from today", ds?.asOf, "2026-08-28");
 check(
   "the total survives the trip through the app",
   round2((ds?.accounts ?? []).reduce((n, a) => n + a.total, 0)),

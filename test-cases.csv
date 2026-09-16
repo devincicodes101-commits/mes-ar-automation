@@ -1,0 +1,238 @@
+ID,Area,Requirement,Scenario,Op,Input,Expected
+TC-001,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-28, report 2026-08-28: how old is that run",cycleAge,2026-08-28|2026-08-28,0
+TC-002,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-27, report 2026-08-28: how old is that run",cycleAge,2026-08-27|2026-08-28,1
+TC-003,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-21, report 2026-08-28: how old is that run",cycleAge,2026-08-21|2026-08-28,7
+TC-004,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-15, report 2026-08-28: how old is that run",cycleAge,2026-08-15|2026-08-28,13
+TC-005,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-14, report 2026-08-28: how old is that run",cycleAge,2026-08-14|2026-08-28,14
+TC-006,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-13, report 2026-08-28: how old is that run",cycleAge,2026-08-13|2026-08-28,15
+TC-007,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-08-01, report 2026-08-28: how old is that run",cycleAge,2026-08-01|2026-08-28,27
+TC-008,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-07-31, report 2026-08-28: how old is that run",cycleAge,2026-07-31|2026-08-28,28
+TC-009,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-07-29, report 2026-08-28: how old is that run",cycleAge,2026-07-29|2026-08-28,30
+TC-010,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-07-15, report 2026-08-28: how old is that run",cycleAge,2026-07-15|2026-08-28,44
+TC-011,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-07-01, report 2026-08-28: how old is that run",cycleAge,2026-07-01|2026-08-28,58
+TC-012,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-06-15, report 2026-08-28: how old is that run",cycleAge,2026-06-15|2026-08-28,74
+TC-013,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-05-15, report 2026-08-28: how old is that run",cycleAge,2026-05-15|2026-08-28,105
+TC-014,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-04-14, report 2026-08-28: how old is that run",cycleAge,2026-04-14|2026-08-28,136
+TC-015,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-02-15, report 2026-08-28: how old is that run",cycleAge,2026-02-15|2026-08-28,194
+TC-016,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2026-01-15, report 2026-08-28: how old is that run",cycleAge,2026-01-15|2026-08-28,225
+TC-017,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2025-12-15, report 2026-08-28: how old is that run",cycleAge,2025-12-15|2026-08-28,256
+TC-018,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2025-08-15, report 2026-08-28: how old is that run",cycleAge,2025-08-15|2026-08-28,378
+TC-019,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2024-07-15, report 2026-08-28: how old is that run",cycleAge,2024-07-15|2026-08-28,774
+TC-020,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit","Billed 2020-03-15, report 2026-08-28: how old is that run",cycleAge,2020-03-15|2026-08-28,2357
+TC-021,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-28: payment falls due 14 days on,dueBy,2026-08-28,2026-09-11
+TC-022,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-27: payment falls due 14 days on,dueBy,2026-08-27,2026-09-10
+TC-023,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-21: payment falls due 14 days on,dueBy,2026-08-21,2026-09-04
+TC-024,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-15: payment falls due 14 days on,dueBy,2026-08-15,2026-08-29
+TC-025,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-14: payment falls due 14 days on,dueBy,2026-08-14,2026-08-28
+TC-026,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-13: payment falls due 14 days on,dueBy,2026-08-13,2026-08-27
+TC-027,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-01: payment falls due 14 days on,dueBy,2026-08-01,2026-08-15
+TC-028,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-31: payment falls due 14 days on,dueBy,2026-07-31,2026-08-14
+TC-029,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-29: payment falls due 14 days on,dueBy,2026-07-29,2026-08-12
+TC-030,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-15: payment falls due 14 days on,dueBy,2026-07-15,2026-07-29
+TC-031,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-01: payment falls due 14 days on,dueBy,2026-07-01,2026-07-15
+TC-032,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-06-15: payment falls due 14 days on,dueBy,2026-06-15,2026-06-29
+TC-033,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-28: the second deadline is 30 days on,finalBy,2026-08-28,2026-09-27
+TC-034,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-27: the second deadline is 30 days on,finalBy,2026-08-27,2026-09-26
+TC-035,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-21: the second deadline is 30 days on,finalBy,2026-08-21,2026-09-20
+TC-036,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-15: the second deadline is 30 days on,finalBy,2026-08-15,2026-09-14
+TC-037,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-14: the second deadline is 30 days on,finalBy,2026-08-14,2026-09-13
+TC-038,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-13: the second deadline is 30 days on,finalBy,2026-08-13,2026-09-12
+TC-039,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-08-01: the second deadline is 30 days on,finalBy,2026-08-01,2026-08-31
+TC-040,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-31: the second deadline is 30 days on,finalBy,2026-07-31,2026-08-30
+TC-041,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-29: the second deadline is 30 days on,finalBy,2026-07-29,2026-08-28
+TC-042,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-15: the second deadline is 30 days on,finalBy,2026-07-15,2026-08-14
+TC-043,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-07-01: the second deadline is 30 days on,finalBy,2026-07-01,2026-07-31
+TC-044,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 2026-06-15: the second deadline is 30 days on,finalBy,2026-06-15,2026-07-15
+TC-045,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed -7 days before the report (2026-09-04),stage,2026-09-04|2026-08-28,not yet due
+TC-046,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed -1 days before the report (2026-08-29),stage,2026-08-29|2026-08-28,not yet due
+TC-047,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 0 days before the report (2026-08-28),stage,2026-08-28|2026-08-28,within credit
+TC-048,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 1 days before the report (2026-08-27),stage,2026-08-27|2026-08-28,within credit
+TC-049,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 13 days before the report (2026-08-15),stage,2026-08-15|2026-08-28,within credit
+TC-050,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 14 days before the report (2026-08-14),stage,2026-08-14|2026-08-28,within credit
+TC-051,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 15 days before the report (2026-08-13),stage,2026-08-13|2026-08-28,past 14 days
+TC-052,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 16 days before the report (2026-08-12),stage,2026-08-12|2026-08-28,past 14 days
+TC-053,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 29 days before the report (2026-07-30),stage,2026-07-30|2026-08-28,past 14 days
+TC-054,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 30 days before the report (2026-07-29),stage,2026-07-29|2026-08-28,past 14 days
+TC-055,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 31 days before the report (2026-07-28),stage,2026-07-28|2026-08-28,past 30 days
+TC-056,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 60 days before the report (2026-06-29),stage,2026-06-29|2026-08-28,past 30 days
+TC-057,Aging,"AR Collections Cycle: billing date is the pivot, 14 and 30 day credit",Billed 400 days before the report (2025-07-24),stage,2025-07-24|2026-08-28,past 30 days
+TC-058,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line -30 days past its due date,bucket,-30,Current
+TC-059,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line -1 days past its due date,bucket,-1,Current
+TC-060,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 0 days past its due date,bucket,0,Current
+TC-061,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 1 days past its due date,bucket,1,Current
+TC-062,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 14 days past its due date,bucket,14,Current
+TC-063,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 15 days past its due date,bucket,15,Current
+TC-064,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 16 days past its due date,bucket,16,30 days
+TC-065,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 17 days past its due date,bucket,17,30 days
+TC-066,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 44 days past its due date,bucket,44,30 days
+TC-067,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 45 days past its due date,bucket,45,30 days
+TC-068,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 46 days past its due date,bucket,46,60 days
+TC-069,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 74 days past its due date,bucket,74,60 days
+TC-070,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 75 days past its due date,bucket,75,60 days
+TC-071,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 76 days past its due date,bucket,76,90 days
+TC-072,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 104 days past its due date,bucket,104,90 days
+TC-073,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 105 days past its due date,bucket,105,90 days
+TC-074,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 106 days past its due date,bucket,106,More than 90 days
+TC-075,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 200 days past its due date,bucket,200,More than 90 days
+TC-076,Aging,"Formula tab: IF(L2<=15,""Current"", <=45 ""30 days"", <=75 ""60 days"", <=105 ""90 days"", else ""More than 90 days"")",A line 400 days past its due date,bucket,400,More than 90 days
+TC-077,Aging,Calendar arithmetic must not drift over month or year ends,2026-01-31 plus 14 days,addDays,2026-01-31|14,2026-02-14
+TC-078,Aging,Calendar arithmetic must not drift over month or year ends,2026-02-14 plus 14 days,addDays,2026-02-14|14,2026-02-28
+TC-079,Aging,Calendar arithmetic must not drift over month or year ends,2024-02-15 plus 14 days,addDays,2024-02-15|14,2024-02-29
+TC-080,Aging,Calendar arithmetic must not drift over month or year ends,2024-02-15 plus 30 days,addDays,2024-02-15|30,2024-03-16
+TC-081,Aging,Calendar arithmetic must not drift over month or year ends,2026-12-20 plus 14 days,addDays,2026-12-20|14,2027-01-03
+TC-082,Aging,Calendar arithmetic must not drift over month or year ends,2026-12-20 plus 30 days,addDays,2026-12-20|30,2027-01-19
+TC-083,Aging,Calendar arithmetic must not drift over month or year ends,2026-03-31 plus 30 days,addDays,2026-03-31|30,2026-04-30
+TC-084,Aging,Calendar arithmetic must not drift over month or year ends,2026-01-15 plus 30 days,addDays,2026-01-15|30,2026-02-14
+TC-085,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",Two lines billed the same day are one run,cycleCount,2026-07-15:100|2026-07-15:50,1
+TC-086,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",Two billing dates are two runs,cycleCount,2026-07-15:100|2026-08-03:25,2
+TC-087,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",Three billing dates are three runs,cycleCount,2026-07-15:100|2026-08-03:25|2026-06-01:10,3
+TC-088,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",Lines within a run are added up,cycleTotal,2026-07-15:100|2026-07-15:50,150.00
+TC-089,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",The newest run is listed first,cycleFirst,2026-07-15:100|2026-08-03:25,2026-08-03
+TC-090,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",A line with no billing date joins no run,cycleCount,2026-07-15:100|none:40,1
+TC-091,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",That undated line is still counted,cycleUndated,2026-07-15:100|none:40,1
+TC-092,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""","And its value is reported, not lost",cycleUndatedTotal,2026-07-15:100|none:40,40.00
+TC-093,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",A run inside its credit period owes nothing overdue,cycleOverdue,2026-08-20:100,0.00
+TC-094,Billing runs,"Raman 14 Sep: ""in one report you may have several billing dates""",A run past 14 days is overdue in full,cycleOverdue,2026-07-01:100,100.00
+TC-095,Billing runs,"Flow tab: ""Adhoc billing can happen on any other dates eg. 21 or 24th""",A run billed on the 21st is treated like any other,stage,2026-07-21|2026-08-28,past 30 days
+TC-096,Billing runs,"Flow tab: ""Adhoc billing can happen on any other dates eg. 21 or 24th""",A run billed on the 24th is treated like any other,stage,2026-08-24|2026-08-28,within credit
+TC-097,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Occupancy Fee Charges for the month of August 2026""",revenueType,Occupancy Fee Charges for the month of August 2026|BSD-786/002070|Occupancy Fee,Occupancy Fee
+TC-098,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Security Deposit - REFUNDABLE""",revenueType,Security Deposit - REFUNDABLE|BSD-786/002071|Security Deposit,Security Deposit
+TC-099,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""BEING SECURITY DEPOSIT OF X P/L HAS BEEN OFFSET AG""",revenueType,BEING SECURITY DEPOSIT OF X P/L HAS BEEN OFFSET AGAINST A/R OUTSTANDING|BSDCN/017|Security Deposit,Security Deposit
+TC-100,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Admin Fee For Late Payment""",revenueType,Admin Fee For Late Payment|BSD-786/002072|Admin Fee,Late Payment Fee
+TC-101,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Admin Fee for Rejected Giro - 02-JAN-26""",revenueType,Admin Fee for Rejected Giro - 02-JAN-26|BSD-786/002073|Admin Fee,Rejected GIRO Fee
+TC-102,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Stamp Duty""",revenueType,Stamp Duty|BSD-786/002074|Reimbursement,Stamp Duty
+TC-103,Charge types,Flow tab: group by SD/PF/1FM/LP/SD/RM,"A line reading ""Quarterly Charges for Season Parking of vehicle""",revenueType,Quarterly Charges for Season Parking of vehicle|BSD-786/002075|,Season Parking
+TC-104,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number BSDFM/1598,isOneFm,BSDFM/1598|,true
+TC-105,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number JPD1FM/2705,isOneFm,JPD1FM/2705|,true
+TC-106,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number JP1FM/2705,isOneFm,JP1FM/2705|,true
+TC-107,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number JPD2FM/11,isOneFm,JPD2FM/11|,true
+TC-108,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number LEOFM/3,isOneFm,LEOFM/3|,true
+TC-109,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number BSD-786/002070,isOneFm,BSD-786/002070|,false
+TC-110,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number JPD1-786/002429,isOneFm,JPD1-786/002429|,false
+TC-111,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number KTM-1444,isOneFm,KTM-1444|,false
+TC-112,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number REC-BSD367,isOneFm,REC-BSD367|,false
+TC-113,Charge types,"MES note in G2:I2: 1FM = Prefix ""DORMFM"", example BSDFM/1598",Document number BSDCN/017,isOneFm,BSDCN/017|,false
+TC-114,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document BSD-786/002070,property,BSD-786/002070|BSD,BSD
+TC-115,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document BSD786/44140,property,BSD786/44140|BSD,BSD
+TC-116,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document BSDFM/1598,property,BSDFM/1598|BSD,BSD
+TC-117,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document BSDCN/017,property,BSDCN/017|BSD,BSD
+TC-118,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document REC-BSD367,property,REC-BSD367|BSD,BSD
+TC-119,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document JPD1-786/002429,property,JPD1-786/002429|BSD,JPD1
+TC-120,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document JP1FM/2705,property,JP1FM/2705|BSD,JPD1
+TC-121,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document JPD2-786/1,property,JPD2-786/1|BSD,JPD2
+TC-122,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document JPD2FM/9,property,JPD2FM/9|BSD,JPD2
+TC-123,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document LEO-786/5,property,LEO-786/5|BSD,LEO
+TC-124,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document LEOFM/3,property,LEOFM/3|BSD,LEO
+TC-125,Dormitory,Flow tab: Show by Dorm. Placed from the document number prefix,Document KTM-1444,property,KTM-1444|BSD,BSD
+TC-126,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-08-28: the pay-by date,deadline,first-reminder|2026-08-28,2026-09-03
+TC-127,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-12-28: the pay-by date,deadline,first-reminder|2026-12-28,2027-01-03
+TC-128,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2024-02-20: the pay-by date,deadline,first-reminder|2024-02-20,2024-02-26
+TC-129,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-01-31: the pay-by date,deadline,first-reminder|2026-01-31,2026-02-06
+TC-130,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-08-28: the pay-by date,deadline,final-notice|2026-08-28,2026-09-04
+TC-131,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-12-28: the pay-by date,deadline,final-notice|2026-12-28,2027-01-04
+TC-132,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2024-02-20: the pay-by date,deadline,final-notice|2024-02-20,2024-02-27
+TC-133,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-01-31: the pay-by date,deadline,final-notice|2026-01-31,2026-02-07
+TC-134,Letters,Documents 1 and 2: the first and final reminder templates,The final notice cites the manpower regulations,letterMentions,final-notice|Employment of Foreign Manpower,true
+TC-135,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder does not cite them,letterMentions,first-reminder|Employment of Foreign Manpower,false
+TC-136,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder leaves no merge field unfilled,letterUnfilled,first-reminder,0
+TC-137,Letters,Documents 1 and 2: the first and final reminder templates,Nor does the final notice,letterUnfilled,final-notice,0
+TC-138,Letters,Documents 1 and 2: the first and final reminder templates,"A letter is dated from the report, not from today",letterDatedFromReport,2026-08-28,true
+TC-139,Money,Amounts print to two decimals and totals must not drift,Print 0,currency,0,0.00
+TC-140,Money,Amounts print to two decimals and totals must not drift,Print 0.5,currency,0.5,0.50
+TC-141,Money,Amounts print to two decimals and totals must not drift,Print 0.005,currency,0.005,0.01
+TC-142,Money,Amounts print to two decimals and totals must not drift,Print 1,currency,1,1.00
+TC-143,Money,Amounts print to two decimals and totals must not drift,Print 1000,currency,1000,"1,000.00"
+TC-144,Money,Amounts print to two decimals and totals must not drift,Print -1234.5,currency,-1234.5,"-1,234.50"
+TC-145,Money,Amounts print to two decimals and totals must not drift,Print 2782348.27,currency,2782348.27,"2,782,348.27"
+TC-146,Money,Amounts print to two decimals and totals must not drift,Print 439528.29,currency,439528.29,"439,528.29"
+TC-147,Money,Amounts print to two decimals and totals must not drift,Print 100,currency,100,100.00
+TC-148,Money,Amounts print to two decimals and totals must not drift,Round 0.1 to the cent,round2,0.1,0.1
+TC-149,Money,Amounts print to two decimals and totals must not drift,Round 1.005 to the cent,round2,1.005,1.01
+TC-150,Money,Amounts print to two decimals and totals must not drift,Round 2.675 to the cent,round2,2.675,2.68
+TC-151,Money,Amounts print to two decimals and totals must not drift,Round -1.005 to the cent,round2,-1.005,-1.01
+TC-152,Money,Amounts print to two decimals and totals must not drift,Round 1000.004 to the cent,round2,1000.004,1000
+TC-153,Money,Amounts print to two decimals and totals must not drift,A thousand additions of a cent come to ten dollars,round2Sum,1000,10
+TC-154,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 34000",riskExposure,6428.16|34000,-27571.84
+TC-155,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 11216.44, deposit 11160",riskExposure,11216.44|11160,56.44
+TC-156,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 5000, deposit 1000",riskExposure,5000|1000,4000
+TC-157,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 5000",riskExposure,1000|5000,-4000
+TC-158,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 1000",riskExposure,1000|1000,0
+TC-159,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 0, deposit 8000",riskExposure,0|8000,-8000
+TC-160,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit none",riskExposure,6428.16|none,blank
+TC-161,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 0",riskExposure,6428.16|0,6428.16
+TC-162,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [11360|11360],depositHeld,11360|11360,22720.00
+TC-163,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [932],depositHeld,932,932.00
+TC-164,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [-21120],depositHeld,-21120,blank
+TC-165,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [500|-500],depositHeld,500|-500,blank
+TC-166,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [12800|1200],depositHeld,12800|1200,14000.00
+TC-167,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [],depositHeld,,blank
+TC-168,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com""",emailCount,a@x.com,1
+TC-169,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; b@x.com""",emailCount,a@x.com; b@x.com,2
+TC-170,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; """,emailCount,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; Tang Lizhen <lizhen.tang@checsg.com.sg>,2
+TC-171,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""finance@brightsun.com.sg; sathiya@brightsu""",emailCount, finance@brightsun.com.sg; sathiya@brightsun.com.sg; prakash@brightsun.com.sg; prasanna@brightsun.com.sg,4
+TC-172,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading """"",emailCount,,0
+TC-173,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""no email""",emailCount,no email,0
+TC-174,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""-""",emailCount,-,0
+TC-175,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com, b@x.com""",emailCount,"a@x.com, b@x.com",2
+TC-176,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; a@x.com""",emailCount,a@x.com; a@x.com,1
+TC-177,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A display name is dropped and the address kept,emailFirst,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>,xinyuan.tan@checsg.com.sg
+TC-178,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A leading space does not break the address,emailFirst, finance@brightsun.com.sg,finance@brightsun.com.sg
+TC-179,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /,canOpen,super-admin|/,true
+TC-180,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /users,canOpen,super-admin|/users,true
+TC-181,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /simulation,canOpen,super-admin|/simulation,true
+TC-182,Access,Each role sees only what it should; a manager sees only their own,admin opening /reminders,canOpen,admin|/reminders,true
+TC-183,Access,Each role sees only what it should; a manager sees only their own,admin opening /users,canOpen,admin|/users,false
+TC-184,Access,Each role sees only what it should; a manager sees only their own,CSD opening /reminders,canOpen,CSD|/reminders,true
+TC-185,Access,Each role sees only what it should; a manager sees only their own,CSD opening /users,canOpen,CSD|/users,false
+TC-186,Access,Each role sees only what it should; a manager sees only their own,RM opening /,canOpen,RM|/,true
+TC-187,Access,Each role sees only what it should; a manager sees only their own,RM opening /users,canOpen,RM|/users,false
+TC-188,Access,Each role sees only what it should; a manager sees only their own,RM opening /reminders,canOpen,RM|/reminders,false
+TC-189,Access,Each role sees only what it should; a manager sees only their own,Management opening /reports,canOpen,Management|/reports,true
+TC-190,Access,Each role sees only what it should; a manager sees only their own,Management opening /users,canOpen,Management|/users,false
+TC-191,Access,Each role sees only what it should; a manager sees only their own,Management opening /reminders,canOpen,Management|/reminders,false
+TC-192,Access,Each role sees only what it should; a manager sees only their own,Management opening /no-email,canOpen,Management|/no-email,false
+TC-193,Access,Each role sees only what it should; a manager sees only their own,super-admin and the send-reminders permission,can,super-admin|send-reminders,true
+TC-194,Access,Each role sees only what it should; a manager sees only their own,RM and the send-reminders permission,can,RM|send-reminders,false
+TC-195,Access,Each role sees only what it should; a manager sees only their own,Management and the view-tenant-emails permission,can,Management|view-tenant-emails,false
+TC-196,Access,Each role sees only what it should; a manager sees only their own,CSD and the view-tenant-emails permission,can,CSD|view-tenant-emails,true
+TC-197,Access,Each role sees only what it should; a manager sees only their own,Management and the generate-reports permission,can,Management|generate-reports,true
+TC-198,Access,Each role sees only what it should; a manager sees only their own,admin and the manage-users permission,can,admin|manage-users,false
+TC-199,Access,Each role sees only what it should; a manager sees only their own,super-admin and the manage-users permission,can,super-admin|manage-users,true
+TC-200,Access,Each role sees only what it should; a manager sees only their own,RM and the view-all-tenants permission,can,RM|view-all-tenants,false
+TC-201,Access,Each role sees only what it should; a manager sees only their own,RM and the view-own-tenants permission,can,RM|view-own-tenants,true
+TC-202,Names,"The customer code is printed once, not twice","Name ""DORM-1600 MODERN WELLNESS PTE. L"" with code DORM-1600",withoutCode,DORM-1600 MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
+TC-203,Names,"The customer code is printed once, not twice","Name ""MODERN WELLNESS PTE. LTD"" with code DORM-1600",withoutCode,MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
+TC-204,Names,"The customer code is printed once, not twice","Name ""dorm-166 BURNING SUN"" with code DORM-166",withoutCode,dorm-166 BURNING SUN|DORM-166,BURNING SUN
+TC-205,Names,"The customer code is printed once, not twice","Name ""DORM-17 SOMEBODY"" with code DORM-1",withoutCode,DORM-17 SOMEBODY|DORM-1,DORM-17 SOMEBODY
+TC-206,Names,"The customer code is printed once, not twice","Name ""DORM-166"" with code DORM-166",withoutCode,DORM-166|DORM-166,DORM-166
+TC-207,Real file,"End to end against MES's own files, not made up input",Tenants read from the Aging Detail,fileAccounts,aging,190
+TC-208,Real file,"End to end against MES's own files, not made up input",Charge lines read from it,fileLines,aging,3117
+TC-209,Real file,"End to end against MES's own files, not made up input",Separate billing runs found in it,fileCycles,aging,315
+TC-210,Real file,"End to end against MES's own files, not made up input",MES's own per-tenant subtotals that disagree with ours,fileSubtotalsDisagreeing,aging,0
+TC-211,Real file,"End to end against MES's own files, not made up input",Grand total,fileTotal,aging,2782348.27
+TC-212,Real file,"End to end against MES's own files, not made up input",GIRO tenants identified,fileGiro,aging,6
+TC-213,Real file,"End to end against MES's own files, not made up input",Tenants holding a security deposit,fileDeposits,aging,8
+TC-214,Real file,"End to end against MES's own files, not made up input",Tenants whose deposit was spent against arrears,fileDepositsOffset,aging,2
+TC-215,Real file,"End to end against MES's own files, not made up input",The date the lines themselves agree the report was run,fileDataDate,aging,2026-08-28
+TC-216,Real file,"End to end against MES's own files, not made up input","The report date the system settles on, where the title disagrees",fileHeaderDate,aging,2026-08-28
+TC-217,Real file,"End to end against MES's own files, not made up input",The title of that same file says something else,fileTitleDate,aging,2026-08-17
+TC-218,Real file,"End to end against MES's own files, not made up input",A report whose header and data disagree is flagged,fileDateConflictFlagged,aging,true
+TC-219,Real file,"End to end against MES's own files, not made up input",Tenants read from Finance AR Download,fileAccounts,finance,7
+TC-220,Real file,"End to end against MES's own files, not made up input",Charge lines read from Finance AR Download,fileLines,finance,173
+TC-221,Real file,"End to end against MES's own files, not made up input",Billing runs in Finance AR Download,fileCycles,finance,28
+TC-222,Real file,"End to end against MES's own files, not made up input",Manager reports built from it,fileManagers,finance,3
+TC-223,Real file,"End to end against MES's own files, not made up input","Its header carries no as-of row, so the date is recovered",fileDataDate,finance,2026-08-17
+TC-224,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Nobody has been reminded before the month starts,monthReminded,0,0
+TC-225,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 7th reminds everyone reachable and owing,monthReminded,7,4
+TC-226,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Running the 7th again does not remind anyone twice,monthRemindedTwice,7,4
+TC-227,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th charges the fee to everyone not on GIRO,monthCharged,16,75
+TC-228,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",GIRO tenants are held back from that fee,monthHeld,16,6
+TC-229,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 21st sends the final notice,monthFinalised,21,4
+TC-230,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant marked paid drops out of the rest of the month,monthPaidDrops,,true
+TC-231,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant who promised is held off the final notice,monthPromisedDrops,,true
+TC-232,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The same file run twice produces the same month,monthDeterministic,,true
+TC-233,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st","The 7th, 4th and 16th are all upload days",monthUploadDays,,true
+TC-234,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th can be sent to a chosen subset of managers,monthRmChoice,2,2
+TC-235,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
+TC-236,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
+TC-237,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true
