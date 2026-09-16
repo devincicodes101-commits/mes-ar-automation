@@ -162,5 +162,14 @@ check("and scopes the already-uploaded one too",
 check("the dry run asks whether addresses may be shown",
       /can\("view-tenant-emails"\)/.test(SIM), true);
 
+// Downloading is generate-reports; sending is send-reminders. canAct is the
+// latter, and gating the download on it left Management able to read every
+// report and download none, including the one addressed to them.
+const REPORTS = read("src/app/reports/page.tsx");
+check("downloading a report asks the reports permission",
+      /disabled=\{!can\("generate-reports"\)\}/.test(REPORTS), true);
+check("and emailing one still asks the reminder permission",
+      /disabled=\{!canAct\}/.test(REPORTS), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

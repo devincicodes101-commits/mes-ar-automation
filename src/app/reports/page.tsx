@@ -74,7 +74,7 @@ const REPORTS: ReportDef[] = [
 
 export default function ReportsPage() {
   const store = useStore();
-  const { scope, canAct } = useSession();
+  const { scope, canAct, can } = useSession();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
   const [preview, setPreview] = useState<"netsuite" | null>(null);
@@ -238,7 +238,13 @@ export default function ReportsPage() {
               </button>
               <button
                 type="button"
-                disabled={!canAct}
+                // Downloading a report is generate-reports, not
+                // send-reminders. canAct is the latter, so Management, whose
+                // job is reading these and who the industry breakdown is
+                // addressed to, could see every report and download none.
+                // The send button below stays on canAct: sending really is
+                // the reminder permission.
+                disabled={!can("generate-reports")}
                 onClick={() => {
                   const built = buildReport(r.id, accounts);
                   if (built.rows.length === 0) {
