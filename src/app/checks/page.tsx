@@ -16,9 +16,14 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { parseAgingDetail } from "@/lib/aging-detail";
+import { parseContacts } from "@/lib/parser";
+import { buildPipeline, linkContacts } from "@/lib/pipeline";
 import {
   parseCases,
   runCases,
+  dataOps,
   tally,
   needsTheFile,
   whyItNeedsTheFile,
@@ -32,6 +37,16 @@ type Filter = "all" | "failed" | "skipped";
 export default function ChecksPage() {
   const [cases, setCases] = useState<CheckCase[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * The generated report, fetched and read here rather than described.
+   *
+   * It goes through parseAgingDetail, the same reader an upload goes through,
+   * so the cases below are answered from a workbook actually parsed in this
+   * browser. Null while it loads, and null if it cannot be fetched, in which
+   * case those cases report themselves as unrun instead of vanishing.
+   */
+  const [extra, setExtra] =
+    useState<Record<string, (input: string) => string> | null>(null);
   const [area, setArea] = useState<string>("all");
   const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
@@ -50,9 +65,40 @@ export default function ChecksPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    const grab = (p: string) =>
+      fetch(p).then((r) => {
+        if (!r.ok) throw new Error(`${p} (${r.status})`);
+        return r.arrayBuffer();
+      });
+
+    Promise.all([
+      grab("/test-data/AR Test Data.xlsx"),
+      grab("/test-data/Contact Test Data.xlsx"),
+    ])
+      .then(([arBuf, contactBuf]) => {
+        if (!alive) return;
+        const ar = parseAgingDetail(XLSX.read(arBuf, { type: "array" }));
+        const contacts = parseContacts(XLSX.read(contactBuf, { type: "array" }));
+        const built = buildPipeline(ar.accounts, ar.invoices, ar.asOf, ar.entity, []);
+        const pipeline = {
+          ...built,
+          accounts: linkContacts(built.accounts.map((a) => ({ ...a })), contacts),
+        };
+        setExtra(dataOps(ar, pipeline));
+      })
+      // Not fatal. The generated cases will simply say they could not run,
+      // which is the truth, and the rest are unaffected.
+      .catch(() => alive && setExtra({}));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const results = useMemo<CheckResult[]>(
-    () => (cases ? runCases(cases) : []),
-    [cases],
+    () => (cases && extra ? runCases(cases, extra) : []),
+    [cases, extra],
   );
 
   const tallies = useMemo(() => tally(results), [results]);
@@ -76,8 +122,13 @@ export default function ChecksPage() {
     );
   }
 
-  if (!cases) {
-    return <EmptyState title="Running the checks" body="Reading the case file." />;
+  if (!cases || !extra) {
+    return (
+      <EmptyState
+        title="Running the checks"
+        body="Reading the case file, and the generated report they run against."
+      />
+    );
   }
 
   return (
@@ -90,11 +141,19 @@ export default function ChecksPage() {
           line points at a sentence in their documents rather than at code.
         </p>
         <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-muted">
-          {skipped} of them need MES&rsquo;s workbook itself and are run at the
-          terminal by <code className="text-ink-secondary">npm run test:cases</code>,
-          which is the run that can stop a deploy. This screen shows the rest,
-          worked out here, now. It reports what it cannot do rather than
-          counting those as passes.
+          The <b className="text-ink-secondary">New data</b> block is the one
+          worth pointing at. It runs against a report this code has never seen,
+          generated with the billing dates chosen so that rows land exactly on
+          every aging boundary and on both credit deadlines. That file is
+          fetched and read here, in this browser, by the same reader an upload
+          goes through.
+        </p>
+        <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-muted">
+          {skipped} cases need MES&rsquo;s own workbook or a whole simulated
+          month and are run at the terminal by{" "}
+          <code className="text-ink-secondary">npm run test:cases</code>, which
+          is the run that can stop a deploy. This screen reports those as unrun
+          rather than counting them as passes.
         </p>
       </Card>
 

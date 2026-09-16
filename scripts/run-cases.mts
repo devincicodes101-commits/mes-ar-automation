@@ -48,7 +48,7 @@ const DATA = path.join(ROOT, "AR Automation-20260903T201835Z-1-001", "AR Automat
 
 import {
   parseCases,
-  runCases,
+  dataOps,
   PURE_OPS,
   type CheckCase,
 } from "../src/lib/checks.ts";
@@ -65,14 +65,33 @@ const AGING_PATH = path.join(DATA, "3. CustomA_RAgingDetail-WithDescription.xlsx
 const FINANCE_PATH = path.join(DATA, "Detailed AR report(Final).xlsx");
 const CONTACTS_PATH = path.join(DATA, "4. Client Contact List", "R1 - 20260511.xlsx");
 
+const TEST_DATA_PATH = path.join(ROOT, "test-data", "AR Test Data.xlsx");
+const TEST_CONTACTS_PATH = path.join(ROOT, "test-data", "Contact Test Data.xlsx");
+
 const files = new Map<string, ReturnType<typeof parseAgingDetail>>();
 function file(which: string) {
   if (!files.has(which)) {
-    const p = which === "aging" ? AGING_PATH : FINANCE_PATH;
+    const p =
+      which === "aging" ? AGING_PATH
+        : which === "new" ? TEST_DATA_PATH
+          : FINANCE_PATH;
     if (!existsSync(p)) throw new Error(`missing ${p}`);
     files.set(which, parseAgingDetail(rd(p)));
   }
   return files.get(which)!;
+}
+
+let newPipe: ReturnType<typeof buildPipeline> | null = null;
+function newPipeline() {
+  if (newPipe) return newPipe;
+  const f = file("new");
+  let p = buildPipeline(f.accounts, f.invoices, f.asOf, f.entity, []);
+  if (existsSync(TEST_CONTACTS_PATH)) {
+    const contacts = parseContacts(rd(TEST_CONTACTS_PATH));
+    p = { ...p, accounts: linkContacts(p.accounts.map((a) => ({ ...a })), contacts) };
+  }
+  newPipe = p;
+  return p;
 }
 
 let month: { p: ReturnType<typeof buildPipeline>; states: Map<number, ReturnType<typeof emptyState>> } | null = null;
@@ -151,6 +170,10 @@ const LETTER_CONTEXT = {
  * a second copy of it that agrees until the day it does not.
  */
 const fileOps: Record<string, (input: string) => string> = {
+  // The generated report's cases come from src/lib/checks.ts, so the Checks
+  // screen answers them with the identical code rather than a second copy.
+  ...dataOps(file("new"), newPipeline()),
+
   /* the real files */
   fileAccounts: (i) => String(file(i).accounts.length),
   fileLines: (i) => String(file(i).invoices.length),

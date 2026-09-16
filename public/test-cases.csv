@@ -238,3 +238,61 @@ TC-236,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16
 TC-237,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
 TC-238,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
 TC-239,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true
+TC-240,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",The report dates itself from its own lines,newAsOf,,2026-09-15
+TC-241,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Every charge line is read,newLines,,31
+TC-242,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen","Customers become accounts, split by dormitory",newAccounts,,11
+TC-243,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Nothing in it is rejected as an error,newErrors,,0
+TC-244,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Our figures agree with its own subtotals,newSubtotalsDisagreeing,,0
+TC-245,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Separate billing runs found in one report,newBillingRuns,,22
+TC-246,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",All four dormitories are represented,newDormitories,,"JPD1,JPD2,BSD,LEO"
+TC-247,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",One manager report per sales rep,newManagers,,3
+TC-248,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-09-01, due 2026-09-16: age -1, so Current",newBucketOn,2026-09-01,Current
+TC-249,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is -1,newAgeOn,2026-09-01,-1
+TC-250,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-31, due 2026-09-15: age 0, so Current",newBucketOn,2026-08-31,Current
+TC-251,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 0,newAgeOn,2026-08-31,0
+TC-252,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-16, due 2026-08-31: age 15, so Current",newBucketOn,2026-08-16,Current
+TC-253,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 15,newAgeOn,2026-08-16,15
+TC-254,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-15, due 2026-08-30: age 16, so 30 days",newBucketOn,2026-08-15,30 days
+TC-255,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 16,newAgeOn,2026-08-15,16
+TC-256,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-17, due 2026-08-01: age 45, so 30 days",newBucketOn,2026-07-17,30 days
+TC-257,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 45,newAgeOn,2026-07-17,45
+TC-258,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-16, due 2026-07-31: age 46, so 60 days",newBucketOn,2026-07-16,60 days
+TC-259,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 46,newAgeOn,2026-07-16,46
+TC-260,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-17, due 2026-07-02: age 75, so 60 days",newBucketOn,2026-06-17,60 days
+TC-261,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 75,newAgeOn,2026-06-17,75
+TC-262,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-16, due 2026-07-01: age 76, so 90 days",newBucketOn,2026-06-16,90 days
+TC-263,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 76,newAgeOn,2026-06-16,76
+TC-264,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-18, due 2026-06-02: age 105, so 90 days",newBucketOn,2026-05-18,90 days
+TC-265,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 105,newAgeOn,2026-05-18,105
+TC-266,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-17, due 2026-06-01: age 106, so More than 90 days",newBucketOn,2026-05-17,More than 90 days
+TC-267,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 106,newAgeOn,2026-05-17,106
+TC-268,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2025-07-27, due 2025-08-11: age 400, so More than 90 days",newBucketOn,2025-07-27,More than 90 days
+TC-269,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 400,newAgeOn,2025-07-27,400
+TC-270,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed on the report date itself (2026-09-15),newStageOn,2026-09-15,within credit
+TC-271,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 14 days ago: the last day inside credit (2026-09-01),newStageOn,2026-09-01,within credit
+TC-272,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 15 days ago: the first day past it (2026-08-31),newStageOn,2026-08-31,past 14 days
+TC-273,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 30 days ago: on the second deadline (2026-08-16),newStageOn,2026-08-16,past 14 days
+TC-274,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 31 days ago: the first day past the second deadline (2026-08-15),newStageOn,2026-08-15,past 30 days
+TC-275,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed after the report date (2026-09-20),newStageOn,2026-09-20,not yet due
+TC-276,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Occupancy Fee Charges for the month""",newTypeOf,Occupancy Fee Charges for the month,Occupancy Fee
+TC-277,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Stamp Duty""",newTypeOf,Stamp Duty,Stamp Duty
+TC-278,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Quarterly Charges for Season Parking of vehicl""",newTypeOf,Quarterly Charges for Season Parking of vehicl,Season Parking
+TC-279,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""ONEFM maintenance works for the quarter""",newTypeOf,ONEFM maintenance works for the quarter,1FM Maintenance
+TC-280,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee for Rejected Giro - 02-JUL-26""",newTypeOf,Admin Fee for Rejected Giro - 02-JUL-26,Rejected GIRO Fee
+TC-281,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee For Late Payment""",newTypeOf,Admin Fee For Late Payment,Late Payment Fee
+TC-282,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Security Deposit - REFUNDABLE""",newTypeOf,Security Deposit - REFUNDABLE,Security Deposit
+TC-283,New data,Jacqueline's rule: GIRO clients come off the fee listing,Tenants identified as paying by GIRO,newGiro,,2
+TC-284,New data,Repeat GIRO failures are flagged as defaulters,Tenants who bounced more than once,newDefaulters,,1
+TC-285,New data,Raman 14 Sep: the deposit comes from the Security Deposit lines,Tenants holding a deposit,newDeposits,,1
+TC-286,New data,"A deposit offset against arrears is spent, not held",Tenants whose deposit has gone,newDepositsOffset,,1
+TC-287,New data,"Raman: ""one client may have more than one email""",A tenant with three addresses gets all three,newAddressesFor,DORM-9005,3
+TC-288,New data,"Raman: ""one client may have more than one email""",A display name is stripped and the address kept,newAddressesFor,DORM-9002,2
+TC-289,New data,Tenants with no address go to Send By Hand,Accounts that can be emailed at all,newWithAddress,,9
+TC-290,New data,"An account is company plus dormitory, so one company can be two",The same company's balance at its first dormitory,newAccountTotal,DORM-9010|JPD1,10100.00
+TC-291,New data,"An account is company plus dormitory, so one company can be two",And its separate balance at the second,newAccountTotal,DORM-9010|BSD,3300.00
+TC-292,New data,"MES note: 1FM = Prefix ""DORMFM""",A 1FM invoice and its VAT line both land on the 1FM tab,newTabLines,1FM,2
+TC-293,New data,Flow tab: a Parking Fee tab,"A parking line, which no MES export has ever contained",newTabLines,PF,1
+TC-294,New data,Flow tab: a Late Payment tab,The $100 fee already raised,newTabLines,LP,1
+TC-295,New data,Flow tab: a Stamp Duty tab,"Stamp duty, which MES categorise as Reimbursement",newTabLines,SD-STAMP,1
+TC-296,New data,"Flow tab: Show by Dorm, from the document number",A 1FM document number places its line in JPD2,newDormOf,JPD2FM/5501,JPD2
+TC-297,New data,"Flow tab: Show by Dorm, from the document number",A credit note number places its line in JPD1,newDormOf,JPD1CN/0091,JPD1

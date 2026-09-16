@@ -266,6 +266,19 @@ check("and the build runs the same ones",
       /PURE_OPS/.test(RUNNER) && RUNNER.includes("src/lib/checks.ts"), true);
 check("the screen keeps no operations of its own",
       /const (ops|PURE_OPS)\s*[:=]/.test(CHECKS_PAGE), false);
+// The generated report is the strongest evidence here, so it must not be the
+// part that quietly stops running.
+check("the generated report's cases live in the library too",
+      /export function dataOps\(/.test(CHECKS), true);
+check("the screen fetches that report and parses it",
+      CHECKS_PAGE.includes("/test-data/AR Test Data.xlsx"), true);
+check("through the same reader an upload goes through",
+      CHECKS_PAGE.includes("parseAgingDetail("), true);
+check("and the build answers them from the same factory",
+      /\.\.\.dataOps\(/.test(RUNNER), true);
+check("the runner keeps no second copy of them",
+      /newBucketOn:/.test(RUNNER), false);
+
 check("one case file, published so both can read it",
       RUNNER.includes('"public", "test-cases.csv"'), true);
 check("the screen fetches that same file",

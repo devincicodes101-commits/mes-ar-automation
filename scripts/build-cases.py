@@ -359,6 +359,135 @@ SAFE = "Raman asked for simulations rather than production: real client emails"
 add("The month", SAFE, "Nothing can be sent for real", "sendingDisabled", "", "true")
 add("The month", SAFE, "No mail transport is imported anywhere", "noMailer", "", "true")
 
+
+# ============================================================================
+# M. A REPORT THE CODE HAS NEVER SEEN
+# ============================================================================
+# MES have sent two files and the system was built against both, so passing on
+# them shows only that nothing has regressed. scripts/build-test-data.mts
+# writes a third, in the exact shape of their Finance AR Download, with the
+# billing dates chosen: rows sit exactly on every bucket boundary and on both
+# credit deadlines, and a day either side of each.
+#
+# The expectations below are read out of test-data/facts.json, which that
+# script writes at the same time as the spreadsheet. Move a billing date there
+# and the case moves with it, so the two can never disagree.
+
+import json as _json
+import os as _os
+
+_FACTS = "test-data/facts.json"
+if _os.path.exists(_FACTS):
+    F = _json.load(io.open(_FACTS, encoding="utf-8"))
+    NEW = ("A generated report the code has never seen, built by "
+           "scripts/build-test-data.mts with the billing dates chosen")
+
+    add("New data", NEW, "The report dates itself from its own lines",
+        "newAsOf", "", F["report"])
+    add("New data", NEW, "Every charge line is read", "newLines", "", str(F["lines"]))
+    add("New data", NEW, "Customers become accounts, split by dormitory",
+        "newAccounts", "", str(F["accounts"]))
+    add("New data", NEW, "Nothing in it is rejected as an error",
+        "newErrors", "", "0")
+    add("New data", NEW, "Our figures agree with its own subtotals",
+        "newSubtotalsDisagreeing", "", "0")
+    add("New data", NEW, "Separate billing runs found in one report",
+        "newBillingRuns", "", str(F["billingDates"]))
+    add("New data", NEW, "All four dormitories are represented",
+        "newDormitories", "", "JPD1,JPD2,BSD,LEO")
+    add("New data", NEW, "One manager report per sales rep",
+        "newManagers", "", str(F["reps"]))
+
+    # --- the aging control, on data built for it ----------------------------
+    AGE = ("Formula tab bucket, checked on a generated report where the "
+           "billing date was chosen to land the age exactly on a boundary")
+    for r in F["rows"]:
+        if not r["expectBucket"]:
+            continue
+        add("New data", AGE,
+            "Billed %s, due %s: age %s, so %s"
+            % (r["billed"], r["due"], r["age"], r["expectBucket"]),
+            "newBucketOn", r["billed"], r["expectBucket"])
+        add("New data", AGE,
+            "And the file's own age for that line is %s" % r["age"],
+            "newAgeOn", r["billed"], str(r["age"]))
+
+    # --- the credit deadlines, by billing date ------------------------------
+    CRED = ("AR Collections Cycle: 14 calendar days credit, then 30, counted "
+            "from the billing date")
+    STAGE_ROWS = [
+        (0, "within credit", "Billed on the report date itself"),
+        (14, "within credit", "Billed exactly 14 days ago: the last day inside credit"),
+        (15, "past 14 days", "Billed 15 days ago: the first day past it"),
+        (30, "past 14 days", "Billed exactly 30 days ago: on the second deadline"),
+        (31, "past 30 days", "Billed 31 days ago: the first day past the second deadline"),
+        (-5, "not yet due", "Billed after the report date"),
+    ]
+    _by_days = {}
+    for r in F["rows"]:
+        _by_days.setdefault(r["billedDaysAgo"], r["billed"])
+    for days, expected, why in STAGE_ROWS:
+        if days in _by_days:
+            add("New data", CRED, "%s (%s)" % (why, _by_days[days]),
+                "newStageOn", _by_days[days], expected)
+
+    # --- every charge type MES group by -------------------------------------
+    TYPES = "Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report"
+    _seen = set()
+    for r in F["rows"]:
+        if not r["expectType"] or r["expectType"] in _seen:
+            continue
+        _seen.add(r["expectType"])
+        add("New data", TYPES,
+            'A line reading "%s"' % r["description"][:46],
+            "newTypeOf", r["description"][:46], r["expectType"])
+
+    # --- the things that only show up in whole-file behaviour ---------------
+    add("New data", "Jacqueline's rule: GIRO clients come off the fee listing",
+        "Tenants identified as paying by GIRO", "newGiro", "", "2")
+    add("New data", "Repeat GIRO failures are flagged as defaulters",
+        "Tenants who bounced more than once", "newDefaulters", "", "1")
+    add("New data",
+        "Raman 14 Sep: the deposit comes from the Security Deposit lines",
+        "Tenants holding a deposit", "newDeposits", "", "1")
+    add("New data",
+        "A deposit offset against arrears is spent, not held",
+        "Tenants whose deposit has gone", "newDepositsOffset", "", "1")
+    add("New data", 'Raman: "one client may have more than one email"',
+        "A tenant with three addresses gets all three",
+        "newAddressesFor", "DORM-9005", "3")
+    add("New data", 'Raman: "one client may have more than one email"',
+        "A display name is stripped and the address kept",
+        "newAddressesFor", "DORM-9002", "2")
+    add("New data", "Tenants with no address go to Send By Hand",
+        "Accounts that can be emailed at all", "newWithAddress", "",
+        str(F["accounts"] - 2))
+    add("New data",
+        "An account is company plus dormitory, so one company can be two",
+        "The same company's balance at its first dormitory",
+        "newAccountTotal", "DORM-9010|JPD1", "10100.00")
+    add("New data",
+        "An account is company plus dormitory, so one company can be two",
+        "And its separate balance at the second",
+        "newAccountTotal", "DORM-9010|BSD", "3300.00")
+    add("New data", 'MES note: 1FM = Prefix "DORMFM"',
+        "A 1FM invoice and its VAT line both land on the 1FM tab",
+        "newTabLines", "1FM", "2")
+    add("New data", "Flow tab: a Parking Fee tab",
+        "A parking line, which no MES export has ever contained",
+        "newTabLines", "PF", "1")
+    add("New data", "Flow tab: a Late Payment tab",
+        "The $100 fee already raised", "newTabLines", "LP", "1")
+    add("New data", "Flow tab: a Stamp Duty tab",
+        "Stamp duty, which MES categorise as Reimbursement",
+        "newTabLines", "SD-STAMP", "1")
+    add("New data", "Flow tab: Show by Dorm, from the document number",
+        "A 1FM document number places its line in JPD2",
+        "newDormOf", "JPD2FM/5501", "JPD2")
+    add("New data", "Flow tab: Show by Dorm, from the document number",
+        "A credit note number places its line in JPD1",
+        "newDormOf", "JPD1CN/0091", "JPD1")
+
 with io.open("public/test-cases.csv", "w", encoding="utf-8", newline="") as f:
     w = csv.DictWriter(
         f, fieldnames=["ID", "Area", "Requirement", "Scenario", "Op", "Input",

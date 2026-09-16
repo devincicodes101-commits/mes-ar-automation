@@ -730,25 +730,49 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       round2((oursByCode.get(a.customerCode) ?? 0) + a.total),
     );
   }
+  /*
+   * Compared per customer across all of their total lines, not one line at a
+   * time.
+   *
+   * A company renting at two dormitories gets two total lines under the same
+   * code, one for each, and our accounts are split the same way. Checking each
+   * total line on its own asked whether one dormitory's subtotal equalled the
+   * company's whole balance, which it never does, so both dormitories were
+   * reported as disagreeing when the file was perfectly consistent. MES's own
+   * export does this: Thomas Edison has two total lines in the Finance AR
+   * Download.
+   *
+   * Added together per code, the question is the right one again, and it still
+   * catches a genuinely mis-read row because that changes the sum.
+   */
+  const theirsByCode = new Map<string, { total: number; name: string; lines: number }>();
   for (const s of subtotals) {
-    const ours = oursByCode.get(s.customerCode);
+    const at = theirsByCode.get(s.customerCode) ??
+      { total: 0, name: s.companyName, lines: 0 };
+    at.total = round2(at.total + s.total);
+    at.lines += 1;
+    theirsByCode.set(s.customerCode, at);
+  }
+
+  for (const [code, theirs] of Array.from(theirsByCode)) {
+    const ours = oursByCode.get(code);
     if (ours === undefined) {
       problems.push({
         sheet: clean(sheetName),
         row: null,
         severity: "warning",
-        message: `${s.companyName} has a total line of ${s.total.toFixed(2)} but no invoice rows above it.`,
+        message: `${theirs.name} has a total line of ${theirs.total.toFixed(2)} but no invoice rows above it.`,
       });
       continue;
     }
-    if (Math.abs(ours - s.total) > 0.02) {
+    if (Math.abs(ours - theirs.total) > 0.02) {
       problems.push({
         sheet: clean(sheetName),
         row: null,
         severity: "warning",
         message:
-          `${s.companyName}: the lines add to ${ours.toFixed(2)} but MES's ` +
-          `own total says ${s.total.toFixed(2)}.`,
+          `${theirs.name}: the lines add to ${ours.toFixed(2)} but MES's ` +
+          `own total${theirs.lines > 1 ? "s say" : " says"} ${theirs.total.toFixed(2)}.`,
       });
     }
   }

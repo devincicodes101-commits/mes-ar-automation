@@ -28,6 +28,19 @@ import { riskExposure, depositsFromLedger } from "./reports.ts";
 import { addDays, deadlineFor, renderLetter } from "./letters.ts";
 import { emailAddresses } from "./emails.ts";
 import { canOpen, can, type Role, type Capability } from "./auth.ts";
+import { depositsOffset, giroEnrolled } from "./reports.ts";
+import type { ParsedAgingDetail } from "./aging-detail.ts";
+import type { Pipeline } from "./pipeline.ts";
+
+/** Just enough of a parsed report for the generated-file cases. */
+type ParsedReport = Pick<
+  ParsedAgingDetail,
+  "invoices" | "accounts" | "asOf" | "problems"
+>;
+type BuiltPipeline = Pick<
+  Pipeline,
+  "byProperty" | "managerReports" | "defaulters" | "accounts" | "revenueTabs"
+>;
 
 export interface CheckCase {
   id: string;
@@ -257,7 +270,12 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
  * as though that were the whole suite.
  */
 export function needsTheFile(op: string): boolean {
-  return op.startsWith("file") || op.startsWith("month") || op === "noMailer";
+  return (
+    op.startsWith("file") ||
+    op.startsWith("month") ||
+    op.startsWith("new") ||
+    op === "noMailer"
+  );
 }
 
 export function whyItNeedsTheFile(op: string): string {
@@ -265,10 +283,97 @@ export function whyItNeedsTheFile(op: string): string {
     return "Walks a whole month over MES's export, so it runs at the terminal against their file.";
   if (op === "noMailer")
     return "Reads the project's own source to prove no mail transport is imported.";
+  if (op.startsWith("new"))
+    return "Reads the generated test report from disk, so it runs at the terminal.";
   return "Reads MES's workbook from disk, which the browser does not have.";
 }
 
+
+/* ------------------------------------------- the generated report's cases */
+
+/**
+ * The cases that read the generated test report.
+ *
+ * MES have sent two files and this system was built against both, so passing
+ * on them shows only that nothing has regressed. scripts/build-test-data.mts
+ * writes a third the code has never seen, with the billing dates chosen: rows
+ * sitting exactly on every bucket boundary and on both credit deadlines, and a
+ * day either side of each.
+ *
+ * Taking the parsed file as an argument rather than reading it means the same
+ * operations serve the terminal, which reads it off disk, and the Checks
+ * screen, which fetches it and parses it in the browser exactly as it parses
+ * an upload. The client can watch a file the code has never seen be read and
+ * checked in front of them, which is the only version of this evidence worth
+ * anything.
+ */
+export function dataOps(
+  ar: ParsedReport,
+  pipeline: BuiltPipeline,
+): Record<string, (input: string) => string> {
+  return {
+    newLines: () => String(ar.invoices.length),
+    newAccounts: () => String(ar.accounts.length),
+    newAsOf: () => String(ar.asOf),
+    newTotal: () => ar.accounts.reduce((n, a) => n + a.total, 0).toFixed(2),
+    newErrors: () =>
+      String(ar.problems.filter((p) => p.severity === "error").length),
+    newSubtotalsDisagreeing: () =>
+      String(ar.problems.filter((p) => p.message.includes("own total")).length),
+    newBillingRuns: () =>
+      String(billingCycles(ar.invoices, ar.asOf).cycles.length),
+    newGiro: () => String(giroEnrolled(ar.invoices).size),
+    newDeposits: () => String(depositsFromLedger(ar.invoices).size),
+    newDepositsOffset: () => String(depositsOffset(ar.invoices).length),
+    newDormitories: () => pipeline.byProperty.map((b) => b.property).join(","),
+    newManagers: () => String(pipeline.managerReports.length),
+    newDefaulters: () => String(pipeline.defaulters.length),
+    newWithAddress: () =>
+      String(pipeline.accounts.filter((a) => a.emails.length > 0).length),
+    newAddressesFor: (i) => {
+      const a = pipeline.accounts.find((x) => x.customerCode === i);
+      return String(a?.emails.length ?? "no such tenant");
+    },
+
+    /** The bucket of the line billed on a given date: the aging control. */
+    newBucketOn: (i) => {
+      const line = ar.invoices.find((x) => x.date === i);
+      return line ? String(line.bucket) : "no line billed then";
+    },
+    /** How far through its credit period the run billed then has got. */
+    newStageOn: (i) => {
+      const c = billingCycles(ar.invoices, ar.asOf).cycles
+        .find((x) => x.billedOn === i);
+      return c ? cycleStage(c) : "no run billed then";
+    },
+    /** The age the file itself carries for the line billed on that date. */
+    newAgeOn: (i) => {
+      const line = ar.invoices.find((x) => x.date === i);
+      return line ? String(line.age) : "no line billed then";
+    },
+    newTypeOf: (i) => {
+      const line = ar.invoices.find((x) => String(x.description).startsWith(i));
+      return line ? line.revenueType : "no such line";
+    },
+    newDormOf: (i) => {
+      const line = ar.invoices.find((x) => x.documentNumber === i);
+      return line ? line.property : "no such document";
+    },
+    newTabLines: (i) => {
+      const tab = pipeline.revenueTabs.find((t) => t.code === i);
+      return tab ? String(tab.lineCount) : "no such tab";
+    },
+    newAccountTotal: (i) => {
+      const [code, dorm] = i.split("|");
+      const a = pipeline.accounts.find(
+        (x) => x.customerCode === code && x.property === dorm);
+      return a ? a.total.toFixed(2) : "no such account";
+    },
+  };
+}
+
 /* ------------------------------------------------------------- running */
+
 
 export function runCase(
   c: CheckCase,
