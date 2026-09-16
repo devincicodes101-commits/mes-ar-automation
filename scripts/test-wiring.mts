@@ -190,5 +190,40 @@ check("nor the deposit beside it",
 check("the builder takes a deposit source",
       /depositsHeld/.test(reportsLib), true);
 
+/* ------------------------------ the dry run shows the whole of MES's cycle ---
+ * Three things were in MES's workflow and absent from the walkthrough: the
+ * billing runs the deadlines are counted from, the choice of which managers
+ * get the 16th, and the fact that a report is uploaded three times a month
+ * rather than once. All three were built elsewhere or described and not done,
+ * which is exactly the failure this file exists to catch.
+ */
+console.log("\nThe dry run walks MES's whole cycle\n");
+
+const SIMP = page("simulation");
+const BILLING = read("src/components/BillingCycles.tsx");
+
+check("the billing runs table is a shared component", BILLING.length > 0, true);
+check("the board uses it", BOARD.includes("<BillingCycles"), true);
+check("and so does the dry run", SIMP.includes("<BillingCycles"), true);
+check("neither keeps its own copy of the table",
+      /function BillingCycles\(/.test(BOARD + SIMP), false);
+check("the dry run passes its own scoped lines, not the whole file",
+      /<BillingCycles invoices=\{pipeline\.invoices\}/.test(SIMP), true);
+
+check("the 16th offers the manager picker", SIMP.includes("<RmPicker"), true);
+check("and only on the 16th", /nextDay === 16 && /.test(SIMP), true);
+check("the choice reaches the plan", /planFor\(pipeline, state, nextDay, rms\)/.test(SIMP), true);
+check("and reaches the run", /runDay\(pipeline, state, nextDay, rms\)/.test(SIMP), true);
+
+const CYC = lib("cycle.ts");
+check("the cycle resolves the choice in one place", /export function rmsFor\(/.test(CYC), true);
+check("untouched still means everybody", /if \(rms === null\) return all;/.test(CYC), true);
+
+// MES's row 28 names RM among the reports that can be emailed. The dropdown
+// was built from the five charge tabs, so the manager sheets could be read and
+// sent to nobody.
+check("the report dropdown includes the manager sheets",
+      /\.\.\.managerReports,/.test(REPORTS), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

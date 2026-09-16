@@ -82,11 +82,22 @@ function daysBetween(from: string, to: string): number | null {
  * still inside its credit period while one billed in March is years past it,
  * and both can sit in the same upload.
  */
+/**
+ * A charge line as this module needs it.
+ *
+ * `id` is optional because a line straight out of the parser has not been
+ * given one, and nothing here reads it: lines are grouped by their billing
+ * date and added up. Demanding an id would mean numbering three thousand rows
+ * to satisfy a type, or casting at every call site, which is the same thing
+ * with the check switched off.
+ */
+export type BillingLine = Omit<Invoice, "id"> & { id?: string };
+
 export function billingCycles(
-  invoices: readonly Invoice[],
+  invoices: readonly BillingLine[],
   asOf: string | null,
 ): { cycles: BillingCycle[]; undated: number; undatedTotal: number } {
-  const groups = new Map<string, Invoice[]>();
+  const groups = new Map<string, BillingLine[]>();
   let undated = 0;
   let undatedTotal = 0;
 
@@ -106,7 +117,7 @@ export function billingCycles(
     // Past its own credit period as at the report date. Falls back to the
     // line's own age, which is days past its due date, where the report has
     // no date of its own to measure from.
-    const isOverdue = (inv: Invoice) =>
+    const isOverdue = (inv: BillingLine) =>
       ageDays === null ? (inv.age ?? 0) > 0 : ageDays > CREDIT_DAYS;
 
     cycles.push({

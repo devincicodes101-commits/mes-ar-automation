@@ -23,6 +23,7 @@ import {
   type SimState,
 } from "@/lib/cycle";
 import { CAN_SEND_FOR_REAL } from "@/lib/outbox";
+import { BillingCycles } from "@/components/BillingCycles";
 import { formatSgd, overdueTotal } from "@/lib/data";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
@@ -62,6 +63,14 @@ export default function SimulationPage() {
   const [contacts, setContacts] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
+  /*
+   * Which managers the 16th sends to.
+   *
+   * null until somebody touches it, which means all of them. MES ask for the
+   * choice, not for a default of nobody: "provide User the option to select
+   * one or more RMs from drop down to send email".
+   */
+  const [rms, setRms] = useState<string[] | null>(null);
   const [state, setState] = useState<SimState>(emptyState());
   // The file the officer already uploaded, if there is one. Asking for it a
   // second time was the wrong shape: somebody signing in as Management to look
@@ -147,7 +156,7 @@ export default function SimulationPage() {
   const nextDay: CycleDay | null =
     CYCLE_DAYS.find((d) => state.at === null || d > state.at) ?? null;
 
-  const plan = pipeline && nextDay ? planFor(pipeline, state, nextDay) : null;
+  const plan = pipeline && nextDay ? planFor(pipeline, state, nextDay, rms) : null;
   const snap = pipeline ? snapshot(pipeline, state) : null;
   const owing = pipeline ? stillOwing(pipeline, state) : [];
 
@@ -261,6 +270,22 @@ export default function SimulationPage() {
             />
           </div>
 
+          {/*
+            * Where the month starts, which is not a day on the list.
+            *
+            * MES's cycle diagram opens with the billing date and says
+            * everything below it pivots off the billing date of the latest AR
+            * report. Their 15th is the usual one, "but Adhoc billing can
+            * happen on any other dates of the current month eg. 21 or 24th",
+            * and Raman put it plainly on 14 September: "in one report you may
+            * have several billing dates."
+            *
+            * So the walkthrough cannot open on the 1st with one deadline. The
+            * runs are what the deadlines are counted from, and this upload has
+            * more than one of them.
+            */}
+          <BillingCycles invoices={pipeline.invoices} asOf={pipeline.asOf} />
+
           <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
             <Card>
               <CardHeader
@@ -360,9 +385,17 @@ export default function SimulationPage() {
                     )}
                   />
 
+                  {nextDay === 16 && pipeline.managerReports.length > 0 ? (
+                    <RmPicker
+                      managers={pipeline.managerReports.map((r) => r.managerName)}
+                      chosen={rms}
+                      onChange={setRms}
+                    />
+                  ) : null}
+
                   <button
                     type="button"
-                    onClick={() => setState(runDay(pipeline, state, nextDay))}
+                    onClick={() => setState(runDay(pipeline, state, nextDay, rms))}
                     className="rounded border border-accent bg-accent px-3.5 py-2 text-xs font-medium text-accent-ink hover:opacity-90"
                   >
                     Run the {nextDay}
@@ -679,6 +712,74 @@ function Evidence({ output }: { output: DayOutput | null }) {
           ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- RM picker ---
+ * MES ask for this twice in the same breath. Flow tab row 21: "Send report to
+ * AR team (provide User the option to select one or more RMs from drop down to
+ * send email)". Their cycle diagram, on the 16th: "sender picks one or more
+ * relationship managers from a dropdown".
+ *
+ * Checkboxes rather than a literal dropdown, because "one or more" out of a
+ * handful is what a multi-select is bad at and a row of checkboxes is good at,
+ * and because the same shape is already used for recipients on the reports
+ * screen. If MES want the control to look like their mock-up that is a styling
+ * change, not a behaviour one.
+ */
+function RmPicker({
+  managers,
+  chosen,
+  onChange,
+}: {
+  managers: string[];
+  chosen: string[] | null;
+  onChange: (v: string[] | null) => void;
+}) {
+  // null means untouched, which means all. Resolved here so the checkboxes
+  // show what would actually happen rather than showing nothing ticked.
+  const on = chosen ?? managers;
+  const all = on.length === managers.length;
+
+  return (
+    <div className="rounded border border-line-hair bg-surface px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-[11px] font-medium text-ink-secondary">
+          Send the late payment report to
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(all ? [] : null)}
+          className="text-[11px] text-ink-muted underline-offset-2 hover:underline"
+        >
+          {all ? "Clear all" : "Select all"}
+        </button>
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+        {managers.map((m) => (
+          <label key={m} className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={on.includes(m)}
+              onChange={(e) =>
+                onChange(
+                  e.target.checked ? [...on, m] : on.filter((x) => x !== m),
+                )
+              }
+              className="h-3.5 w-3.5 accent-[var(--accent)]"
+            />
+            <span className="text-xs text-ink-secondary">{m}</span>
+          </label>
+        ))}
+      </div>
+
+      <p className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
+        Each manager gets their own sheet, covering only their tenants. The
+        $100 fees are raised either way &mdash; choosing here decides who is
+        told, not who is charged.
+      </p>
     </div>
   );
 }

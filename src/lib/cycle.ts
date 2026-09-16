@@ -138,7 +138,38 @@ export interface DayPlan {
 }
 
 /** What the next day would do, without doing it. */
-export function planFor(p: Pipeline, s: SimState, day: CycleDay): DayPlan {
+/**
+ * Who the 16th's reports go to.
+ *
+ * MES's Flow tab, row 21: "Send report to AR team (provide User the option to
+ * select one or more RMs from drop down to send email)", repeated in their
+ * cycle diagram as "sender picks one or more relationship managers from a
+ * dropdown". The requirement is the choosing, so null means nobody has chosen
+ * and every manager is included, which is the sensible default and is also
+ * what the month did before this existed.
+ */
+export type ChosenRms = readonly string[] | null;
+
+/**
+ * The managers a run will actually send to.
+ *
+ * Intersected with the reports that exist rather than taken at face value, so
+ * a name left over from a previous upload cannot conjure a report that is not
+ * there.
+ */
+export function rmsFor(p: Pipeline, rms: ChosenRms): string[] {
+  const all = p.managerReports.map((r) => r.managerName);
+  if (rms === null) return all;
+  return all.filter((n) => rms.includes(n));
+}
+
+export function planFor(
+  p: Pipeline,
+  s: SimState,
+  day: CycleDay,
+  rms: ChosenRms = null,
+): DayPlan {
+  const picked = rmsFor(p, rms);
   const owing = stillOwing(p, s);
   const reachable = owing.filter((a) => a.hasContact);
   const unreachable = owing.filter((a) => !a.hasContact);
@@ -208,9 +239,11 @@ export function planFor(p: Pipeline, s: SimState, day: CycleDay): DayPlan {
         day,
         title: "First reminder, then the calls",
         fromFlowTab:
-          "First Reminder - Bulk Email (Email List by Client Name & email " +
-          "addresses captured in the system). Call Customer. Repeated calls allowed",
+          "User Uploads AR Report from NS. First Reminder - Bulk Email (Email " +
+          "List by Client Name & email addresses captured in the system). " +
+          "Call Customer. Repeated calls allowed",
         willDo: [
+          "The AR report is uploaded again first, and the month is rebuilt from it: the same routine as the 4th.",
           `${fresh.length} tenants get MES's first reminder, across ${fresh.reduce((t, a) => t + a.emails.length, 0)} addresses.`,
           "A tenant with several addresses gets it at all of them, not the first.",
           again > 0
@@ -246,21 +279,28 @@ export function planFor(p: Pipeline, s: SimState, day: CycleDay): DayPlan {
         day,
         title: "Late payment fees, and the report to the AR team",
         fromFlowTab:
-          "Late Payment Report - >14 calendar days credit. Send report to AR " +
-          "team (provide User the option to select one or more RMs from drop down)",
+          "User Uploads AR Report from NS. Late Payment Report - >14 calendar " +
+          "days credit. Send report to AR team (provide User the option to " +
+          "select one or more RMs from drop down)",
         willDo: [
+          "The AR report is uploaded again first, the same routine as the 4th.",
           `${due.length} tenants are charged the $${p.lateFees.fee} fee, before GST.`,
           p.giroCustomers.size > 0
             ? `${p.giroCustomers.size} are held back: they are on GIRO and a bounced deduction is not their failure.`
             : "No tenant is held back for GIRO in this upload.",
-          p.managerReports.length > 0
-            ? `${p.managerReports.length} manager reports go out, one each, in Ray's layout.`
-            : "No manager reports: this export carries no Primary Sales Rep column.",
+          p.managerReports.length === 0
+            ? "No manager reports: this export carries no Primary Sales Rep column."
+            : picked.length === p.managerReports.length
+              ? `${picked.length} manager reports go out, one each, in Ray's layout.`
+              : `${picked.length} of ${p.managerReports.length} manager reports go out, in Ray's layout: ${picked.join(", ")}. The rest were not selected.`,
         ],
         blockers: [
           ...(CAN_SEND_FOR_REAL ? [] : ["Nothing leaves. The reports are built and not sent."]),
           ...(p.managerReports.length === 0
             ? ["Without the sales rep column the managers cannot be told apart."]
+            : []),
+          ...(p.managerReports.length > 0 && picked.length === 0
+            ? ["No manager is selected, so no manager report goes out. The fee is still raised."]
             : []),
         ],
         affected: due.length,
@@ -416,8 +456,13 @@ export function outputFor(
  * replaying from the start rather than undoing, and the same inputs always
  * produce the same month.
  */
-export function runDay(p: Pipeline, s: SimState, day: CycleDay): SimState {
-  const plan = planFor(p, s, day);
+export function runDay(
+  p: Pipeline,
+  s: SimState,
+  day: CycleDay,
+  rms: ChosenRms = null,
+): SimState {
+  const plan = planFor(p, s, day, rms);
   const owing = stillOwing(p, s);
   const reachable = owing.filter((a) => a.hasContact);
   const next: SimState = {
@@ -457,6 +502,16 @@ export function runDay(p: Pipeline, s: SimState, day: CycleDay): SimState {
       accounts: due.map((a) => a.companyName),
       value: due.length * p.lateFees.fee,
     });
+    // Named, not counted. "3 reports sent" is not something anybody can check
+    // afterwards; "sent to Lancelot and CaptHook, not Rumpelstiltskin" is.
+    const picked = rmsFor(p, rms);
+    if (picked.length > 0) {
+      add({
+        kind: "sent",
+        text: `Late payment report sent to ${picked.length} manager${picked.length === 1 ? "" : "s"}`,
+        accounts: picked,
+      });
+    }
     for (const b of plan.blockers) add({ kind: "blocked", text: b });
   }
 

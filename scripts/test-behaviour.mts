@@ -21,6 +21,7 @@ import {
   markPaid,
   markPromised,
   planFor,
+  rmsFor,
   runDay,
   snapshot,
   stillOwing,
@@ -701,6 +702,74 @@ check("once deposits are known the report drops that note",
       withDep[0]?.notes.length, 0);
 check("and the column stops calling itself unavailable",
       withDep[0]?.blocks[0]?.columns.some((c) => c.unavailable), false);
+
+
+/* --------------------------------------- choosing who gets the 16th ---
+ * MES's Flow tab row 21: "Send report to AR team (provide User the option to
+ * select one or more RMs from drop down to send email)". Their cycle diagram
+ * repeats it. The requirement is the choosing, so the thing to pin is that
+ * choosing changes the outcome and that not choosing still sends to everyone.
+ */
+console.log("\nThe 16th sends to the managers who were picked\n");
+
+const rmPipe = {
+  accounts: [], invoices: [], asOf: "2026-08-28", entity: "MES Group",
+  byProperty: [], revenueTabs: [], problems: [], defaulters: [],
+  giroCustomers: new Set<string>(),
+  lateFees: { fee: 100, listing: [], excluded: [] },
+  managerReports: [
+    { managerName: "Lancelot" }, { managerName: "CaptHook" },
+    { managerName: "Rumpelstiltskin" },
+  ],
+} as unknown as Parameters<typeof planFor>[0];
+
+check("untouched means every manager", rmsFor(rmPipe, null).length, 3);
+check("a choice of two means two", rmsFor(rmPipe, ["Lancelot", "CaptHook"]).length, 2);
+check("and it is those two",
+      rmsFor(rmPipe, ["Lancelot", "CaptHook"]).join(","), "Lancelot,CaptHook");
+check("clearing the lot sends to nobody", rmsFor(rmPipe, []).length, 0);
+
+// A name held over from a previous upload must not conjure a report.
+check("a manager who is not in this upload is ignored",
+      rmsFor(rmPipe, ["Lancelot", "Somebody Else"]).join(","), "Lancelot");
+
+const allPlan = planFor(rmPipe, emptyState(), 16, null);
+const twoPlan = planFor(rmPipe, emptyState(), 16, ["Lancelot", "CaptHook"]);
+const nonePlan = planFor(rmPipe, emptyState(), 16, []);
+
+check("with nobody chosen the plan says all three go",
+      allPlan.willDo.some((w) => w.includes("3 manager reports go out")), true);
+check("choosing two says two of three",
+      twoPlan.willDo.some((w) => w.includes("2 of 3 manager reports")), true);
+check("and names them rather than counting them",
+      twoPlan.willDo.some((w) => w.includes("Lancelot, CaptHook")), true);
+check("and says the rest were not selected",
+      twoPlan.willDo.some((w) => w.includes("not selected")), true);
+check("choosing nobody is called out as a blocker",
+      nonePlan.blockers.some((b) => b.includes("No manager is selected")), true);
+check("but the fee is still raised, and it says so",
+      nonePlan.blockers.some((b) => b.includes("fee is still raised")), true);
+
+// What actually happened has to be checkable afterwards, by name.
+const ranTwo = runDay(rmPipe, emptyState(), 16, ["Lancelot", "CaptHook"]);
+const sentLine = ranTwo.log.find((l) => l.text.includes("Late payment report sent"));
+check("the log records the send", Boolean(sentLine), true);
+check("to two managers", sentLine?.accounts?.length, 2);
+check("named", (sentLine?.accounts ?? []).join(","), "Lancelot,CaptHook");
+check("choosing nobody records no send",
+      runDay(rmPipe, emptyState(), 16, []).log
+        .some((l) => l.text.includes("Late payment report sent")), false);
+
+/* ------------------------------- the 7th and the 16th are upload days too ---
+ * MES's cycle diagram marks the 4th, 7th and 16th all "Report upload", each
+ * running the same standard routine. Only the 4th said so.
+ */
+check("the 7th says the report is uploaded",
+      planFor(rmPipe, emptyState(), 7).fromFlowTab?.includes("Uploads AR Report"), true);
+check("the 16th says it too",
+      planFor(rmPipe, emptyState(), 16).fromFlowTab?.includes("Uploads AR Report"), true);
+check("and the 4th still does",
+      planFor(rmPipe, emptyState(), 4).fromFlowTab?.includes("Uploads AR Report"), true);
 
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);

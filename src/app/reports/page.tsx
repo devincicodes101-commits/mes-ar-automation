@@ -122,15 +122,27 @@ export default function ReportsPage() {
     [accounts, ds.asOf],
   );
 
-  // The six tabs MES drew as empty sheets in their own workbook. Built from
-  // the uploaded invoice lines, and each one independently sendable, which is
-  // what their Flow tab asks for under Other Notes.
+  /*
+   * Everything that can be emailed on demand.
+   *
+   * MES's Flow tab, Other Notes: "User can email any of the Reports
+   * (SD/PF/1FM/SD/RM) via email drop down selection", and their cycle diagram
+   * repeats it under Standing Rules. Five of those are the charge tabs. The
+   * sixth is RM, the manager sheets, and it was missing from this list: the
+   * dropdown offered the five and the comment above it claimed six. A manager
+   * report could be read on this screen and emailed to nobody.
+   *
+   * One report per manager rather than one RM report, because that is how Ray
+   * reads it and how the 16th sends it: one each.
+   */
   const sendable = useMemo(
-    () =>
-      REVENUE_TABS.map((spec) =>
+    () => [
+      ...REVENUE_TABS.map((spec) =>
         buildRevenueTab(spec, ds.invoices, ds.asOf, null),
       ),
-    [ds.invoices, ds.asOf],
+      ...managerReports,
+    ],
+    [ds.invoices, ds.asOf, managerReports],
   );
   const [sendingCode, setSendingCode] = useState(sendable[0]?.code ?? "");
   const [openManager, setOpenManager] =
