@@ -217,22 +217,24 @@ TC-215,Real file,"End to end against MES's own files, not made up input",The dat
 TC-216,Real file,"End to end against MES's own files, not made up input","The report date the system settles on, where the title disagrees",fileHeaderDate,aging,2026-08-28
 TC-217,Real file,"End to end against MES's own files, not made up input",The title of that same file says something else,fileTitleDate,aging,2026-08-17
 TC-218,Real file,"End to end against MES's own files, not made up input",A report whose header and data disagree is flagged,fileDateConflictFlagged,aging,true
-TC-219,Real file,"End to end against MES's own files, not made up input",Tenants read from Finance AR Download,fileAccounts,finance,7
-TC-220,Real file,"End to end against MES's own files, not made up input",Charge lines read from Finance AR Download,fileLines,finance,173
-TC-221,Real file,"End to end against MES's own files, not made up input",Billing runs in Finance AR Download,fileCycles,finance,28
-TC-222,Real file,"End to end against MES's own files, not made up input",Manager reports built from it,fileManagers,finance,3
-TC-223,Real file,"End to end against MES's own files, not made up input","Its header carries no as-of row, so the date is recovered",fileDataDate,finance,2026-08-17
-TC-224,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Nobody has been reminded before the month starts,monthReminded,0,0
-TC-225,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 7th reminds everyone reachable and owing,monthReminded,7,4
-TC-226,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Running the 7th again does not remind anyone twice,monthRemindedTwice,7,4
-TC-227,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th charges the fee to everyone not on GIRO,monthCharged,16,75
-TC-228,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",GIRO tenants are held back from that fee,monthHeld,16,6
-TC-229,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 21st sends the final notice,monthFinalised,21,4
-TC-230,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant marked paid drops out of the rest of the month,monthPaidDrops,,true
-TC-231,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant who promised is held off the final notice,monthPromisedDrops,,true
-TC-232,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The same file run twice produces the same month,monthDeterministic,,true
-TC-233,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st","The 7th, 4th and 16th are all upload days",monthUploadDays,,true
-TC-234,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th can be sent to a chosen subset of managers,monthRmChoice,2,2
-TC-235,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
-TC-236,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
-TC-237,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true
+TC-219,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Our bucket against the Aging column MES already have in their file,fileBucketsVsMes,finance,0
+TC-220,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Lines that would stop matching MES if age were counted from the billing date,fileBucketsFromBillingVsMes,finance,18
+TC-221,Real file,"End to end against MES's own files, not made up input",Tenants read from Finance AR Download,fileAccounts,finance,7
+TC-222,Real file,"End to end against MES's own files, not made up input",Charge lines read from Finance AR Download,fileLines,finance,173
+TC-223,Real file,"End to end against MES's own files, not made up input",Billing runs in Finance AR Download,fileCycles,finance,28
+TC-224,Real file,"End to end against MES's own files, not made up input",Manager reports built from it,fileManagers,finance,3
+TC-225,Real file,"End to end against MES's own files, not made up input","Its header carries no as-of row, so the date is recovered",fileDataDate,finance,2026-08-17
+TC-226,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Nobody has been reminded before the month starts,monthReminded,0,0
+TC-227,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 7th reminds everyone reachable and owing,monthReminded,7,4
+TC-228,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Running the 7th again does not remind anyone twice,monthRemindedTwice,7,4
+TC-229,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th charges the fee to everyone not on GIRO,monthCharged,16,75
+TC-230,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",GIRO tenants are held back from that fee,monthHeld,16,6
+TC-231,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 21st sends the final notice,monthFinalised,21,4
+TC-232,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant marked paid drops out of the rest of the month,monthPaidDrops,,true
+TC-233,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant who promised is held off the final notice,monthPromisedDrops,,true
+TC-234,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The same file run twice produces the same month,monthDeterministic,,true
+TC-235,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st","The 7th, 4th and 16th are all upload days",monthUploadDays,,true
+TC-236,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th can be sent to a chosen subset of managers,monthRmChoice,2,2
+TC-237,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
+TC-238,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
+TC-239,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true

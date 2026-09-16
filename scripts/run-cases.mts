@@ -292,6 +292,59 @@ const ops: Record<string, (input: string) => string> = {
     }
     return "none";
   },
+  /*
+   * Our bucket against the Aging column MES already have in the file.
+   *
+   * Their Finance AR Download carries Age in column L and Aging in column M,
+   * and their Formula tab buckets L. This compares what we produce with what
+   * they produce, on their own data, which is the only check that settles
+   * what "aging" means here rather than arguing about it.
+   */
+  fileBucketsVsMes: () => {
+    const wb = rd(FINANCE_PATH);
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets["Finance AR Download"]!, {
+      header: 1, raw: false, defval: "",
+    }) as unknown[][];
+    let differ = 0;
+    for (const r of rows.slice(1)) {
+      const age = String(r[11] ?? "").trim();
+      const aging = String(r[12] ?? "").trim();
+      if (age === "" || aging === "") continue;
+      if (bucketLabelForAge(Number(age)) !== aging) differ += 1;
+    }
+    return String(differ);
+  },
+  /*
+   * And the same, if the age were counted from the billing date rather than
+   * from the due date. It is not a rhetorical case: it is the reading of
+   * "use the billing date and create buckets along that date" that we did not
+   * take, and this records what taking it would have cost.
+   */
+  fileBucketsFromBillingVsMes: () => {
+    const wb = rd(FINANCE_PATH);
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets["Finance AR Download"]!, {
+      header: 1, raw: false, defval: "",
+    }) as unknown[][];
+    const asIso = (v: unknown) => {
+      const d = new Date(`${String(v ?? "").trim()} 12:00`);
+      if (Number.isNaN(d.getTime())) return null;
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+    const between = (a: string, b: string) =>
+      Math.round((new Date(`${b}T12:00`).getTime() - new Date(`${a}T12:00`).getTime()) / 86400000);
+    let differ = 0;
+    for (const r of rows.slice(1)) {
+      const age = String(r[11] ?? "").trim();
+      const aging = String(r[12] ?? "").trim();
+      const billed = asIso(r[4]);
+      const due = asIso(r[10]);
+      if (age === "" || aging === "" || !billed || !due) continue;
+      if (bucketLabelForAge(Number(age) + between(billed, due)) !== aging) differ += 1;
+    }
+    return String(differ);
+  },
+
   /** The date the system settles on, after weighing title against data. */
   fileHeaderDate: (i) => String(file(i).asOf),
   /** The date actually typed in the title row, read straight off the sheet. */

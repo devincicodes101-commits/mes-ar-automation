@@ -309,6 +309,16 @@ add("Real file", REAL, "The title of that same file says something else",
     "fileTitleDate", "aging", "2026-08-17")
 add("Real file", REAL, "A report whose header and data disagree is flagged",
     "fileDateConflictFlagged", "aging", "true")
+MEANING = ('Raman 14 Sep: "use the billing date and accordingly create buckets '
+           'along that date". MES file: column L is Age, column M is Aging, and '
+           'their Formula tab buckets column L')
+add("Aging", MEANING,
+    "Our bucket against the Aging column MES already have in their file",
+    "fileBucketsVsMes", "finance", "0")
+add("Aging", MEANING,
+    "Lines that would stop matching MES if age were counted from the billing date",
+    "fileBucketsFromBillingVsMes", "finance", "18")
+
 add("Real file", REAL, "Tenants read from Finance AR Download", "fileAccounts", "finance", "7")
 add("Real file", REAL, "Charge lines read from Finance AR Download", "fileLines", "finance", "173")
 add("Real file", REAL, "Billing runs in Finance AR Download", "fileCycles", "finance", "28")
