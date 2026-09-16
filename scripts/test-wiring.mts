@@ -156,5 +156,11 @@ check("the dry run scopes the file it reads", /scope\(full\.accounts\)/.test(SIM
 check("and scopes the already-uploaded one too",
       /scope\(ds\.accounts\)/.test(SIM), true);
 
+// view-tenant-emails was declared and checked nowhere, which reads as
+// protection that is not there. Management can open this screen and it shows
+// the addresses a reminder would go to.
+check("the dry run asks whether addresses may be shown",
+      /can\("view-tenant-emails"\)/.test(SIM), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

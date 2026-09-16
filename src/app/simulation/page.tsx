@@ -57,7 +57,7 @@ export default function SimulationPage() {
   // off disk rather than going through the shared dataset, so it does not get
   // that for free the way every other screen does. Applied here as well so it
   // stays correct if the route map is ever edited.
-  const { role, scope } = useSession();
+  const { role, scope, can } = useSession();
   const [ar, setAr] = useState<File | null>(null);
   const [contacts, setContacts] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -351,7 +351,14 @@ export default function SimulationPage() {
                     </ul>
                   ) : null}
 
-                  <Evidence output={outputFor(pipeline, state, nextDay)} />
+                  <Evidence
+                    output={outputFor(
+                      pipeline,
+                      state,
+                      nextDay,
+                      can("view-tenant-emails"),
+                    )}
+                  />
 
                   <button
                     type="button"

@@ -312,6 +312,17 @@ export function outputFor(
   p: Pipeline,
   s: SimState,
   day: CycleDay,
+  /**
+   * Whether the viewer may read tenant email addresses.
+   *
+   * view-tenant-emails is a capability CSD and above hold and Management does
+   * not, and it was declared and never checked anywhere, which is worse than
+   * not declaring it: it reads as protection that is not there. Management can
+   * open this screen, so this is where it bites. The count still shows,
+   * because "3 addresses" is the useful part and the addresses themselves are
+   * the tenant's data.
+   */
+  showAddresses = true,
 ): DayOutput | null {
   const owing = stillOwing(p, s);
   const reachable = owing.filter((a) => a.hasContact);
@@ -352,13 +363,20 @@ export function outputFor(
           ? "Who gets the first reminder, and what it says"
           : "Who gets the final notice, and what it says",
       rows: fresh.map((a) =>
-        row(a, `${a.emails.length} address${a.emails.length === 1 ? "" : "es"}: ${a.emails.join(", ")}`),
+        row(
+          a,
+          showAddresses
+            ? `${a.emails.length} address${a.emails.length === 1 ? "" : "es"}: ${a.emails.join(", ")}`
+            : `${a.emails.length} address${a.emails.length === 1 ? "" : "es"} on file`,
+        ),
       ),
       skippedLabel: "No address, so their letter goes to Send By Hand",
       skipped: unreachable.map((a) => row(a, a.propertyName)),
       letter: letter
         ? {
-            to: first!.emails.join(", "),
+            to: showAddresses
+              ? first!.emails.join(", ")
+              : `${first!.emails.length} address${first!.emails.length === 1 ? "" : "es"} on file`,
             subject: letter.subject,
             body: letter.body,
             deadline: letter.deadline,
