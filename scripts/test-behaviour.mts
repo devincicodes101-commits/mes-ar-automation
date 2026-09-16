@@ -22,6 +22,7 @@ import {
 } from "../src/lib/aging-detail.ts";
 import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
 import {
+  brokenPromises,
   emptyState,
   markPaid,
   markPromised,
@@ -869,6 +870,83 @@ check("a different code is not stripped",
 check("a name that is only its code is kept rather than emptied",
       withoutCode("DORM-166", "DORM-166"), "DORM-166");
 check("no code, no change", withoutCode("SOMEBODY PTE LTD", ""), "SOMEBODY PTE LTD");
+
+
+/* ------------------------------------- a promise holds until its own date ---
+ * The Dry Run tells the officer, in as many words: "Promised only holds it:
+ * the final notice stays away while the date stands, and they come back if it
+ * passes unpaid." It did not do the second half. Any tenant with a promise
+ * against them was filtered out whatever date they had given, so a date eight
+ * months in the past kept them off the final notice as firmly as one next
+ * week.
+ *
+ * Worse than a silent bug, because the rule was written on the screen and the
+ * officer had been told to rely on it.
+ */
+console.log("\nA promise holds until its date, and no longer\n");
+
+const promiseAcct = (id: string): Account =>
+  ({
+    id, customerCode: id, companyName: `${id} PTE LTD`, property: "BSD",
+    propertyName: "Blue Stars Dormitory", status: "Live", total: 5000,
+    buckets: { current: 0, d30: 5000, d60: 0, d90: 0, d90plus: 0 },
+    emails: ["a@x.com"], hasContact: true, lateFeeCount: 0,
+  }) as unknown as Account;
+
+const promisePipe = {
+  accounts: [promiseAcct("P-1")],
+  invoices: [], asOf: "2026-09-15", entity: "MES Group",
+  byProperty: [], revenueTabs: [], problems: [], defaulters: [],
+  giroCustomers: new Set<string>(),
+  lateFees: { fee: 100, listing: [], excluded: [] },
+  managerReports: [],
+} as unknown as Parameters<typeof stillOwing>[0];
+
+const one = promisePipe.accounts[0]!;
+const base = emptyState();
+
+check("the tenant owes money to begin with", stillOwing(promisePipe, base).length, 1);
+
+const soon = markPromised(base, one, "2026-12-31", 7);
+check("a promise for December holds them off",
+      stillOwing(promisePipe, soon).length, 0);
+
+const stale = markPromised(base, one, "2026-01-01", 7);
+check("a promise from last January does not",
+      stillOwing(promisePipe, stale).length, 1);
+check("and it is reported as broken rather than merely ignored",
+      brokenPromises(promisePipe, stale).includes(one.id), true);
+
+// The boundary: the day itself still counts, the day before does not.
+const onTheDay = markPromised({ ...base, at: 15 }, one, "2026-09-15", 15);
+check("a promise for the very day the month has reached still stands",
+      stillOwing(promisePipe, onTheDay).length, 0);
+const dayBefore = markPromised({ ...base, at: 15 }, one, "2026-09-14", 15);
+check("one day earlier has lapsed", stillOwing(promisePipe, dayBefore).length, 1);
+
+// And it lapses as the month moves, without anybody touching it again.
+const midMonth = markPromised(base, one, "2026-09-16", 7);
+check("on the 15th, a promise for the 16th is still good",
+      stillOwing(promisePipe, { ...midMonth, at: 15 }).length, 0);
+check("on the 21st, the same promise has run out",
+      stillOwing(promisePipe, { ...midMonth, at: 21 }).length, 1);
+check("so the final notice reaches them",
+      runDay(promisePipe, { ...midMonth, at: 21 }, 21).finalNotice.includes(one.id),
+      true);
+
+// Paying settles it outright, whatever the promise says.
+const paidAnyway = markPaid(stale, one, 9);
+check("a tenant who paid stays gone even with a lapsed promise",
+      stillOwing(promisePipe, paidAnyway).length, 0);
+check("and is not chased as a broken promise",
+      brokenPromises(promisePipe, paidAnyway).includes(one.id), false);
+
+// With no report date there is nothing to judge a promise against, and
+// chasing somebody on the strength of a date we cannot place is worse than
+// waiting.
+const undated = { ...promisePipe, asOf: null } as typeof promisePipe;
+check("with no report date, a promise is given the benefit of the doubt",
+      stillOwing(undated, stale).length, 0);
 
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);

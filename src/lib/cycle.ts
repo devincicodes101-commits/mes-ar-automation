@@ -96,12 +96,60 @@ const money = (n: number) =>
  * passes without payment they come back, which is what the promise tracker is
  * for. Both are excluded here; only one of them is good news.
  */
+/**
+ * Where the month has got to, as a date.
+ *
+ * The cycle days are days of the report's own month, so the 21st means the
+ * 21st of the period being worked, not today. Before the month starts there
+ * is no day yet, so the report date stands in.
+ */
+function asAt(p: Pipeline, s: SimState): string | null {
+  if (!p.asOf) return null;
+  if (s.at === null) return p.asOf;
+  const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(p.asOf);
+  if (!m) return p.asOf;
+  return `${m[1]}-${m[2]}-${String(s.at).padStart(2, "0")}`;
+}
+
+/**
+ * A promise holds only until the day it was made for.
+ *
+ * It used to hold for ever: any tenant with a promise against them was
+ * filtered out whatever date they had promised, so a date eight months in the
+ * past kept them off the final notice as firmly as one next week. The screen
+ * said otherwise in as many words — "the final notice stays away while the
+ * date stands, and they come back if it passes unpaid" — which is the worse
+ * kind of wrong, because the officer was told the rule and the rule was not
+ * being applied.
+ *
+ * promiseState in store.ts had the right answer all along and nothing here
+ * called it. Kept as a date comparison rather than an import because that
+ * function works against the wall clock, and a month being simulated is not
+ * the wall clock.
+ */
+function promiseStillStands(by: string, asAtIso: string | null): boolean {
+  if (!asAtIso) return true; // no date to judge against: give them the benefit
+  return by >= asAtIso;
+}
+
 export function stillOwing(p: Pipeline, s: SimState): Account[] {
+  const at = asAt(p, s);
   return buildQueue(p.accounts)
     .filter((q) => overdueTotal(q.account) > 0)
     .filter((q) => !s.paid.includes(q.account.id))
-    .filter((q) => !(q.account.id in s.promised))
+    .filter((q) => {
+      const promise = s.promised[q.account.id];
+      return !promise || !promiseStillStands(promise.by, at);
+    })
     .map((q) => q.account);
+}
+
+/** Promises whose date has passed with nothing paid. */
+export function brokenPromises(p: Pipeline, s: SimState): string[] {
+  const at = asAt(p, s);
+  return Object.entries(s.promised)
+    .filter(([id, v]) => !s.paid.includes(id) && !promiseStillStands(v.by, at))
+    .map(([id]) => id);
 }
 
 /**
