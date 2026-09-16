@@ -178,9 +178,12 @@ req("Ray's 13-column manager layout", "reports.ts MANAGER_COLUMNS",
   has(LIB("reports.ts"), "MANAGER_COLUMNS", "riskExposure"),
   has(PAGE("reports"), "MANAGER_COLUMNS"),
   has(ALL_TESTS, "Ray's thirteen columns"),
-  "Security Deposit and Risk Exposure are rendered empty, carrying their " +
-  "reason. Risk Exposure is Grand Total minus Security Deposit, confirmed " +
-  "by MES on 14 September, so it is the deposit it waits on, not a formula");
+  "Risk Exposure is Grand Total minus Security Deposit, confirmed by MES " +
+  "on 14 September, and the deposit is totalled from the AR report's own " +
+  "Security Deposit lines, the source Raman named on the same call. Both " +
+  "compute for the tenants who carry a deposit line, which is eight of the " +
+  "hundred and ninety in their August export, and the rest say why they " +
+  "are blank");
 
 req("Recurring defaulters from GIRO fee lines", "reports.ts recurringDefaulters",
   has(LIB("reports.ts"), "recurringDefaulters"), has(PAGE("defaulters"), "recurringDefaulters"),
