@@ -37,7 +37,10 @@ export const FINAL_CREDIT_DAYS = 30;
 export interface BillingCycle {
   /** The billing date every line in this group shares. */
   billedOn: string;
-  /** Billing date plus the 14 day credit period. */
+  /**
+   * When payment falls due: the date the file states, or the billing date
+   * plus the 14 day credit period where it states none.
+   */
   dueBy: string;
   /** Billing date plus 30 days, the second deadline. */
   finalBy: string;
@@ -112,7 +115,28 @@ export function billingCycles(
 
   const cycles: BillingCycle[] = [];
   for (const [billedOn, lines] of Array.from(groups)) {
-    const dueBy = addDays(billedOn, CREDIT_DAYS);
+    /*
+     * The due date NetSuite put in the file, where the run agrees on one.
+     *
+     * This used to be the billing date plus fourteen, always, and it produced
+     * a screen that contradicted the file it had just read: MES's export dates
+     * a run billed on 15 August as due on the 30th, and the table said the
+     * 29th. Their written rule is fourteen calendar days and NetSuite's terms
+     * are fifteen, so the two disagree by a day on every line.
+     *
+     * The file wins for the date shown, because it is the date the tenant was
+     * actually given and the one their Age column is measured from. The
+     * fourteen day rule still decides whether a run is late, because that is
+     * what MES wrote down twice and what their cycle is built on. Where a run
+     * carries no due date, or its lines disagree about it, the rule fills in.
+     *
+     * The gap between the two is the open question for MES: their rule says
+     * fourteen days, their system says fifteen, and their own worked example
+     * says the first of the following month, which is seventeen.
+     */
+    const stated = new Set(lines.map((l) => l.dueDate).filter(Boolean));
+    const dueBy =
+      stated.size === 1 ? (Array.from(stated)[0] as string) : addDays(billedOn, CREDIT_DAYS);
     const ageDays = asOf ? daysBetween(billedOn, asOf) : null;
     // Past its own credit period as at the report date. Falls back to the
     // line's own age, which is days past its due date, where the report has
