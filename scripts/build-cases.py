@@ -6,6 +6,10 @@ The CSV is the artifact a reader opens; this file is how it stays consistent
 when a boundary moves. Every row names the requirement it comes from, so a
 failure points at a sentence in MES's own documents rather than at a function.
 
+It is written into public/ because two things read it: the terminal runner,
+which fails the build, and the Checks screen, which is how the same evidence
+is shown to somebody who is never going to open a terminal.
+
   python scripts/build-cases.py
 """
 import csv
@@ -355,7 +359,7 @@ SAFE = "Raman asked for simulations rather than production: real client emails"
 add("The month", SAFE, "Nothing can be sent for real", "sendingDisabled", "", "true")
 add("The month", SAFE, "No mail transport is imported anywhere", "noMailer", "", "true")
 
-with io.open("test-cases.csv", "w", encoding="utf-8", newline="") as f:
+with io.open("public/test-cases.csv", "w", encoding="utf-8", newline="") as f:
     w = csv.DictWriter(
         f, fieldnames=["ID", "Area", "Requirement", "Scenario", "Op", "Input",
                        "Expected"])
@@ -363,4 +367,4 @@ with io.open("test-cases.csv", "w", encoding="utf-8", newline="") as f:
     for r in rows:
         w.writerow(r)
 
-print("wrote %d cases to test-cases.csv" % len(rows))
+print("wrote %d cases to public/test-cases.csv" % len(rows))

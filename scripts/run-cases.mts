@@ -46,32 +46,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "..");
 const DATA = path.join(ROOT, "AR Automation-20260903T201835Z-1-001", "AR Automation");
 
-/* ------------------------------------------------------------------- csv */
+import {
+  parseCases,
+  runCases,
+  PURE_OPS,
+  type CheckCase,
+} from "../src/lib/checks.ts";
 
-function parseCsv(text: string): string[][] {
-  const out: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { cell += '"'; i += 1; }
-      else if (c === '"') quoted = false;
-      else cell += c;
-      continue;
-    }
-    if (c === '"') quoted = true;
-    else if (c === ",") { row.push(cell); cell = ""; }
-    else if (c === "\n") { row.push(cell); out.push(row); row = []; cell = ""; }
-    else if (c !== "\r") cell += c;
-  }
-  if (cell !== "" || row.length > 0) { row.push(cell); out.push(row); }
-  return out.filter((r) => r.some((v) => v !== ""));
-}
-
+const NEEDS_QUOTING = /[",\n]/;
 const csvCell = (v: string) =>
-  /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  NEEDS_QUOTING.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 
 /* ------------------------------------------------------ the files, once */
 
@@ -160,103 +144,13 @@ const LETTER_CONTEXT = {
 
 /* ------------------------------------------------------------ operations */
 
-const ops: Record<string, (input: string) => string> = {
-  /* aging, with the billing date as the control */
-  cycleAge: (i) => {
-    const [billed, report] = i.split("|");
-    return String(billingCycles(lines(`${billed}:100`), report).cycles[0]?.ageDays);
-  },
-  dueBy: (i) => String(billingCycles(lines(`${i}:100`), null).cycles[0]?.dueBy),
-  finalBy: (i) => String(billingCycles(lines(`${i}:100`), null).cycles[0]?.finalBy),
-  stage: (i) => {
-    const [billed, report] = i.split("|");
-    const c = billingCycles(lines(`${billed}:100`), report).cycles[0];
-    return c ? cycleStage(c) : "no run";
-  },
-  bucket: (i) => bucketLabelForAge(Number(i)),
-  addDays: (i) => {
-    const [iso, n] = i.split("|");
-    return addDays(iso, Number(n));
-  },
-
-  /* several billing dates in one report */
-  cycleCount: (i) => String(billingCycles(lines(i), null).cycles.length),
-  cycleTotal: (i) => (billingCycles(lines(i), null).cycles[0]?.total ?? 0).toFixed(2),
-  cycleFirst: (i) => String(billingCycles(lines(i), null).cycles[0]?.billedOn),
-  cycleUndated: (i) => String(billingCycles(lines(i), null).undated),
-  cycleUndatedTotal: (i) => billingCycles(lines(i), null).undatedTotal.toFixed(2),
-  cycleOverdue: (i) =>
-    (billingCycles(lines(i), "2026-08-28").cycles[0]?.overdue ?? 0).toFixed(2),
-
-  /* charge types and dormitories */
-  revenueType: (i) => {
-    const [desc, doc, cat] = i.split("|");
-    return revenueType(desc, doc, cat);
-  },
-  isOneFm: (i) => {
-    const [doc, desc] = i.split("|");
-    return String(isOneFm(desc ?? "", doc));
-  },
-  property: (i) => {
-    const [doc, fallback] = i.split("|");
-    return propertyFromDocument(doc, fallback as never);
-  },
-
-  /* letters */
-  deadline: (i) => {
-    const [id, sent] = i.split("|");
-    return deadlineFor(id as never, sent);
-  },
-  letterMentions: (i) => {
-    const [id, phrase] = i.split("|");
-    return String(renderLetter(id as never, LETTER_CONTEXT).body.includes(phrase));
-  },
-  letterUnfilled: (i) => {
-    const l = renderLetter(i as never, LETTER_CONTEXT);
-    return String((l.body.match(/\{\{[^}]+\}\}/g) ?? []).length);
-  },
-  letterDatedFromReport: (i) =>
-    String(renderLetter("first-reminder", { ...LETTER_CONTEXT, sentOn: i }).body
-      .includes(String(new Date(`${i}T12:00`).getFullYear()))),
-
-  /* money */
-  currency: (i) => formatSgd(Number(i)),
-  round2: (i) => String(round2(Number(i))),
-  round2Sum: (i) =>
-    String(round2(Array.from({ length: Number(i) }, () => 0.01)
-      .reduce((a, b) => a + b, 0))),
-
-  /* risk exposure and the deposit */
-  riskExposure: (i) => {
-    const [total, dep] = i.split("|");
-    const v = riskExposure(Number(total), dep === "none" ? null : Number(dep));
-    return v === null ? "blank" : String(v);
-  },
-  depositHeld: (i) => {
-    const held = depositsFromLedger(depositLines(i));
-    const v = held.get("DORM-1");
-    return v === undefined ? "blank" : v.toFixed(2);
-  },
-
-  /* emails */
-  emailCount: (i) => String(emailAddresses(i).length),
-  emailFirst: (i) => emailAddresses(i)[0] ?? "none",
-
-  /* access */
-  canOpen: (i) => {
-    const [role, route] = i.split("|");
-    return String(canOpen(role as Role, route));
-  },
-  can: (i) => {
-    const [role, cap] = i.split("|");
-    return String(can(role as Role, cap as Capability));
-  },
-
-  withoutCode: (i) => {
-    const [name, code] = i.split("|");
-    return withoutCode(name, code);
-  },
-
+/*
+ * The cases that need something only this side has: MES's workbook on disk,
+ * and the project's own source. Everything else is arithmetic and lives in
+ * src/lib/checks.ts, so the Checks screen runs the identical code rather than
+ * a second copy of it that agrees until the day it does not.
+ */
+const fileOps: Record<string, (input: string) => string> = {
   /* the real files */
   fileAccounts: (i) => String(file(i).accounts.length),
   fileLines: (i) => String(file(i).invoices.length),
@@ -436,26 +330,16 @@ const ops: Record<string, (input: string) => string> = {
 
 /* ------------------------------------------------------------------ run */
 
-const casesPath = path.join(ROOT, "test-cases.csv");
+const casesPath = path.join(ROOT, "public", "test-cases.csv");
 if (!existsSync(casesPath)) {
-  console.error("test-cases.csv not found. Run: python scripts/build-cases.py");
+  console.error("public/test-cases.csv not found. Run: python scripts/build-cases.py");
   process.exit(1);
 }
 
-const table = parseCsv(readFileSync(casesPath, "utf8"));
-const header = table[0]!;
-const idx = (name: string) => header.indexOf(name);
-const cases = table.slice(1).map((r) => ({
-  id: r[idx("ID")] ?? "",
-  area: r[idx("Area")] ?? "",
-  requirement: r[idx("Requirement")] ?? "",
-  scenario: r[idx("Scenario")] ?? "",
-  op: r[idx("Op")] ?? "",
-  input: r[idx("Input")] ?? "",
-  expected: r[idx("Expected")] ?? "",
-}));
+const cases: CheckCase[] = parseCases(readFileSync(casesPath, "utf8"));
 
-const results: string[][] = [[...header, "Actual", "Result"]];
+const HEADER = ["ID", "Area", "Requirement", "Scenario", "Op", "Input", "Expected"];
+const results: string[][] = [[...HEADER, "Actual", "Result"]];
 const byArea = new Map<string, { pass: number; fail: number }>();
 const failures: string[] = [];
 
@@ -463,7 +347,7 @@ for (const c of cases) {
   let actual: string;
   let ok: boolean;
   try {
-    const fn = ops[c.op];
+    const fn = fileOps[c.op] ?? PURE_OPS[c.op];
     if (!fn) throw new Error(`no such operation: ${c.op}`);
     actual = fn(c.input);
     ok = actual === c.expected;

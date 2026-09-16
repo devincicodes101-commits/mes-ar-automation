@@ -49,6 +49,15 @@ export const NAV: {
     note: "Walk a whole month against a file. Nothing is sent.",
   },
   {
+    // Next to the Dry Run because it answers the question the Dry Run
+    // provokes: the month on screen looks right, but how would anybody know?
+    href: "/checks",
+    label: "Checks",
+    group: "Review",
+    when: "any time",
+    note: "Every requirement MES wrote down, checked in front of you.",
+  },
+  {
     href: "/",
     label: "Outstanding Balances",
     group: "The cycle",

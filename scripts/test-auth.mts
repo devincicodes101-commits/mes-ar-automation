@@ -246,7 +246,14 @@ const routes = readdirSync(APP, { withFileTypes: true })
   .map((d) => `/${d.name}`);
 
 // Read-only screens that genuinely need nothing more than being signed in.
-const SESSION_ONLY = new Set(["/access", "/collections", "/defaulters", "/login"]);
+//
+// /checks is here on purpose. It carries no tenant names, no addresses and no
+// amounts: it runs MES's stated requirements as arithmetic and shows what came
+// out. Gating it would keep it from whoever is being asked to trust the
+// figures, and there is no capability every role holds to gate it with.
+const SESSION_ONLY = new Set([
+  "/access", "/collections", "/defaulters", "/login", "/checks",
+]);
 
 const unguarded = routes.filter(
   (r) => !(r in ROUTE_CAPABILITY) && !SESSION_ONLY.has(r),

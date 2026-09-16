@@ -249,5 +249,36 @@ check("the deposit column no longer says it has no source",
 check("nor does risk exposure",
       /is in none of their files/.test(reportsLib2), false);
 
+/* ------------------------- the checks screen runs the tested code, not a copy ---
+ * The whole value of showing these to a client is that they are the same
+ * cases the build runs. A second copy of the operations in the page would
+ * agree until the day somebody moved a boundary in one of them.
+ */
+section("The checks screen and the build share one copy");
+
+const CHECKS = lib("checks.ts");
+const CHECKS_PAGE = page("checks");
+const RUNNER = read("scripts/run-cases.mts");
+
+check("the operations live in the library", /export const PURE_OPS/.test(CHECKS), true);
+check("the screen runs them from there", CHECKS_PAGE.includes('from "@/lib/checks"'), true);
+check("and the build runs the same ones",
+      /PURE_OPS/.test(RUNNER) && RUNNER.includes("src/lib/checks.ts"), true);
+check("the screen keeps no operations of its own",
+      /const (ops|PURE_OPS)\s*[:=]/.test(CHECKS_PAGE), false);
+check("one case file, published so both can read it",
+      RUNNER.includes('"public", "test-cases.csv"'), true);
+check("the screen fetches that same file",
+      CHECKS_PAGE.includes('fetch("/test-cases.csv")'), true);
+
+// A screen that quietly counted what it could not run as a pass would be
+// worse than no screen.
+check("cases needing the workbook are named, not counted as passes",
+      /export function needsTheFile\(/.test(CHECKS), true);
+check("and the screen says so on its face",
+      CHECKS_PAGE.includes("Needs the file"), true);
+check("it does not claim to be the gate",
+      CHECKS_PAGE.includes("npm run test:cases"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

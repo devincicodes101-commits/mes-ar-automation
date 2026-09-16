@@ -355,6 +355,14 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   // rather than part of anyone's daily work.
   "/no-email": "send-reminders",
   "/simulation": "generate-reports",
+  //
+  // /checks is deliberately absent, which by the rule above means it needs
+  // only a session. It carries no tenant names, no addresses and no amounts:
+  // it is arithmetic against MES's stated requirements, run in front of the
+  // reader. Gating it would keep it from the person most likely to want it,
+  // which is whoever is being asked to trust the figures. There is also no
+  // capability every role holds — an RM has only view-own-tenants — so naming
+  // one here would shut somebody out rather than let everybody in.
 };
 
 export function canOpen(role: Role | null, pathname: string): boolean {
