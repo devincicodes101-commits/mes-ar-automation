@@ -157,6 +157,47 @@ export default function ChecksPage() {
         </p>
       </Card>
 
+      {/*
+        * The same two files, to download and put through the app by hand.
+        *
+        * Reading a table that says the sums are right is one kind of evidence.
+        * Uploading the file yourself and walking the month with it is another,
+        * and it is the one a client trusts, because nothing about it is being
+        * taken on faith. These are the exact files the cases above ran on.
+        */}
+      <Card>
+        <CardHeader
+          title="Put this file through the app yourself"
+          hint="The same report the cases above ran on. Upload it and walk a month with it, rather than taking this table's word for it."
+        />
+        <div className="flex flex-wrap items-center gap-2 px-5 py-4">
+          <a
+            href="/test-data/AR Test Data.xlsx"
+            download
+            className="rounded border border-accent bg-accent px-3.5 py-2 text-xs font-medium text-accent-ink hover:opacity-90"
+          >
+            Download the AR report
+          </a>
+          <a
+            href="/test-data/Contact Test Data.xlsx"
+            download
+            className="rounded border border-line-hair px-3.5 py-2 text-xs text-ink-secondary hover:border-line-grid"
+          >
+            Download the contact list
+          </a>
+        </div>
+        <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
+          Then Upload Reports, drop both in, and open the Dry Run. The report
+          dates itself 15 September 2026 from its own lines, and carries 31
+          charge lines across 11 accounts and 22 separate billing runs. On the
+          7th five tenants are reminded across eight addresses; on the 16th five
+          are charged the fee and two are held back for GIRO; on the 21st one is
+          flagged as a repeat defaulter. Two tenants have no address anywhere
+          and go to Send By Hand. If those numbers appear, the screens and these
+          cases agree.
+        </div>
+      </Card>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Cases" value={String(results.length)} note="From the published case file" />
         <StatTile label="Passed" value={String(passed)} note="Worked out in this browser" emphasis />
