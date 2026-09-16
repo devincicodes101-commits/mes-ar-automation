@@ -19,7 +19,7 @@ import {
 } from "@/lib/cycle";
 import { CAN_SEND_FOR_REAL } from "@/lib/outbox";
 import { formatSgd, overdueTotal } from "@/lib/data";
-import { useToast } from "@/lib/session";
+import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
@@ -45,6 +45,12 @@ import {
  */
 export default function SimulationPage() {
   const { notify } = useToast();
+  // Belt and braces alongside the route guard. A relationship manager may see
+  // their own tenants and nobody else's, and this screen reads a file straight
+  // off disk rather than going through the shared dataset, so it does not get
+  // that for free the way every other screen does. Applied here as well so it
+  // stays correct if the route map is ever edited.
+  const { role, scope } = useSession();
   const [ar, setAr] = useState<File | null>(null);
   const [contacts, setContacts] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,16 +61,45 @@ export default function SimulationPage() {
     if (!ar) return;
     setBusy(true);
     try {
-      const p = runPipeline(
+      const full = runPipeline(
         readWorkbook(await ar.arrayBuffer()),
         contacts ? readWorkbook(await contacts.arrayBuffer()) : null,
       );
+      const mine = scope(full.accounts);
+      const codes = new Set(mine.map((a) => a.customerCode.toUpperCase()));
+      const p =
+        mine.length === full.accounts.length
+          ? full
+          : {
+              ...full,
+              accounts: mine,
+              invoices: full.invoices.filter((i) =>
+                codes.has(i.customerCode.toUpperCase()),
+              ),
+            };
       setPipeline(p);
       setState(emptyState());
-      notify(
-        "Loaded",
-        `${p.invoices.length} charge lines across ${p.accounts.length} accounts. The month has not started.`,
-      );
+      // An RM matched to nothing sees a blank month and no reason for it,
+      // which reads as broken software rather than as missing data. MES's
+      // sample carries placeholder rep names (Lancelot, CaptHook,
+      // Rumpelstiltskin) and their main export carries no rep column at all,
+      // so this is the normal case today, not the edge case.
+      if (role === "RM" && p.accounts.length === 0) {
+        const anyRep = full.accounts.some(
+          (a) => (a as { rm?: string }).rm,
+        );
+        notify(
+          "Nothing here is yours",
+          anyRep
+            ? "This file names other relationship managers, none of them you. The names in MES's sample are placeholders."
+            : "This export carries no Primary Sales Rep column, so no tenant is assigned to any manager.",
+        );
+      } else {
+        notify(
+          "Loaded",
+          `${p.invoices.length} charge lines across ${p.accounts.length} accounts. The month has not started.`,
+        );
+      }
     } catch (e) {
       notify("Could not read those files", e instanceof Error ? e.message : "Unknown problem.");
     } finally {
@@ -123,6 +158,19 @@ export default function SimulationPage() {
             {busy ? "Reading" : "Load the month"}
           </button>
         </>
+      ) : null}
+
+      {pipeline && role === "RM" && pipeline.accounts.length === 0 ? (
+        <Card className="px-5 py-4">
+          <StatusBadge kind="warning" label="No tenants assigned to you" />
+          <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-secondary">
+            A relationship manager sees only their own tenants, and this upload
+            assigns none to you. MES&rsquo;s sample data uses placeholder
+            manager names, and the export they asked us to upload does not
+            always carry the Primary Sales Rep column at all. Until they send
+            the real manager list, no manager can be shown their own tenants.
+          </p>
+        </Card>
       ) : null}
 
       {pipeline && snap ? (

@@ -342,6 +342,19 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/users": "manage-users",
   "/access": "manage-users",
   "/activity": "read-audit-log",
+  // Both added after the map was first written, and both were missed. A route
+  // absent from here needs only a session, so an RM could open either.
+  //
+  // Send By Hand writes the letter for a tenant with no address and saves the
+  // address somebody finds, which is the reminder job, so it takes the
+  // reminder capability.
+  //
+  // The Dry Run sends nothing, but it reads every tenant in an uploaded file
+  // including their email addresses, so it is not harmless to an account whose
+  // only permission is view-own-tenants. It is also a demonstration tool
+  // rather than part of anyone's daily work.
+  "/no-email": "send-reminders",
+  "/simulation": "generate-reports",
 };
 
 export function canOpen(role: Role | null, pathname: string): boolean {

@@ -6,6 +6,9 @@
  * Checks the two things that matter: a wrong password never signs anybody in,
  * and no role can reach a screen it is not entitled to.
  */
+import { existsSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   type Role,
   type Session,
@@ -24,6 +27,8 @@ import {
   safeEqual,
   signIn,
 } from "../src/lib/auth.ts";
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 let failures = 0;
 function check(name: string, actual: unknown, expected: unknown) {
@@ -222,6 +227,47 @@ check("none of those leak into the credential message",
     explain({ code: "email_not_confirmed" }),
     explain({ message: "Failed to fetch" }),
   ].some((m) => m === CREDENTIALS_REFUSED), false);
+
+/* ------------------------------------------- every route is accounted for ---
+ * A route missing from ROUTE_CAPABILITY needs only a session, which is the
+ * right default for a read-only screen and the wrong one for anything that
+ * writes or that shows every tenant. Send By Hand and the Dry Run were both
+ * added after the map was written and both were missed, so an RM could open
+ * either and read all 190 tenants with their email addresses.
+ *
+ * This walks the app folder rather than a list somebody has to remember to
+ * update, so the next route added is caught the day it is added.
+ */
+console.log("\nEvery screen is behind the right permission\n");
+
+const APP = path.join(ROOT, "src", "app");
+const routes = readdirSync(APP, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && existsSync(path.join(APP, d.name, "page.tsx")))
+  .map((d) => `/${d.name}`);
+
+// Read-only screens that genuinely need nothing more than being signed in.
+const SESSION_ONLY = new Set(["/access", "/collections", "/defaulters", "/login"]);
+
+const unguarded = routes.filter(
+  (r) => !(r in ROUTE_CAPABILITY) && !SESSION_ONLY.has(r),
+);
+check("no screen is left needing only a session by accident",
+      unguarded.join(", ") || "none", "none");
+
+check("Send By Hand needs the reminder permission",
+      ROUTE_CAPABILITY["/no-email"], "send-reminders");
+check("the Dry Run needs the reports permission",
+      ROUTE_CAPABILITY["/simulation"], "generate-reports");
+
+// The role with one permission is the one that proves the guard works.
+check("an RM cannot open Send By Hand", canOpen("RM", "/no-email"), false);
+check("an RM cannot open the Dry Run", canOpen("RM", "/simulation"), false);
+check("management cannot open Send By Hand", canOpen("Management", "/no-email"), false);
+check("but management can open the Dry Run", canOpen("Management", "/simulation"), true);
+check("CSD can open both",
+      canOpen("CSD", "/no-email") && canOpen("CSD", "/simulation"), true);
+check("and so can an admin",
+      canOpen("admin", "/no-email") && canOpen("admin", "/simulation"), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
