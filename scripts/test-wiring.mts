@@ -171,5 +171,24 @@ check("downloading a report asks the reports permission",
 check("and emailing one still asks the reminder permission",
       /disabled=\{!canAct\}/.test(REPORTS), true);
 
+/* --------------------------------- a described column is not a built one ---
+ * Risk Exposure sat in the manager report for weeks as a column with a label,
+ * a note explaining its absence, and `riskExposure: null` written into every
+ * row by hand. It read as built. This fails if it goes back to that.
+ */
+console.log("\nRisk Exposure is computed, not hardcoded\n");
+
+const reportsLib = lib("reports.ts");
+check("the formula exists as a function",
+      /export function riskExposure\(/.test(reportsLib), true);
+check("and the manager report calls it",
+      /riskExposure:\s*riskExposure\(/.test(reportsLib), true);
+check("no row writes the value in by hand",
+      /riskExposure:\s*null,/.test(reportsLib), false);
+check("nor the deposit beside it",
+      /securityDeposit:\s*null,/.test(reportsLib), false);
+check("the builder takes a deposit source",
+      /depositsHeld/.test(reportsLib), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -29,7 +29,7 @@ import { bucketForAge, bucketLabelForAge, feesDue, DEFAULT_FEE_RULE, isInCredit,
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
-  REVENUE_TABS, agingByProperty, buildManagerReports,
+  REVENUE_TABS, agingByProperty, buildManagerReports, riskExposure,
 } from "../src/lib/reports.ts";
 import {
   addDays, renderLetter, longOrdinalDate, longDate, shortDate, currency,
@@ -630,6 +630,78 @@ check("a tenant not in the file keeps the address they had",
       merged.find((a) => a.customerCode === "DORM-1")?.emails[0], "old@x.com");
 check("and one absent from both is left alone",
       merged.find((a) => a.customerCode === "DORM-3")?.hasContact, false);
+
+/* -------------------------------------------------------- risk exposure ---
+ * Raman, after the 14 September call: "I have added the Risk Exposure formula
+ * in the worksheet itself. It is Grand total minus Security Deposit. So if
+ * positive it means AR is more than SD."
+ *
+ * The two rows below are his, off the mock-up he updated at the same time.
+ * They are here because a formula agreed in a message is worth nothing until
+ * something fails when the code stops matching it.
+ */
+console.log("\nRisk Exposure, as MES define it\n");
+
+check("Raman's first row: 6,428.16 - 34,000", riskExposure(6428.16, 34000), -27571.84);
+check("and his second: 11,216.44 - 11,160", riskExposure(11216.44, 11160), 56.44);
+check("owing more than was lodged reads positive", riskExposure(5000, 1000), 4000);
+check("owing less reads negative", riskExposure(1000, 5000), -4000);
+check("level is nought, not nothing", riskExposure(1000, 1000), 0);
+check("a deposit and no arrears is fully covered", riskExposure(0, 8000), -8000);
+check("it does not drift on fractions of a cent", riskExposure(1000.005, 0.001), 1000);
+
+// The distinction the column exists to make. No deposit on file is not the
+// same claim as a deposit of zero, and only one of them is safe to act on.
+check("an unknown deposit yields no figure", riskExposure(6428.16, null), null);
+check("a deposit of zero yields the whole balance", riskExposure(6428.16, 0), 6428.16);
+
+/* ------------------------------ and the same, through the report builder ---
+ * The formula being right is worth nothing if the report never calls it. That
+ * was the fault: the column was described, the note explained why it was
+ * empty, and nothing ever computed it.
+ */
+const rmAcct = (code: string, total: number): Account =>
+  ({
+    id: code, customerCode: code, companyName: `${code} PTE LTD`,
+    property: "BSD", status: "Live", rm: "Lancelot", total,
+    buckets: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: total },
+    emails: [], hasContact: false,
+  }) as unknown as Account;
+
+const deposits = new Map([["DORM-1", 34000]]);
+const withDep = buildManagerReports(
+  [rmAcct("DORM-1", 6428.16), rmAcct("DORM-2", 11216.44)],
+  "2026-08-28", "MES Group", new Map(), deposits,
+);
+const depRows = withDep[0]?.blocks[0]?.rows ?? [];
+const depRow = (code: string) =>
+  depRows.find((r) => String(r.companyName).startsWith(code));
+
+check("the report computes it where the deposit is known",
+      depRow("DORM-1")?.riskExposure, -27571.84);
+check("and shows the deposit it used", depRow("DORM-1")?.securityDeposit, 34000);
+check("a tenant with no deposit on file is left blank, not guessed",
+      depRow("DORM-2")?.riskExposure, null);
+check("blank there too", depRow("DORM-2")?.securityDeposit, null);
+
+// Today's real case: no deposit source exists, so every row is blank and the
+// report says why.
+const noDep = buildManagerReports(
+  [rmAcct("DORM-1", 6428.16)], "2026-08-28", "MES Group",
+);
+check("with no deposits at all, nothing is invented",
+      noDep[0]?.blocks[0]?.rows[0]?.riskExposure, null);
+check("and the report explains both empty columns", noDep[0]?.notes.length, 2);
+check("the column itself carries that explanation",
+      noDep[0]?.blocks[0]?.columns.some((c) => c.unavailable), true);
+
+// The contradiction to avoid: a figure in the cell and, above it, a note
+// saying no figure can be shown.
+check("once deposits are known the report drops that note",
+      withDep[0]?.notes.length, 0);
+check("and the column stops calling itself unavailable",
+      withDep[0]?.blocks[0]?.columns.some((c) => c.unavailable), false);
+
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

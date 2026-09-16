@@ -322,6 +322,29 @@ export const MANAGER_COLUMNS: ReportColumn[] = [
 
 export const MANAGER_UNAVAILABLE = MANAGER_COLUMNS.filter((c) => c.unavailable);
 
+/**
+ * Risk Exposure, as MES define it.
+ *
+ * Raman, after the 14 September call: "It is Grand total minus Security
+ * Deposit. So if positive it means AR is more than SD." Checked against the
+ * version of his mock-up he updated at the same time and it holds on all nine
+ * rows to the cent: 6,428.16 - 34,000 = -27,572, and 11,216.44 - 11,160 = 56.
+ *
+ * Returns null rather than the grand total when no deposit is known, because
+ * those are different claims. "We are exposed for the whole balance" is a
+ * statement about a tenant who has lodged nothing; "we do not know what they
+ * have lodged" is a statement about our data. The second is true today for
+ * every tenant, and printing the first would be a figure somebody could act
+ * on.
+ */
+export function riskExposure(
+  grandTotal: number,
+  securityDeposit: number | null,
+): number | null {
+  if (securityDeposit === null) return null;
+  return round2(grandTotal - securityDeposit);
+}
+
 export interface ManagerReport extends Report {
   managerName: string;
 }
@@ -331,6 +354,19 @@ export function buildManagerReports(
   asOf: string | null,
   entity: string | null,
   notes: Map<string, string> = new Map(),
+  /**
+   * Deposit held per tenant, keyed by customer code.
+   *
+   * Empty today, and deliberately a parameter rather than something derived
+   * here. The AR report carries deposit lines that are still open, which is
+   * unpaid deposit invoices and offsets, and that is a different number from
+   * the deposit MES are holding. Deriving one from the other would fill the
+   * column with a plausible wrong figure.
+   *
+   * The plumbing is here so that the day MES name a source, both columns fill
+   * with no further change.
+   */
+  depositsHeld: Map<string, number> = new Map(),
 ): ManagerReport[] {
   const byManager = new Map<string, Account[]>();
   for (const a of accounts) {
@@ -345,6 +381,21 @@ export function buildManagerReports(
   for (const [rep, mine] of Array.from(byManager).sort((a, b) =>
     a[0].localeCompare(b[0]),
   )) {
+    /*
+     * Two of these columns carry a sentence explaining why they are empty. If
+     * the deposits arrive and the sentence stays, the report contradicts
+     * itself: a figure in the cell and, above it, a note saying no figure can
+     * be shown. So the explanation is attached per report, not per column, and
+     * only while it is true of that report.
+     */
+    const known = mine.some((a) => depositsHeld.has(a.customerCode));
+    const columns = known
+      ? MANAGER_COLUMNS.map((c) => {
+          const { unavailable, ...rest } = c;
+          return unavailable ? rest : c;
+        })
+      : MANAGER_COLUMNS;
+
     const blocks: ReportBlock[] = [];
     for (const property of PROPERTY_ORDER) {
       const rows = mine
@@ -354,7 +405,7 @@ export function buildManagerReports(
       blocks.push({
         title: property,
         subtitle: entity ?? undefined,
-        columns: MANAGER_COLUMNS,
+        columns,
         rows: rows.map((a) => ({
           companyName: `${a.customerCode} ${a.companyName}`,
           status: a.status,
@@ -368,8 +419,11 @@ export function buildManagerReports(
             a.buckets.d30 + a.buckets.d60 + a.buckets.d90 + a.buckets.d90plus,
           ),
           update: notes.get(a.id) ?? a.legacyNote ?? "",
-          securityDeposit: null,
-          riskExposure: null,
+          securityDeposit: depositsHeld.get(a.customerCode) ?? null,
+          riskExposure: riskExposure(
+            a.total,
+            depositsHeld.get(a.customerCode) ?? null,
+          ),
           rep,
         })),
         total: round2(rows.reduce((n, a) => n + a.total, 0)),
@@ -386,7 +440,9 @@ export function buildManagerReports(
       blocks,
       lineCount: mine.length,
       total: round2(mine.reduce((n, a) => n + a.total, 0)),
-      notes: MANAGER_UNAVAILABLE.map((c) => `${c.label}: ${c.unavailable}`),
+      notes: known
+        ? []
+        : MANAGER_UNAVAILABLE.map((c) => `${c.label}: ${c.unavailable}`),
     });
   }
   return reports;
