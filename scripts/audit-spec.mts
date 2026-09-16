@@ -83,7 +83,11 @@ req('"Pivot: AR Report Date"', "aging-detail.ts",
 
 req('"Tag DATE for Aging Calculation"', "aging-detail.ts",
   has(LIB("aging-detail.ts"), "as of"), has(ALL_PAGES, "as at {ds.asOf}"),
-  has(ALL_TESTS, 'p.asOf, "2026-08-17"'));
+  // Matched on the behaviour rather than on a date. The date in that
+  // assertion has already moved once, when the report's own lines were found
+  // to disagree with its title, and an audit that goes quiet because somebody
+  // corrected a figure is worse than no audit.
+  has(ALL_TESTS, "the report is dated from its lines"));
 
 req('"apply the formula to calculate Aging"', "data.ts bucketForAge",
   has(LIB("data.ts"), "age <= 15", "age <= 45", "age <= 75", "age <= 105"),
