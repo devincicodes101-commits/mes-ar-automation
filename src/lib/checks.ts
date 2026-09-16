@@ -20,7 +20,12 @@
  * than silently passed.
  */
 
-import { propertyFromDocument, round2, withoutCode } from "./aging-detail.ts";
+import {
+  namesADormitory,
+  propertyFromDocument,
+  round2,
+  withoutCode,
+} from "./aging-detail.ts";
 import { billingCycles, cycleStage, type BillingLine } from "./billing-cycles.ts";
 import { bucketLabelForAge, formatSgd } from "./data.ts";
 import { revenueType, isOneFm } from "./revenue-rules.ts";
@@ -206,6 +211,7 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
     const [doc, fallback] = i.split("|");
     return propertyFromDocument(doc, fallback as never);
   },
+  namesADormitory: (i) => String(namesADormitory(i)),
 
   /* letters */
   deadline: (i) => {

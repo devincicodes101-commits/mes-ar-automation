@@ -206,9 +206,18 @@ export function propertyFromDocument(
 ): PropertyCode {
   const doc = norm(documentNumber).replace(/^REC-/, "");
 
-  // JP1FM and JP2FM are JPD1 and JPD2 with the D dropped. Checked first
-  // because "JP1" would otherwise not match any dormitory code.
-  const short = /^JP(\d)(FM|CN)/.exec(doc);
+  // MES drop letters out of the Jurong Penjuru codes in two different ways,
+  // and both are in their own exports:
+  //
+  //   JP1FM/2705      1FM, with the D dropped
+  //   J1-786/51056    an ordinary invoice, with the PD dropped
+  //
+  // The second was found by the warning below about numbers that name no
+  // dormitory: fifteen lines of it, filed under the entity's block instead of
+  // under JPD1. A line in the wrong block is a tenant chased by the wrong
+  // manager, so both shapes are matched. The lookahead stops this swallowing
+  // a number like JP12, which would be a dormitory nobody has mentioned.
+  const short = /^JP?(\d)(?![0-9])/.exec(doc);
   if (short) {
     const code = `JPD${short[1]}` as PropertyCode;
     if (code in PROPERTY_NAMES) return code;
@@ -218,6 +227,25 @@ export function propertyFromDocument(
     if (doc.startsWith(code)) return code;
   }
   return fallback;
+}
+
+/**
+ * Does this document number say which dormitory it belongs to?
+ *
+ * Every line has to land in a dormitory, so one whose number names none falls
+ * back to the entity's. That is correct for MES's KTM- journals, which are
+ * raised against the company rather than a block, and it is the only prefix in
+ * their export that does it: 28 lines, all KTM-.
+ *
+ * Anything else landing in the fallback is a number nobody here recognises,
+ * and it goes into a dormitory silently, which is the part worth saying out
+ * loud. A line in the wrong block is a tenant chased by the wrong manager.
+ */
+export function namesADormitory(documentNumber: string): boolean {
+  const doc = norm(documentNumber).replace(/^REC-/, "");
+  if (/^JP?(\d)(?![0-9])/.test(doc)) return true;
+  if (/^KTM/.test(doc)) return true; // their entity journals, expected
+  return ["JPD1", "JPD2", "BSD", "LEO"].some((c) => doc.startsWith(c));
 }
 
 /**
@@ -288,6 +316,12 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   let entity: string | null = null;
   // Recovered from the rows when the file states no date of its own.
   let dataAsOf: string | null = null;
+  /*
+   * Lines whose document number names no dormitory and is not one of MES's
+   * KTM entity journals. They still land somewhere, in the entity's block,
+   * and a line in the wrong block is a tenant chased by the wrong manager.
+   */
+  const unplaced = new Map<string, number>();
   // Lines whose Open Balance cell was empty rather than zero.
   let blankBalances = 0;
 
@@ -534,6 +568,11 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     if (dataAsOf === null && age !== null && dueIso !== null)
       dataAsOf = addDays(dueIso, age);
 
+    if (documentNumber && !namesADormitory(documentNumber)) {
+      const prefix = norm(documentNumber).match(/^[A-Z-]+/)?.[0] ?? documentNumber;
+      unplaced.set(prefix, (unplaced.get(prefix) ?? 0) + 1);
+    }
+
     invoices.push({
       customerCode: current.code,
       companyName: withoutCode(company || current.name, current.code).replace(/\.$/, ""),
@@ -775,6 +814,29 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
           `own total${theirs.lines > 1 ? "s say" : " says"} ${theirs.total.toFixed(2)}.`,
       });
     }
+  }
+
+  if (unplaced.size > 0) {
+    const named = Array.from(unplaced)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([p, n]) => `${p} (${n})`)
+      .join(", ");
+    const total = Array.from(unplaced.values()).reduce((a, b) => a + b, 0);
+    problems.push({
+      sheet: clean(sheetName),
+      row: null,
+      severity: "warning",
+      message:
+        `${total} ${total === 1 ? "line carries" : "lines carry"} a ` +
+        "document number that " +
+        `names no dormitory: ${named}. They have been put under ` +
+        `${PROPERTY_NAMES[fallbackProperty]} because every line has to sit ` +
+        "somewhere, but nothing in the number says so. MES's own exports use " +
+        "KTM- for entity level journals and those are expected; anything else " +
+        "is worth checking, because a line in the wrong block is a tenant " +
+        "chased by the wrong manager.",
+    });
   }
 
   if (invoices.length === 0) {

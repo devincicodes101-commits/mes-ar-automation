@@ -173,8 +173,25 @@ for doc, exp in [
     ("BSDCN/017", "BSD"), ("REC-BSD367", "BSD"), ("JPD1-786/002429", "JPD1"),
     ("JP1FM/2705", "JPD1"), ("JPD2-786/1", "JPD2"), ("JPD2FM/9", "JPD2"),
     ("LEO-786/5", "LEO"), ("LEOFM/3", "LEO"), ("KTM-1444", "BSD"),
+    # MES shorten the Jurong Penjuru codes two different ways in their own
+    # exports. J1- was found by a warning about numbers naming no dormitory:
+    # fifteen lines filed under the entity's block instead of under JPD1.
+    ("J1-786/51056", "JPD1"), ("J2-786/9", "JPD2"),
+    ("REC-J1-786/1", "JPD1"),
 ]:
     add("Dormitory", DORM, "Document %s" % doc, "property", "%s|BSD" % doc, exp)
+
+UNPLACED = ("A document number that names no dormitory is reported rather than "
+            "filed silently: a line in the wrong block is a tenant chased by "
+            "the wrong manager")
+for doc, exp in [
+    ("J1-786/51056", "true"), ("JP1FM/2705", "true"), ("JPD1-786/1", "true"),
+    ("BSD-786/1", "true"), ("KTM-1444", "true"),
+    ("ZZZ-999/1", "false"), ("", "false"), ("12345", "false"),
+]:
+    add("Dormitory", UNPLACED,
+        'Document "%s" names a dormitory we know' % (doc or "(blank)"),
+        "namesADormitory", doc, exp)
 
 # ---------------------------------------------------------------- E. LETTERS
 LETTERS = "Documents 1 and 2: the first and final reminder templates"
@@ -323,7 +340,11 @@ add("Aging", MEANING,
     "Lines that would stop matching MES if age were counted from the billing date",
     "fileBucketsFromBillingVsMes", "finance", "18")
 
-add("Real file", REAL, "Tenants read from Finance AR Download", "fileAccounts", "finance", "7")
+# Five, not seven. Two of the seven were phantoms: fifteen J1- lines whose
+# document numbers named no dormitory were filed under the entity's block,
+# creating a second Blue Stars account for two customers who only ever rented
+# at Jurong Penjuru 1.
+add("Real file", REAL, "Tenants read from Finance AR Download", "fileAccounts", "finance", "5")
 add("Real file", REAL, "Charge lines read from Finance AR Download", "fileLines", "finance", "173")
 add("Real file", REAL, "Billing runs in Finance AR Download", "fileCycles", "finance", "28")
 add("Real file", REAL, "Manager reports built from it", "fileManagers", "finance", "3")
