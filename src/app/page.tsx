@@ -53,6 +53,19 @@ export default function AgingBoardPage() {
   const [sort, setSort] = useState<SortKey>("overdue");
   const [desc, setDesc] = useState(true);
 
+  // Scoped, like everything else on this screen. Passing ds.invoices straight
+  // in showed a relationship manager every billing run in the file, $2.3m of
+  // it, on a page whose tiles above correctly read "0 tenants shown". The
+  // tiles derive from scope(); this did not.
+  const myInvoices = useMemo(() => {
+    const mine = scope(ds.accounts);
+    if (mine.length === ds.accounts.length) return ds.invoices;
+    const codes = new Set(mine.map((a) => a.customerCode.toUpperCase()));
+    return ds.invoices.filter((i) =>
+      codes.has(String((i as { customerCode?: string }).customerCode ?? "").toUpperCase()),
+    );
+  }, [ds.accounts, ds.invoices, scope]);
+
   const accounts = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = scope(ds.accounts)
@@ -134,7 +147,7 @@ export default function AgingBoardPage() {
         />
       </div>
 
-      <BillingCycles invoices={ds.invoices} asOf={ds.asOf} />
+      <BillingCycles invoices={myInvoices} asOf={ds.asOf} />
 
       {/* ------------------------------------------------------------ table */}
       <Card>

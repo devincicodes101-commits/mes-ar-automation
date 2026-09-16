@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { readWorkbook, runPipeline, type Pipeline } from "@/lib/pipeline";
+import {
+  buildPipeline,
+  readWorkbook,
+  runPipeline,
+  type Pipeline,
+} from "@/lib/pipeline";
 import {
   CYCLE_DAYS,
   emptyState,
@@ -20,6 +25,8 @@ import {
 import { CAN_SEND_FOR_REAL } from "@/lib/outbox";
 import { formatSgd, overdueTotal } from "@/lib/data";
 import { useSession, useToast } from "@/lib/session";
+import { useDataset, withManualEmails } from "@/lib/dataset";
+import { useStore } from "@/lib/store";
 import {
   Card,
   CardHeader,
@@ -56,6 +63,32 @@ export default function SimulationPage() {
   const [busy, setBusy] = useState(false);
   const [pipeline, setPipeline] = useState<Pipeline | null>(null);
   const [state, setState] = useState<SimState>(emptyState());
+  // The file the officer already uploaded, if there is one. Asking for it a
+  // second time was the wrong shape: somebody signing in as Management to look
+  // at the cycle does not have the spreadsheet on their machine.
+  const store = useStore();
+  const ds = withManualEmails(useDataset(), store.manualEmails);
+  const haveUpload = ds.source === "uploaded";
+
+  const useLoaded = () => {
+    const mine = scope(ds.accounts);
+    const codes = new Set(mine.map((a) => a.customerCode.toUpperCase()));
+    const invoices = ds.invoices.filter((i) =>
+      codes.has(String((i as { customerCode?: string }).customerCode ?? "").toUpperCase()),
+    );
+    const p = buildPipeline(
+      mine,
+      (mine.length === ds.accounts.length ? ds.invoices : invoices) as never,
+      ds.asOf,
+      mine.find((a) => a.entity)?.entity ?? null,
+    );
+    setPipeline(p);
+    setState(emptyState());
+    notify(
+      "Using the uploaded file",
+      `${p.invoices.length} charge lines across ${p.accounts.length} accounts. Nothing is sent.`,
+    );
+  };
 
   const load = async () => {
     if (!ar) return;
@@ -148,6 +181,35 @@ export default function SimulationPage() {
               onFile={setContacts}
             />
           </div>
+          {haveUpload ? (
+            <Card className="px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-ink">
+                    Use the file already uploaded
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-ink-muted">
+                    {ds.label} &middot; {ds.accounts.length} tenants, as at{" "}
+                    {ds.asOf}. Nothing is changed by running a month against it.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={useLoaded}
+                  className="shrink-0 rounded border border-accent bg-accent px-3.5 py-2 text-xs font-medium text-accent-ink hover:opacity-90"
+                >
+                  Run the month on it
+                </button>
+              </div>
+            </Card>
+          ) : null}
+
+          <p className="text-[11px] text-ink-muted">
+            {haveUpload
+              ? "Or load a different file, which leaves the uploaded one alone:"
+              : "Load a file. Nothing is uploaded anywhere and nothing is sent."}
+          </p>
+
           <button
             type="button"
             onClick={load}

@@ -103,19 +103,37 @@ export function runPipeline(
   const parsed = parseAgingDetail(agingWorkbook);
   const contacts = contactWorkbook ? parseContacts(contactWorkbook) : null;
 
-  const accounts = linkContacts(parsed.accounts, contacts);
-  const { invoices, asOf, entity } = parsed;
+  return buildPipeline(
+    linkContacts(parsed.accounts, contacts),
+    parsed.invoices,
+    parsed.asOf,
+    parsed.entity,
+    [...parsed.problems, ...(contacts?.problems ?? [])],
+  );
+}
 
+/**
+ * Everything after parsing, from accounts and invoice lines.
+ *
+ * Split out so the Dry Run can run a month against the file the officer has
+ * already uploaded rather than asking for it a second time. Somebody signing
+ * in as Management to look at the cycle does not have the spreadsheet, and
+ * making them find it was the wrong shape: it is the same data either way.
+ */
+export function buildPipeline(
+  accounts: Account[],
+  invoices: ParsedAgingDetail["invoices"],
+  asOf: string | null,
+  entity: string | null,
+  parseProblems: ParseProblem[] = [],
+): Pipeline {
   const revenueTabs = REVENUE_TABS.map((spec) =>
     buildRevenueTab(spec, invoices, asOf, entity),
   );
 
   const managerReports = buildManagerReports(accounts, asOf, entity);
 
-  const problems: ParseProblem[] = [
-    ...parsed.problems,
-    ...(contacts?.problems ?? []),
-  ];
+  const problems: ParseProblem[] = [...parseProblems];
 
   // The manager report is one of the six MES asked for and it cannot be
   // built from this export, so the pipeline says so rather than returning an

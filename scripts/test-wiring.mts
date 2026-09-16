@@ -132,5 +132,29 @@ check("there is no real transport", outboxLib.includes("CAN_SEND_FOR_REAL = fals
 check("nothing imports a mailer",
   /nodemailer|sendgrid|smtp|resend/i.test(outboxLib + reminders + outbox), false);
 
+/* ------------------------------------------ nothing is handed the raw set ---
+ * A screen that scopes its accounts and then hands a component the unscoped
+ * invoices leaks everything the tiles above it just hid. It happened: the
+ * board showed a relationship manager "0 tenants shown" and, underneath, every
+ * billing run in the file and $2.3m of it.
+ *
+ * Caught by reading the page rather than by calling a function, because the
+ * fault was not in any function. Both of them were right.
+ */
+console.log("\nNo screen hands a component the unscoped data\n");
+
+const BOARD = read("src/app/page.tsx");
+check("the board scopes what it gives the billing runs",
+      /BillingCycles\s+invoices=\{ds\.invoices\}/.test(BOARD), false);
+check("and passes its own scoped list instead",
+      /BillingCycles\s+invoices=\{myInvoices\}/.test(BOARD), true);
+check("which is derived from scope()",
+      /const myInvoices[\s\S]{0,400}scope\(ds\.accounts\)/.test(BOARD), true);
+
+const SIM = read("src/app/simulation/page.tsx");
+check("the dry run scopes the file it reads", /scope\(full\.accounts\)/.test(SIM), true);
+check("and scopes the already-uploaded one too",
+      /scope\(ds\.accounts\)/.test(SIM), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
