@@ -12,7 +12,7 @@
  * exactly how the GIRO exclusion came to be tested and simultaneously absent
  * from the only screen that needed it.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -341,6 +341,43 @@ check("a client who has paid drops off rather than being closed by hand",
       CHASED_LIB.includes("if (outstanding <= 0) continue;"), true);
 check("a cycle is recognised by the fee MES raise on the 16th",
       CHASED_LIB.includes('"Late Payment Fee"'), true);
+
+/* -------------------------------- a screen nobody can reach is not shipped ---
+ * Chased to the End was built, routed, permitted and tested, and had no link
+ * in the navigation, because the script that was supposed to add one aborted
+ * before it wrote that file. Every suite passed. The page simply did not
+ * exist as far as anybody using the app was concerned.
+ *
+ * The auth suite already walks src/app to catch a route left unguarded. This
+ * walks it to catch a route left unreachable, which is the same kind of fault
+ * from the other side.
+ */
+section("Every screen has a way to reach it");
+
+const SHELL_SRC = read("src/components/Shell.tsx");
+const LINKED = new Set(
+  Array.from(SHELL_SRC.matchAll(/href:\s*"([^"]+)"/g)).map((m) => m[1]),
+);
+
+// Reached by being signed out, so it is never in a navigation meant for
+// somebody who is signed in.
+const NOT_IN_NAV = new Set(["/login"]);
+
+const appDirs = readdirSync(path.join(HERE, "..", "src", "app"), {
+  withFileTypes: true,
+})
+  .filter((d) => d.isDirectory() &&
+    existsSync(path.join(HERE, "..", "src", "app", d.name, "page.tsx")))
+  .map((d) => `/${d.name}`);
+
+const unreachable = appDirs.filter(
+  (r) => !LINKED.has(r) && !NOT_IN_NAV.has(r),
+);
+
+check("no screen is left with no link to it",
+      unreachable.join(", ") || "none", "none");
+check("the board is linked", LINKED.has("/"), true);
+check("and so is Chased to the End", LINKED.has("/chased"), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

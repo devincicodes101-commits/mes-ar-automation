@@ -126,6 +126,16 @@ export const NAV: {
     note: "Tenants whose payment fails month after month.",
   },
   {
+    // Directly after Repeat Defaulters, because the two answer neighbouring
+    // questions: that one is whose payment keeps failing, this one is who has
+    // been taken all the way through MES's cycle and still owes at the end of
+    // it. Reading them in that order is how somebody decides what to do.
+    href: "/chased",
+    label: "Chased to the End",
+    group: "Review",
+    note: "Tenants who completed the whole cycle and still owe.",
+  },
+  {
     href: "/reports",
     label: "Reports & Export",
     group: "Review",
