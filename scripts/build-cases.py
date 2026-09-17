@@ -207,6 +207,29 @@ for doc, exp in [
         'Document "%s" names a dormitory we know' % (doc or "(blank)"),
         "namesADormitory", doc, exp)
 
+CYCLES = ('MES lifecycle note: "a tenant who pays late every month is a '
+          'different conversation from one who forgot once" — so the months '
+          'are counted, not just the fees')
+for months, runs in [
+    ("2026-01|2026-02|2026-03|2026-04|2026-05|2026-06|2026-07", "7"),
+    ("2026-01|2026-02|2026-03|2026-05|2026-06|2026-07", "3"),
+    ("2026-02|2026-03|2026-04|2026-05|2026-07", "4"),
+    ("2026-01|2026-04|2026-06|2026-07", "2"),
+    ("2026-01|2026-06|2026-11", "1"),
+    ("2026-12|2027-01|2027-02", "3"),
+    ("2026-01", "1"),
+    ("", "0"),
+]:
+    add("Repeat offenders", CYCLES,
+        "Fees in [%s]: longest unbroken run" % (months or "no months"),
+        "consecutiveMonths", months, runs)
+add("Repeat offenders", CYCLES, "The same month twice counts once",
+    "consecutiveMonths", "2026-01|2026-01|2026-02", "2")
+add("Repeat offenders", CYCLES, "Months out of order are still read in sequence",
+    "consecutiveMonths", "2026-03|2026-01|2026-02", "3")
+add("Repeat offenders", CYCLES, "A run across a year end is unbroken",
+    "consecutiveMonths", "2026-11|2026-12|2027-01", "3")
+
 # ---------------------------------------------------------------- E. LETTERS
 LETTERS = "Documents 1 and 2: the first and final reminder templates"
 DEADLINE = {"first-reminder": 6, "final-notice": 7}

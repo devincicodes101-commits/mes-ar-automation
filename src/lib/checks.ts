@@ -29,7 +29,7 @@ import {
 import { billingCycles, cycleStage, type BillingLine } from "./billing-cycles.ts";
 import { bucketLabelForAge, formatSgd } from "./data.ts";
 import { revenueType, isOneFm } from "./revenue-rules.ts";
-import { riskExposure, depositsFromLedger } from "./reports.ts";
+import { riskExposure, depositsFromLedger, recurringDefaulters } from "./reports.ts";
 import { addDays, deadlineFor, renderLetter } from "./letters.ts";
 import { emailAddresses } from "./emails.ts";
 import { canOpen, can, type Role, type Capability } from "./auth.ts";
@@ -271,6 +271,28 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
   can: (i) => {
     const [role, cap] = i.split("|");
     return String(can(role as Role, cap as Capability));
+  },
+
+  /* how many months in a row a client was charged the fee */
+  consecutiveMonths: (i) => {
+    const months = i.trim() === "" ? [] : i.split("|");
+    const lines = months.map((m) => ({
+      companyName: "ACME PTE LTD",
+      customerCode: "DORM-1",
+      transactionType: "Invoice",
+      date: `${m}-16`,
+      dueDate: null,
+      description: "Admin Fee For Late Payment",
+      documentNumber: "BSD-786/1",
+      linkedContract: null,
+      age: 20,
+      bucket: "30 days",
+      openBalance: 100,
+      revenueType: "Late Payment Fee",
+      isOneFm: false,
+    })) as unknown as Parameters<typeof recurringDefaulters>[0];
+    const rows = recurringDefaulters(lines, [], 0);
+    return String(rows[0]?.consecutiveMonths ?? 0);
   },
 
   withoutCode: (i) => {

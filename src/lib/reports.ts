@@ -656,9 +656,50 @@ export interface RecurringDefaulter {
   customerCode: string;
   companyName: string;
   failures: number;
+  /** The months a GIRO deduction bounced, as YYYY-MM. */
   months: string[];
   lateFees: number;
+  /**
+   * The months the $100 fee was raised, as YYYY-MM.
+   *
+   * A count on its own does not say what MES need to know. Their own lifecycle
+   * note makes the distinction: "a tenant who pays late every month is a
+   * different conversation from one who forgot once." Seven months running is
+   * an argument for ending a contract; four months scattered across a year is
+   * a reminder to call them earlier.
+   *
+   * Taken from the date the fee was raised rather than parsed out of its
+   * wording. MES label each one — "Admin Fee For Late Payment - JAN'26" — and
+   * on all 27 in their August export the label and the date agree, so the date
+   * is the simpler of two answers that are the same.
+   */
+  lateFeeMonths: string[];
+  /**
+   * The longest unbroken run of months carrying the fee.
+   *
+   * Consecutive is the number worth acting on. DORM-117 in MES's own export
+   * has seven in a row from January; DORM-1502 has six across seven months,
+   * having paid on time in April. Those are different tenants.
+   */
+  consecutiveMonths: number;
   outstanding: number;
+}
+
+/** The longest run of consecutive YYYY-MM values in a list. */
+function longestRun(months: readonly string[]): number {
+  const sorted = Array.from(new Set(months)).sort();
+  let best = 0;
+  let run = 0;
+  let previous: number | null = null;
+  for (const m of sorted) {
+    const parts = /^(\d{4})-(\d{2})$/.exec(m);
+    if (!parts) continue;
+    const index = Number(parts[1]) * 12 + Number(parts[2]);
+    run = previous !== null && index === previous + 1 ? run + 1 : 1;
+    previous = index;
+    if (run > best) best = run;
+  }
+  return best;
 }
 
 export function recurringDefaulters(
@@ -682,6 +723,8 @@ export function recurringDefaulters(
         failures: 0,
         months: [],
         lateFees: 0,
+        lateFeeMonths: [],
+        consecutiveMonths: 0,
         outstanding: 0,
       };
       byKey.set(key, row);
@@ -691,7 +734,14 @@ export function recurringDefaulters(
       if (i.date) row.months.push(i.date.slice(0, 7));
     } else {
       row.lateFees += 1;
+      if (i.date) row.lateFeeMonths.push(i.date.slice(0, 7));
     }
+  }
+
+  for (const row of Array.from(byKey.values())) {
+    row.lateFeeMonths = Array.from(new Set(row.lateFeeMonths)).sort();
+    row.months = Array.from(new Set(row.months)).sort();
+    row.consecutiveMonths = longestRun(row.lateFeeMonths);
   }
 
   for (const a of accounts) {

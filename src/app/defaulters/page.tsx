@@ -98,6 +98,20 @@ export default function DefaultersPage() {
           months: (f?.failures ?? 0) + (f?.lateFees ?? 0),
           giroFails: f?.failures ?? 0,
           bouncedMonths: f?.months ?? [],
+          /*
+           * How many times this client has been round MES's whole cycle, and
+           * in which months.
+           *
+           * Their own lifecycle note draws the line: "a tenant who pays late
+           * every month is a different conversation from one who forgot once."
+           * The $100 fee is raised on the 16th of a cycle the client failed,
+           * so one fee is one completed sequence. Seven in a row is an
+           * argument for ending a contract; four scattered over a year is a
+           * reminder to call them sooner.
+           */
+          cycles: f?.lateFees ?? 0,
+          cycleMonths: f?.lateFeeMonths ?? [],
+          inARow: f?.consecutiveMonths ?? 0,
           severe: severeTotal(a),
           overdue: overdueTotal(a),
         };
@@ -218,6 +232,20 @@ export default function DefaultersPage() {
                           {r.giroFails} GIRO · {r.bouncedMonths.join(" ")}
                         </span>
                       ) : null}
+                      {r.cycles > 0 ? (
+                        <span className="mt-0.5 block text-[10px] font-normal text-ink-muted">
+                          {r.cycles} full cycle{r.cycles === 1 ? "" : "s"}
+                          {r.inARow >= 2 ? (
+                            <b className="text-[var(--critical)]">
+                              {" "}
+                              · {r.inARow} in a row
+                            </b>
+                          ) : null}
+                          <span className="mt-0.5 block">
+                            {r.cycleMonths.map(shortMonth).join(" · ")}
+                          </span>
+                        </span>
+                      ) : null}
                     </td>
 
                     {/* Proposal 4.6: outcome classifications from the calls. */}
@@ -312,4 +340,19 @@ function AgeBar({ account }: { account: ReturnType<typeof allAccounts>[0] }) {
       })}
     </div>
   );
+}
+
+/**
+ * "2026-01" as "Jan 26".
+ *
+ * Seven of these sit in one table cell, so the year is two digits and the
+ * month three letters: MES's own fee wording does the same — "Admin Fee For
+ * Late Payment - JAN'26".
+ */
+function shortMonth(month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) return month;
+  const names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${names[Number(m[2])] ?? m[2]} ${m[1]!.slice(2)}`;
 }
