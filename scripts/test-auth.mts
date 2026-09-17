@@ -251,8 +251,14 @@ const routes = readdirSync(APP, { withFileTypes: true })
 // amounts: it runs MES's stated requirements as arithmetic and shows what came
 // out. Gating it would keep it from whoever is being asked to trust the
 // figures, and there is no capability every role holds to gate it with.
+//
+// /chased is here for the same reason /defaulters is: it names clients and
+// their balances, but it scopes with scope(), so a relationship manager sees
+// their own book and nobody else's. There is also no capability every role
+// holds — an RM has only view-own-tenants — so naming one would shut the
+// managers out of a list about their own clients.
 const SESSION_ONLY = new Set([
-  "/access", "/collections", "/defaulters", "/login", "/checks",
+  "/access", "/collections", "/defaulters", "/login", "/checks", "/chased",
 ]);
 
 const unguarded = routes.filter(

@@ -325,5 +325,22 @@ check("and not a constant list of columns",
 check("it says how many rows were filled when some were",
       REP.includes("of {managerRowCount} rows"), true);
 
+section("Chased to the end names the months, not just a count");
+
+const CHASED_PAGE = page("chased");
+const CHASED_LIB = lib("chased.ts");
+check("the screen exists", CHASED_PAGE.length > 0, true);
+check("it runs the shared logic", CHASED_PAGE.includes('from "@/lib/chased"'), true);
+check("and scopes, so a manager sees only their own",
+      CHASED_PAGE.includes("scope(ds.accounts)"), true);
+check("the months are listed, not summed",
+      CHASED_PAGE.includes("row.months.map"), true);
+check("the unbroken run is worked out once, in the library",
+      /export function longestStreak\(/.test(CHASED_LIB), true);
+check("a client who has paid drops off rather than being closed by hand",
+      CHASED_LIB.includes("if (outstanding <= 0) continue;"), true);
+check("a cycle is recognised by the fee MES raise on the 16th",
+      CHASED_LIB.includes('"Late Payment Fee"'), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

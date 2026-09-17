@@ -230,6 +230,35 @@ add("Repeat offenders", CYCLES, "Months out of order are still read in sequence"
 add("Repeat offenders", CYCLES, "A run across a year end is unbroken",
     "consecutiveMonths", "2026-11|2026-12|2027-01", "3")
 
+CHASED = ('MES lifecycle note: an unpaid account "rolls into next month one '
+          'bucket older, and the cycle restarts". So the list that matters is '
+          'who has been round it, and how often')
+for months, runs in [
+    ("2026-01|2026-02|2026-03|2026-04|2026-05|2026-06|2026-07", "7"),
+    ("2026-01|2026-02|2026-03|2026-05|2026-06|2026-07", "3"),
+    ("2026-02|2026-03|2026-04|2026-05|2026-07", "4"),
+    ("2026-01|2026-04|2026-06|2026-07", "2"),
+    ("2026-11|2026-12|2027-01", "3"),
+    ("2026-01", "1"),
+    ("", "0"),
+]:
+    add("Chased to the end", CHASED,
+        "Cycles completed in [%s]: longest run" % (months or "none"),
+        "longestStreak", months, runs)
+add("Chased to the end", CHASED, "The same month twice is one cycle",
+    "longestStreak", "2026-01|2026-01|2026-02", "2")
+add("Chased to the end", CHASED, "Out of order still reads as a sequence",
+    "longestStreak", "2026-03|2026-01|2026-02", "3")
+
+GAP = "How long since the cycle last completed, so a client who stopped being chased shows"
+for pair, exp in [
+    ("2026-07|2026-08", "1"), ("2026-08|2026-08", "0"),
+    ("2026-01|2026-08", "7"), ("2025-12|2026-01", "1"),
+    ("2026-08|2026-07", "-1"),
+]:
+    add("Chased to the end", GAP, "From %s to %s" % tuple(pair.split("|")),
+        "monthsBetween", pair, exp)
+
 # ---------------------------------------------------------------- E. LETTERS
 LETTERS = "Documents 1 and 2: the first and final reminder templates"
 DEADLINE = {"first-reminder": 6, "final-notice": 7}

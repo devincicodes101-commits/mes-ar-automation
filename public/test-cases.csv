@@ -151,175 +151,189 @@ TC-149,Repeat offenders,"MES lifecycle note: ""a tenant who pays late every mont
 TC-150,Repeat offenders,"MES lifecycle note: ""a tenant who pays late every month is a different conversation from one who forgot once"" — so the months are counted, not just the fees",The same month twice counts once,consecutiveMonths,2026-01|2026-01|2026-02,2
 TC-151,Repeat offenders,"MES lifecycle note: ""a tenant who pays late every month is a different conversation from one who forgot once"" — so the months are counted, not just the fees",Months out of order are still read in sequence,consecutiveMonths,2026-03|2026-01|2026-02,3
 TC-152,Repeat offenders,"MES lifecycle note: ""a tenant who pays late every month is a different conversation from one who forgot once"" — so the months are counted, not just the fees",A run across a year end is unbroken,consecutiveMonths,2026-11|2026-12|2027-01,3
-TC-153,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-08-28: the pay-by date,deadline,first-reminder|2026-08-28,2026-09-03
-TC-154,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-12-28: the pay-by date,deadline,first-reminder|2026-12-28,2027-01-03
-TC-155,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2024-02-20: the pay-by date,deadline,first-reminder|2024-02-20,2024-02-26
-TC-156,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-01-31: the pay-by date,deadline,first-reminder|2026-01-31,2026-02-06
-TC-157,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-08-28: the pay-by date,deadline,final-notice|2026-08-28,2026-09-04
-TC-158,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-12-28: the pay-by date,deadline,final-notice|2026-12-28,2027-01-04
-TC-159,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2024-02-20: the pay-by date,deadline,final-notice|2024-02-20,2024-02-27
-TC-160,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-01-31: the pay-by date,deadline,final-notice|2026-01-31,2026-02-07
-TC-161,Letters,Documents 1 and 2: the first and final reminder templates,The final notice cites the manpower regulations,letterMentions,final-notice|Employment of Foreign Manpower,true
-TC-162,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder does not cite them,letterMentions,first-reminder|Employment of Foreign Manpower,false
-TC-163,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder leaves no merge field unfilled,letterUnfilled,first-reminder,0
-TC-164,Letters,Documents 1 and 2: the first and final reminder templates,Nor does the final notice,letterUnfilled,final-notice,0
-TC-165,Letters,Documents 1 and 2: the first and final reminder templates,"A letter is dated from the report, not from today",letterDatedFromReport,2026-08-28,true
-TC-166,Money,Amounts print to two decimals and totals must not drift,Print 0,currency,0,0.00
-TC-167,Money,Amounts print to two decimals and totals must not drift,Print 0.5,currency,0.5,0.50
-TC-168,Money,Amounts print to two decimals and totals must not drift,Print 0.005,currency,0.005,0.01
-TC-169,Money,Amounts print to two decimals and totals must not drift,Print 1,currency,1,1.00
-TC-170,Money,Amounts print to two decimals and totals must not drift,Print 1000,currency,1000,"1,000.00"
-TC-171,Money,Amounts print to two decimals and totals must not drift,Print -1234.5,currency,-1234.5,"-1,234.50"
-TC-172,Money,Amounts print to two decimals and totals must not drift,Print 2782348.27,currency,2782348.27,"2,782,348.27"
-TC-173,Money,Amounts print to two decimals and totals must not drift,Print 439528.29,currency,439528.29,"439,528.29"
-TC-174,Money,Amounts print to two decimals and totals must not drift,Print 100,currency,100,100.00
-TC-175,Money,Amounts print to two decimals and totals must not drift,Round 0.1 to the cent,round2,0.1,0.1
-TC-176,Money,Amounts print to two decimals and totals must not drift,Round 1.005 to the cent,round2,1.005,1.01
-TC-177,Money,Amounts print to two decimals and totals must not drift,Round 2.675 to the cent,round2,2.675,2.68
-TC-178,Money,Amounts print to two decimals and totals must not drift,Round -1.005 to the cent,round2,-1.005,-1.01
-TC-179,Money,Amounts print to two decimals and totals must not drift,Round 1000.004 to the cent,round2,1000.004,1000
-TC-180,Money,Amounts print to two decimals and totals must not drift,A thousand additions of a cent come to ten dollars,round2Sum,1000,10
-TC-181,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 34000",riskExposure,6428.16|34000,-27571.84
-TC-182,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 11216.44, deposit 11160",riskExposure,11216.44|11160,56.44
-TC-183,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 5000, deposit 1000",riskExposure,5000|1000,4000
-TC-184,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 5000",riskExposure,1000|5000,-4000
-TC-185,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 1000",riskExposure,1000|1000,0
-TC-186,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 0, deposit 8000",riskExposure,0|8000,-8000
-TC-187,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit none",riskExposure,6428.16|none,blank
-TC-188,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 0",riskExposure,6428.16|0,6428.16
-TC-189,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [11360|11360],depositHeld,11360|11360,22720.00
-TC-190,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [932],depositHeld,932,932.00
-TC-191,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [-21120],depositHeld,-21120,blank
-TC-192,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [500|-500],depositHeld,500|-500,blank
-TC-193,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [12800|1200],depositHeld,12800|1200,14000.00
-TC-194,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [],depositHeld,,blank
-TC-195,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com""",emailCount,a@x.com,1
-TC-196,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; b@x.com""",emailCount,a@x.com; b@x.com,2
-TC-197,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; """,emailCount,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; Tang Lizhen <lizhen.tang@checsg.com.sg>,2
-TC-198,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""finance@brightsun.com.sg; sathiya@brightsu""",emailCount, finance@brightsun.com.sg; sathiya@brightsun.com.sg; prakash@brightsun.com.sg; prasanna@brightsun.com.sg,4
-TC-199,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading """"",emailCount,,0
-TC-200,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""no email""",emailCount,no email,0
-TC-201,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""-""",emailCount,-,0
-TC-202,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com, b@x.com""",emailCount,"a@x.com, b@x.com",2
-TC-203,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; a@x.com""",emailCount,a@x.com; a@x.com,1
-TC-204,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A display name is dropped and the address kept,emailFirst,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>,xinyuan.tan@checsg.com.sg
-TC-205,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A leading space does not break the address,emailFirst, finance@brightsun.com.sg,finance@brightsun.com.sg
-TC-206,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /,canOpen,super-admin|/,true
-TC-207,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /users,canOpen,super-admin|/users,true
-TC-208,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /simulation,canOpen,super-admin|/simulation,true
-TC-209,Access,Each role sees only what it should; a manager sees only their own,admin opening /reminders,canOpen,admin|/reminders,true
-TC-210,Access,Each role sees only what it should; a manager sees only their own,admin opening /users,canOpen,admin|/users,false
-TC-211,Access,Each role sees only what it should; a manager sees only their own,CSD opening /reminders,canOpen,CSD|/reminders,true
-TC-212,Access,Each role sees only what it should; a manager sees only their own,CSD opening /users,canOpen,CSD|/users,false
-TC-213,Access,Each role sees only what it should; a manager sees only their own,RM opening /,canOpen,RM|/,true
-TC-214,Access,Each role sees only what it should; a manager sees only their own,RM opening /users,canOpen,RM|/users,false
-TC-215,Access,Each role sees only what it should; a manager sees only their own,RM opening /reminders,canOpen,RM|/reminders,false
-TC-216,Access,Each role sees only what it should; a manager sees only their own,Management opening /reports,canOpen,Management|/reports,true
-TC-217,Access,Each role sees only what it should; a manager sees only their own,Management opening /users,canOpen,Management|/users,false
-TC-218,Access,Each role sees only what it should; a manager sees only their own,Management opening /reminders,canOpen,Management|/reminders,false
-TC-219,Access,Each role sees only what it should; a manager sees only their own,Management opening /no-email,canOpen,Management|/no-email,false
-TC-220,Access,Each role sees only what it should; a manager sees only their own,super-admin and the send-reminders permission,can,super-admin|send-reminders,true
-TC-221,Access,Each role sees only what it should; a manager sees only their own,RM and the send-reminders permission,can,RM|send-reminders,false
-TC-222,Access,Each role sees only what it should; a manager sees only their own,Management and the view-tenant-emails permission,can,Management|view-tenant-emails,false
-TC-223,Access,Each role sees only what it should; a manager sees only their own,CSD and the view-tenant-emails permission,can,CSD|view-tenant-emails,true
-TC-224,Access,Each role sees only what it should; a manager sees only their own,Management and the generate-reports permission,can,Management|generate-reports,true
-TC-225,Access,Each role sees only what it should; a manager sees only their own,admin and the manage-users permission,can,admin|manage-users,false
-TC-226,Access,Each role sees only what it should; a manager sees only their own,super-admin and the manage-users permission,can,super-admin|manage-users,true
-TC-227,Access,Each role sees only what it should; a manager sees only their own,RM and the view-all-tenants permission,can,RM|view-all-tenants,false
-TC-228,Access,Each role sees only what it should; a manager sees only their own,RM and the view-own-tenants permission,can,RM|view-own-tenants,true
-TC-229,Names,"The customer code is printed once, not twice","Name ""DORM-1600 MODERN WELLNESS PTE. L"" with code DORM-1600",withoutCode,DORM-1600 MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
-TC-230,Names,"The customer code is printed once, not twice","Name ""MODERN WELLNESS PTE. LTD"" with code DORM-1600",withoutCode,MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
-TC-231,Names,"The customer code is printed once, not twice","Name ""dorm-166 BURNING SUN"" with code DORM-166",withoutCode,dorm-166 BURNING SUN|DORM-166,BURNING SUN
-TC-232,Names,"The customer code is printed once, not twice","Name ""DORM-17 SOMEBODY"" with code DORM-1",withoutCode,DORM-17 SOMEBODY|DORM-1,DORM-17 SOMEBODY
-TC-233,Names,"The customer code is printed once, not twice","Name ""DORM-166"" with code DORM-166",withoutCode,DORM-166|DORM-166,DORM-166
-TC-234,Real file,"End to end against MES's own files, not made up input",Tenants read from the Aging Detail,fileAccounts,aging,190
-TC-235,Real file,"End to end against MES's own files, not made up input",Charge lines read from it,fileLines,aging,3117
-TC-236,Real file,"End to end against MES's own files, not made up input",Separate billing runs found in it,fileCycles,aging,315
-TC-237,Real file,"End to end against MES's own files, not made up input",MES's own per-tenant subtotals that disagree with ours,fileSubtotalsDisagreeing,aging,0
-TC-238,Real file,"End to end against MES's own files, not made up input",Grand total,fileTotal,aging,2782348.27
-TC-239,Real file,"End to end against MES's own files, not made up input",GIRO tenants identified,fileGiro,aging,6
-TC-240,Real file,"End to end against MES's own files, not made up input",Tenants holding a security deposit,fileDeposits,aging,8
-TC-241,Real file,"End to end against MES's own files, not made up input",Tenants whose deposit was spent against arrears,fileDepositsOffset,aging,2
-TC-242,Real file,"End to end against MES's own files, not made up input",The date the lines themselves agree the report was run,fileDataDate,aging,2026-08-28
-TC-243,Real file,"End to end against MES's own files, not made up input","The report date the system settles on, where the title disagrees",fileHeaderDate,aging,2026-08-28
-TC-244,Real file,"End to end against MES's own files, not made up input",The title of that same file says something else,fileTitleDate,aging,2026-08-17
-TC-245,Real file,"End to end against MES's own files, not made up input",A report whose header and data disagree is flagged,fileDateConflictFlagged,aging,true
-TC-246,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Our bucket against the Aging column MES already have in their file,fileBucketsVsMes,finance,0
-TC-247,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Lines that would stop matching MES if age were counted from the billing date,fileBucketsFromBillingVsMes,finance,18
-TC-248,Real file,"End to end against MES's own files, not made up input",Tenants read from Finance AR Download,fileAccounts,finance,5
-TC-249,Real file,"End to end against MES's own files, not made up input",Charge lines read from Finance AR Download,fileLines,finance,173
-TC-250,Real file,"End to end against MES's own files, not made up input",Billing runs in Finance AR Download,fileCycles,finance,28
-TC-251,Real file,"End to end against MES's own files, not made up input",Manager reports built from it,fileManagers,finance,3
-TC-252,Real file,"End to end against MES's own files, not made up input","Its header carries no as-of row, so the date is recovered",fileDataDate,finance,2026-08-17
-TC-253,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Nobody has been reminded before the month starts,monthReminded,0,0
-TC-254,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 7th reminds everyone reachable and owing,monthReminded,7,4
-TC-255,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Running the 7th again does not remind anyone twice,monthRemindedTwice,7,4
-TC-256,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th charges the fee to everyone not on GIRO,monthCharged,16,75
-TC-257,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",GIRO tenants are held back from that fee,monthHeld,16,6
-TC-258,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 21st sends the final notice,monthFinalised,21,4
-TC-259,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant marked paid drops out of the rest of the month,monthPaidDrops,,true
-TC-260,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant who promised is held off the final notice,monthPromisedDrops,,true
-TC-261,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The same file run twice produces the same month,monthDeterministic,,true
-TC-262,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st","The 7th, 4th and 16th are all upload days",monthUploadDays,,true
-TC-263,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th can be sent to a chosen subset of managers,monthRmChoice,2,2
-TC-264,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
-TC-265,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
-TC-266,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true
-TC-267,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",The report dates itself from its own lines,newAsOf,,2026-09-15
-TC-268,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Every charge line is read,newLines,,31
-TC-269,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen","Customers become accounts, split by dormitory",newAccounts,,11
-TC-270,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Nothing in it is rejected as an error,newErrors,,0
-TC-271,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Our figures agree with its own subtotals,newSubtotalsDisagreeing,,0
-TC-272,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Separate billing runs found in one report,newBillingRuns,,22
-TC-273,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",All four dormitories are represented,newDormitories,,"JPD1,JPD2,BSD,LEO"
-TC-274,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",One manager report per sales rep,newManagers,,3
-TC-275,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-09-01, due 2026-09-16: age -1, so Current",newBucketOn,2026-09-01,Current
-TC-276,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is -1,newAgeOn,2026-09-01,-1
-TC-277,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-31, due 2026-09-15: age 0, so Current",newBucketOn,2026-08-31,Current
-TC-278,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 0,newAgeOn,2026-08-31,0
-TC-279,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-16, due 2026-08-31: age 15, so Current",newBucketOn,2026-08-16,Current
-TC-280,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 15,newAgeOn,2026-08-16,15
-TC-281,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-15, due 2026-08-30: age 16, so 30 days",newBucketOn,2026-08-15,30 days
-TC-282,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 16,newAgeOn,2026-08-15,16
-TC-283,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-17, due 2026-08-01: age 45, so 30 days",newBucketOn,2026-07-17,30 days
-TC-284,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 45,newAgeOn,2026-07-17,45
-TC-285,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-16, due 2026-07-31: age 46, so 60 days",newBucketOn,2026-07-16,60 days
-TC-286,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 46,newAgeOn,2026-07-16,46
-TC-287,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-17, due 2026-07-02: age 75, so 60 days",newBucketOn,2026-06-17,60 days
-TC-288,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 75,newAgeOn,2026-06-17,75
-TC-289,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-16, due 2026-07-01: age 76, so 90 days",newBucketOn,2026-06-16,90 days
-TC-290,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 76,newAgeOn,2026-06-16,76
-TC-291,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-18, due 2026-06-02: age 105, so 90 days",newBucketOn,2026-05-18,90 days
-TC-292,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 105,newAgeOn,2026-05-18,105
-TC-293,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-17, due 2026-06-01: age 106, so More than 90 days",newBucketOn,2026-05-17,More than 90 days
-TC-294,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 106,newAgeOn,2026-05-17,106
-TC-295,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2025-07-27, due 2025-08-11: age 400, so More than 90 days",newBucketOn,2025-07-27,More than 90 days
-TC-296,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 400,newAgeOn,2025-07-27,400
-TC-297,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed on the report date itself (2026-09-15),newStageOn,2026-09-15,within credit
-TC-298,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 14 days ago: the last day inside credit (2026-09-01),newStageOn,2026-09-01,within credit
-TC-299,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 15 days ago: the first day past it (2026-08-31),newStageOn,2026-08-31,past 14 days
-TC-300,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 30 days ago: on the second deadline (2026-08-16),newStageOn,2026-08-16,past 14 days
-TC-301,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 31 days ago: the first day past the second deadline (2026-08-15),newStageOn,2026-08-15,past 30 days
-TC-302,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed after the report date (2026-09-20),newStageOn,2026-09-20,not yet due
-TC-303,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Occupancy Fee Charges for the month""",newTypeOf,Occupancy Fee Charges for the month,Occupancy Fee
-TC-304,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Stamp Duty""",newTypeOf,Stamp Duty,Stamp Duty
-TC-305,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Quarterly Charges for Season Parking of vehicl""",newTypeOf,Quarterly Charges for Season Parking of vehicl,Season Parking
-TC-306,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""ONEFM maintenance works for the quarter""",newTypeOf,ONEFM maintenance works for the quarter,1FM Maintenance
-TC-307,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee for Rejected Giro - 02-JUL-26""",newTypeOf,Admin Fee for Rejected Giro - 02-JUL-26,Rejected GIRO Fee
-TC-308,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee For Late Payment""",newTypeOf,Admin Fee For Late Payment,Late Payment Fee
-TC-309,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Security Deposit - REFUNDABLE""",newTypeOf,Security Deposit - REFUNDABLE,Security Deposit
-TC-310,New data,Jacqueline's rule: GIRO clients come off the fee listing,Tenants identified as paying by GIRO,newGiro,,2
-TC-311,New data,Repeat GIRO failures are flagged as defaulters,Tenants who bounced more than once,newDefaulters,,1
-TC-312,New data,Raman 14 Sep: the deposit comes from the Security Deposit lines,Tenants holding a deposit,newDeposits,,1
-TC-313,New data,"A deposit offset against arrears is spent, not held",Tenants whose deposit has gone,newDepositsOffset,,1
-TC-314,New data,"Raman: ""one client may have more than one email""",A tenant with three addresses gets all three,newAddressesFor,DORM-9005,3
-TC-315,New data,"Raman: ""one client may have more than one email""",A display name is stripped and the address kept,newAddressesFor,DORM-9002,2
-TC-316,New data,Tenants with no address go to Send By Hand,Accounts that can be emailed at all,newWithAddress,,9
-TC-317,New data,"An account is company plus dormitory, so one company can be two",The same company's balance at its first dormitory,newAccountTotal,DORM-9010|JPD1,10100.00
-TC-318,New data,"An account is company plus dormitory, so one company can be two",And its separate balance at the second,newAccountTotal,DORM-9010|BSD,3300.00
-TC-319,New data,"MES note: 1FM = Prefix ""DORMFM""",A 1FM invoice and its VAT line both land on the 1FM tab,newTabLines,1FM,2
-TC-320,New data,Flow tab: a Parking Fee tab,"A parking line, which no MES export has ever contained",newTabLines,PF,1
-TC-321,New data,Flow tab: a Late Payment tab,The $100 fee already raised,newTabLines,LP,1
-TC-322,New data,Flow tab: a Stamp Duty tab,"Stamp duty, which MES categorise as Reimbursement",newTabLines,SD-STAMP,1
-TC-323,New data,"Flow tab: Show by Dorm, from the document number",A 1FM document number places its line in JPD2,newDormOf,JPD2FM/5501,JPD2
-TC-324,New data,"Flow tab: Show by Dorm, from the document number",A credit note number places its line in JPD1,newDormOf,JPD1CN/0091,JPD1
+TC-153,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-01|2026-02|2026-03|2026-04|2026-05|2026-06|2026-07]: longest run,longestStreak,2026-01|2026-02|2026-03|2026-04|2026-05|2026-06|2026-07,7
+TC-154,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-01|2026-02|2026-03|2026-05|2026-06|2026-07]: longest run,longestStreak,2026-01|2026-02|2026-03|2026-05|2026-06|2026-07,3
+TC-155,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-02|2026-03|2026-04|2026-05|2026-07]: longest run,longestStreak,2026-02|2026-03|2026-04|2026-05|2026-07,4
+TC-156,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-01|2026-04|2026-06|2026-07]: longest run,longestStreak,2026-01|2026-04|2026-06|2026-07,2
+TC-157,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-11|2026-12|2027-01]: longest run,longestStreak,2026-11|2026-12|2027-01,3
+TC-158,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [2026-01]: longest run,longestStreak,2026-01,1
+TC-159,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Cycles completed in [none]: longest run,longestStreak,,0
+TC-160,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",The same month twice is one cycle,longestStreak,2026-01|2026-01|2026-02,2
+TC-161,Chased to the end,"MES lifecycle note: an unpaid account ""rolls into next month one bucket older, and the cycle restarts"". So the list that matters is who has been round it, and how often",Out of order still reads as a sequence,longestStreak,2026-03|2026-01|2026-02,3
+TC-162,Chased to the end,"How long since the cycle last completed, so a client who stopped being chased shows",From 2026-07 to 2026-08,monthsBetween,2026-07|2026-08,1
+TC-163,Chased to the end,"How long since the cycle last completed, so a client who stopped being chased shows",From 2026-08 to 2026-08,monthsBetween,2026-08|2026-08,0
+TC-164,Chased to the end,"How long since the cycle last completed, so a client who stopped being chased shows",From 2026-01 to 2026-08,monthsBetween,2026-01|2026-08,7
+TC-165,Chased to the end,"How long since the cycle last completed, so a client who stopped being chased shows",From 2025-12 to 2026-01,monthsBetween,2025-12|2026-01,1
+TC-166,Chased to the end,"How long since the cycle last completed, so a client who stopped being chased shows",From 2026-08 to 2026-07,monthsBetween,2026-08|2026-07,-1
+TC-167,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-08-28: the pay-by date,deadline,first-reminder|2026-08-28,2026-09-03
+TC-168,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-12-28: the pay-by date,deadline,first-reminder|2026-12-28,2027-01-03
+TC-169,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2024-02-20: the pay-by date,deadline,first-reminder|2024-02-20,2024-02-26
+TC-170,Letters,Documents 1 and 2: the first and final reminder templates,first-reminder sent 2026-01-31: the pay-by date,deadline,first-reminder|2026-01-31,2026-02-06
+TC-171,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-08-28: the pay-by date,deadline,final-notice|2026-08-28,2026-09-04
+TC-172,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-12-28: the pay-by date,deadline,final-notice|2026-12-28,2027-01-04
+TC-173,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2024-02-20: the pay-by date,deadline,final-notice|2024-02-20,2024-02-27
+TC-174,Letters,Documents 1 and 2: the first and final reminder templates,final-notice sent 2026-01-31: the pay-by date,deadline,final-notice|2026-01-31,2026-02-07
+TC-175,Letters,Documents 1 and 2: the first and final reminder templates,The final notice cites the manpower regulations,letterMentions,final-notice|Employment of Foreign Manpower,true
+TC-176,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder does not cite them,letterMentions,first-reminder|Employment of Foreign Manpower,false
+TC-177,Letters,Documents 1 and 2: the first and final reminder templates,The first reminder leaves no merge field unfilled,letterUnfilled,first-reminder,0
+TC-178,Letters,Documents 1 and 2: the first and final reminder templates,Nor does the final notice,letterUnfilled,final-notice,0
+TC-179,Letters,Documents 1 and 2: the first and final reminder templates,"A letter is dated from the report, not from today",letterDatedFromReport,2026-08-28,true
+TC-180,Money,Amounts print to two decimals and totals must not drift,Print 0,currency,0,0.00
+TC-181,Money,Amounts print to two decimals and totals must not drift,Print 0.5,currency,0.5,0.50
+TC-182,Money,Amounts print to two decimals and totals must not drift,Print 0.005,currency,0.005,0.01
+TC-183,Money,Amounts print to two decimals and totals must not drift,Print 1,currency,1,1.00
+TC-184,Money,Amounts print to two decimals and totals must not drift,Print 1000,currency,1000,"1,000.00"
+TC-185,Money,Amounts print to two decimals and totals must not drift,Print -1234.5,currency,-1234.5,"-1,234.50"
+TC-186,Money,Amounts print to two decimals and totals must not drift,Print 2782348.27,currency,2782348.27,"2,782,348.27"
+TC-187,Money,Amounts print to two decimals and totals must not drift,Print 439528.29,currency,439528.29,"439,528.29"
+TC-188,Money,Amounts print to two decimals and totals must not drift,Print 100,currency,100,100.00
+TC-189,Money,Amounts print to two decimals and totals must not drift,Round 0.1 to the cent,round2,0.1,0.1
+TC-190,Money,Amounts print to two decimals and totals must not drift,Round 1.005 to the cent,round2,1.005,1.01
+TC-191,Money,Amounts print to two decimals and totals must not drift,Round 2.675 to the cent,round2,2.675,2.68
+TC-192,Money,Amounts print to two decimals and totals must not drift,Round -1.005 to the cent,round2,-1.005,-1.01
+TC-193,Money,Amounts print to two decimals and totals must not drift,Round 1000.004 to the cent,round2,1000.004,1000
+TC-194,Money,Amounts print to two decimals and totals must not drift,A thousand additions of a cent come to ten dollars,round2Sum,1000,10
+TC-195,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 34000",riskExposure,6428.16|34000,-27571.84
+TC-196,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 11216.44, deposit 11160",riskExposure,11216.44|11160,56.44
+TC-197,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 5000, deposit 1000",riskExposure,5000|1000,4000
+TC-198,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 5000",riskExposure,1000|5000,-4000
+TC-199,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 1000, deposit 1000",riskExposure,1000|1000,0
+TC-200,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 0, deposit 8000",riskExposure,0|8000,-8000
+TC-201,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit none",riskExposure,6428.16|none,blank
+TC-202,Risk exposure,"Raman: ""Risk Exposure ... it is Grand total minus Security Deposit""","Owes 6428.16, deposit 0",riskExposure,6428.16|0,6428.16
+TC-203,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [11360|11360],depositHeld,11360|11360,22720.00
+TC-204,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [932],depositHeld,932,932.00
+TC-205,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [-21120],depositHeld,-21120,blank
+TC-206,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [500|-500],depositHeld,500|-500,blank
+TC-207,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [12800|1200],depositHeld,12800|1200,14000.00
+TC-208,Security deposit,Raman 14 Sep: take it from the AR report's Security Deposit lines,Deposit lines totalling [],depositHeld,,blank
+TC-209,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com""",emailCount,a@x.com,1
+TC-210,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; b@x.com""",emailCount,a@x.com; b@x.com,2
+TC-211,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; """,emailCount,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>; Tang Lizhen <lizhen.tang@checsg.com.sg>,2
+TC-212,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""finance@brightsun.com.sg; sathiya@brightsu""",emailCount, finance@brightsun.com.sg; sathiya@brightsun.com.sg; prakash@brightsun.com.sg; prasanna@brightsun.com.sg,4
+TC-213,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading """"",emailCount,,0
+TC-214,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""no email""",emailCount,no email,0
+TC-215,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""-""",emailCount,-,0
+TC-216,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com, b@x.com""",emailCount,"a@x.com, b@x.com",2
+TC-217,Emails,"Raman: ""one client may have more than one email"" - send to all of them","An email cell reading ""a@x.com; a@x.com""",emailCount,a@x.com; a@x.com,1
+TC-218,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A display name is dropped and the address kept,emailFirst,Tan Xin Yuan <xinyuan.tan@checsg.com.sg>,xinyuan.tan@checsg.com.sg
+TC-219,Emails,"Raman: ""one client may have more than one email"" - send to all of them",A leading space does not break the address,emailFirst, finance@brightsun.com.sg,finance@brightsun.com.sg
+TC-220,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /,canOpen,super-admin|/,true
+TC-221,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /users,canOpen,super-admin|/users,true
+TC-222,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /simulation,canOpen,super-admin|/simulation,true
+TC-223,Access,Each role sees only what it should; a manager sees only their own,admin opening /reminders,canOpen,admin|/reminders,true
+TC-224,Access,Each role sees only what it should; a manager sees only their own,admin opening /users,canOpen,admin|/users,false
+TC-225,Access,Each role sees only what it should; a manager sees only their own,CSD opening /reminders,canOpen,CSD|/reminders,true
+TC-226,Access,Each role sees only what it should; a manager sees only their own,CSD opening /users,canOpen,CSD|/users,false
+TC-227,Access,Each role sees only what it should; a manager sees only their own,RM opening /,canOpen,RM|/,true
+TC-228,Access,Each role sees only what it should; a manager sees only their own,RM opening /users,canOpen,RM|/users,false
+TC-229,Access,Each role sees only what it should; a manager sees only their own,RM opening /reminders,canOpen,RM|/reminders,false
+TC-230,Access,Each role sees only what it should; a manager sees only their own,Management opening /reports,canOpen,Management|/reports,true
+TC-231,Access,Each role sees only what it should; a manager sees only their own,Management opening /users,canOpen,Management|/users,false
+TC-232,Access,Each role sees only what it should; a manager sees only their own,Management opening /reminders,canOpen,Management|/reminders,false
+TC-233,Access,Each role sees only what it should; a manager sees only their own,Management opening /no-email,canOpen,Management|/no-email,false
+TC-234,Access,Each role sees only what it should; a manager sees only their own,super-admin and the send-reminders permission,can,super-admin|send-reminders,true
+TC-235,Access,Each role sees only what it should; a manager sees only their own,RM and the send-reminders permission,can,RM|send-reminders,false
+TC-236,Access,Each role sees only what it should; a manager sees only their own,Management and the view-tenant-emails permission,can,Management|view-tenant-emails,false
+TC-237,Access,Each role sees only what it should; a manager sees only their own,CSD and the view-tenant-emails permission,can,CSD|view-tenant-emails,true
+TC-238,Access,Each role sees only what it should; a manager sees only their own,Management and the generate-reports permission,can,Management|generate-reports,true
+TC-239,Access,Each role sees only what it should; a manager sees only their own,admin and the manage-users permission,can,admin|manage-users,false
+TC-240,Access,Each role sees only what it should; a manager sees only their own,super-admin and the manage-users permission,can,super-admin|manage-users,true
+TC-241,Access,Each role sees only what it should; a manager sees only their own,RM and the view-all-tenants permission,can,RM|view-all-tenants,false
+TC-242,Access,Each role sees only what it should; a manager sees only their own,RM and the view-own-tenants permission,can,RM|view-own-tenants,true
+TC-243,Names,"The customer code is printed once, not twice","Name ""DORM-1600 MODERN WELLNESS PTE. L"" with code DORM-1600",withoutCode,DORM-1600 MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
+TC-244,Names,"The customer code is printed once, not twice","Name ""MODERN WELLNESS PTE. LTD"" with code DORM-1600",withoutCode,MODERN WELLNESS PTE. LTD|DORM-1600,MODERN WELLNESS PTE. LTD
+TC-245,Names,"The customer code is printed once, not twice","Name ""dorm-166 BURNING SUN"" with code DORM-166",withoutCode,dorm-166 BURNING SUN|DORM-166,BURNING SUN
+TC-246,Names,"The customer code is printed once, not twice","Name ""DORM-17 SOMEBODY"" with code DORM-1",withoutCode,DORM-17 SOMEBODY|DORM-1,DORM-17 SOMEBODY
+TC-247,Names,"The customer code is printed once, not twice","Name ""DORM-166"" with code DORM-166",withoutCode,DORM-166|DORM-166,DORM-166
+TC-248,Real file,"End to end against MES's own files, not made up input",Tenants read from the Aging Detail,fileAccounts,aging,190
+TC-249,Real file,"End to end against MES's own files, not made up input",Charge lines read from it,fileLines,aging,3117
+TC-250,Real file,"End to end against MES's own files, not made up input",Separate billing runs found in it,fileCycles,aging,315
+TC-251,Real file,"End to end against MES's own files, not made up input",MES's own per-tenant subtotals that disagree with ours,fileSubtotalsDisagreeing,aging,0
+TC-252,Real file,"End to end against MES's own files, not made up input",Grand total,fileTotal,aging,2782348.27
+TC-253,Real file,"End to end against MES's own files, not made up input",GIRO tenants identified,fileGiro,aging,6
+TC-254,Real file,"End to end against MES's own files, not made up input",Tenants holding a security deposit,fileDeposits,aging,8
+TC-255,Real file,"End to end against MES's own files, not made up input",Tenants whose deposit was spent against arrears,fileDepositsOffset,aging,2
+TC-256,Real file,"End to end against MES's own files, not made up input",The date the lines themselves agree the report was run,fileDataDate,aging,2026-08-28
+TC-257,Real file,"End to end against MES's own files, not made up input","The report date the system settles on, where the title disagrees",fileHeaderDate,aging,2026-08-28
+TC-258,Real file,"End to end against MES's own files, not made up input",The title of that same file says something else,fileTitleDate,aging,2026-08-17
+TC-259,Real file,"End to end against MES's own files, not made up input",A report whose header and data disagree is flagged,fileDateConflictFlagged,aging,true
+TC-260,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Our bucket against the Aging column MES already have in their file,fileBucketsVsMes,finance,0
+TC-261,Aging,"Raman 14 Sep: ""use the billing date and accordingly create buckets along that date"". MES file: column L is Age, column M is Aging, and their Formula tab buckets column L",Lines that would stop matching MES if age were counted from the billing date,fileBucketsFromBillingVsMes,finance,18
+TC-262,Real file,"End to end against MES's own files, not made up input",Tenants read from Finance AR Download,fileAccounts,finance,5
+TC-263,Real file,"End to end against MES's own files, not made up input",Charge lines read from Finance AR Download,fileLines,finance,173
+TC-264,Real file,"End to end against MES's own files, not made up input",Billing runs in Finance AR Download,fileCycles,finance,28
+TC-265,Real file,"End to end against MES's own files, not made up input",Manager reports built from it,fileManagers,finance,3
+TC-266,Real file,"End to end against MES's own files, not made up input","Its header carries no as-of row, so the date is recovered",fileDataDate,finance,2026-08-17
+TC-267,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Nobody has been reminded before the month starts,monthReminded,0,0
+TC-268,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 7th reminds everyone reachable and owing,monthReminded,7,4
+TC-269,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Running the 7th again does not remind anyone twice,monthRemindedTwice,7,4
+TC-270,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th charges the fee to everyone not on GIRO,monthCharged,16,75
+TC-271,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",GIRO tenants are held back from that fee,monthHeld,16,6
+TC-272,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 21st sends the final notice,monthFinalised,21,4
+TC-273,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant marked paid drops out of the rest of the month,monthPaidDrops,,true
+TC-274,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",A tenant who promised is held off the final notice,monthPromisedDrops,,true
+TC-275,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The same file run twice produces the same month,monthDeterministic,,true
+TC-276,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st","The 7th, 4th and 16th are all upload days",monthUploadDays,,true
+TC-277,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",The 16th can be sent to a chosen subset of managers,monthRmChoice,2,2
+TC-278,The month,"Flow tab cycle: the 1st, 4th, 7th, 15th, 16th and 21st",Choosing no manager is refused rather than silently skipped,monthRmNoneBlocked,,true
+TC-279,The month,Raman asked for simulations rather than production: real client emails,Nothing can be sent for real,sendingDisabled,,true
+TC-280,The month,Raman asked for simulations rather than production: real client emails,No mail transport is imported anywhere,noMailer,,true
+TC-281,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",The report dates itself from its own lines,newAsOf,,2026-09-15
+TC-282,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Every charge line is read,newLines,,31
+TC-283,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen","Customers become accounts, split by dormitory",newAccounts,,11
+TC-284,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Nothing in it is rejected as an error,newErrors,,0
+TC-285,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Our figures agree with its own subtotals,newSubtotalsDisagreeing,,0
+TC-286,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",Separate billing runs found in one report,newBillingRuns,,22
+TC-287,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",All four dormitories are represented,newDormitories,,"JPD1,JPD2,BSD,LEO"
+TC-288,New data,"A generated report the code has never seen, built by scripts/build-test-data.mts with the billing dates chosen",One manager report per sales rep,newManagers,,3
+TC-289,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-09-01, due 2026-09-16: age -1, so Current",newBucketOn,2026-09-01,Current
+TC-290,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is -1,newAgeOn,2026-09-01,-1
+TC-291,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-31, due 2026-09-15: age 0, so Current",newBucketOn,2026-08-31,Current
+TC-292,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 0,newAgeOn,2026-08-31,0
+TC-293,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-16, due 2026-08-31: age 15, so Current",newBucketOn,2026-08-16,Current
+TC-294,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 15,newAgeOn,2026-08-16,15
+TC-295,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-08-15, due 2026-08-30: age 16, so 30 days",newBucketOn,2026-08-15,30 days
+TC-296,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 16,newAgeOn,2026-08-15,16
+TC-297,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-17, due 2026-08-01: age 45, so 30 days",newBucketOn,2026-07-17,30 days
+TC-298,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 45,newAgeOn,2026-07-17,45
+TC-299,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-07-16, due 2026-07-31: age 46, so 60 days",newBucketOn,2026-07-16,60 days
+TC-300,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 46,newAgeOn,2026-07-16,46
+TC-301,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-17, due 2026-07-02: age 75, so 60 days",newBucketOn,2026-06-17,60 days
+TC-302,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 75,newAgeOn,2026-06-17,75
+TC-303,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-06-16, due 2026-07-01: age 76, so 90 days",newBucketOn,2026-06-16,90 days
+TC-304,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 76,newAgeOn,2026-06-16,76
+TC-305,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-18, due 2026-06-02: age 105, so 90 days",newBucketOn,2026-05-18,90 days
+TC-306,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 105,newAgeOn,2026-05-18,105
+TC-307,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2026-05-17, due 2026-06-01: age 106, so More than 90 days",newBucketOn,2026-05-17,More than 90 days
+TC-308,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 106,newAgeOn,2026-05-17,106
+TC-309,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary","Billed 2025-07-27, due 2025-08-11: age 400, so More than 90 days",newBucketOn,2025-07-27,More than 90 days
+TC-310,New data,"Formula tab bucket, checked on a generated report where the billing date was chosen to land the age exactly on a boundary",And the file's own age for that line is 400,newAgeOn,2025-07-27,400
+TC-311,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed on the report date itself (2026-09-15),newStageOn,2026-09-15,within credit
+TC-312,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 14 days ago: the last day inside credit (2026-09-01),newStageOn,2026-09-01,within credit
+TC-313,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 15 days ago: the first day past it (2026-08-31),newStageOn,2026-08-31,past 14 days
+TC-314,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed exactly 30 days ago: on the second deadline (2026-08-16),newStageOn,2026-08-16,past 14 days
+TC-315,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed 31 days ago: the first day past the second deadline (2026-08-15),newStageOn,2026-08-15,past 30 days
+TC-316,New data,"AR Collections Cycle: 14 calendar days credit, then 30, counted from the billing date",Billed after the report date (2026-09-20),newStageOn,2026-09-20,not yet due
+TC-317,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Occupancy Fee Charges for the month""",newTypeOf,Occupancy Fee Charges for the month,Occupancy Fee
+TC-318,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Stamp Duty""",newTypeOf,Stamp Duty,Stamp Duty
+TC-319,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Quarterly Charges for Season Parking of vehicl""",newTypeOf,Quarterly Charges for Season Parking of vehicl,Season Parking
+TC-320,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""ONEFM maintenance works for the quarter""",newTypeOf,ONEFM maintenance works for the quarter,1FM Maintenance
+TC-321,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee for Rejected Giro - 02-JUL-26""",newTypeOf,Admin Fee for Rejected Giro - 02-JUL-26,Rejected GIRO Fee
+TC-322,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Admin Fee For Late Payment""",newTypeOf,Admin Fee For Late Payment,Late Payment Fee
+TC-323,New data,"Flow tab: group by SD/PF/1FM/LP/SD/RM, on the generated report","A line reading ""Security Deposit - REFUNDABLE""",newTypeOf,Security Deposit - REFUNDABLE,Security Deposit
+TC-324,New data,Jacqueline's rule: GIRO clients come off the fee listing,Tenants identified as paying by GIRO,newGiro,,2
+TC-325,New data,Repeat GIRO failures are flagged as defaulters,Tenants who bounced more than once,newDefaulters,,1
+TC-326,New data,Raman 14 Sep: the deposit comes from the Security Deposit lines,Tenants holding a deposit,newDeposits,,1
+TC-327,New data,"A deposit offset against arrears is spent, not held",Tenants whose deposit has gone,newDepositsOffset,,1
+TC-328,New data,"Raman: ""one client may have more than one email""",A tenant with three addresses gets all three,newAddressesFor,DORM-9005,3
+TC-329,New data,"Raman: ""one client may have more than one email""",A display name is stripped and the address kept,newAddressesFor,DORM-9002,2
+TC-330,New data,Tenants with no address go to Send By Hand,Accounts that can be emailed at all,newWithAddress,,9
+TC-331,New data,"An account is company plus dormitory, so one company can be two",The same company's balance at its first dormitory,newAccountTotal,DORM-9010|JPD1,10100.00
+TC-332,New data,"An account is company plus dormitory, so one company can be two",And its separate balance at the second,newAccountTotal,DORM-9010|BSD,3300.00
+TC-333,New data,"MES note: 1FM = Prefix ""DORMFM""",A 1FM invoice and its VAT line both land on the 1FM tab,newTabLines,1FM,2
+TC-334,New data,Flow tab: a Parking Fee tab,"A parking line, which no MES export has ever contained",newTabLines,PF,1
+TC-335,New data,Flow tab: a Late Payment tab,The $100 fee already raised,newTabLines,LP,1
+TC-336,New data,Flow tab: a Stamp Duty tab,"Stamp duty, which MES categorise as Reimbursement",newTabLines,SD-STAMP,1
+TC-337,New data,"Flow tab: Show by Dorm, from the document number",A 1FM document number places its line in JPD2,newDormOf,JPD2FM/5501,JPD2
+TC-338,New data,"Flow tab: Show by Dorm, from the document number",A credit note number places its line in JPD1,newDormOf,JPD1CN/0091,JPD1

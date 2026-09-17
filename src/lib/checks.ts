@@ -32,6 +32,7 @@ import { revenueType, isOneFm } from "./revenue-rules.ts";
 import { riskExposure, depositsFromLedger, recurringDefaulters } from "./reports.ts";
 import { addDays, deadlineFor, renderLetter } from "./letters.ts";
 import { emailAddresses } from "./emails.ts";
+import { longestStreak, monthsBetween } from "./chased.ts";
 import { canOpen, can, type Role, type Capability } from "./auth.ts";
 import { depositsOffset, giroEnrolled } from "./reports.ts";
 import type { ParsedAgingDetail } from "./aging-detail.ts";
@@ -293,6 +294,14 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
     })) as unknown as Parameters<typeof recurringDefaulters>[0];
     const rows = recurringDefaulters(lines, [], 0);
     return String(rows[0]?.consecutiveMonths ?? 0);
+  },
+
+  /* how many cycles in a row a client has been round */
+  longestStreak: (i) =>
+    String(longestStreak(i.trim() === "" ? [] : i.split("|"))),
+  monthsBetween: (i) => {
+    const [from, to] = i.split("|");
+    return String(monthsBetween(from!, to!));
   },
 
   withoutCode: (i) => {
