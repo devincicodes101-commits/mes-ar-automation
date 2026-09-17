@@ -31,7 +31,6 @@ import {
 import {
   Card,
   CardHeader,
-  EmptyState,
   StatTile,
   StatusBadge,
   ScrollPanel,
@@ -58,16 +57,7 @@ export default function ChasedPage() {
   const worst = rows[0] ?? null;
 
   if (rows.length === 0) {
-    return (
-      <EmptyState
-        title="Nobody has been round the whole cycle and is still owing"
-        body={
-          ds.accounts.length === 0
-            ? "Upload an AR report to see this."
-            : "A client appears here once the $100 late payment fee has been raised against them and they still owe money. Nobody in this report qualifies, which is the good outcome."
-        }
-      />
-    );
+    return <Empty hasUpload={ds.accounts.length > 0} />;
   }
 
   return (
@@ -223,5 +213,131 @@ function Row({ row }: { row: ChasedRow }) {
         ) : null}
       </td>
     </tr>
+  );
+}
+
+/* ------------------------------------------------------------ nothing yet ---
+ * An empty screen teaches nobody what it is for.
+ *
+ * So the empty state carries three worked rows rather than a sentence. They
+ * are invented, and labelled as invented, because a collections tool showing
+ * plausible client names and amounts that turn out to be decoration is worse
+ * than showing nothing: somebody eventually acts on one.
+ *
+ * The three are chosen to show the distinction the screen exists to make.
+ * Same total, same money, three different conversations.
+ */
+const EXAMPLES = [
+  {
+    name: "A client who has never paid on time",
+    cycles: 7,
+    inARow: 7,
+    months: ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07"],
+    owed: 16018.85,
+    kind: "chronic" as const,
+  },
+  {
+    name: "A client who slipped, recovered, then slipped again",
+    cycles: 5,
+    inARow: 4,
+    months: ["2026-02", "2026-03", "2026-04", "2026-05", "2026-07"],
+    owed: 14439.36,
+    kind: "chronic" as const,
+  },
+  {
+    name: "A client who forgets occasionally",
+    cycles: 4,
+    inARow: 2,
+    months: ["2026-01", "2026-04", "2026-06", "2026-07"],
+    owed: 6572.01,
+    kind: "repeat" as const,
+  },
+];
+
+function Empty({ hasUpload }: { hasUpload: boolean }) {
+  return (
+    <div className="space-y-5">
+      <Card className="border-l-2 border-l-[var(--accent)] px-5 py-4">
+        <h2 className="text-sm font-medium text-ink">
+          {hasUpload
+            ? "Nobody in this report has been round the whole cycle and is still owing"
+            : "Upload an AR report to fill this screen"}
+        </h2>
+        <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-secondary">
+          A client appears here once MES&rsquo;s $100 late payment fee has been
+          raised against them and they still owe money. The fee goes out on the
+          16th, only to clients already more than fourteen days late, so one fee
+          is one cycle that ran to the end unpaid.
+          {hasUpload
+            ? " Nothing in this report qualifies, which is the good outcome."
+            : ""}
+        </p>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="What it looks like when there is something to show"
+          hint="Invented rows, to show what the screen is for. None of this is your data."
+          right={<StatusBadge kind="neutral" label="example only" />}
+        />
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] border-collapse text-sm opacity-70">
+            <thead>
+              <tr className="border-b border-line-grid text-left">
+                <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">Client</th>
+                <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">How often</th>
+                <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Cycles</th>
+                <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">In a row</th>
+                <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Months the cycle completed</th>
+                <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">Still owed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EXAMPLES.map((e) => (
+                <tr key={e.name} className="border-b border-line-hair last:border-0">
+                  <td className="px-5 py-3 italic text-ink-secondary">{e.name}</td>
+                  <td className="px-3 py-3">
+                    <StatusBadge
+                      kind={e.kind === "chronic" ? "critical" : "warning"}
+                      label={SEVERITY_LABEL[e.kind]}
+                    />
+                  </td>
+                  <td className="tabular px-3 py-3 text-right text-ink-secondary">{e.cycles}</td>
+                  <td className="tabular px-3 py-3 text-right">
+                    {e.inARow >= 3 ? (
+                      <b className="text-[var(--critical)]">{e.inARow}</b>
+                    ) : (
+                      <span className="text-ink-secondary">{e.inARow}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="flex flex-wrap gap-1">
+                      {e.months.map((m) => (
+                        <span
+                          key={m}
+                          className="rounded border border-line-hair px-1.5 py-0.5 text-[10px] text-ink-secondary"
+                        >
+                          {shortMonth(m)}
+                        </span>
+                      ))}
+                    </span>
+                  </td>
+                  <td className="tabular px-5 py-3 text-right text-ink">
+                    {formatSgd(e.owed)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
+          The first two have been round the cycle a similar number of times and
+          are not the same problem. Seven months unbroken is a client who has
+          never paid on time this year. Four months scattered is one who
+          forgets. That is the distinction this screen exists to make, and it is
+          why the months are named rather than counted.
+        </div>
+      </Card>
+    </div>
   );
 }
