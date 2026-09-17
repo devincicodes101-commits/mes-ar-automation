@@ -5,6 +5,7 @@ import {
   billingCycles,
   cycleStage,
   CREDIT_DAYS,
+  type BillingCycle,
   type BillingLine,
 } from "@/lib/billing-cycles";
 import { formatSgd } from "@/lib/data";
@@ -72,6 +73,7 @@ export function BillingCycles({
               <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">Billed on</th>
               <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Payment due</th>
               <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Where it stands</th>
+              <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Who it covers</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Tenants</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Charges</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Still owed</th>
@@ -100,6 +102,9 @@ export function BillingCycles({
                           : `${stage}${c.ageDays >= 0 ? ` · ${c.ageDays}d` : ""}`
                       }
                     />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <Who cycle={c} />
                   </td>
                   <td className="tabular px-3 py-2.5 text-right text-ink-secondary">{c.tenants}</td>
                   <td className="tabular px-3 py-2.5 text-right text-ink-secondary">{c.lines}</td>
@@ -132,5 +137,47 @@ export function BillingCycles({
         ) : null}
       </div>
     </Card>
+  );
+}
+
+/* ----------------------------------------------------------------- who ---
+ * A row reading "2 tenants · 7,400.00" cannot be checked against anything.
+ * The names can: open the spreadsheet, filter column E on that billing date,
+ * and the same companies should be there.
+ *
+ * Most runs are one company, so most rows simply name it. MES's August export
+ * has 190 of its 315 runs that way. The largest has 166 companies in it, which
+ * is why this summarises rather than listing: a cell that tall would push the
+ * row it belongs to off the screen.
+ */
+function Who({ cycle }: { cycle: BillingCycle }) {
+  const { who, properties } = cycle;
+  if (who.length === 0) return <span className="text-ink-muted">&mdash;</span>;
+
+  const names =
+    who.length === 1
+      ? who[0]!.name
+      : who.length === 2
+        ? `${who[0]!.name} and ${who[1]!.name}`
+        : `${who[0]!.name} and ${who.length - 1} others`;
+
+  const where =
+    properties.length === 0
+      ? null
+      : properties.length === 1
+        ? properties[0]
+        : `${properties.length} dormitories`;
+
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-2">
+      <span className="text-ink-secondary" title={who.map((w) => w.name).join(", ")}>
+        {names}
+      </span>
+      {where ? (
+        <span className="text-[11px] uppercase tracking-wide text-ink-muted">
+          {where}
+        </span>
+      ) : null}
+    </span>
   );
 }

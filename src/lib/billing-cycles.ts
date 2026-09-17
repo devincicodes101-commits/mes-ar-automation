@@ -1,4 +1,5 @@
-import type { Invoice } from "./types";
+import type { Invoice, PropertyCode } from "./types";
+import { round2 } from "./aging-detail.ts";
 
 /**
  * What is outstanding, grouped by the billing date it came from.
@@ -51,6 +52,19 @@ export interface BillingCycle {
   overdue: number;
   /** Days between the billing date and the report date. Negative is future. */
   ageDays: number | null;
+
+  /*
+   * Who the run covers, most owed first.
+   *
+   * A row saying "2 tenants, 7,400" cannot be checked against anything. The
+   * names can: somebody can open the spreadsheet, filter on that billing date,
+   * and see the same companies. Most runs are one company anyway, and MES's
+   * August export has 190 of its 315 runs that way.
+   */
+  who: { name: string; customerCode: string | null; property: PropertyCode | null; owed: number }[];
+
+  /** The dormitories this run touches, in the order they were met. */
+  properties: PropertyCode[];
 }
 
 function addDays(iso: string, days: number): string {
@@ -94,7 +108,29 @@ function daysBetween(from: string, to: string): number | null {
  * to satisfy a type, or casting at every call site, which is the same thing
  * with the check switched off.
  */
-export type BillingLine = Omit<Invoice, "id"> & { id?: string };
+export type BillingLine = Omit<Invoice, "id"> & {
+  id?: string;
+  /** Which dormitory the line belongs to, where the parser worked one out. */
+  property?: PropertyCode;
+  customerCode?: string;
+};
+
+/** One entry per company in a run, biggest balance first. */
+function whoIsIn(lines: readonly BillingLine[]) {
+  const by = new Map<string, { name: string; customerCode: string | null; property: PropertyCode | null; owed: number }>();
+  for (const l of lines) {
+    const key = l.customerCode ?? l.companyName;
+    const at = by.get(key) ?? {
+      name: l.companyName,
+      customerCode: l.customerCode ?? null,
+      property: l.property ?? null,
+      owed: 0,
+    };
+    at.owed = round2(at.owed + l.openBalance);
+    by.set(key, at);
+  }
+  return Array.from(by.values()).sort((a, b) => b.owed - a.owed);
+}
 
 export function billingCycles(
   invoices: readonly BillingLine[],
@@ -150,6 +186,10 @@ export function billingCycles(
       finalBy: addDays(billedOn, FINAL_CREDIT_DAYS),
       lines: lines.length,
       tenants: new Set(lines.map((l) => l.companyName)).size,
+      who: whoIsIn(lines),
+      properties: Array.from(
+        new Set(lines.map((l) => l.property).filter(Boolean) as PropertyCode[]),
+      ),
       total: lines.reduce((s, l) => s + l.openBalance, 0),
       overdue: lines.reduce((s, l) => s + (isOverdue(l) ? l.openBalance : 0), 0),
       ageDays,

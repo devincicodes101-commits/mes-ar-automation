@@ -130,6 +130,20 @@ add("Billing runs", RAMAN, "A run inside its credit period owes nothing overdue"
     "cycleOverdue", "2026-08-20:100", "0.00")
 add("Billing runs", RAMAN, "A run past 14 days is overdue in full",
     "cycleOverdue", "2026-07-01:100", "100.00")
+WHO = ("A billing run names the companies it covers, so a row can be checked "
+       "against the spreadsheet instead of taken on trust")
+add("Billing runs", WHO, "A run with one company names it",
+    "cycleWho", "2026-07-15:100", "TENANT 0 PTE LTD")
+add("Billing runs", WHO, "A run with two names both",
+    "cycleWho", "2026-07-15:100|2026-07-15:50", "TENANT 0 PTE LTD and TENANT 1 PTE LTD")
+add("Billing runs", WHO, "A run with three summarises rather than listing",
+    "cycleWho", "2026-07-15:100|2026-07-15:50|2026-07-15:25",
+    "TENANT 0 PTE LTD and 2 others")
+add("Billing runs", WHO, "The company owed the most is named first",
+    "cycleWhoFirst", "2026-07-15:10|2026-07-15:999", "TENANT 1 PTE LTD")
+add("Billing runs", WHO, "Companies are counted once however many lines they have",
+    "cycleWhoCount", "2026-07-15:10|2026-07-15:20|2026-07-15:30", "3")
+
 ADHOC = 'Flow tab: "Adhoc billing can happen on any other dates eg. 21 or 24th"'
 add("Billing runs", ADHOC, "A run billed on the 21st is treated like any other",
     "stage", "2026-07-21|%s" % REPORT, "past 30 days")

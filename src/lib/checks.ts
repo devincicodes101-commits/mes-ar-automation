@@ -195,6 +195,17 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
   cycleFirst: (i) => String(billingCycles(lines(i), null).cycles[0]?.billedOn),
   cycleUndated: (i) => String(billingCycles(lines(i), null).undated),
   cycleUndatedTotal: (i) => billingCycles(lines(i), null).undatedTotal.toFixed(2),
+  cycleWho: (i) => {
+    const w = billingCycles(lines(i), null).cycles[0]?.who ?? [];
+    if (w.length === 0) return "none";
+    if (w.length === 1) return w[0]!.name;
+    if (w.length === 2) return `${w[0]!.name} and ${w[1]!.name}`;
+    return `${w[0]!.name} and ${w.length - 1} others`;
+  },
+  cycleWhoFirst: (i) =>
+    billingCycles(lines(i), null).cycles[0]?.who[0]?.name ?? "none",
+  cycleWhoCount: (i) =>
+    String(billingCycles(lines(i), null).cycles[0]?.who.length ?? 0),
   cycleOverdue: (i) =>
     (billingCycles(lines(i), "2026-08-28").cycles[0]?.overdue ?? 0).toFixed(2),
 
