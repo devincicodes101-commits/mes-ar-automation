@@ -953,5 +953,30 @@ check("the two clocks are labelled differently on screen",
       read("src/components/BillingCycles.tsx").includes("Credit clock, from billing") &&
         read("src/components/BillingCycles.tsx").includes("Of that, past due"), true);
 
+
+/* -------------------------------------- a month where everybody paid ----- */
+
+console.log("\nA report with nothing in it is not automatically a broken one");
+
+/*
+ * It used to be. A report with no charge lines was rejected outright, which
+ * meant the one month MES finally collected everything would be the month they
+ * could not upload. The best outcome their whole process aims at was the one
+ * the system refused to record.
+ *
+ * It is still refused when the file does not look like an AR export at all,
+ * because the other way to get an empty report is the wrong file or an export
+ * that failed, and importing that would replace a month of real figures with
+ * nothing.
+ */
+const AGING = lib("aging-detail.ts");
+
+check("an empty report that looks like an AR export is a warning",
+      AGING.includes("every tenant has paid and there is nothing to chase"), true);
+check("and one that does not is still an error",
+      AGING.includes("this does not look like an AR"), true);
+check("the two are told apart by the header and the date",
+      AGING.includes("headerAt !== -1 && asOf !== null"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

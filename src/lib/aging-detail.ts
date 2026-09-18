@@ -838,11 +838,36 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   }
 
   if (invoices.length === 0) {
+    /*
+     * A report with no charge lines is two completely different things, and
+     * they need opposite responses.
+     *
+     * It is the wrong file, or an export that failed, in which case importing
+     * it would replace a month of real figures with nothing.
+     *
+     * Or every tenant has paid, which is the best outcome MES's whole process
+     * is aiming at, and the system used to refuse to record it. That is worse
+     * than it sounds: the month they finally collect everything would be the
+     * one month they could not upload.
+     *
+     * The two are told apart by whether the file looks like an AR export at
+     * all. A header row we recognised and a date we could read mean somebody
+     * ran the right report and it came back empty. Anything else is a file
+     * that was never this report, and stays an error.
+     */
+    const looksLikeAnArExport = headerAt !== -1 && asOf !== null;
+
     problems.push({
       sheet: clean(sheetName),
       row: null,
-      severity: "error",
-      message: "No invoice rows were found in this workbook.",
+      severity: looksLikeAnArExport ? "warning" : "error",
+      message: looksLikeAnArExport
+        ? "This report has no outstanding charges in it. If that is right, " +
+          "every tenant has paid and there is nothing to chase. If it is not, " +
+          "check the export ran over the right period before applying it, " +
+          "because storing this will replace whatever is on screen now."
+        : "No invoice rows were found, and this does not look like an AR " +
+          "export: the header row or the report date is missing. Check the file.",
     });
   }
 

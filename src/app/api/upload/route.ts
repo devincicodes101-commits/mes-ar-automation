@@ -128,8 +128,14 @@ export async function POST(request: Request) {
     /*
      * The one failure worth naming, because its message does not say what to
      * do. PostgREST reports a signature it cannot find as PGRST202, which is
-     * what a database that has not had 0011 applied returns for every upload:
-     * the function is there, but the seven argument version is not.
+     * what a database returns when the code is ahead of its migrations: the
+     * function is there, but not with the arguments this build sends.
+     *
+     * It has happened twice, and both times the upload looked like it worked:
+     * the browser had already parsed the file and put the figures on screen,
+     * so the only sign was a line saying it had not been saved. The message
+     * therefore names the migration rather than describing the problem, so
+     * somebody reading it once knows exactly what to run.
      */
     const missingSignature =
       error.code === "PGRST202" || /import_ar_report/.test(error.message);
@@ -140,7 +146,8 @@ export async function POST(request: Request) {
         error: "The database refused the import, so nothing was stored.",
         detail: error.message,
         hint: missingSignature
-          ? "This database may not have 0011_rules_version.sql applied yet. " +
+          ? "This database is behind the code. Run the migrations that have " +
+            "not been applied yet, newest last: 0017_import_contacts.sql. " +
             "Run it in the Supabase SQL editor and upload again."
           : error.hint ?? null,
       },

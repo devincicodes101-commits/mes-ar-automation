@@ -146,6 +146,24 @@ const OCTOBER: Line[] = [
     expect: "1FM, recognised from the BSDFM prefix. Its own revenue tab." },
 ];
 
+/* ------------------------------------------------------------ month three */
+
+/*
+ * Everybody has paid.
+ *
+ * A real export in that situation has no charge lines at all. NetSuite lists
+ * what is outstanding and nothing is, so the file keeps its header, its date
+ * and a Grand Total of zero and has nothing in between. Those three are what
+ * tell the system this is a real report that came back empty rather than the
+ * wrong file, which is a distinction worth having: one is the best month MES
+ * could have and the other would wipe a month of real figures.
+ *
+ * Worth existing because it is the outcome the whole process aims at, and
+ * until this file was written the system refused to record it.
+ */
+const NOV = "2026-11-30";
+const NOVEMBER: Line[] = [];
+
 /* ------------------------------------------------------------ the workbook */
 
 const HEADER = [
@@ -228,10 +246,29 @@ mkdirSync(OUT, { recursive: true });
 for (const [date, lines, name] of [
   [SEPT, SEPTEMBER, "Test 1 - AR Report September.xlsx"],
   [OCT, OCTOBER, "Test 2 - AR Report October.xlsx"],
+  [NOV, NOVEMBER, "Test 3 - AR Report November - everyone paid.xlsx"],
 ] as const) {
   const { wb, said, count, grand } = build(date, lines);
-  writeFileSync(path.join(OUT, name), XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
   console.log(`\n${name}    as of ${date}`);
+
+  /*
+   * A file open in Excel cannot be overwritten on Windows, and stopping there
+   * would mean the other two never get written. Reported and skipped instead,
+   * because the usual reason one is locked is that somebody is looking at it,
+   * which is not a reason to withhold the rest.
+   */
+  try {
+    writeFileSync(path.join(OUT, name), XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+  } catch (e) {
+    const busy = (e as { code?: string }).code === "EBUSY";
+    console.log(
+      busy
+        ? "  NOT WRITTEN. It is open in Excel. Close it and run this again."
+        : `  NOT WRITTEN. ${(e as Error).message}`,
+    );
+    continue;
+  }
+
   for (const s of said) console.log(s);
   console.log(`  ${" ".repeat(50)} ${String(count).padStart(5)} lines ${grand.toFixed(2).padStart(12)}`);
 }
