@@ -195,17 +195,21 @@ export function MailboxStrip() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {status.googleReady ? (
-          <button
-            type="button"
-            disabled={busy === "connect"}
-            onClick={() => void connect()}
-            className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:opacity-40"
-          >
-            {busy === "connect" ? <Spinner /> : <GoogleMark />}
-            {mine ? "Reconnect Google" : "Connect Google"}
-          </button>
-        ) : null}
+        {/*
+          Shown whether or not Google is set up yet. Hiding it made the feature
+          look like it did not exist, when in fact it was one missing setting
+          away. Pressing it while unconfigured says exactly what is missing,
+          which is what somebody in that position needs to hear.
+        */}
+        <button
+          type="button"
+          disabled={busy === "connect"}
+          onClick={() => void connect()}
+          className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:opacity-40"
+        >
+          {busy === "connect" ? <Spinner /> : <GoogleMark />}
+          {mine ? "Reconnect Google" : "Sign in with Google"}
+        </button>
         <a
           href="/settings"
           className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink hover:border-line-strong"
@@ -388,12 +392,12 @@ export function MailAccounts() {
       <div className="flex flex-wrap items-center gap-3 border-t border-line-hair px-5 py-4">
         <button
           type="button"
-          disabled={busy === "connect" || !status?.googleReady}
+          disabled={busy === "connect"}
           onClick={() => void connect()}
           className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
-          {accounts.some((a) => a.isMine) ? "Reconnect my Google account" : "Connect my Google account"}
+          {accounts.some((a) => a.isMine) ? "Reconnect my Google account" : "Sign in with Google"}
         </button>
 
         <div className="flex flex-1 flex-wrap items-center gap-2">

@@ -54,15 +54,24 @@ export interface GoogleConfig {
 export function googleConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): GoogleConfig | { error: string } {
+  const base = (env.APP_URL ?? env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
   const clientId = (env.GOOGLE_CLIENT_ID ?? "").trim();
   const clientSecret = (env.GOOGLE_CLIENT_SECRET ?? "").trim();
-  const base = (env.APP_URL ?? env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
 
   if (!clientId || !clientSecret) {
+    /*
+     * Written for the person pressing the button, not for whoever wrote the
+     * code. They are almost never the same person, and "not configured" sends
+     * somebody looking in the app for a setting that does not live there.
+     */
     return {
       error:
-        "Google sign in is not set up. Create an OAuth client in Google Cloud " +
-        "and set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+        "Google sign in has not been set up for this system yet, so there is " +
+        "nothing to sign in to. Somebody has to create an OAuth client at " +
+        "console.cloud.google.com, add " +
+        `${base || "<the site address>"}/api/mail/callback as an authorised ` +
+        "redirect address, and put the client id and secret into the " +
+        "environment as GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
     };
   }
   if (!base) {
