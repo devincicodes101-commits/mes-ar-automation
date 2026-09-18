@@ -862,5 +862,43 @@ check("and the mapper sends it to the import",
 check("no list given means null, not an empty list",
       code("src/lib/to-database.ts").includes("p_contacts: contacts"), true);
 
+
+/*
+ * An empty database must read as empty.
+ *
+ * The screens render from local storage first and are replaced only by a good
+ * response, which is right when the server cannot be reached and was wrong
+ * when it replied "nothing stored": the figures stayed up after the rows
+ * behind them were gone. Somebody who clears the database and still sees
+ * 2.78m has been told the opposite of the truth.
+ */
+const DS = code("src/lib/dataset.ts");
+
+check("a server holding no report clears an uploaded copy",
+      /if \(active\.source === "uploaded"\) commit\(EMPTY\)/.test(DS), true);
+check("and empty is a state of its own, not a kind of sample",
+      DS.includes('source: "empty"'), true);
+check("neither sample nor empty is kept in the browser",
+      /next\.source === "sample" \|\| next\.source === "empty"/.test(DS), true);
+
+/*
+ * The distinction that matters: a server that cannot be reached must still
+ * leave the figures up, because two people working from their own copy is the
+ * situation the database was introduced to end.
+ */
+/*
+ * Checked as behaviour rather than as a literal, because the code reaches it
+ * through a ternary and an earlier version of this test looked for a string
+ * that was never written.
+ *
+ * A failure reports itself and leaves the figures alone. Only the explicit
+ * "nothing stored" answer clears them, and EMPTY must appear exactly once for
+ * that reason.
+ */
+check("a server that cannot be reached says so",
+      /serverError: body\.error \?\? `The server answered/.test(DS), true);
+check("and leaves the figures alone",
+      (DS.match(/commit\(EMPTY\)/g) ?? []).length, 1);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

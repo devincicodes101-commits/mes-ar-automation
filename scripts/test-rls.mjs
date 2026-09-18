@@ -67,6 +67,71 @@ for (const u of USERS) {
     .eq("id", data.user.id);
 }
 
+/*
+ * A fixture of its own, rather than whatever happens to be in the database.
+ *
+ * This test used to read a real tenant and a real contact, which meant it
+ * passed only while somebody had uploaded a report and failed the moment the
+ * data was cleared. A security test that depends on unrelated data is a test
+ * you cannot trust the result of: a pass might mean the rules hold, or it
+ * might mean nobody had emptied the tables recently.
+ *
+ * So it creates one tenant, one contact and one snapshot, proves the rules
+ * against those, and removes them at the end. The fixture is fenced behind a
+ * zz-rls- id that no report can produce, the same fence the other live tests
+ * use.
+ */
+const FIXTURE = "zz-rls-tenant";
+const FIXTURE_CODE = "ZZ-RLS-1";
+
+await admin.from("tenants").upsert({
+  id: FIXTURE,
+  customer_code: FIXTURE_CODE,
+  company_name: "ZZ RLS FIXTURE PTE LTD",
+  property_code: "BSD",
+  // Owned by rm1, so the manager scoping has something real to be scoped to.
+  rm_key: "rm1",
+  first_seen: "1999-01-01",
+  last_seen: "1999-01-01",
+});
+
+await admin.from("contacts").upsert(
+  {
+    customer_code: FIXTURE_CODE,
+    company_name: "ZZ RLS FIXTURE PTE LTD",
+    email: "zz-rls@example.com",
+  },
+  { onConflict: "customer_code,email" },
+);
+
+/*
+ * A month's figures for the fixture tenant, because the snapshot policies are
+ * checked separately from the tenant ones and a tenant with no snapshot proves
+ * nothing about them. Dated 1999, which is twenty-seven years before MES's
+ * oldest line, so it cannot be confused with anything real.
+ */
+const { data: fixtureUpload } = await admin
+  .from("uploads")
+  .insert({ period: "1999-01-01", report_date: "1999-01-04", ar_filename: "rls fixture" })
+  .select("id")
+  .single();
+
+await admin.from("account_snapshots").insert({
+  tenant_id: FIXTURE,
+  upload_id: fixtureUpload?.id ?? null,
+  report_date: "1999-01-04",
+  period: "1999-01-01",
+  status: "live",
+  bucket_current: 100,
+  bucket_30: 0,
+  bucket_60: 0,
+  bucket_90: 0,
+  bucket_90_plus: 0,
+  total: 100,
+  is_onefm: false,
+  late_fee_count: 0,
+});
+
 // Ground truth, read with the service key which bypasses every policy.
 const { count: totalAccounts } = await admin
   .from("tenants")
@@ -139,7 +204,7 @@ for (const u of created) {
   const { error: writeErr } = await db
     .from("calls")
     .insert({
-      tenant_id: "dorm-166-jpd2",
+      tenant_id: FIXTURE,
       period: "2026-05-01",
       outcome: "no_answer",
       reached: "rls test",
@@ -181,6 +246,12 @@ for (const u of created) {
 
 console.log("cleaning up");
 await admin.from("calls").delete().eq("reached", "rls test");
+await admin.from("contacts").delete().eq("customer_code", FIXTURE_CODE);
+// The snapshot and its invoices cascade from the upload, and the tenant is
+// removed last because everything else points at it.
+if (fixtureUpload?.id) await admin.from("uploads").delete().eq("id", fixtureUpload.id);
+await admin.from("account_snapshots").delete().eq("tenant_id", FIXTURE);
+await admin.from("tenants").delete().eq("id", FIXTURE);
 await admin.from("audit_log").delete().eq("action", "RLS test");
 await admin.from("audit_log").delete().eq("action", "tampered");
 for (const u of created) await admin.auth.admin.deleteUser(u.id);

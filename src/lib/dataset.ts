@@ -27,7 +27,15 @@ export interface Manager {
 }
 
 export interface Dataset {
-  source: "sample" | "uploaded";
+  /*
+   * "empty" is the state after the database has been cleared, and it is not
+   * the same as "sample". Sample data is what a fresh install shows so the app
+   * is not a blank mystery before anybody has uploaded anything. Empty is the
+   * server saying, authoritatively, that it holds no report. Showing sample
+   * figures then would put numbers on screen that no longer exist anywhere,
+   * which is worse than a blank page because it looks like data.
+   */
+  source: "sample" | "uploaded" | "empty";
   label: string;
   asOf: string;
   period: string;
@@ -217,6 +225,24 @@ const SAMPLE: Dataset = {
   managers: (seed as unknown as { managers?: Manager[] }).managers ?? [],
 };
 
+/**
+ * Nothing at all, for when the server says it holds no report.
+ *
+ * Reached by clearing the database, which somebody does when they want to
+ * start again. The screens then read zero everywhere, which is the truth. The
+ * alternative, keeping whatever the browser last saw, meant the figures stayed
+ * on screen after the rows behind them were gone.
+ */
+const EMPTY: Dataset = {
+  source: "empty",
+  label: "No report uploaded yet",
+  asOf: "",
+  period: "",
+  accounts: [],
+  invoices: [],
+  managers: [],
+};
+
 const KEY = "mes-ar-dataset-v1";
 
 let active: Dataset = SAMPLE;
@@ -239,7 +265,11 @@ function commit(next: Dataset) {
   active = next;
   if (typeof window !== "undefined") {
     try {
-      if (next.source === "sample") window.localStorage.removeItem(KEY);
+      // Neither sample nor empty is worth keeping: one is a stand in and the
+      // other is the absence of anything. Both are recomputed on load.
+      if (next.source === "sample" || next.source === "empty") {
+        window.localStorage.removeItem(KEY);
+      }
       else window.localStorage.setItem(KEY, JSON.stringify(next));
     } catch {
       // A large upload can exceed the storage quota. The dataset still works
@@ -318,7 +348,13 @@ export function revertToSample(): void {
  * asked and could not answer, because then two people are looking at two
  * different months and neither of them knows.
  */
-export type DatasetOrigin = "server" | "local" | "sample";
+/*
+ * "empty" is its own answer, not a kind of failure. It means the server was
+ * asked, replied, and holds no report: everything on screen reads zero because
+ * that is what is stored, which is a different situation from the server being
+ * unreachable and needs a different thing said about it.
+ */
+export type DatasetOrigin = "server" | "local" | "sample" | "empty";
 
 export interface DatasetState {
   origin: DatasetOrigin;
@@ -407,12 +443,26 @@ export async function hydrateFromServer(): Promise<void> {
       }
 
       if (!body.dataset) {
-        // Nothing stored yet, which is not an error. Anything already in this
-        // browser stays, because it is better than an empty screen.
+        /*
+         * The server holds no report, and it is authoritative about that.
+         *
+         * This used to keep whatever the browser had, on the reasoning that
+         * something is better than an empty screen. That is right when the
+         * server cannot be reached and wrong here: a reachable server saying
+         * "nothing stored" means the rows are gone, and leaving the figures up
+         * shows numbers that no longer exist anywhere. Somebody who has just
+         * cleared the database is told it worked, rather than being shown the
+         * old totals and left wondering.
+         *
+         * An uploaded copy is therefore dropped. A sample one is left alone,
+         * because sample data is a stand in for having nothing rather than a
+         * claim about what is stored.
+         */
+        if (active.source === "uploaded") commit(EMPTY);
         setState({
           loading: false,
           serverError: null,
-          origin: active.source === "sample" ? "sample" : "local",
+          origin: active.source === "sample" ? "sample" : "empty",
         });
         return;
       }
