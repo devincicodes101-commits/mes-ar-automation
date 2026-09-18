@@ -125,7 +125,7 @@ const EMAIL = {
   id: crypto.randomUUID(),
   accountId: ID,
   companyName: TENANT.company_name,
-  templateId: "first-reminder",
+  templateId: "reminder-7th",
   templateName: "First reminder",
   subject: "Outstanding balance",
   body: "Dear Sir or Madam,\n\nOur records show 12,345.67 outstanding.",
@@ -216,6 +216,25 @@ try {
     rawP !== undefined && rawP.confirmation_sent_at === null,
     `got ${JSON.stringify(rawP)}`,
   );
+
+  /*
+   * Every template the app ships must be a row, or sending it fails outright.
+   *
+   * This is what caught 0013. emails_sent.template_id has a foreign key to
+   * templates, the app ships four, and promise-confirmation was not among the
+   * rows. Section 3 sends that one the moment a promise is recorded, so the
+   * single message whose whole purpose is to be referred to later would have
+   * been the one with no trace of it.
+   */
+  console.log("\nEvery template the app can send is one the database holds");
+
+  const { DEFAULT_TEMPLATES } = await import("../src/lib/store.ts");
+  const rows = await get("templates?select=id");
+  const known = new Set(rows.map((r) => r.id));
+
+  for (const t of DEFAULT_TEMPLATES) {
+    ok(`  ${t.id}`, known.has(t.id), "not in the templates table");
+  }
 
   /* ------------------------------------------------------- and cleans up */
 

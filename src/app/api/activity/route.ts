@@ -180,7 +180,33 @@ export async function POST(request: Request) {
    * whether the first attempt landed, and asking them to check is asking them
    * to do the thing the system is for.
    */
-  const { error } = await db.from(table).upsert(row, { onConflict: "id" });
+  let { error } = await db.from(table).upsert(row, { onConflict: "id" });
+
+  /*
+   * A letter that went out must leave a record, even if its template does not.
+   *
+   * emails_sent.template_id points at the templates table. An id the database
+   * does not hold gets the whole insert rejected, and the send is then a thing
+   * that happened with nothing to show for it. That is the wrong way round:
+   * the tenant has the email either way, and template_name and body are stored
+   * as plain text beside it, so dropping the link costs a join and loses
+   * nothing anybody reads.
+   *
+   * Retried once, only on that constraint, and only for emails. Everything
+   * else that fails a foreign key is a record naming a tenant who does not
+   * exist, which is not something to paper over.
+   */
+  let templateLinkDropped = false;
+  if (
+    error &&
+    table === "emails_sent" &&
+    /emails_sent_template_id_fkey/.test(error.message)
+  ) {
+    templateLinkDropped = true;
+    ({ error } = await db
+      .from(table)
+      .upsert({ ...row, template_id: null }, { onConflict: "id" }));
+  }
 
   if (error) {
     const missingTenant = /foreign key|violates/i.test(error.message);
@@ -198,5 +224,21 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, kind: body.kind });
+  return NextResponse.json({
+    ok: true,
+    kind: body.kind,
+    /*
+     * Said rather than left silent. The send is stored, so this is not a
+     * failure, but a template the database does not hold is worth knowing
+     * about: it means the app and the templates table have drifted apart.
+     */
+    ...(templateLinkDropped
+      ? {
+          note:
+            `The template "${String((body.record as { templateId?: string }).templateId)}" ` +
+            "is not in the database, so the letter was stored without a link " +
+            "to it. Its name and full text were kept.",
+        }
+      : {}),
+  });
 }
