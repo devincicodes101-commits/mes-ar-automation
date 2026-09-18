@@ -443,6 +443,20 @@ export async function hydrateFromServer(): Promise<void> {
 export async function storeDataset(
   d: Dataset,
   fileName: string | null,
+  /*
+   * The contact list, where one was uploaded with the report.
+   *
+   * Left out for a long time, and the omission looked like nothing: the screen
+   * read the file, linked the addresses, showed them, and reported success.
+   * They lived in that one browser until the next load, at which point the
+   * screens fetched contacts from the database and the uploaded ones were
+   * gone.
+   *
+   * Null rather than an empty array when no list was given. Empty would be a
+   * claim that MES have no addresses at all, and there is no case where
+   * uploading an AR report should mean that.
+   */
+  contacts: readonly { customerCode: string; companyName: string; emails: string[] }[] | null = null,
 ): Promise<{ ok: boolean; error?: string; problems?: { what: string; detail: string }[] }> {
   const r = await fetch("/api/upload", {
     method: "POST",
@@ -452,6 +466,7 @@ export async function storeDataset(
       invoices: d.invoices,
       reportDate: d.asOf,
       fileName,
+      contacts,
     }),
   });
 

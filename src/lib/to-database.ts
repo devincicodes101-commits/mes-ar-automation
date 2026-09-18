@@ -79,6 +79,12 @@ export interface DbInvoice {
   open_balance: number;
 }
 
+export interface DbContact {
+  customer_code: string;
+  company_name: string;
+  email: string;
+}
+
 export interface ImportPayload {
   p_report_date: string;
   p_period: string;
@@ -92,6 +98,12 @@ export interface ImportPayload {
    * both stored, or neither is. Requires 0011.
    */
   p_rules_version: string;
+  /*
+   * Null when the officer uploaded only the AR report, which is the normal
+   * case: the contact list changes rarely and the screen says so. Null means
+   * leave the stored contacts alone, not wipe them.
+   */
+  p_contacts: DbContact[] | null;
 }
 
 export interface MappingProblem {
@@ -128,6 +140,7 @@ export function toImportPayload(
   invoices: readonly DetailInvoice[],
   reportDate: string | null,
   fileName: string | null,
+  contacts: readonly { customerCode: string; companyName: string; emails: string[] }[] | null = null,
 ): Mapped {
   const problems: MappingProblem[] = [];
 
@@ -253,6 +266,23 @@ export function toImportPayload(
       p_invoices: lines,
       p_ar_filename: fileName,
       p_rules_version: RULES_VERSION,
+      /*
+       * One row per address, not per company. A company with three addresses
+       * is three rows, because the database keys on the pair and because a
+       * reminder goes to all of them rather than to the first.
+       */
+      p_contacts: contacts
+        ? contacts.flatMap((c) =>
+            c.emails
+              .map((e) => e.trim().toLowerCase())
+              .filter((e) => e.length > 0)
+              .map((email) => ({
+                customer_code: c.customerCode,
+                company_name: c.companyName,
+                email,
+              })),
+          )
+        : null,
     },
     problems: [],
   };

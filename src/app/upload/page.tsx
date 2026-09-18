@@ -354,7 +354,21 @@ function ApplyBar({
 
           setSaving(true);
           setSaveError(null);
-          const result = await storeDataset(built, fileName ?? null);
+          /*
+           * The contact list goes with it, where one was uploaded. Without
+           * this the addresses were linked in the browser, shown on screen,
+           * and never reached the database: the next load fetched contacts
+           * from the server and the uploaded ones were gone.
+           *
+           * Null rather than an empty array when no list was given, because
+           * absent and empty mean different things to the import.
+           */
+          const uploaded = results.find((r) => r.kind === "contact-list");
+          const result = await storeDataset(
+            built,
+            fileName ?? null,
+            uploaded && "contacts" in uploaded ? uploaded.contacts : null,
+          );
           setSaving(false);
 
           if (!result.ok) {

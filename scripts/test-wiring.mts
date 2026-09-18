@@ -834,5 +834,33 @@ check("the connect route and the callback ask for the client the same way",
 check("and the stored client wins over the environment",
       read("src/lib/mail/google-oauth.ts").includes("const stored = await storedClient"), true);
 
+
+/*
+ * The contact list reaches the database.
+ *
+ * It did not, for a long time, and the omission looked like nothing: the
+ * screen read the file, linked the addresses, showed them and reported
+ * success. They lived in one browser until the next load, at which point the
+ * screens fetched contacts from the server and the uploaded ones were gone.
+ */
+check("the upload screen sends the contact list it parsed",
+      code("src/app/upload/page.tsx").includes('r.kind === "contact-list"') &&
+        /storeDataset\([\s\S]{0,200}uploaded/.test(code("src/app/upload/page.tsx")), true);
+check("storeDataset puts it in the request",
+      /body: JSON\.stringify\(\{[\s\S]{0,260}contacts,/.test(code("src/lib/dataset.ts")), true);
+check("the route passes it to the mapper",
+      code("src/app/api/upload/route.ts").includes("body.contacts ?? null"), true);
+check("and the mapper sends it to the import",
+      code("src/lib/to-database.ts").includes("p_contacts"), true);
+
+/*
+ * Absent and empty mean different things. An upload with no contact list must
+ * leave the stored addresses alone; an empty list would be a claim that MES
+ * have no addresses at all, and there is no case where uploading an AR report
+ * should mean that.
+ */
+check("no list given means null, not an empty list",
+      code("src/lib/to-database.ts").includes("p_contacts: contacts"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

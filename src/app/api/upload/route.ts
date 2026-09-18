@@ -42,6 +42,12 @@ interface Body {
   invoices?: DetailInvoice[];
   reportDate?: string | null;
   fileName?: string | null;
+  /*
+   * Absent when only the AR report was uploaded. Absent and empty mean
+   * different things: absent leaves the stored contacts alone, and there is no
+   * case where an upload should wipe every address MES have.
+   */
+  contacts?: { customerCode: string; companyName: string; emails: string[] }[] | null;
 }
 
 export async function POST(request: Request) {
@@ -91,6 +97,7 @@ export async function POST(request: Request) {
     invoices,
     body.reportDate ?? null,
     body.fileName ?? null,
+    body.contacts ?? null,
   );
 
   if (!payload) {
@@ -147,6 +154,7 @@ export async function POST(request: Request) {
     counted: {
       accounts: payload.p_tenants.length,
       lines: payload.p_invoices.length,
+      contacts: payload.p_contacts?.length ?? 0,
     },
   });
 }
