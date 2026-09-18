@@ -636,5 +636,64 @@ check("and cannot write a second letter to the same tenant",
 check("nothing it writes claims to be a real send",
       CRON.includes("was_simulated: !CAN_SEND_FOR_REAL"), true);
 
+/* ------------------------------------------------------ the mailbox ----- */
+
+console.log("\nNothing can send without going past the gate");
+
+const GATE = read("src/lib/mail/connector.ts");
+const GMAIL = read("src/lib/mail/gmail.ts");
+const MAIL = read("src/lib/mail/index.ts");
+const SEND = read("src/app/api/send/route.ts");
+
+check("the connector interface exists", GATE.length > 0, true);
+check("off is the default", GATE.includes('return "off";'), true);
+
+/*
+ * The one that would send real debt letters because somebody typed one
+ * character wrong. A mode read as a boolean, or matched loosely, would turn
+ * "eveyone" into everyone.
+ */
+check("a mode is matched exactly, not loosely",
+      /v === "everyone"/.test(GATE) && /v === "allowed"/.test(GATE), true);
+
+/*
+ * The rails live at the bottom, in the one place every send passes through,
+ * so a caller added later inherits them without having to know they exist.
+ */
+check("the gate is applied inside the connector, not by its callers",
+      GMAIL.includes("mayLeave("), true);
+check("and an unmerged field stops a letter",
+      GATE.includes("did not merge"), true);
+check("and an empty one does too", GATE.includes("came out empty"), true);
+
+// The transport holds a password and opens sockets.
+check("the transport declares itself server-only",
+      GMAIL.startsWith('import "server-only"'), true);
+check("and so does the chooser", MAIL.startsWith('import "server-only"'), true);
+
+const mailFiles = appFiles.filter((f) => {
+  const src = readFileSync(f, "utf8");
+  return src.startsWith('"use client"') && /lib\/mail|nodemailer/.test(src);
+});
+check("no screen imports the mailbox",
+      mailFiles.map((f) => path.basename(f)).join(", ") || "none", "none");
+
+check("the App Password is never logged",
+      /console\.(log|warn|error)\([^)]*appPassword/.test(GMAIL + MAIL), false);
+
+// Sending is at least as consequential as replacing a month's figures.
+check("only the roles that may upload may send", SEND.includes("mayUpload(who.caller)"), true);
+check("a real send is recorded as real",
+      SEND.includes("was_simulated: false"), true);
+check("and a send that could not be recorded says so rather than passing quietly",
+      SEND.includes("Sent, but not recorded"), true);
+
+/*
+ * Forty in parallel would hit Google's rate limit as one burst, which locks
+ * sending for about a day rather than failing politely. On the 21st that is
+ * the final notice reaching some tenants and not others.
+ */
+check("letters go one at a time", /for \(const letter of letters\)/.test(SEND), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
