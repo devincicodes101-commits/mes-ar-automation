@@ -174,11 +174,46 @@ export function billingCycles(
     const dueBy =
       stated.size === 1 ? (Array.from(stated)[0] as string) : addDays(billedOn, CREDIT_DAYS);
     const ageDays = asOf ? daysBetween(billedOn, asOf) : null;
-    // Past its own credit period as at the report date. Falls back to the
-    // line's own age, which is days past its due date, where the report has
-    // no date of its own to measure from.
-    const isOverdue = (inv: BillingLine) =>
-      ageDays === null ? (inv.age ?? 0) > 0 : ageDays > CREDIT_DAYS;
+    /*
+     * Overdue on the same terms as every other screen: the line's own age,
+     * which is days past its due date and is MES's own Age column.
+     *
+     * This used to count from the billing date instead, against the 14 day
+     * credit rule, and the two disagree because MES's due dates are billing
+     * plus fifteen rather than plus fourteen. The result was one screen
+     * contradicting itself: the tile at the top said 47,100 needed chasing
+     * while the line under this table said 58,100 was past its credit period.
+     * A tenant billed on 31 August read as "Current" in their own row and as
+     * overdue in their billing run.
+     *
+     * The file's own age wins because it is the figure that reconciles with
+     * MES's spreadsheet, on 173 of 173 lines of their real export. The credit
+     * clock is still shown, in the "where it stands" column, because it is
+     * their stated rule and it is what the reminders are timed off. It is a
+     * fact about the run, not about whether the money is yet chaseable.
+     *
+     * The gap between the two is the open question for MES, and it is worth
+     * repeating here because it is the cause: their rule says fourteen days,
+     * their system issues due dates at fifteen, and their worked example
+     * implies seventeen.
+     */
+    const isOverdue = (inv: BillingLine) => {
+      /*
+       * "Past due" means the line has left the Current bucket, not merely that
+       * its due date has passed. MES count up to fifteen days past due as
+       * Current, so a line at day fifteen is late in plain English and not yet
+       * chaseable by their rules, and the tiles above this table are built
+       * from exactly that distinction.
+       *
+       * Read off the line's own bucket rather than recomputing a threshold,
+       * because the bucket is MES's figure and a second copy of the boundary
+       * here is a second thing to get wrong.
+       */
+      if (inv.bucket) return inv.bucket.trim().toLowerCase() !== "current";
+      // No bucket on the line, which the parser warns about. Fall back to the
+      // age and the same boundary the buckets use.
+      return (inv.age ?? 0) > 15;
+    };
 
     cycles.push({
       billedOn,

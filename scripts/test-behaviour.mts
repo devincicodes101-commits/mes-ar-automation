@@ -434,23 +434,75 @@ check("round2 does not drift over a thousand additions",
  */
 console.log("\nBilling runs, each with its own clock\n");
 
-const cyc = (date: string | null, amount: number, age: number | null = null) =>
-  ({
+/**
+ * A charge line, with the age a real one would carry.
+ *
+ * It used to leave age null and bucket empty, which no line in MES's export
+ * does. That is not a harmless shortcut: whether money is past due is read off
+ * those two fields, so a fixture without them tests a path real data never
+ * takes and cannot tell a working rule from a broken one.
+ *
+ * Given a report date, the due date lands fifteen days after billing, the way
+ * MES's system issues them, and the age follows.
+ */
+const cyc = (
+  date: string | null,
+  amount: number,
+  age: number | null = null,
+  asOf: string | null = null,
+) => {
+  const plus = (iso: string, days: number) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m) return null;
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+    dt.setDate(dt.getDate() + days);
+    const p = (x: number) => String(x).padStart(2, "0");
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+  };
+  const between = (a: string, b: string) =>
+    Math.round(
+      (new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / 86_400_000,
+    );
+
+  const due = date && asOf ? plus(date, 15) : null;
+  const realAge = age ?? (due && asOf ? between(due, asOf) : null);
+
+  return {
     id: `x${date}${amount}`, companyName: "ACME PTE LTD",
-    transactionType: "Invoice", date, dueDate: null,
+    transactionType: "Invoice", date, dueDate: due,
     description: "Occupancy Fee Charges", documentNumber: "BSD-786/1",
-    linkedContract: null, age, bucket: "", openBalance: amount,
+    linkedContract: null, age: realAge,
+    bucket: realAge === null ? "" : bucketLabelForAge(realAge),
+    openBalance: amount,
     revenueType: "Occupancy Fee", isOneFm: false,
-  }) as never;
+  } as never;
+};
 
 const three = billingCycles(
-  [cyc("2026-07-15", 100), cyc("2026-07-15", 50), cyc("2026-08-03", 25)],
+  [
+    cyc("2026-07-15", 100, null, "2026-08-17"),
+    cyc("2026-07-15", 50, null, "2026-08-17"),
+    cyc("2026-08-03", 25, null, "2026-08-17"),
+  ],
   "2026-08-17",
 );
 check("lines group by the date they were billed", three.cycles.length, 2);
 check("newest run first", three.cycles[0]?.billedOn, "2026-08-03");
 check("and its lines are added up", three.cycles[1]?.total, 150);
-check("payment falls due 14 days after billing", three.cycles[1]?.dueBy, "2026-07-29");
+/*
+ * Two rules, and which applies depends on the file.
+ *
+ * MES's export states a due date on every line and we show theirs, because it
+ * is the date the tenant was given. Where a file states none we fall back to
+ * the 14 day credit period their own rule describes. The two differ by a day,
+ * which is the unresolved question with MES: their rule says fourteen, their
+ * system issues fifteen.
+ */
+check("the file's own due date is shown where it states one",
+      three.cycles[1]?.dueBy, "2026-07-30");
+check("and where it states none, 14 days after billing",
+      billingCycles([cyc("2026-07-15", 100)], "2026-08-17").cycles[0]?.dueBy,
+      "2026-07-29");
 check("the second deadline is 30 days", three.cycles[1]?.finalBy, "2026-08-14");
 
 // The whole point: same file, same report date, two different answers.

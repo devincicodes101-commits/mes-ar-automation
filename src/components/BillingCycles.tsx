@@ -72,12 +72,21 @@ export function BillingCycles({
             <tr className="border-b border-line-grid text-left">
               <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">Billed on</th>
               <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Payment due</th>
-              <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Where it stands</th>
+              {/* Two different clocks run on this table and they must not read
+                  as the same claim. This column counts from the billing date,
+                  which is MES's 14 day credit rule and what the reminders are
+                  timed off. The last column counts from the due date, which is
+                  the file's own Age and decides whether money is chaseable. */}
+              <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">
+                Credit clock, from billing
+              </th>
               <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Who it covers</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Tenants</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Charges</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Still owed</th>
-              <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">Of that, overdue</th>
+              <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
+                Of that, past due
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -125,8 +134,12 @@ export function BillingCycles({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line-hair px-5 py-3 text-[11px] text-ink-muted">
         <span>
-          <b className="text-ink-secondary">{formatSgd(overdue)}</b> is past its{" "}
-          {CREDIT_DAYS} day credit period across all {cycles.length} runs.
+          <b className="text-ink-secondary">{formatSgd(overdue)}</b> is past its
+          due date across all {cycles.length} runs, which is the figure the
+          tiles above count. The credit clock beside each run counts from the
+          billing date instead, so a run can be past its {CREDIT_DAYS} days and
+          still hold nothing chaseable: MES issue due dates at fifteen days, not
+          fourteen.
         </span>
         {undated > 0 ? (
           <span>

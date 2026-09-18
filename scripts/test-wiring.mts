@@ -900,5 +900,58 @@ check("a server that cannot be reached says so",
 check("and leaves the figures alone",
       (DS.match(/commit\(EMPTY\)/g) ?? []).length, 1);
 
+
+/* ------------------------------------- one screen, one meaning of overdue - */
+
+console.log("\nThe tiles and the billing runs agree about what is overdue");
+
+/*
+ * They did not. The tile counted money out of the Current bucket, and the
+ * billing runs counted anything past fourteen days from its billing date. The
+ * two disagree because MES issue due dates at fifteen days, not fourteen, so
+ * the board said 47,100 needed chasing while the line beneath the same table
+ * said 58,100 was past its credit period. A tenant billed on the 31st read as
+ * Current in their own row and overdue in their billing run.
+ *
+ * Checked as arithmetic against a real file rather than by reading the source,
+ * because the fault was two correct functions disagreeing, and nothing about
+ * either one looks wrong on its own.
+ */
+{
+  const XLSX = await import("xlsx");
+  const { parseAgingDetail } = await import("../src/lib/aging-detail.ts");
+  const { billingCycles } = await import("../src/lib/billing-cycles.ts");
+  const { kpis } = await import("../src/lib/data.ts");
+  const { buildPipeline } = await import("../src/lib/pipeline.ts");
+
+  const sample = path.join(
+    HERE, "..", "AR Automation-20260903T201835Z-1-001", "AR Automation",
+    "3. CustomA_RAgingDetail-WithDescription.xlsx",
+  );
+
+  if (existsSync(sample)) {
+    const ar = parseAgingDetail(XLSX.read(readFileSync(sample), { type: "buffer" }));
+    const p = buildPipeline(ar.accounts, ar.invoices, ar.asOf, ar.entity, []);
+    const tile = kpis(p.accounts).overdue;
+    const runs = billingCycles(ar.invoices, ar.asOf).cycles.reduce((n, c) => n + c.overdue, 0);
+    check("the two totals match on MES's own export",
+          Math.abs(tile - runs) < 0.01, true);
+    if (Math.abs(tile - runs) >= 0.01) {
+      console.log(`        tile ${tile.toFixed(2)} vs runs ${runs.toFixed(2)}`);
+    }
+  } else {
+    check("MES's export is present to check against", false, true);
+  }
+}
+
+// Read off MES's own bucket rather than a threshold written here a second time.
+check("a run reads the line's own bucket rather than recomputing the boundary",
+      lib("billing-cycles.ts").includes('inv.bucket.trim().toLowerCase() !== "current"'), true);
+
+// The credit clock is still shown, and must not be labelled as the same thing.
+check("the two clocks are labelled differently on screen",
+      read("src/components/BillingCycles.tsx").includes("Credit clock, from billing") &&
+        read("src/components/BillingCycles.tsx").includes("Of that, past due"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

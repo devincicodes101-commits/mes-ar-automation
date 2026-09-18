@@ -113,21 +113,56 @@ export function parseCases(text: string): CheckCase[] {
  * date is the whole point of the aging cases, and it should be a matter of
  * typing a different date.
  */
-function lines(spec: string): BillingLine[] {
+/**
+ * A charge line, built the way MES's export actually carries one.
+ *
+ * It used to leave age and bucket empty, which no real line does: every row in
+ * their file has both, and the whole system reads them rather than working
+ * them out. A fixture missing them tested a path real data never takes, and it
+ * hid a case where two screens disagreed about what was overdue.
+ *
+ * `asOf` is the report date the caller is measuring from, and giving one is
+ * what turns this into a fully formed line: the due date lands fifteen days
+ * after billing, as MES's system issues them, and the age and bucket follow.
+ *
+ * Without it the line deliberately carries no due date, because several cases
+ * exist to test exactly that: what the system falls back to when MES's file
+ * states none. Supplying one everywhere would quietly delete those cases while
+ * leaving them green.
+ */
+function lines(spec: string, asOf: string | null = null): BillingLine[] {
   if (spec.trim() === "") return [];
+
+  const plus = (iso: string, days: number) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    if (!m) return null;
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+    dt.setDate(dt.getDate() + days);
+    const p = (x: number) => String(x).padStart(2, "0");
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+  };
+  const between = (a: string, b: string) =>
+    Math.round(
+      (new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / 86_400_000,
+    );
+
   return spec.split("|").map((part, n) => {
     const [d, amount] = part.split(":");
+    const billed = d === "none" ? null : (d as string);
+    const due = billed && asOf ? plus(billed, 15) : null;
+    const age = due && asOf ? between(due, asOf) : null;
+
     return {
       companyName: `TENANT ${n} PTE LTD`,
       customerCode: `DORM-${n}`,
       transactionType: "Invoice",
-      date: d === "none" ? null : d,
-      dueDate: null,
+      date: billed,
+      dueDate: due,
       description: "Occupancy Fee Charges",
       documentNumber: "BSD-786/1",
       linkedContract: null,
-      age: null,
-      bucket: "",
+      age,
+      bucket: age === null ? "" : bucketLabelForAge(age),
       openBalance: Number(amount),
       revenueType: "Occupancy Fee",
       isOneFm: false,
@@ -206,7 +241,7 @@ export const PURE_OPS: Record<string, (input: string) => string> = {
   cycleWhoCount: (i) =>
     String(billingCycles(lines(i), null).cycles[0]?.who.length ?? 0),
   cycleOverdue: (i) =>
-    (billingCycles(lines(i), "2026-08-28").cycles[0]?.overdue ?? 0).toFixed(2),
+    (billingCycles(lines(i, "2026-08-28"), "2026-08-28").cycles[0]?.overdue ?? 0).toFixed(2),
 
   /* charge types and dormitories */
   revenueType: (i) => {
