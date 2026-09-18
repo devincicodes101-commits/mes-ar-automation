@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  askedFor,
   CRON_EXPRESSION,
   SGT_OFFSET_MINUTES,
   cycleDayFor,
@@ -129,6 +130,38 @@ check("a gap across a month end still names both months' days",
 const ancient = missedSince("2020-01-01", sept18);
 check("an absurd gap is capped rather than unbounded", ancient.length <= 60 / 4 + 1, true);
 check("and it is not empty, so the gap is still visible", ancient.length > 0, true);
+
+/* ----------------------------------------------------- catching up ------ */
+
+console.log("\nA missed day can be caught up, but not run early\n");
+
+const err = (v: string | null) => {
+  const r = askedFor(v, sept18);
+  return "error" in r ? "refused" : r.date.iso;
+};
+
+check("a past cycle day is allowed", err("2026-09-16"), "2026-09-16");
+check("today is allowed", err("2026-09-18"), "2026-09-18");
+
+/*
+ * A fee dated ahead of itself is one nobody can explain to a tenant, and the
+ * report it would need does not exist yet.
+ */
+check("tomorrow is refused", err("2026-09-19"), "refused");
+check("next year is refused", err("2027-01-16"), "refused");
+
+// Dates that a naive parser rolls over instead of rejecting. 2026-02-31 would
+// silently become the 3rd of March, and run the wrong day's step.
+check("the 31st of February is refused", err("2026-02-31"), "refused");
+check("a thirteenth month is refused", err("2026-13-01"), "refused");
+check("a day zero is refused", err("2026-09-00"), "refused");
+check("nonsense is refused", err("the sixteenth"), "refused");
+check("nothing at all is refused", err(null), "refused");
+
+// The point of allowing it: the day it names is the day that gets run.
+const caught = askedFor("2026-09-16", sept18);
+check("and the day it names is the one that runs",
+      "error" in caught ? null : cycleDayFor(caught.date), 16);
 
 /* ------------------------------------------------- the config agrees ----- */
 

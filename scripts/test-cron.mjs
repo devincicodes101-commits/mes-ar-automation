@@ -155,6 +155,127 @@ try {
     `${body.cycleDay} then ${secondBody.cycleDay}`,
   );
 
+  /* ------------------------------------------------ a real cycle day --- */
+
+  /*
+   * Everything above ran on whatever today happens to be, which is usually a
+   * day MES do nothing on. That leaves the part that matters untested: the
+   * 16th, where fees are raised and letters written.
+   *
+   * So the run is pointed at the 16th of this month. This is the live
+   * database, so every row it produces is deleted afterwards and the count is
+   * checked back to where it started.
+   */
+  const CATCH_UP = `${today.year}-${String(today.month).padStart(2, "0")}-16`;
+  const period = `${today.year}-${String(today.month).padStart(2, "0")}-01`;
+
+  console.log(`
+The 16th, run on purpose (${CATCH_UP})`);
+
+  const feesAt = async () =>
+    Number(
+      (
+        await service(`late_fees?period=eq.${period}&select=id`, {
+          headers: { Prefer: "count=exact" },
+        })
+      ).headers
+        .get("content-range")
+        ?.split("/")[1] ?? "0",
+    );
+
+  const lettersAt = async () =>
+    Number(
+      (
+        await service(`emails_sent?select=id`, { headers: { Prefer: "count=exact" } })
+      ).headers
+        .get("content-range")
+        ?.split("/")[1] ?? "0",
+    );
+
+  const idsIn = async () =>
+    ((await (await service(`late_fees?period=eq.${period}&select=id`)).json()) ?? []).map(
+      (r) => r.id,
+    );
+
+  const startIds = await idsIn();
+  const feesStart = startIds.length;
+  const lettersStart = await lettersAt();
+  const runBefore = await (await service(`cron_runs?ran_for=eq.${CATCH_UP}&select=*`)).json();
+  const hadRun = Array.isArray(runBefore) && runBefore.length > 0 ? runBefore[0] : null;
+
+  const sixteenth = await fetch(`${APP}/api/cron?for=${CATCH_UP}`, {
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
+  const six = await sixteenth.json();
+
+  ok("  it runs", sixteenth.status === 200, `got ${sixteenth.status} ${six.error ?? ""}`);
+  ok("  and knows it is the 16th", six.cycleDay === 16, `got ${six.cycleDay}`);
+  ok("  and says it was caught up rather than scheduled", six.caughtUp === true);
+  ok(
+    "  it had a report to work from",
+    six.status === "ok",
+    `got ${six.status}: ${six.error ?? JSON.stringify(six.summary)}`,
+  );
+  ok(
+    "  it says what it would do, in words",
+    Array.isArray(six.summary?.willDo) && six.summary.willDo.length > 0,
+    JSON.stringify(six.summary),
+  );
+  ok("  and nothing it wrote claims to be a real send", six.summary?.simulated === true);
+
+  const feesNow = await feesAt();
+  const lettersOnce = await lettersAt();
+  ok(
+    "  fees were actually raised",
+    feesNow > feesStart,
+    `${feesStart} before, ${feesNow} after. summary: ${JSON.stringify(six.summary)}`,
+  );
+  ok(
+    "  and the count matches what it reported",
+    feesNow - feesStart === (six.summary?.feesRaised ?? -1),
+    `raised ${feesNow - feesStart}, reported ${six.summary?.feesRaised}`,
+  );
+
+  /*
+   * The one that would cost MES real money. Vercel does not promise exactly
+   * once, and every extra run on the 16th would be another $100 against a
+   * tenant who owes it once.
+   */
+  await fetch(`${APP}/api/cron?for=${CATCH_UP}`, {
+    headers: { Authorization: `Bearer ${SECRET}` },
+  });
+  const feesTwice = await feesAt();
+  const lettersTwice = await lettersAt();
+  const afterIds = await idsIn();
+  ok(
+    "  running the 16th again charges nobody a second time",
+    feesTwice === feesNow,
+    `${feesNow} after one run, ${feesTwice} after two`,
+  );
+
+  ok(
+    "  and writes no second letter to the same tenant",
+    lettersTwice === lettersOnce,
+    `${lettersStart} before, ${lettersOnce} after one run, ${lettersTwice} after two`,
+  );
+
+  /*
+   * Put the database back, taking only what this test added.
+   *
+   * Deleting the period outright would have taken any fee that was already
+   * there, which on the real 16th would be MES's own charges. The ids are
+   * captured before and after and only the difference is removed.
+   */
+  const mine = afterIds.filter((id) => !startIds.includes(id));
+  if (mine.length > 0) {
+    await service(`late_fees?id=in.(${mine.join(",")})`, { method: "DELETE" });
+  }
+  await service(`cron_runs?ran_for=eq.${CATCH_UP}`, { method: "DELETE" });
+  if (hadRun) await service("cron_runs", { method: "POST", body: JSON.stringify(hadRun) });
+
+  ok("  the fees it raised are cleared away again", (await feesAt()) === feesStart,
+     `${await feesAt()} left, started at ${feesStart}`);
+
   /* ---------------------------------------------------------- tidy up --- */
 
   console.log("\nThe database is left as it was found");

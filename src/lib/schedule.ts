@@ -117,3 +117,51 @@ export function missedSince(lastRun: string | null, today: SgDate): string[] {
  * midnight that a slow run cannot slide into the following day.
  */
 export const CRON_EXPRESSION = "0 1 * * *";
+
+/**
+ * A date somebody asked for by hand, checked before it is used.
+ *
+ * missedSince reports which cycle days went by unrun. Reporting a gap with no
+ * way to close it is half a feature: MES's 16th is the $100 fee, and "it did
+ * not run and cannot now" is not an answer anybody can act on. So the run can
+ * be pointed at a past date.
+ *
+ * Refused rather than defaulted when it makes no sense, because a catch up
+ * that silently ran a different day from the one asked for is worse than one
+ * that did nothing. A future date is refused outright: the report it would
+ * need does not exist yet, and a fee dated ahead of itself is a fee nobody can
+ * explain to a tenant.
+ */
+export function askedFor(value: string | null, today: SgDate): { date: SgDate } | { error: string } {
+  if (!value) return { error: "No date given." };
+
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!m) return { error: `"${value}" is not a date in YYYY-MM-DD form.` };
+
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+
+  // Round trips through a real date, so 2026-02-31 and 2026-13-01 are caught
+  // rather than quietly rolling into March and January.
+  const made = new Date(Date.UTC(year, month - 1, day));
+  if (
+    made.getUTCFullYear() !== year ||
+    made.getUTCMonth() + 1 !== month ||
+    made.getUTCDate() !== day
+  ) {
+    return { error: `There is no such date as ${value}.` };
+  }
+
+  if (value > today.iso) {
+    return {
+      error:
+        `${value} has not happened yet in Singapore, where it is ${today.iso}. ` +
+        "A day can be caught up, not run early.",
+    };
+  }
+
+  return {
+    date: { iso: value, year, month, day, hour: today.hour },
+  };
+}

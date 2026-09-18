@@ -7,6 +7,7 @@ import { emptyState, planFor, runDay, type CycleDay, type SimState } from "@/lib
 import type { Pipeline } from "@/lib/pipeline";
 import { CAN_SEND_FOR_REAL } from "@/lib/sending";
 import {
+  askedFor,
   cycleDayFor,
   inSingapore,
   missedSince,
@@ -96,8 +97,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Not authorised." }, { status: 401 });
   }
 
-  const today = inSingapore();
+  const now = inSingapore();
+
+  /*
+   * Catching up a day that did not run.
+   *
+   * missedSince reports which cycle days went by unrun, and reporting a gap
+   * with no way to close it is half a feature: on the 16th that gap is the
+   * $100 fee, and "it did not run and cannot now" is not an answer anybody can
+   * act on.
+   *
+   * Not a hole in the door. The secret has already been checked, and anybody
+   * holding it can trigger a run regardless. What this changes is which day is
+   * run, not who may run one.
+   */
+  const requested = new URL(request.url).searchParams.get("for");
+  const chosen = requested ? askedFor(requested, now) : { date: now };
+
+  if ("error" in chosen) {
+    return NextResponse.json({ ok: false, error: chosen.error }, { status: 400 });
+  }
+
+  const today = chosen.date;
   const day = cycleDayFor(today);
+  const caughtUp = today.iso !== now.iso;
 
   let db;
   try {
@@ -135,6 +158,7 @@ export async function GET(request: Request) {
       ranFor: today.iso,
       cycleDay: row.cycle_day,
       status: row.status,
+      caughtUp,
       missed,
       summary: row.summary,
       error: row.error,
@@ -220,6 +244,9 @@ export async function GET(request: Request) {
       cycle_day: day,
       status: "ok",
       summary: {
+        // Named, so a run somebody triggered by hand is never mistaken later
+        // for one the schedule did on the day.
+        ...(caughtUp ? { caughtUpOn: now.iso } : {}),
         title: plan.title,
         willDo: plan.willDo,
         blockers: plan.blockers,
