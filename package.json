@@ -31,7 +31,8 @@
     "test:routes": "node scripts/test-routes.mjs",
     "test:schedule": "node --experimental-strip-types scripts/test-schedule.mts",
     "test:cron": "node --experimental-strip-types scripts/test-cron.mjs",
-    "test:mail": "node --experimental-strip-types scripts/test-mail.mts"
+    "test:mail": "node --experimental-strip-types scripts/test-mail.mts",
+    "test:movement": "node --experimental-strip-types scripts/test-movement.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

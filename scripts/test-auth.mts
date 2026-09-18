@@ -257,8 +257,19 @@ const routes = readdirSync(APP, { withFileTypes: true })
 // their own book and nobody else's. There is also no capability every role
 // holds — an RM has only view-own-tenants — so naming one would shut the
 // managers out of a list about their own clients.
+//
+// /movement is here for the same reason as /chased and /defaulters. It names
+// clients and their balances and scopes with scope(), so a relationship
+// manager sees their own book. It shows whether a client has an email address
+// but never the address itself, so it is no more revealing than the board.
+//
+// The one case worth naming: a tenant who settled is gone from the current
+// report, so there is nothing left saying whose book they were in, and they
+// are shown to every manager rather than hidden from the right one. Telling a
+// manager somebody paid is the smaller error.
 const SESSION_ONLY = new Set([
   "/access", "/collections", "/defaulters", "/login", "/checks", "/chased",
+  "/movement",
 ]);
 
 const unguarded = routes.filter(

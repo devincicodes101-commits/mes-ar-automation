@@ -143,6 +143,22 @@ export function accountsFromRows(
       revenueTypes: counted ? Array.from(counted.types).sort() : [],
       lateFeeCount: s.late_fee_count,
     } satisfies Account;
+  }).map((a, i) => {
+    /*
+     * Which manager's book this account is in.
+     *
+     * Carried off to the side rather than on Account, matching what the parser
+     * does, because MES's aging export has no Primary Sales Rep column and the
+     * field is genuinely absent for a report that came from it.
+     *
+     * Missed when this reader was written, and it would not have looked like a
+     * fault: scope() filters on exactly this, so a relationship manager signing
+     * in would have seen zero tenants on every screen, an empty system rather
+     * than an error. The select already asked for the column.
+     */
+    const key = snapshots[i]?.tenants?.rm_key;
+    if (key) (a as Account & { rm?: string }).rm = key;
+    return a;
   });
 }
 

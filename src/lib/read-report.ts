@@ -84,28 +84,57 @@ export type ReadResult =
 
 const why = (e: unknown): string | null => (e as { message?: string })?.message ?? null;
 
-/** The newest stored report, or an explanation. */
-export async function newestReport(
+/**
+ * Every report date that actually has accounts stored against it, newest first.
+ *
+ * An upload row with nothing under it would otherwise read as a month where
+ * everybody paid, which is the same shape as a month that failed to import and
+ * means the opposite.
+ *
+ * Ordered by report date rather than by upload time throughout. MES re-upload
+ * months late and often, so "the newest file" and "the newest month" are
+ * regularly different things.
+ */
+export async function reportDates(
   db: SupabaseClient,
+): Promise<{ ok: true; dates: string[] } | { ok: false; error: string }> {
+  const rows = await everything<{ report_date: string }>(() =>
+    db.from("account_snapshots").select("report_date").order("report_date", { ascending: false }),
+  );
+
+  if (rows.error) {
+    return { ok: false, error: `Could not read the report dates. ${why(rows.error) ?? ""}`.trim() };
+  }
+
+  /*
+   * One row per snapshot, so hundreds per date. Deduplicated with a plain pass
+   * rather than a Set spread, because this file compiles under the project's
+   * older target where that needs downlevelIteration. Order is preserved,
+   * which is the whole point: the database already sorted them.
+   */
+  const seen: Record<string, true> = {};
+  const dates: string[] = [];
+  for (const r of rows.rows) {
+    if (seen[r.report_date]) continue;
+    seen[r.report_date] = true;
+    dates.push(r.report_date);
+  }
+  return { ok: true, dates };
+}
+
+/** The newest stored report, or an explanation. */
+export async function newestReport(db: SupabaseClient): Promise<ReadResult> {
+  const dates = await reportDates(db);
+  if (!dates.ok) return { ok: false, error: dates.error, detail: null };
+  if (dates.dates.length === 0) return { ok: true, report: null, reason: "no reports stored" };
+  return reportOn(db, dates.dates[0]!);
+}
+
+/** One named report, whichever it is. */
+export async function reportOn(
+  db: SupabaseClient,
+  reportDate: string,
 ): Promise<ReadResult> {
-  // The newest report date that actually has snapshots. An upload row with
-  // nothing under it would otherwise read as an empty month.
-  const newest = await db
-    .from("account_snapshots")
-    .select("report_date")
-    .order("report_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (newest.error) {
-    return { ok: false, error: "Could not read the report dates.", detail: newest.error.message };
-  }
-  if (!newest.data) {
-    return { ok: true, report: null, reason: "no reports stored" };
-  }
-
-  const reportDate = newest.data.report_date as string;
-
   /*
    * Scoped by this date's snapshots, which is how invoice lines are filed.
    * Asking by period instead would pull in a re-upload of the same month and

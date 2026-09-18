@@ -137,6 +137,16 @@ export const NAV: {
     note: "Tenants who completed the whole cycle and still owe.",
   },
   {
+    // Placed before Chased to the End on purpose. This says what moved since
+    // the last report; that one says who has been round the whole cycle. An
+    // officer wants the change first, because it is the part that decides
+    // which of yesterday's names are still worth a call this morning.
+    href: "/movement",
+    label: "What Changed",
+    group: "Review",
+    note: "Who paid, who got worse, and who has been stuck for months.",
+  },
+  {
     href: "/reports",
     label: "Reports & Export",
     group: "Review",

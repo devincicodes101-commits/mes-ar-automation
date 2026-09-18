@@ -32,6 +32,20 @@ function check(name: string, actual: unknown, expected: unknown) {
 const section = (t: string) => console.log(`\n${t}\n`);
 
 const read = (p: string) => (existsSync(p) ? readFileSync(p, "utf8") : "");
+
+/**
+ * The same file with its comments taken out.
+ *
+ * Several checks here ask whether a word appears, and this codebase explains
+ * itself at length, so the word usually appears in a comment saying why the
+ * code does not do that thing. Twice now a guard has failed on the prose
+ * written to justify it. Where the question is about what the code does, ask
+ * the code.
+ */
+const code = (p: string) =>
+  read(p)
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
 const page = (route: string) => read(path.join(APP, route, "page.tsx"));
 const lib = (name: string) => read(path.join(LIB, name));
 
@@ -694,6 +708,58 @@ check("and a send that could not be recorded says so rather than passing quietly
  * the final notice reaching some tenants and not others.
  */
 check("letters go one at a time", /for \(const letter of letters\)/.test(SEND), true);
+
+/* ---------------------------------------------- what changed ------------ */
+
+console.log("\nComparison reads two reports the way MES read them");
+
+const MOVE = read("src/lib/movement.ts");
+const MOVE_ROUTE = read("src/app/api/movement/route.ts");
+const MOVE_PAGE = read("src/app/movement/page.tsx");
+
+check("the comparison library exists", MOVE.length > 0, true);
+check("the screen runs it rather than its own copy",
+      MOVE_ROUTE.includes("compareReports(") && MOVE_ROUTE.includes("chronic("), true);
+check("and the screen asks the route rather than comparing in the browser",
+      MOVE_PAGE.includes("/api/movement"), true);
+
+/*
+ * MES's rule, and the one that would be most embarrassing to get backwards: a
+ * tenant absent from the newer report has paid in full. Read the other way
+ * they stay on the call list and get rung about money already sent.
+ */
+check("a settled tenant is recognised, not treated as missing",
+      MOVE.includes('"settled"'), true);
+
+/*
+ * Never cross-file arithmetic. A balance that fell by 2,000 does not mean
+ * 2,000 arrived: they may have paid 5,000 and been billed 3,000 in between.
+ * No field anywhere may claim an amount was paid.
+ */
+check("nothing claims to know an amount paid",
+      /\b(amountPaid|paidAmount|payment)\b/i.test(code("src/lib/movement.ts")), false);
+check("the change is named for what it is",
+      MOVE.includes("changedBy"), true);
+
+// Two reports the wrong way round turn every settlement into a new debt.
+check("the route refuses a backwards comparison rather than swapping it",
+      MOVE_ROUTE.includes("is newer than"), true);
+check("and orders reports by report date, not upload time",
+      MOVE_ROUTE.includes("reportDates("), true);
+
+/*
+ * "Nobody is stuck" and "not enough history to tell" look the same on screen
+ * and mean opposite things.
+ */
+check("the screen says how much history it could see",
+      MOVE_PAGE.includes("chronicAcross") && MOVE_PAGE.includes("Not enough history"), true);
+
+// One report is a system used once, not a failure, and not everybody paying.
+check("one stored report explains itself instead of showing an empty table",
+      MOVE_ROUTE.includes("nothing to compare it with"), true);
+
+check("the screen scopes what it shows",
+      MOVE_PAGE.includes("scope(ds.accounts)"), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
