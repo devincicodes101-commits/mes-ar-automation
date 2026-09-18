@@ -63,17 +63,21 @@ async function authHeader(): Promise<Record<string, string>> {
   }
 }
 
-export function MailAccounts() {
-  const { role } = useSession();
+/**
+ * Reading the mailbox, and starting a connection.
+ *
+ * Shared by the full panel on Settings and by the strip that sits on the
+ * screens where somebody first notices nothing has gone out. Two copies would
+ * drift, and the thing they would drift on is the message explaining why
+ * nothing can be sent, which is the only part anybody reads.
+ */
+function useMailbox() {
   const { notify } = useToast();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [status, setStatus] = useState<Status | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [testTo, setTestTo] = useState("");
-
-  const admin = role === "admin" || role === "super-admin";
 
   const load = useCallback(async () => {
     try {
@@ -126,7 +130,7 @@ export function MailAccounts() {
     window.history.replaceState({}, "", window.location.pathname);
   }, [notify]);
 
-  const connect = async () => {
+  const connect = useCallback(async () => {
     setBusy("connect");
     try {
       const r = await fetch("/api/mail/connect", { headers: await authHeader() });
@@ -139,7 +143,87 @@ export function MailAccounts() {
     } finally {
       setBusy(null);
     }
-  };
+  }, [notify]);
+
+  return { accounts, status, problem, loading, busy, setBusy, load, connect };
+}
+
+/**
+ * One line, for the screens where somebody notices nothing has gone out.
+ *
+ * Sent Mail and Reminder Emails are where the question "why has nothing been
+ * sent" actually occurs to somebody. Making them walk to Settings to find the
+ * answer is how a system ends up with people assuming it is broken.
+ */
+export function MailboxStrip() {
+  const { accounts, status, loading, busy, connect } = useMailbox();
+
+  if (loading || !status) return null;
+
+  const mine = accounts.find((a) => a.isMine);
+  const connected = accounts.length > 0;
+
+  // Nothing to say when it is working and sending is on. A banner that is
+  // always there is a banner nobody reads.
+  if (connected && status.ready && !mine?.lastError) return null;
+
+  const tone = !connected || mine?.lastError ? "amber" : "slate";
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 rounded border px-4 py-3 ${
+        tone === "amber"
+          ? "border-amber-200 bg-amber-50 text-amber-900"
+          : "border-line-hair bg-surface-alt text-ink-secondary"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium">
+          {!connected
+            ? "No mailbox is connected, so nothing can be sent."
+            : mine?.lastError
+              ? "Your mailbox needs reconnecting."
+              : status.explanation}
+        </p>
+        <p className="mt-0.5 text-xs opacity-80">
+          {mine?.lastError
+            ? mine.lastError
+            : connected
+              ? `Letters would go out from ${status.from ?? "the connected account"}.`
+              : "Connect your Google account and letters will go out as you, with replies coming back to you."}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2">
+        {status.googleReady ? (
+          <button
+            type="button"
+            disabled={busy === "connect"}
+            onClick={() => void connect()}
+            className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:opacity-40"
+          >
+            {busy === "connect" ? <Spinner /> : <GoogleMark />}
+            {mine ? "Reconnect Google" : "Connect Google"}
+          </button>
+        ) : null}
+        <a
+          href="/settings"
+          className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink hover:border-line-strong"
+        >
+          Mailbox settings
+        </a>
+      </div>
+    </div>
+  );
+}
+
+export function MailAccounts() {
+  const { role } = useSession();
+  const { notify } = useToast();
+  const { accounts, status, problem, loading, busy, setBusy, load, connect } = useMailbox();
+  const [testTo, setTestTo] = useState("");
+
+  const admin = role === "admin" || role === "super-admin";
 
   const remove = async (userId: string, email: string) => {
     setBusy(userId);

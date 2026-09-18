@@ -15,6 +15,7 @@ import {
   StatTile,
   StatusBadge,
 } from "@/components/ui";
+import { MailboxStrip } from "@/components/MailAccounts";
 
 /**
  * Sent Mail.
@@ -71,6 +72,10 @@ export default function OutboxPage() {
 
   return (
     <div className="space-y-5">
+      {/* Where somebody first notices nothing has gone out, so the answer
+          and the button are here rather than a screen away. */}
+      <MailboxStrip />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Emails sent"

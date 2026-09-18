@@ -782,5 +782,22 @@ check("one stored report explains itself instead of showing an empty table",
 check("the screen scopes what it shows",
       MOVE_PAGE.includes("scope(ds.accounts)"), true);
 
+
+/*
+ * The mailbox is reachable from where the question occurs.
+ *
+ * Sent Mail and Reminder Emails are where somebody first notices nothing has
+ * gone out. Making them walk to Settings to find out why is how a system ends
+ * up with people assuming it is broken.
+ */
+check("Sent Mail shows the mailbox state",
+      page("outbox").includes("<MailboxStrip"), true);
+check("and so does Reminder Emails",
+      page("reminders").includes("<MailboxStrip"), true);
+check("both read it from the one component, not their own copy",
+      read("src/components/MailAccounts.tsx").includes("function useMailbox()"), true);
+check("and the strip keeps quiet when there is nothing wrong",
+      read("src/components/MailAccounts.tsx").includes("if (connected && status.ready"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
