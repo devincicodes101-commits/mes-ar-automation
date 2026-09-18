@@ -67,8 +67,13 @@ check("both files are passed to the parser",
   /\[arFile, contactFile\]/.test(upload), true);
 check("the apply prompt knows when it has already been applied",
   upload.includes("alreadyApplied"), true);
-check("and hides itself instead of asking twice",
-  /if \(alreadyApplied\) return null;/.test(upload), true);
+/* It used to hide itself here, and that was checked. The check was right about
+   not asking twice and wrong about how: an empty space where a button was
+   reads as a broken screen, not as a finished job. It now says so instead,
+   which is asserted in full further down. */
+check("and says so rather than asking twice",
+  !/if \(alreadyApplied\) return null;/.test(upload) &&
+    upload.includes("Already in use"), true);
 
 const outbox = page("outbox");
 const letterView = read(path.join(HERE, "..", "src", "components", "LetterView.tsx"));
@@ -1010,5 +1015,35 @@ check("and that fetch refuses the cache",
       SERVER.includes('cache: "no-store"'), true);
 check("the reason is written down, not just the flag",
       SERVER.includes("HEAD is not cached"), true);
+
+/* --------------------------- reading a file always says what happened ---- */
+
+console.log("\nReading a file that is already in use still answers");
+
+/*
+ * It used to answer with nothing.
+ *
+ * When the file just read matched the one on screen, the apply card returned
+ * null: no button, no sentence, an empty space where the control had been. The
+ * green banner further down did say the file was in use, but it is below the
+ * fold on a laptop, so what the officer actually saw was a button that had
+ * disappeared. Silence is the one response that cannot be told apart from a
+ * broken screen, and it was read as one.
+ *
+ * It also removed the only way to send a report to the database. On screen and
+ * stored are different things, and the file most likely to be on screen but
+ * unstored is exactly the one this branch caught.
+ */
+const UPLOAD = read("src/app/upload/page.tsx");
+
+check("an already-applied file is stated, not silently hidden",
+      UPLOAD.includes("This is the file every screen is already using"), true);
+check("and it no longer renders nothing",
+      !UPLOAD.includes("if (alreadyApplied) return null;"), true);
+check("saving it again is still possible",
+      UPLOAD.includes("Save to the database again"), true);
+check("both paths save through one function",
+      UPLOAD.includes("async function save(") &&
+        UPLOAD.split("storeDataset(").length === 2, true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

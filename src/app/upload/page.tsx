@@ -282,6 +282,47 @@ function ApplyBar({
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const built = datasetFromResults(results, period);
+
+  /**
+   * Sends the report to the database.
+   *
+   * Pulled out of the button because the other path needs it too. A file that
+   * is already on screen may still not be in the database, and until now that
+   * was unreachable: the screen compared what it had just read against the
+   * browser's copy, found them the same, and removed the only control that
+   * saves anything. The one case where saving matters most had no button.
+   */
+  async function save(d: NonNullable<typeof built>) {
+    setSaving(true);
+    setSaveError(null);
+    /*
+     * The contact list goes with it, where one was uploaded. Without this the
+     * addresses were linked in the browser, shown on screen, and never reached
+     * the database: the next load fetched contacts from the server and the
+     * uploaded ones were gone.
+     *
+     * Null rather than an empty array when no list was given, because absent
+     * and empty mean different things to the import.
+     */
+    const uploaded = results.find((r) => r.kind === "contact-list");
+    const result = await storeDataset(
+      d,
+      fileName ?? null,
+      uploaded && "contacts" in uploaded ? uploaded.contacts : null,
+    );
+    setSaving(false);
+
+    if (!result.ok) {
+      setSaveError(
+        result.problems?.length
+          ? result.problems.map((p) => `${p.what}: ${p.detail}`).join(" ")
+          : result.error ?? "The report could not be saved to the database.",
+      );
+      return false;
+    }
+    setSaved(true);
+    return true;
+  }
   const errors = results.reduce(
     (n, r) => n + r.problems.filter((p) => p.severity === "error").length,
     0,
@@ -320,9 +361,57 @@ function ApplyBar({
     );
   }
 
-  // Already in use. The green banner below says so; asking again would only
-  // invite a second press.
-  if (alreadyApplied) return null;
+  /*
+   * Already in use.
+   *
+   * This returned nothing at all, on the reasoning that the green banner lower
+   * down already says the file is in use and a second "Use this data" only
+   * invites a second press. Both halves of that were wrong in practice. The
+   * banner is below the fold on a laptop, so what the officer sees after
+   * pressing Read is the space where the button was, which reads as a failure
+   * rather than as a finished job. And silence is the one answer that cannot
+   * be told apart from a screen that has broken.
+   *
+   * So it says so, in the place the button would have been, and keeps the one
+   * action that is still meaningful: sending it to the database again. On
+   * screen and stored are different things, and a file can be the first
+   * without ever having been the second.
+   */
+  if (alreadyApplied) {
+    return (
+      <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+        <StatusBadge kind="good" label="Already in use" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-ink">
+            This is the file every screen is already using.
+          </p>
+          <p className="mt-0.5 text-[11px] text-ink-muted">
+            {built.accounts.length} tenants, {built.invoices.length} invoices,
+            as at {built.asOf}. Nothing to apply.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canAct || saving}
+          onClick={() => void save(built)}
+          className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? "Saving..." : "Save to the database again"}
+        </button>
+
+        {saveError ? (
+          <p className="basis-full text-xs leading-relaxed text-[var(--critical)]">
+            <b>Not saved to the database</b>: {saveError}
+          </p>
+        ) : null}
+        {saved ? (
+          <p className="basis-full text-xs leading-relaxed text-ink-muted">
+            Saved again. Anyone signed in is reading this report.
+          </p>
+        ) : null}
+      </Card>
+    );
+  }
 
   return (
     <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
@@ -351,35 +440,7 @@ function ApplyBar({
            */
           applyDataset(built);
           onApplied(`${built.accounts.length} tenants loaded`);
-
-          setSaving(true);
-          setSaveError(null);
-          /*
-           * The contact list goes with it, where one was uploaded. Without
-           * this the addresses were linked in the browser, shown on screen,
-           * and never reached the database: the next load fetched contacts
-           * from the server and the uploaded ones were gone.
-           *
-           * Null rather than an empty array when no list was given, because
-           * absent and empty mean different things to the import.
-           */
-          const uploaded = results.find((r) => r.kind === "contact-list");
-          const result = await storeDataset(
-            built,
-            fileName ?? null,
-            uploaded && "contacts" in uploaded ? uploaded.contacts : null,
-          );
-          setSaving(false);
-
-          if (!result.ok) {
-            setSaveError(
-              result.problems?.length
-                ? result.problems.map((p) => `${p.what}: ${p.detail}`).join(" ")
-                : result.error ?? "The report could not be saved to the database.",
-            );
-          } else {
-            setSaved(true);
-          }
+          await save(built);
         }}
         className="shrink-0 rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
