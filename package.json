@@ -26,7 +26,8 @@
     "test:cases": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/run-cases.mts",
     "build:test-data": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-test-data.mts",
     "test:import:rest": "node scripts/test-import-rest.mjs",
-    "import:report": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/import-report.mjs"
+    "import:report": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/import-report.mjs",
+    "test:activity:rest": "node --experimental-strip-types scripts/test-activity-rest.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

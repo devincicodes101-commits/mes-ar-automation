@@ -54,20 +54,20 @@ export async function GET(request: Request) {
     db
       .from("calls")
       .select(
-        "id,account_id,period,called_at,reached,outcome,promised_amount," +
+        "id,tenant_id,period,called_at,reached,outcome,promised_amount," +
           `promised_date,next_action_date,aging_bucket,deduction_fail_date,notes,${WITH_NAME}`,
       )
       .order("called_at", { ascending: false }),
     db
       .from("promises")
       .select(
-        `id,account_id,amount,promised_for,source,created_at,confirmation_sent_at,${WITH_NAME}`,
+        `id,tenant_id,amount,promised_for,source,created_at,confirmation_sent_at,${WITH_NAME}`,
       )
       .order("created_at", { ascending: false }),
     db
       .from("emails_sent")
       .select(
-        `id,account_id,template_id,template_name,subject,body,recipients,sent_at,was_simulated,${WITH_NAME}`,
+        `id,tenant_id,template_id,template_name,subject,body,recipients,sent_at,was_simulated,${WITH_NAME}`,
       )
       .order("sent_at", { ascending: false }),
   ]);
@@ -80,7 +80,7 @@ export async function GET(request: Request) {
         error: "Could not read the activity log.",
         detail: failed.error.message,
         hint: /column|relation|does not exist/i.test(failed.error.message)
-          ? "This database may not have 0012_activity_on_tenants.sql applied yet."
+          ? "This database may not have 0012_activity_columns.sql applied yet."
           : null,
       },
       { status: 502 },

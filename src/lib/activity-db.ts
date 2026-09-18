@@ -19,6 +19,12 @@
  *               from tenants. Sent anyway and ignored on the way in, so a
  *               renamed company reads correctly in history instead of
  *               freezing whatever the name was on the day.
+ *
+ * The browser still calls the key accountId, which the database has spelled
+ * tenant_id since 0005 renamed it. Translated here rather than renamed
+ * throughout: every activity log already sitting in an officer's local storage
+ * uses the old key, and a rename would make those records unreadable on the
+ * one load that is supposed to rescue them.
  */
 
 import type { CallLog, CallOutcome, PromiseRecord, SentEmail } from "./store";
@@ -58,7 +64,7 @@ export function outcomeFromDb(v: string): CallOutcome | null {
 
 export interface CallRow {
   id: string;
-  account_id: string;
+  tenant_id: string;
   period: string;
   called_at: string;
   reached: string | null;
@@ -74,7 +80,7 @@ export interface CallRow {
 
 export interface PromiseRow {
   id: string;
-  account_id: string;
+  tenant_id: string;
   amount: number | string;
   promised_for: string;
   source: string;
@@ -85,7 +91,7 @@ export interface PromiseRow {
 
 export interface EmailRow {
   id: string;
-  account_id: string;
+  tenant_id: string;
   template_id: string | null;
   template_name: string;
   subject: string;
@@ -111,7 +117,7 @@ export function periodFor(at: string): string {
 export function callToRow(c: CallLog) {
   return {
     id: c.id,
-    account_id: c.accountId,
+    tenant_id: c.accountId,
     period: periodFor(c.at),
     called_at: c.at,
     reached: c.reached || null,
@@ -128,7 +134,7 @@ export function callToRow(c: CallLog) {
 export function promiseToRow(p: PromiseRecord) {
   return {
     id: p.id,
-    account_id: p.accountId,
+    tenant_id: p.accountId,
     amount: p.amount,
     promised_for: p.promisedFor,
     source: p.source,
@@ -140,7 +146,7 @@ export function promiseToRow(p: PromiseRecord) {
 export function emailToRow(e: SentEmail, wasSimulated: boolean) {
   return {
     id: e.id,
-    account_id: e.accountId,
+    tenant_id: e.accountId,
     template_id: e.templateId || null,
     template_name: e.templateName,
     subject: e.subject,
@@ -177,8 +183,8 @@ export function callsFromRows(rows: readonly CallRow[]): {
     }
     calls.push({
       id: r.id,
-      accountId: r.account_id,
-      companyName: r.tenants?.company_name ?? r.account_id,
+      accountId: r.tenant_id,
+      companyName: r.tenants?.company_name ?? r.tenant_id,
       at: r.called_at,
       reached: r.reached ?? "",
       outcome,
@@ -197,8 +203,8 @@ export function callsFromRows(rows: readonly CallRow[]): {
 export function promisesFromRows(rows: readonly PromiseRow[]): PromiseRecord[] {
   return rows.map((r) => ({
     id: r.id,
-    accountId: r.account_id,
-    companyName: r.tenants?.company_name ?? r.account_id,
+    accountId: r.tenant_id,
+    companyName: r.tenants?.company_name ?? r.tenant_id,
     amount: money(r.amount),
     promisedFor: r.promised_for,
     createdAt: r.created_at,
@@ -210,8 +216,8 @@ export function promisesFromRows(rows: readonly PromiseRow[]): PromiseRecord[] {
 export function emailsFromRows(rows: readonly EmailRow[]): SentEmail[] {
   return rows.map((r) => ({
     id: r.id,
-    accountId: r.account_id,
-    companyName: r.tenants?.company_name ?? r.account_id,
+    accountId: r.tenant_id,
+    companyName: r.tenants?.company_name ?? r.tenant_id,
     templateId: r.template_id ?? "",
     templateName: r.template_name,
     subject: r.subject,
