@@ -33,7 +33,9 @@
     "test:cron": "node --experimental-strip-types scripts/test-cron.mjs",
     "test:mail": "node --experimental-strip-types scripts/test-mail.mts",
     "test:movement": "node --experimental-strip-types scripts/test-movement.mts",
-    "scenarios": "node --experimental-strip-types scripts/build-scenarios.mts"
+    "scenarios": "node --experimental-strip-types scripts/build-scenarios.mts",
+    "reset:data": "node scripts/reset-data.mjs",
+    "simple": "node --experimental-strip-types scripts/build-simple.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
