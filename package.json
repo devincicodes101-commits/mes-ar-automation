@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run test:revenue && npm run test:pipeline && npm run test:auth && npm run test:wiring && npm run test:behaviour && npm run test:checks && next build",
+    "build": "npm run test:revenue && npm run test:pipeline && npm run test:auth && npm run test:wiring && npm run test:behaviour && npm run test:checks && npm run test:schedule && npm run test:mail && npm run test:movement && npm run test:cases && next build",
     "start": "next start",
     "lint": "next lint",
     "test:revenue": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-revenue.mts",
