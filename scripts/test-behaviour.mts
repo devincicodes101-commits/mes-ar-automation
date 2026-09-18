@@ -1173,5 +1173,33 @@ const notAnArReport = () => {
 check("a workbook that is not an AR export is still refused",
       datasetFromResults([notAnArReport() as never], "2026-11"), null);
 
+/* ------------------------- storing a month where nobody owes anything ---- */
+
+console.log("\nMapping an empty report for the database");
+
+/*
+ * The mapper cannot tell an empty month from a failed read, because it never
+ * sees the workbook: it is handed accounts and invoices that the browser
+ * produced. So it is told, and the telling is checked here — both that saying
+ * so works and that not saying so is still refused, since the refusal is what
+ * stops a parse that quietly produced nothing from wiping a month.
+ */
+const emptyReport = (told: boolean) =>
+  toImportPayload([], [], "2026-11-30", "November.xlsx", null, told);
+
+check("an empty report is refused when nobody vouches for it",
+      emptyReport(false).payload, null);
+check("and the reason names the tenants, not the date",
+      emptyReport(false).problems.some((p) => p.what === "No tenants"), true);
+check("stated as empty, it maps",
+      emptyReport(true).payload !== null, true);
+check("with no snapshots and no invoices",
+      emptyReport(true).payload!.p_snapshots.length +
+        emptyReport(true).payload!.p_invoices.length, 0);
+check("and still carries the report date it will be filed under",
+      emptyReport(true).payload!.p_report_date, "2026-11-30");
+check("a report with no date is refused however it is described",
+      toImportPayload([], [], null, "x.xlsx", null, true).payload, null);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

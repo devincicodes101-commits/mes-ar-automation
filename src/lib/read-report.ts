@@ -143,11 +143,24 @@ export async function whyEmpty(db: SupabaseClient): Promise<EmptyCheck> {
 const why = (e: unknown): string | null => (e as { message?: string })?.message ?? null;
 
 /**
- * Every report date that actually has accounts stored against it, newest first.
+ * Every report date that has been stored, newest first.
  *
- * An upload row with nothing under it would otherwise read as a month where
- * everybody paid, which is the same shape as a month that failed to import and
- * means the opposite.
+ * This asked account_snapshots alone, so a date only counted if somebody owed
+ * something on it. The reasoning written here was that an upload row with
+ * nothing under it could be a month where everybody paid or a month that
+ * failed to import, and that those look identical.
+ *
+ * They do not, and the schema is what settles it. import_ar_report writes the
+ * upload row and the snapshots in one transaction, so an import that fails
+ * takes its upload row down with it. A surviving upload row with nothing under
+ * it can only be an import that succeeded and had nothing to store. There is
+ * no ambiguity to protect against, and protecting against it hid the one month
+ * that matters most: every tenant paid, and What Changed went on comparing the
+ * two months before it as though November had never been uploaded.
+ *
+ * Both tables are asked, because neither is complete on its own. Uploads
+ * predating the column would be missed by uploads alone; an empty month is
+ * missed by snapshots alone.
  *
  * Ordered by report date rather than by upload time throughout. MES re-upload
  * months late and often, so "the newest file" and "the newest month" are
@@ -156,9 +169,21 @@ const why = (e: unknown): string | null => (e as { message?: string })?.message 
 export async function reportDates(
   db: SupabaseClient,
 ): Promise<{ ok: true; dates: string[] } | { ok: false; error: string }> {
-  const rows = await everything<{ report_date: string }>(() =>
-    db.from("account_snapshots").select("report_date").order("report_date", { ascending: false }),
-  );
+  const [snapshotDates, uploadDates] = await Promise.all([
+    everything<{ report_date: string }>(() =>
+      db.from("account_snapshots").select("report_date").order("report_date", { ascending: false }),
+    ),
+    everything<{ report_date: string }>(() =>
+      db.from("uploads").select("report_date").order("report_date", { ascending: false }),
+    ),
+  ]);
+
+  const rows = {
+    error: snapshotDates.error ?? uploadDates.error,
+    rows: [...snapshotDates.rows, ...uploadDates.rows]
+      .filter((r) => r.report_date)
+      .sort((a, b) => b.report_date.localeCompare(a.report_date)),
+  };
 
   if (rows.error) {
     return { ok: false, error: `Could not read the report dates. ${why(rows.error) ?? ""}`.trim() };
@@ -208,6 +233,14 @@ export async function reportOn(
   }
   const ids = snapshotIds.rows.map((r) => r.id);
 
+  /*
+   * No snapshots means a month where nothing was outstanding. Asking for the
+   * invoice lines of an empty set is not merely pointless: supabase-js renders
+   * it as snapshot_id=in.() and PostgREST rejects that as a syntax error, so
+   * the month everybody paid would come back as a failed read.
+   */
+  const noLines = { rows: [] as InvoiceRow[], error: null as unknown };
+
   const [snapshots, invoices, contacts, managers, upload] = await Promise.all([
     everything<SnapshotRow>(() =>
       db
@@ -219,16 +252,18 @@ export async function reportOn(
         )
         .eq("report_date", reportDate),
     ),
-    everything<InvoiceRow>(() =>
-      db
-        .from("invoices")
-        .select(
-          "id,tenant_id,transaction_type,document_number,linked_contract,issued_on," +
-            "due_on,age_days,bucket,description,revenue_type,is_onefm,open_balance," +
-            "category,tenants(customer_code,company_name,property_code)",
-        )
-        .in("snapshot_id", ids),
-    ),
+    ids.length === 0
+      ? Promise.resolve(noLines)
+      : everything<InvoiceRow>(() =>
+          db
+            .from("invoices")
+            .select(
+              "id,tenant_id,transaction_type,document_number,linked_contract,issued_on," +
+                "due_on,age_days,bucket,description,revenue_type,is_onefm,open_balance," +
+                "category,tenants(customer_code,company_name,property_code)",
+            )
+            .in("snapshot_id", ids),
+        ),
     everything<ContactRow>(() => db.from("contacts").select("customer_code,email")),
     everything<{ key: string; name: string }>(() => db.from("managers").select("key,name")),
     db

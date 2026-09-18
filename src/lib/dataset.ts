@@ -543,6 +543,16 @@ export async function storeDataset(
       reportDate: d.asOf,
       fileName,
       contacts,
+      /*
+       * A month where nobody owes anything, stated rather than inferred.
+       *
+       * The server cannot tell this from a parse that produced nothing: it
+       * never sees the workbook. Here the difference is already settled. A
+       * dataset exists to be sent only once the reader has accepted the file
+       * as an AR export, and a file it rejects yields no dataset, so an empty
+       * one can only have come from an export with nothing in it.
+       */
+      nothingOutstanding: d.accounts.length === 0 && d.invoices.length === 0,
     }),
   });
 

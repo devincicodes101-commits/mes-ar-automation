@@ -103,14 +103,51 @@ export function checkUpload(
       });
     }
 
+    /*
+     * Nobody in the file is only a fault when the file was supposed to have
+     * somebody in it.
+     *
+     * This was a flat error, which made the month MES finally collect
+     * everything unstorable and told them to check they had exported the right
+     * report. The reader has already made that judgement and made it on better
+     * evidence: it knows whether the header row and the report date are there,
+     * which is what separates a genuine export with nothing outstanding from a
+     * file that was never this report. Deciding it a second time here, by a
+     * cruder rule, could only disagree with it.
+     *
+     * So it defers. The reader's error stands and is reported elsewhere; what
+     * is added is a warning, because replacing a month of figures with an
+     * empty one is worth stopping to look at even when it is correct.
+     */
+    const readerRefusedIt = aging.problems.some((p) => p.severity === "error");
+
     if (aging.accounts.length === 0) {
-      out.push({
-        severity: "error",
-        title: "No tenant accounts were found",
-        detail:
-          "The file was read but produced no customers. Check it is the aging " +
-          "detail export and not a summary or a different report.",
-      });
+      /*
+       * Still said, either way. Deferring quietly would leave worst() with
+       * nothing to report on a file the reader had already rejected, and a
+       * check that goes silent on the bad case is worse than one that is
+       * wrong on the good case.
+       */
+      out.push(
+        readerRefusedIt
+          ? {
+              severity: "error",
+              title: "No tenant accounts were found",
+              detail:
+                "The file was read but produced no customers, and it does " +
+                "not look like the aging detail export. Check it is not a " +
+                "summary or a different report.",
+            }
+          : {
+              severity: "warning",
+              title: "Nobody owes anything in this report",
+              detail:
+                "The file was read and holds no outstanding charges. If that " +
+                "is right, every tenant has paid. Applying it will take every " +
+                "figure on every screen to zero, so check the export ran over " +
+                "the period you meant before you do.",
+            },
+      );
     }
 
     // Uploading an older report than the one in use is almost always an

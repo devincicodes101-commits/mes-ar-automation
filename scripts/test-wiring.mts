@@ -1098,5 +1098,47 @@ check("the billing runs column is named for what it counts",
  */
 check("the credit clock keeps its own 14 and 30 day stages",
       CYCLES.includes('stage === "past 30 days"'), true);
+
+/* ------------------- the month everybody paid, all the way to the screen -- */
+
+console.log("\nAn empty report survives every layer, not just the first");
+
+/*
+ * This was refused five times over, by five separate pieces of code, each
+ * written on its own reasonable assumption that a report with nobody in it was
+ * a report that had failed to read. Fixing one moved the refusal to the next,
+ * and each move looked like the fix had not worked:
+ *
+ *   the reader          called it an error           -> warning, if it is an AR export
+ *   datasetFromResults  wanted at least one account  -> shape decides, not emptiness
+ *   checkUpload         raised an error              -> warning, deferring to the reader
+ *   toImportPayload     refused "No tenants"         -> allowed when the caller states it
+ *   reportDates         only listed dates with rows  -> asks uploads as well
+ *
+ * They are checked together because that is the lesson: the same assumption
+ * was made independently in five places, so a test on any one of them would
+ * have passed while the feature stayed broken.
+ */
+const TO_DB = lib("to-database.ts");
+const UPLOAD_ROUTE = read("src/app/api/upload/route.ts");
+const DATASET = lib("dataset.ts");
+const READ_REPORT = lib("read-report.ts");
+const UPLOAD_CHECKS = lib("upload-checks.ts");
+
+check("the mapper can be told a report is genuinely empty",
+      TO_DB.includes("nothingOutstanding = false") &&
+        TO_DB.includes("accounts.length === 0 && !nothingOutstanding"), true);
+check("the route only believes it when nothing arrived",
+      UPLOAD_ROUTE.includes("accounts.length === 0 && invoices.length === 0"), true);
+check("and the browser says so when it sends one",
+      DATASET.includes("nothingOutstanding: d.accounts.length === 0"), true);
+check("the report list asks uploads as well as snapshots",
+      READ_REPORT.includes('db.from("uploads").select("report_date")'), true);
+check("and an empty month does not ask for the invoices of no snapshots",
+      READ_REPORT.includes("ids.length === 0"), true);
+check("the upload check defers to the reader rather than deciding again",
+      UPLOAD_CHECKS.includes("readerRefusedIt"), true);
+check("but still speaks up when the reader rejected the file",
+      UPLOAD_CHECKS.includes("No tenant accounts were found"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

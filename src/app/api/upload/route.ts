@@ -48,6 +48,12 @@ interface Body {
    * case where an upload should wipe every address MES have.
    */
   contacts?: { customerCode: string; companyName: string; emails: string[] }[] | null;
+  /*
+   * Set when the report was read successfully and holds no outstanding
+   * charges, which is a month where every tenant has paid. Without it an empty
+   * report is refused, and MES's best month becomes their only unstorable one.
+   */
+  nothingOutstanding?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -92,12 +98,22 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+   * Only honoured when the report really is empty. The caller says a month had
+   * nothing outstanding; it does not get to say that about a report with
+   * tenants in it, so the claim is checked against what arrived rather than
+   * taken on its own.
+   */
+  const nothingOutstanding =
+    body.nothingOutstanding === true && accounts.length === 0 && invoices.length === 0;
+
   const { payload, problems } = toImportPayload(
     accounts,
     invoices,
     body.reportDate ?? null,
     body.fileName ?? null,
     body.contacts ?? null,
+    nothingOutstanding,
   );
 
   if (!payload) {

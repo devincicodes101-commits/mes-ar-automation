@@ -114,8 +114,39 @@ check("a total that disagrees with MES's own is an error", worst(mismatched), "e
 check("and it says not to act on the figures",
   has(mismatched, "Do not act on these figures"), true);
 
-const empty = checkUpload([{ ...ar, accounts: [], subtotals: [] }], null);
-check("no accounts at all is an error", worst(empty), "error");
+/*
+ * Nobody in the file.
+ *
+ * This asserted a flat error, and the flat error was the fault: it made the
+ * month MES finally collect everything the one month they could not store, and
+ * told them to go and check they had exported the right report.
+ *
+ * The distinction is not how many accounts came out. It is whether the file
+ * was an AR export at all, which the reader has already decided on evidence
+ * this check does not have: whether the header row and the report date are
+ * there. So both branches are asserted, because the point was never that empty
+ * is fine, it is that empty means two different things.
+ */
+const nobodyOwes = checkUpload([{ ...ar, accounts: [], subtotals: [] }], null);
+check("a genuine export with nobody owing is not an error", worst(nobodyOwes), "warning");
+check("and it says what applying it would do",
+  has(nobodyOwes, "take every figure on every screen to zero"), true);
+
+const notAnExport = checkUpload(
+  [{
+    ...ar,
+    accounts: [],
+    subtotals: [],
+    problems: [{
+      sheet: "Sheet1", row: null, severity: "error" as const,
+      message: "No invoice rows were found, and this does not look like an AR export.",
+    }],
+  }],
+  null,
+);
+check("but an empty file the reader rejected stays an error", worst(notAnExport), "error");
+check("and it is not also called a month where everybody paid",
+  has(notAnExport, "Nobody owes anything"), false);
 
 const noAddresses = checkUpload([ar, { ...cl, contacts: [] }], null);
 check("a contact list with no addresses is an error", worst(noAddresses), "error");

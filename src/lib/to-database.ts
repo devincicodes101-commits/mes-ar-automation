@@ -141,6 +141,24 @@ export function toImportPayload(
   reportDate: string | null,
   fileName: string | null,
   contacts: readonly { customerCode: string; companyName: string; emails: string[] }[] | null = null,
+  /**
+   * The caller states that this report genuinely has nothing outstanding in
+   * it, rather than having failed to read.
+   *
+   * It has to be told, because nothing here can work it out. This function
+   * receives accounts and invoices, never the workbook: the parser runs in the
+   * browser, which is the only place the file exists. An empty list arriving
+   * here is either the month everybody paid or a parse that produced nothing,
+   * and those are identical by the time they reach this argument list.
+   *
+   * Trusting the caller on it is not a new concession. Every figure stored by
+   * this function is the browser's reading of a file the server never sees, so
+   * the amounts are already taken on the same word. What makes the claim sound
+   * is where it comes from: a dataset only exists to be sent once the reader
+   * has accepted the workbook as an AR export, and a file it rejects produces
+   * no dataset at all, so there is nothing to call empty.
+   */
+  nothingOutstanding = false,
 ): Mapped {
   const problems: MappingProblem[] = [];
 
@@ -155,7 +173,7 @@ export function toImportPayload(
     });
   }
 
-  if (accounts.length === 0) {
+  if (accounts.length === 0 && !nothingOutstanding) {
     problems.push({
       what: "No tenants",
       detail: "The report was read but produced no accounts.",
