@@ -201,20 +201,29 @@ export function MailboxStrip() {
           away. Pressing it while unconfigured says exactly what is missing,
           which is what somebody in that position needs to hear.
         */}
+        {/*
+          One thing to press, and it does the thing. Signing in happens right
+          here rather than by sending somebody to another screen to find the
+          same button: this is where the question occurred to them.
+
+          Settings is a quiet link beside it, not a second button. Two buttons
+          that look alike leave somebody guessing which one is the action, and
+          the one they pressed last time only navigated.
+        */}
         <button
           type="button"
           disabled={busy === "connect"}
           onClick={() => void connect()}
-          className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
           {mine ? "Reconnect Google" : "Sign in with Google"}
         </button>
         <a
           href="/settings"
-          className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink hover:border-line-strong"
+          className="whitespace-nowrap text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
         >
-          Mailbox settings
+          More options
         </a>
       </div>
     </div>
