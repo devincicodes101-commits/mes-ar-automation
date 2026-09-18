@@ -64,8 +64,17 @@ export interface InvoiceRow {
   open_balance: number | string;
 }
 
+/*
+ * A contact belongs to a company, not to a company at one dormitory.
+ *
+ * contacts keys on customer_code rather than tenant_id, which is right and is
+ * easy to get wrong: a company renting at both JPD1 and JPD2 is two tenants
+ * and two balances, but one accounts department with one email address. Keying
+ * contacts per tenant would mean typing the same address twice and leaving one
+ * of the two silently unreachable when only the other was filled in.
+ */
 export interface ContactRow {
-  tenant_id: string;
+  customer_code: string;
   email: string | null;
 }
 
@@ -83,13 +92,15 @@ export function accountsFromRows(
   const emails = new Map<string, string[]>();
   for (const c of contacts) {
     if (!c.email) continue;
-    emails.set(c.tenant_id, [...(emails.get(c.tenant_id) ?? []), c.email]);
+    emails.set(c.customer_code, [...(emails.get(c.customer_code) ?? []), c.email]);
   }
 
   return snapshots.map((s) => {
     const t = s.tenants;
     const property = (t?.property_code ?? "BSD") as PropertyCode;
-    const mine = emails.get(s.tenant_id) ?? [];
+    // By customer code, so both of a company's dormitories reach the same
+    // accounts department rather than one of them having nobody to write to.
+    const mine = emails.get(t?.customer_code ?? "") ?? [];
     const counted = invoiceCounts.get(s.tenant_id);
 
     return {

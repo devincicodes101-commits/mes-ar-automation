@@ -35,13 +35,14 @@ const ROLE_FROM_DB: Record<string, Role> = {
   management: "Management",
 };
 
-export const ROLE_TO_DB: Record<Role, string> = {
-  "super-admin": "super_admin",
-  admin: "admin",
-  CSD: "csd",
-  RM: "rm",
-  Management: "management",
-};
+/*
+ * Re-exported from ./roles, which carries no "use client" and no
+ * "server-only". It lived here until an API route imported it across the
+ * client boundary this file's directive creates and received a reference
+ * proxy, which made every signed-in person read as an unknown role. See
+ * ./roles.ts.
+ */
+export { ROLE_TO_DB, ROLE_FROM_DB } from "./roles.ts";
 
 export interface Profile {
   id: string;

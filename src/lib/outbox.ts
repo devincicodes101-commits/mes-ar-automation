@@ -178,13 +178,11 @@ export function simulateSend(
  * belongs in n8n on MES's own server, per section 8.4 of the proposal, and
  * the sending mailbox is theirs to nominate.
  */
-export const CAN_SEND_FOR_REAL = false;
-
-export function assertSimulationOnly(): void {
-  if (CAN_SEND_FOR_REAL) {
-    throw new Error(
-      "Real sending is not configured, and must not be switched on in the " +
-        "prototype. These letters go to MES's tenants.",
-    );
-  }
-}
+/*
+ * Re-exported from ./sending, which carries no directive.
+ *
+ * It was declared here until the activity route imported it across the client
+ * boundary this file's "use client" creates and would have received a proxy,
+ * marking every simulated letter as really sent. See ./sending.ts.
+ */
+export { CAN_SEND_FOR_REAL, assertSimulationOnly } from "./sending.ts";

@@ -2,7 +2,7 @@ import "server-only";
 
 import { serverSupabase } from "./supabase-server";
 import type { Role } from "./auth";
-import { ROLE_TO_DB } from "./supabase-auth";
+import { ROLE_FROM_DB } from "./roles";
 
 /**
  * Who is asking an API route.
@@ -22,11 +22,6 @@ import { ROLE_TO_DB } from "./supabase-auth";
  * reads the role out of the profiles table rather than out of anything the
  * caller sent.
  */
-
-/** Maps the database's role values back to the ones the app uses. */
-const FROM_DB: Record<string, Role> = Object.fromEntries(
-  Object.entries(ROLE_TO_DB).map(([app, db]) => [db, app as Role]),
-) as Record<string, Role>;
 
 export interface Caller {
   userId: string;
@@ -91,7 +86,7 @@ export async function identify(request: Request): Promise<CallerResult> {
     };
   }
 
-  const role = FROM_DB[profile.data.role as string];
+  const role = ROLE_FROM_DB[profile.data.role as string];
   if (!role) {
     return {
       ok: false,

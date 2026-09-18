@@ -128,7 +128,13 @@ check("and the nav only offers what the role can open",
 section("Sending is still simulated");
 
 const outboxLib = lib("outbox.ts");
-check("there is no real transport", outboxLib.includes("CAN_SEND_FOR_REAL = false"), true);
+// Declared in sending.ts, which carries no directive so that a server route
+// can read the real value rather than a client reference proxy. See the
+// client boundary section below: a proxy is truthy, and this flag is asked
+// for by negation, so every dry run would have been logged as a real send.
+check("there is no real transport", lib("sending.ts").includes("CAN_SEND_FOR_REAL = false"), true);
+check("and the outbox still exposes it, so nothing imports it twice",
+  outboxLib.includes("CAN_SEND_FOR_REAL"), true);
 check("nothing imports a mailer",
   /nodemailer|sendgrid|smtp|resend/i.test(outboxLib + reminders + outbox), false);
 
@@ -490,6 +496,92 @@ check("history cannot be rewritten through this route",
  */
 check("a simulated send cannot be reported as a real one",
       ACTIVITY.includes("!CAN_SEND_FOR_REAL"), true);
+
+/* ---------------------------------------- the client boundary ----------- */
+
+console.log("\nServer code never reaches across the client boundary");
+
+/*
+ * The fault this was written for made every signed-in person a stranger.
+ *
+ * api-auth.ts imported ROLE_TO_DB from supabase-auth.ts, which begins
+ * "use client". Next.js did exactly what that asks: it treated the module as a
+ * client boundary and gave the server a reference proxy instead of the object.
+ * Object.entries() on a proxy produced an empty map, every role read as one the
+ * build did not know, and every request came back 403.
+ *
+ * Nothing caught it. The types were right, the values were right, and the
+ * tests that talk to PostgREST with the service role key never pass through
+ * identify() at all. It took signing in over HTTP to see it.
+ */
+const CLIENT_MODULES = new Set(
+  readdirSync(LIB)
+    .filter((f) => /\.tsx?$/.test(f))
+    .filter((f) => readFileSync(path.join(LIB, f), "utf8").startsWith('"use client"'))
+    .map((f) => f.replace(/\.tsx?$/, "")),
+);
+
+const serverFiles = appFiles.filter((f) => {
+  const src = readFileSync(f, "utf8");
+  return (
+    src.includes('import "server-only"') ||
+    /\/api\/[^/]+\/route\.ts$/.test(f.split("\\").join("/"))
+  );
+});
+
+/*
+ * Only what survives compilation counts. `import type` is erased, so a server
+ * module naming a client module's types never reaches across anything at run
+ * time, and flagging it would train people to ignore this check.
+ */
+const IMPORT = /\bimport\s+(type\s+)?([\s\S]*?)\s+from\s+"(?:@\/lib|\.)\/([\w-]+)(?:\.tsx?)?"/g;
+
+const crossings: string[] = [];
+for (const f of serverFiles) {
+  const src = readFileSync(f, "utf8");
+  for (const m of src.matchAll(IMPORT)) {
+    const wholeImportIsTypes = Boolean(m[1]);
+    const named = (m[2] ?? "").trim();
+
+    /*
+     * `import { type CallLog }` is erased too, but `import { type X, y }` is
+     * not: y still crosses at run time. So an import counts as safe only when
+     * every name in it is marked, not when any of them is.
+     */
+    const everyNameIsAType =
+      wholeImportIsTypes ||
+      (named.startsWith("{") &&
+        named
+          .replace(/[{}]/g, "")
+          .split(",")
+          .filter((x) => x.trim().length > 0)
+          .every((x) => /^\s*type\s/.test(x)));
+
+    if (everyNameIsAType) continue;
+    if (CLIENT_MODULES.has(m[3])) crossings.push(`${path.basename(f)} -> ${m[3]}`);
+  }
+}
+
+check("no server module imports a \"use client\" one",
+      crossings.join(", ") || "none", "none");
+
+/*
+ * And the map itself lives somewhere both sides can have it, carrying neither
+ * directive. A file that grew one would put the fault straight back.
+ */
+/*
+ * The first line only. These files talk about "use client" at length in their
+ * own comments, and an earlier version of this check read the whole file and
+ * failed on its own prose.
+ */
+const firstLine = (p: string) => read(p).split(/\r?\n/)[0]?.trim() ?? "";
+
+for (const shared of ["src/lib/roles.ts", "src/lib/sending.ts"]) {
+  check(`${path.basename(shared)} carries no directive`,
+        read(shared).length > 0 &&
+          !/^"use client"|^"server-only"/.test(firstLine(shared)),
+        true);
+}
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

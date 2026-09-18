@@ -13,7 +13,7 @@ import {
   type PromiseRow,
   type EmailRow,
 } from "@/lib/activity-db";
-import { CAN_SEND_FOR_REAL } from "@/lib/outbox";
+import { CAN_SEND_FOR_REAL } from "@/lib/sending";
 import type { CallLog, PromiseRecord, SentEmail } from "@/lib/store";
 
 /**
