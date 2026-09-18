@@ -35,7 +35,8 @@
     "test:movement": "node --experimental-strip-types scripts/test-movement.mts",
     "scenarios": "node --experimental-strip-types scripts/build-scenarios.mts",
     "reset:data": "node scripts/reset-data.mjs",
-    "simple": "node --experimental-strip-types scripts/build-simple.mts"
+    "simple": "node --experimental-strip-types scripts/build-simple.mts",
+    "predict": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/predict.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
