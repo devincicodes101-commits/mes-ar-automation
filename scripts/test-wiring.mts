@@ -433,12 +433,22 @@ const leaks = appFiles.filter((f) => {
   const src = readFileSync(f, "utf8");
   if (!src.includes("SUPABASE_SERVICE_ROLE_KEY")) return false;
   if (f.endsWith("supabase-server.ts")) return false;
+  /*
+   * state.ts uses the key as an HMAC secret rather than to reach the database,
+   * signing the value Google hands back so a stored refresh token cannot be
+   * filed against somebody else's account. Allowed because it is server-only,
+   * which is asserted just below rather than assumed: the danger this guard
+   * exists for is the key reaching a browser, and a server-only file cannot.
+   */
+  if (f.endsWith(path.join("mail", "state.ts"))) return false;
   // A route or server component may use it, but only through the guarded
   // client, never by reading the variable itself.
   return true;
 });
 check("no other file reads the service key",
       leaks.map((f) => path.basename(f)).join(", ") || "none", "none");
+check("and the one file allowed to borrow it is server-only",
+      read("src/lib/mail/state.ts").startsWith('import "server-only"'), true);
 
 const clientsImportingServer = appFiles.filter((f) => {
   const src = readFileSync(f, "utf8");
@@ -647,8 +657,19 @@ check("a rerun cannot raise the fee twice",
 check("and cannot write a second letter to the same tenant",
       CRON.includes("letterId("), true);
 
-check("nothing it writes claims to be a real send",
-      CRON.includes("was_simulated: !CAN_SEND_FOR_REAL"), true);
+/*
+ * A letter is written as a dry run and only becomes a real send once one has
+ * genuinely left. The order matters: recorded first, attempted second, so a
+ * letter that goes out and then fails to be written down is impossible. The
+ * flag cannot be set optimistically, which is the direction that cannot be
+ * checked afterwards.
+ */
+check("a letter is recorded as a dry run before anything is attempted",
+      CRON.includes("was_simulated: true"), true);
+check("and only becomes a real send once one has left",
+      /if \(outcome\.sent\)[\s\S]{0,400}was_simulated: false/.test(CRON), true);
+check("the schedule sends as nobody, so it uses the nominated account",
+      /send\(db, null,/.test(CRON), true);
 
 /* ------------------------------------------------------ the mailbox ----- */
 

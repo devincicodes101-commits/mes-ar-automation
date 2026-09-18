@@ -17,6 +17,7 @@ import {
   StatusBadge,
   Tag,
 } from "@/components/ui";
+import { MailAccounts } from "@/components/MailAccounts";
 
 export default function SettingsPage() {
   const store = useStore();
@@ -195,6 +196,12 @@ export default function SettingsPage() {
           ))}
         </ul>
       </Card>
+
+      {/* --------------------------------------------------------- mailbox */}
+      {/* Placed above the wording on purpose. Which mailbox a letter comes
+          from decides whether it arrives at all; the words in it only matter
+          once it does. */}
+      <MailAccounts />
 
       {/* ---------------------------------------------------------- wording */}
       <Card>

@@ -40,7 +40,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
   }
 
-  const status = sendingStatus();
+  let db = null;
+  try {
+    db = serverSupabase();
+  } catch {
+    // Without a database there are no connected accounts, only the shared
+    // mailbox. Worth reporting on rather than refusing outright.
+  }
+
+  const status = await sendingStatus(db, who.caller.userId);
 
   /*
    * Only checked when asked, because it opens a connection to Google and this
@@ -49,7 +57,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   let mailbox: { ok: boolean; error?: string } | null = null;
   if (url.searchParams.get("verify") === "1") {
-    const chosen = connector();
+    const chosen = await connector(db, who.caller.userId);
     mailbox = chosen.ok ? await chosen.connector.verify() : { ok: false, error: chosen.error };
   }
 
@@ -95,8 +103,15 @@ export async function POST(request: Request) {
    * in its own text, so that if it ever does reach somebody by mistake it is
    * obviously not a demand for money.
    */
+  let db;
+  try {
+    db = serverSupabase();
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+  }
+
   if (body.test?.to) {
-    const outcome = await send({
+    const outcome = await send(db, who.caller.userId, {
       to: [body.test.to],
       subject: "Test message from the MES AR system",
       body:
@@ -111,7 +126,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: outcome.sent,
       ...outcome,
-      status: sendingStatus(),
+      status: await sendingStatus(db, who.caller.userId),
     });
   }
 
@@ -121,13 +136,6 @@ export async function POST(request: Request) {
       { ok: false, error: "Send a test address, or one or more letters." },
       { status: 400 },
     );
-  }
-
-  let db;
-  try {
-    db = serverSupabase();
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
   const results: {
@@ -148,7 +156,7 @@ export async function POST(request: Request) {
    * stopped. Slower is the right trade here.
    */
   for (const letter of letters) {
-    const outcome = await send(letter);
+    const outcome = await send(db, who.caller.userId, letter);
 
     results.push({
       tenantId: letter.tenantId,
@@ -174,6 +182,7 @@ export async function POST(request: Request) {
         sent_at: new Date().toISOString(),
         sent_by: who.caller.userId,
         was_simulated: false,
+        sent_from: outcome.from ?? null,
       });
       if (stored.error) {
         // The letter is gone and cannot be unsent, so this is said loudly
@@ -194,6 +203,6 @@ export async function POST(request: Request) {
     blocked,
     failed: results.length - sent - blocked,
     results,
-    status: sendingStatus(),
+    status: await sendingStatus(db, who.caller.userId),
   });
 }

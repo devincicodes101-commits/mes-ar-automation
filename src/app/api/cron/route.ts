@@ -6,6 +6,8 @@ import { buildPipeline } from "@/lib/pipeline";
 import { emptyState, planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
 import type { Pipeline } from "@/lib/pipeline";
 import { CAN_SEND_FOR_REAL } from "@/lib/sending";
+import { send } from "@/lib/mail";
+import { renderLetter } from "@/lib/letters";
 import {
   askedFor,
   cycleDayFor,
@@ -284,7 +286,13 @@ async function persist(
   period: string,
   after: SimState,
   pipeline: Pipeline,
-): Promise<{ feesRaised: number; lettersWritten: number; notes: string[] }> {
+): Promise<{
+  feesRaised: number;
+  lettersWritten: number;
+  lettersSent: number;
+  lettersBlocked: number;
+  notes: string[];
+}> {
   const notes: string[] = [];
   const byId = new Map(pipeline.accounts.map((a) => [a.id, a]));
 
@@ -324,11 +332,43 @@ async function persist(
   }
 
   let lettersWritten = 0;
+  let lettersSent = 0;
+  let lettersBlocked = 0;
+
   if (written.length > 0) {
+    /*
+     * Written first, then sent, one at a time.
+     *
+     * The record goes down before the attempt so a letter that leaves and then
+     * fails to be recorded is impossible: the row exists either way, and the
+     * send updates it. The other order would lose a letter that went out.
+     *
+     * One at a time because Google does not rate limit politely. Forty at once
+     * locks sending for about a day, which on the 21st means the final notice
+     * reaching some tenants and not others with no way to finish.
+     *
+     * Nothing leaves unless the gate lets it, and the gate is off by default.
+     * On a build where sending is switched off this loop still runs, still
+     * records the letters, and every attempt comes back blocked with a reason.
+     */
     const rows = written
       .map((id) => {
         const account = byId.get(id);
         if (!account) return null;
+
+        /*
+         * Rendered from the report date, not from today. A letter that quotes
+         * a deadline counted from the day it happened to be generated would
+         * give a different date to the same tenant depending on when the run
+         * fired, which is the sort of thing a tenant notices and an officer
+         * cannot explain.
+         */
+        const letter = renderLetter(day === 21 ? "final-notice" : "first-reminder", {
+          companyName: account.companyName,
+          grandTotal: account.total,
+          sentOn: today.iso,
+        });
+
         return {
           /*
            * Derived rather than random, so a second run on the same day
@@ -339,14 +379,17 @@ async function persist(
           tenant_id: id,
           template_id: day === 21 ? "final-21st" : "reminder-7th",
           template_name: day === 21 ? "Final notice" : "First reminder",
-          subject:
-            day === 21
-              ? `Final reminder, outstanding rental payment for ${account.companyName}`
-              : `Outstanding balance, ${account.companyName}`,
+          subject: letter.subject,
           recipients: account.emails,
           sent_at: new Date().toISOString(),
-          was_simulated: !CAN_SEND_FOR_REAL,
-          body: null,
+          was_simulated: true,
+          /*
+           * The letter itself, not just its subject. A subject line and a
+           * recipient say a send happened, not whether it was right: every
+           * date and amount is merged here, so this is the only place a broken
+           * template would show.
+           */
+          body: letter.body,
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
@@ -355,10 +398,57 @@ async function persist(
       const r = await db.from("emails_sent").upsert(rows, { onConflict: "id" });
       if (r.error) notes.push(`letters not recorded: ${r.error.message}`);
       else lettersWritten = rows.length;
+
+      for (const row of rows) {
+        const account = byId.get(row.tenant_id);
+        if (!account) continue;
+
+        /*
+         * Null for the user, because the schedule is nobody. That is what the
+         * nominated account is for: on the 7th at 9am there is no session to
+         * read, so the send goes out as whichever connected account was chosen
+         * deliberately for it.
+         */
+        const outcome = await send(db, null, {
+          to: row.recipients,
+          subject: row.subject,
+          body: row.body,
+          tenantId: row.tenant_id,
+          companyName: account.companyName,
+        });
+
+        if (outcome.sent) {
+          lettersSent += 1;
+          // was_simulated false only once a letter genuinely left, so the day
+          // sending was switched on stays findable in the data afterwards.
+          await db
+            .from("emails_sent")
+            .update({ was_simulated: false, sent_from: outcome.from ?? null })
+            .eq("id", row.id);
+        } else if (outcome.blocked) {
+          lettersBlocked += 1;
+        } else {
+          notes.push(`${account.companyName}: ${outcome.reason}`);
+        }
+      }
+
+      /*
+       * Said once rather than forty times. Every letter blocked for the same
+       * reason is the normal state while sending is off, and repeating it per
+       * tenant would bury anything that actually went wrong.
+       */
+      if (lettersBlocked > 0) {
+        notes.push(
+          `${lettersBlocked} letters were written but not sent. ` +
+            (CAN_SEND_FOR_REAL
+              ? "Check the mailbox under Settings."
+              : "Sending is switched off."),
+        );
+      }
     }
   }
 
-  return { feesRaised, lettersWritten, notes };
+  return { feesRaised, lettersWritten, lettersSent, lettersBlocked, notes };
 }
 
 /**
