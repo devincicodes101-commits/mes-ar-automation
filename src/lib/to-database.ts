@@ -13,6 +13,20 @@
 import type { Account, PropertyCode } from "./types";
 import type { DetailInvoice } from "./aging-detail";
 
+/**
+ * Which version of the classification rules read a report.
+ *
+ * Buckets, charge types and dormitories are decided here and stored as
+ * decided, so a later fix does not reach what is already in the database.
+ * Moving this date when a rule changes is what makes the affected reports
+ * findable afterwards, and re-importable on purpose rather than by accident.
+ *
+ * Four rules changed in the week it was introduced: the 1FM prefix, the J1-
+ * dormitory prefix, rounding on credit notes, and a report date whose title
+ * disagreed with its own lines by eleven days.
+ */
+export const RULES_VERSION = "2026-09-18";
+
 /** The four MES operate. Anything else is not a dormitory we know about. */
 const PROPERTIES: readonly PropertyCode[] = ["JPD1", "JPD2", "BSD", "LEO"];
 
@@ -72,6 +86,12 @@ export interface ImportPayload {
   p_snapshots: DbSnapshot[];
   p_invoices: DbInvoice[];
   p_ar_filename: string | null;
+  /*
+   * Sent with the import rather than stamped afterwards, so the version is as
+   * reliable as the rows it describes: either the report and its version are
+   * both stored, or neither is. Requires 0011.
+   */
+  p_rules_version: string;
 }
 
 export interface MappingProblem {
@@ -232,6 +252,7 @@ export function toImportPayload(
       p_snapshots: snapshots,
       p_invoices: lines,
       p_ar_filename: fileName,
+      p_rules_version: RULES_VERSION,
     },
     problems: [],
   };

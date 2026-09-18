@@ -8,7 +8,8 @@ import { ReactNode, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { ROLE_LABEL, canOpen, useSession } from "@/lib/session";
-import { useDataset } from "@/lib/dataset";
+import { hydrateFromServer, useDataset } from "@/lib/dataset";
+import { hydrateActivity, useSync } from "@/lib/store";
 import { Loading } from "@/components/ui";
 
 /**
@@ -217,6 +218,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { session, ready, role, scopeNote, signOut } = useSession();
   const ds = useDataset();
+  const sync = useSync();
   const current = navFor(pathname);
 
   // The nav only offers what this role may actually open, so nobody is invited
@@ -235,6 +237,30 @@ export function Shell({ children }: { children: ReactNode }) {
     }
     if (!canOpen(role, pathname)) router.replace("/");
   }, [ready, session, role, pathname, router]);
+
+  /*
+   * Load the stored report once somebody is signed in.
+   *
+   * Deliberately after the session gate, not before: the request goes to an
+   * API route that reads every tenant, and there is no reason for a signed out
+   * browser to have asked for it.
+   *
+   * Whatever is in local storage is already on screen by the time this runs,
+   * so a slow or failed request costs nothing. Only a good answer replaces it,
+   * and a failure is recorded rather than swallowed, because two people each
+   * working from their own browser copy is the situation this replaces.
+   */
+  useEffect(() => {
+    if (!ready || !session) return;
+    void hydrateFromServer();
+    /*
+     * And the activity log, which is the half of this that cannot be
+     * re-uploaded. Same rule: what is in this browser is already on screen, a
+     * failure leaves it there, and only a good answer replaces it with
+     * everybody's calls rather than just this browser's.
+     */
+    void hydrateActivity();
+  }, [ready, session]);
 
   // The login page brings its own layout, and nothing renders until the stored
   // session has been read, so a locked screen never flashes up first.
@@ -356,6 +382,35 @@ export function Shell({ children }: { children: ReactNode }) {
               {scopeNote} In production this is enforced by the database, not by
               the screen.
             </p>
+          </div>
+        ) : null}
+
+        {/*
+          * Records that exist in this browser and nowhere else.
+          *
+          * Shown on every screen rather than on the one that created them,
+          * because the officer will have moved on by the time it matters and
+          * their own screen shows the call either way. A history that looks
+          * complete while missing the calls made during an outage is the worst
+          * thing this system could quietly do.
+          */}
+        {sync.unsaved > 0 || sync.lastError ? (
+          <div
+            className={`border-b px-6 py-3 text-sm ${
+              sync.unsaved > 0
+                ? "border-red-200 bg-red-50 text-red-900"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            }`}
+            role="status"
+          >
+            {sync.unsaved > 0 ? (
+              <span className="font-medium">
+                {sync.unsaved === 1
+                  ? "1 record is saved in this browser only."
+                  : `${sync.unsaved} records are saved in this browser only.`}{" "}
+              </span>
+            ) : null}
+            {sync.lastError}
           </div>
         ) : null}
 

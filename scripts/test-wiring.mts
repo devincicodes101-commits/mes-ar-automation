@@ -440,5 +440,56 @@ check("and calls the import function rather than writing tables itself",
 check("it never inserts into a table directly",
       /\.from\(["']/.test(ROUTE), false);
 
+/* ------------------------------------------------- the activity log ----- */
+
+console.log("\nWhat an officer did reaches the database");
+
+const STORE = read("src/lib/store.ts");
+const ACTIVITY = read("src/app/api/activity/route.ts");
+const SHELL = read("src/components/Shell.tsx");
+
+check("the activity route exists", ACTIVITY.length > 0, true);
+check("it maps through the tested mapper",
+      ACTIVITY.includes("callToRow") && ACTIVITY.includes("callsFromRows"), true);
+check("it establishes who is asking first",
+      /identify\(request\)/.test(ACTIVITY), true);
+
+/*
+ * The one that would not show up as a broken screen. A store that keeps
+ * writing to local storage and never posts looks completely normal: every
+ * screen renders, the officer sees their own calls, and the database stays
+ * empty. Only the colleague who cannot see them ever finds out.
+ */
+for (const fn of ["recordCall", "recordEmails", "recordPromise", "markPromiseConfirmed"]) {
+  const from = STORE.indexOf(`export function ${fn}`);
+  const rest = STORE.slice(from);
+  const end = rest.indexOf("\nexport ", 1);
+  check(`${fn} posts what it writes`,
+        /mirror\(/.test(end > 0 ? rest.slice(0, end) : rest), true);
+}
+
+check("a record that did not reach the server is counted, not swallowed",
+      STORE.includes("unsaved: sync.unsaved + 1"), true);
+check("and the count is shown on every screen",
+      SHELL.includes("useSync()") && SHELL.includes("sync.unsaved"), true);
+check("the log is loaded when somebody signs in",
+      SHELL.includes("hydrateActivity()"), true);
+
+/*
+ * Append only, the same rule audit_log follows. A call logged wrongly is
+ * corrected by logging what happened next, not by editing history so that the
+ * first call reads as though it never occurred.
+ */
+check("history cannot be rewritten through this route",
+      /export async function (DELETE|PATCH|PUT)/.test(ACTIVITY), false);
+
+/*
+ * Whether a send was real is the build's fact, not the caller's claim. A
+ * browser that could say a dry run was genuine would make the two
+ * indistinguishable once CAN_SEND_FOR_REAL is finally turned on.
+ */
+check("a simulated send cannot be reported as a real one",
+      ACTIVITY.includes("!CAN_SEND_FOR_REAL"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -6,7 +6,13 @@ import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
 import { unrecognisedDescriptions } from "@/lib/revenue-rules";
-import { applyDataset, datasetFromResults, revertToSample, useDataset } from "@/lib/dataset";
+import {
+  applyDataset,
+  datasetFromResults,
+  revertToSample,
+  storeDataset,
+  useDataset,
+} from "@/lib/dataset";
 import { checkUpload, worst, type Finding } from "@/lib/upload-checks";
 
 type Phase = "idle" | "parsing" | "done";
@@ -190,6 +196,7 @@ export default function UploadPage() {
           results={results}
           period={period}
           canAct={canAct}
+          fileName={arFile?.name ?? null}
           onApplied={(label) =>
             notify(
               "Now using your file",
@@ -260,14 +267,20 @@ function ApplyBar({
   results,
   period,
   canAct,
+  fileName,
   onApplied,
 }: {
   results: ParseResult[];
   period: string;
   canAct: boolean;
+  /** Stored against the upload, so a figure can be traced to the file. */
+  fileName: string | null;
   onApplied: (label: string) => void;
 }) {
   const active = useDataset();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const built = datasetFromResults(results, period);
   const errors = results.reduce(
     (n, r) => n + r.problems.filter((p) => p.severity === "error").length,
@@ -326,15 +339,57 @@ function ApplyBar({
       </div>
       <button
         type="button"
-        disabled={!canAct}
-        onClick={() => {
+        disabled={!canAct || saving}
+        onClick={async () => {
+          /*
+           * On screen first, then stored.
+           *
+           * The officer sees their file immediately, which is what they asked
+           * for, and the trip to the server happens behind that. If it fails
+           * they still have the month in front of them and a line saying it
+           * did not save, rather than a spinner and no figures.
+           */
           applyDataset(built);
           onApplied(`${built.accounts.length} tenants loaded`);
+
+          setSaving(true);
+          setSaveError(null);
+          const result = await storeDataset(built, fileName ?? null);
+          setSaving(false);
+
+          if (!result.ok) {
+            setSaveError(
+              result.problems?.length
+                ? result.problems.map((p) => `${p.what}: ${p.detail}`).join(" ")
+                : result.error ?? "The report could not be saved to the database.",
+            );
+          } else {
+            setSaved(true);
+          }
         }}
         className="shrink-0 rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Use this data
+        {saving ? "Saving..." : "Use this data"}
       </button>
+
+      {/*
+        * Said out loud, because the alternative is two people working from two
+        * different months without either of them knowing. A save that failed
+        * means this file lives in this browser and nowhere else.
+        */}
+      {saveError ? (
+        <p className="basis-full text-xs leading-relaxed text-[var(--critical)]">
+          On screen, but <b>not saved to the database</b>: {saveError} It will
+          stay in this browser only, so nobody else can see it and it will not
+          survive clearing your data.
+        </p>
+      ) : null}
+      {saved ? (
+        <p className="basis-full text-xs leading-relaxed text-ink-muted">
+          Saved. Anyone signed in sees this report now, and it will still be
+          here on another machine.
+        </p>
+      ) : null}
     </Card>
   );
 }

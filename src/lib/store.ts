@@ -318,6 +318,173 @@ export function useStore(): StoreState {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
+/* ------------------------------------------------- mirroring to Supabase */
+
+/**
+ * The activity log is the one thing here that cannot be rebuilt.
+ *
+ * A report can be uploaded again and every balance comes back. A phone call at
+ * half past four on a Tuesday cannot. Local storage held it until now, which
+ * meant one cleared cache lost it and the officer at the next desk could not
+ * see it at all.
+ *
+ * So every record is written locally first and then posted. Locally first
+ * because the officer is mid conversation and a screen that waits on a network
+ * round trip before showing the call they just logged is a screen they will
+ * stop trusting. Posted after because local storage is not where this belongs.
+ *
+ * What matters is the failure. A post that fails must be visible, because the
+ * officer's own screen will show the call either way and they would have no
+ * reason to doubt it. `unsaved` counts what is in this browser and nowhere
+ * else, and Shell shows it. Silence here would be the worst outcome in the
+ * system: a complete looking history missing the calls that mattered enough to
+ * be made during an outage.
+ */
+
+export interface SyncState {
+  /** Records written here that the server has not accepted. */
+  unsaved: number;
+  /** Why the last one failed, for the person who has to do something about it. */
+  lastError: string | null;
+  /** True while the first load from the server is in flight. */
+  loading: boolean;
+}
+
+let sync: SyncState = { unsaved: 0, lastError: null, loading: false };
+const syncListeners = new Set<() => void>();
+
+function setSync(next: Partial<SyncState>) {
+  sync = { ...sync, ...next };
+  syncListeners.forEach((l) => l());
+}
+
+export function useSync(): SyncState {
+  return useSyncExternalStore(
+    (l) => {
+      syncListeners.add(l);
+      return () => syncListeners.delete(l);
+    },
+    () => sync,
+    () => ({ unsaved: 0, lastError: null, loading: false }),
+  );
+}
+
+async function authHeader(): Promise<Record<string, string>> {
+  try {
+    const { supabase } = await import("./supabase.ts");
+    const token = (await supabase?.auth.getSession())?.data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Posts one record, and counts it as unsaved if that does not work.
+ *
+ * Deliberately not awaited by the callers: the officer's next click must not
+ * wait on this. The count is the honesty, not the timing.
+ */
+function mirror(kind: "call" | "promise" | "email", record: unknown): void {
+  if (typeof window === "undefined") return;
+
+  void (async () => {
+    try {
+      const r = await fetch("/api/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ kind, record }),
+      });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as
+          | { error?: string; hint?: string }
+          | null;
+        setSync({
+          unsaved: sync.unsaved + 1,
+          lastError: [body?.error, body?.hint].filter(Boolean).join(" ") ||
+            `The server refused it (${r.status}).`,
+        });
+        return;
+      }
+      // Only a genuine acceptance clears anything, and it clears one, not all:
+      // an earlier failure is still a record sitting in this browser alone.
+      if (sync.unsaved === 0) setSync({ lastError: null });
+    } catch {
+      setSync({
+        unsaved: sync.unsaved + 1,
+        lastError:
+          "This record is saved in this browser only. It could not reach the " +
+          "server, so nobody else can see it yet.",
+      });
+    }
+  })();
+}
+
+let activityLoaded = false;
+
+/**
+ * Loads the shared activity log, and keeps what is here if it cannot.
+ *
+ * The server's copy replaces this browser's, because the server has everyone's
+ * calls and this browser has only its own. Anything posted from here has
+ * already been accepted or already been counted as unsaved, so nothing is lost
+ * by preferring the fuller history.
+ *
+ * A failure leaves local storage exactly as it was. An officer who cannot
+ * reach the server should still see yesterday's calls.
+ */
+export async function hydrateActivity(): Promise<void> {
+  if (activityLoaded || typeof window === "undefined") return;
+  activityLoaded = true;
+  setSync({ loading: true });
+
+  try {
+    const r = await fetch("/api/activity", { headers: await authHeader() });
+    const body = (await r.json()) as {
+      ok?: boolean;
+      calls?: CallLog[];
+      promises?: PromiseRecord[];
+      emails?: SentEmail[];
+      unreadableCalls?: number;
+      error?: string;
+      hint?: string;
+    };
+
+    if (!r.ok || !body.ok) {
+      setSync({
+        loading: false,
+        lastError:
+          [body.error, body.hint].filter(Boolean).join(" ") ||
+          "The activity log could not be loaded, so this is what is in this browser.",
+      });
+      return;
+    }
+
+    commit({
+      ...state,
+      calls: body.calls ?? state.calls,
+      promises: body.promises ?? state.promises,
+      emails: body.emails ?? state.emails,
+    });
+
+    setSync({
+      loading: false,
+      lastError:
+        body.unreadableCalls
+          ? `${body.unreadableCalls} calls could not be read by this version ` +
+            "and are not shown. They are still in the database."
+          : null,
+    });
+  } catch {
+    setSync({
+      loading: false,
+      lastError:
+        "The activity log could not be loaded, so this is what is in this " +
+        "browser only.",
+    });
+  }
+}
+
 /* ------------------------------------------------------------------ actions */
 
 const id = () => Math.random().toString(36).slice(2, 10);
@@ -336,8 +503,9 @@ export function recordCall(
   ];
 
   const promises = [...state.promises];
+  let made: PromiseRecord | null = null;
   if (call.outcome === "promised-to-pay" && call.promisedDate) {
-    promises.unshift({
+    made = {
       id: id(),
       accountId: call.accountId,
       companyName: call.companyName,
@@ -346,7 +514,8 @@ export function recordCall(
       createdAt: now(),
       source: "call",
       confirmationSentAt: null,
-    });
+    };
+    promises.unshift(made);
     entries.push(log("Recorded a promise to pay", call.companyName));
   }
 
@@ -356,6 +525,11 @@ export function recordCall(
     promises,
     audit: [...entries, ...state.audit],
   });
+
+  // After the commit, so the officer sees their call the instant they log it
+  // rather than a moment after the network agrees.
+  mirror("call", call);
+  if (made) mirror("promise", made);
 }
 
 export function recordEmail(input: Omit<SentEmail, "id" | "at">): void {
@@ -404,6 +578,11 @@ export function recordEmails(
     audit: [...batch, ...perTenant, ...state.audit],
   });
 
+  // One post per letter rather than one per run. A bulk send is forty separate
+  // things that happened to forty tenants, and if half fail the other half are
+  // still true.
+  for (const e of emails) mirror("email", e);
+
   return emails.length;
 }
 
@@ -450,16 +629,21 @@ export function recordPromise(input: {
       ...state.audit,
     ],
   });
+
+  mirror("promise", promise);
 }
 
 /** Marks a promise as confirmed to the tenant, per proposal section 3. */
 export function markPromiseConfirmed(promiseId: string): void {
-  commit({
-    ...state,
-    promises: state.promises.map((p) =>
-      p.id === promiseId ? { ...p, confirmationSentAt: now() } : p,
-    ),
-  });
+  const promises = state.promises.map((p) =>
+    p.id === promiseId ? { ...p, confirmationSentAt: now() } : p,
+  );
+  commit({ ...state, promises });
+
+  // The same row with the confirmation time filled in. The route upserts on
+  // id, so this updates the promise rather than adding a second one.
+  const updated = promises.find((p) => p.id === promiseId);
+  if (updated) mirror("promise", updated);
 }
 
 /** Records an email address the officer typed in for a tenant. */

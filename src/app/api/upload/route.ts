@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { identify, mayUpload } from "@/lib/api-auth";
 import { serverSupabase } from "@/lib/supabase-server";
 import { toImportPayload } from "@/lib/to-database";
 import type { Account } from "@/lib/types";
@@ -28,9 +29,10 @@ import type { DetailInvoice } from "@/lib/aging-detail";
  * report. A half loaded report puts a wrong balance in front of somebody, and
  * a wrong balance that looks right is worse than an error.
  *
- * Not yet done, and it matters: this does not check who is asking. Sessions
- * are carried into API routes in task 1.7, and until then the route is as open
- * as the app around it. It is listed as a task rather than left implied.
+ * Who may call it: the roles that may upload through the screens, and nobody
+ * else. Checked against the Supabase access token the browser holds, not
+ * against the session object in its local storage, which is a claim the caller
+ * wrote about themselves.
  */
 
 export const runtime = "nodejs";
@@ -43,6 +45,27 @@ interface Body {
 }
 
 export async function POST(request: Request) {
+  /*
+   * Before anything is read, let alone stored. This route can replace a whole
+   * month for every signed-in person at once, so it establishes who is asking
+   * first and refuses early.
+   */
+  const who = await identify(request);
+  if (!who.ok) {
+    return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
+  }
+  if (!mayUpload(who.caller)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          `A ${who.caller.role} may read the reports but not replace one. ` +
+          "Uploading is for the AR team and the administrators.",
+      },
+      { status: 403 },
+    );
+  }
+
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -95,12 +118,24 @@ export async function POST(request: Request) {
   const { data, error } = await db.rpc("import_ar_report", payload);
 
   if (error) {
+    /*
+     * The one failure worth naming, because its message does not say what to
+     * do. PostgREST reports a signature it cannot find as PGRST202, which is
+     * what a database that has not had 0011 applied returns for every upload:
+     * the function is there, but the seven argument version is not.
+     */
+    const missingSignature =
+      error.code === "PGRST202" || /import_ar_report/.test(error.message);
+
     return NextResponse.json(
       {
         ok: false,
         error: "The database refused the import, so nothing was stored.",
         detail: error.message,
-        hint: error.hint ?? null,
+        hint: missingSignature
+          ? "This database may not have 0011_rules_version.sql applied yet. " +
+            "Run it in the Supabase SQL editor and upload again."
+          : error.hint ?? null,
       },
       { status: 502 },
     );

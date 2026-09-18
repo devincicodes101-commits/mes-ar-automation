@@ -307,3 +307,164 @@ export function applyDataset(d: Dataset): void {
 export function revertToSample(): void {
   commit(SAMPLE);
 }
+
+/* ------------------------------------------------------------- the server */
+
+/**
+ * Where the dataset comes from, so a screen can say so.
+ *
+ * "local" is not a failure in itself: it is what every screen showed before
+ * there was a server at all. It becomes worth saying only when the server was
+ * asked and could not answer, because then two people are looking at two
+ * different months and neither of them knows.
+ */
+export type DatasetOrigin = "server" | "local" | "sample";
+
+export interface DatasetState {
+  origin: DatasetOrigin;
+  /** Null unless the server was asked and refused. */
+  serverError: string | null;
+  loading: boolean;
+}
+
+let state: DatasetState = { origin: "sample", serverError: null, loading: false };
+const stateListeners = new Set<() => void>();
+
+function setState(next: Partial<DatasetState>) {
+  state = { ...state, ...next };
+  stateListeners.forEach((l) => l());
+}
+
+export function useDatasetState(): DatasetState {
+  return useSyncExternalStore(
+    (l) => {
+      stateListeners.add(l);
+      return () => stateListeners.delete(l);
+    },
+    () => state,
+    () => ({ origin: "sample", serverError: null, loading: false }) as DatasetState,
+  );
+}
+
+/**
+ * The Supabase access token, for the two API routes.
+ *
+ * The routes hold the service role key and will not act without knowing who is
+ * asking. The session in local storage is not evidence of that, because the
+ * browser wrote it; the token is, because Supabase signed it.
+ *
+ * Imported lazily so that a build which has no Supabase configured still runs:
+ * the routes refuse, the fallback keeps working, and nothing crashes on load.
+ */
+async function authHeader(): Promise<Record<string, string>> {
+  try {
+    const { supabase } = await import("./supabase.ts");
+    const token = (await supabase?.auth.getSession())?.data.session?.access_token;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+let hydrating: Promise<void> | null = null;
+
+/**
+ * Loads the newest stored report, and keeps what is on screen if it cannot.
+ *
+ * The order matters. Whatever is in local storage is already on screen by the
+ * time this runs, so a slow or failed request costs nothing: the officer keeps
+ * working with the month they had. Only a successful response replaces it.
+ *
+ * Silence would be the wrong behaviour, though, so a failure is recorded and
+ * shown rather than swallowed. Two people each working from their own browser
+ * copy, neither aware the server never answered, is exactly the situation this
+ * phase exists to end.
+ */
+export async function hydrateFromServer(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (hydrating) return hydrating;
+
+  hydrating = (async () => {
+    setState({ loading: true, serverError: null });
+    try {
+      const r = await fetch("/api/dataset", {
+        cache: "no-store",
+        headers: await authHeader(),
+      });
+      const body = (await r.json()) as {
+        ok?: boolean;
+        dataset?: Dataset | null;
+        error?: string;
+      };
+
+      if (!r.ok || !body.ok) {
+        setState({
+          loading: false,
+          serverError: body.error ?? `The server answered ${r.status}.`,
+          origin: active.source === "sample" ? "sample" : "local",
+        });
+        return;
+      }
+
+      if (!body.dataset) {
+        // Nothing stored yet, which is not an error. Anything already in this
+        // browser stays, because it is better than an empty screen.
+        setState({
+          loading: false,
+          serverError: null,
+          origin: active.source === "sample" ? "sample" : "local",
+        });
+        return;
+      }
+
+      commit(body.dataset);
+      setState({ loading: false, serverError: null, origin: "server" });
+    } catch (e) {
+      setState({
+        loading: false,
+        serverError: (e as Error).message,
+        origin: active.source === "sample" ? "sample" : "local",
+      });
+    } finally {
+      hydrating = null;
+    }
+  })();
+
+  return hydrating;
+}
+
+/**
+ * Sends a parsed report to the server, then reloads from it.
+ *
+ * Reloading rather than trusting what was just sent is the point: what comes
+ * back is what the database actually holds, so a column that failed to store
+ * shows up immediately as a figure that changed, rather than months later.
+ */
+export async function storeDataset(
+  d: Dataset,
+  fileName: string | null,
+): Promise<{ ok: boolean; error?: string; problems?: { what: string; detail: string }[] }> {
+  const r = await fetch("/api/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({
+      accounts: d.accounts,
+      invoices: d.invoices,
+      reportDate: d.asOf,
+      fileName,
+    }),
+  });
+
+  const body = (await r.json()) as {
+    ok?: boolean;
+    error?: string;
+    problems?: { what: string; detail: string }[];
+  };
+
+  if (!r.ok || !body.ok) {
+    return { ok: false, error: body.error, problems: body.problems };
+  }
+
+  await hydrateFromServer();
+  return { ok: true };
+}
