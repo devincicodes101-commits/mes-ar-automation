@@ -79,8 +79,66 @@ export interface StoredReport {
 
 export type ReadResult =
   | { ok: true; report: StoredReport }
-  | { ok: true; report: null; reason: string }
+  | { ok: true; report: null; reason: string; checked?: EmptyCheck }
   | { ok: false; error: string; detail: string | null };
+
+/**
+ * What "nothing stored" actually meant.
+ *
+ * "No reports stored" is not a finding on its own. It is the same sentence
+ * whether the database is genuinely empty, whether the rows are there and the
+ * query could not see them, and whether this copy of the app is pointed at a
+ * different project altogether. Those need completely different things done
+ * about them, and telling them apart cost an afternoon of reading code that
+ * turned out to be correct.
+ *
+ * So the emptiness is checked rather than assumed, and the counts are reported
+ * alongside it. The host is included because a deployment reading the wrong
+ * project is the one cause that looks identical from every angle: right code,
+ * right key, no error, no rows.
+ */
+export interface EmptyCheck {
+  /** The Supabase project this read went to. Host only: no key, ever. */
+  host: string;
+  uploads: number | null;
+  snapshots: number | null;
+  problem: string | null;
+}
+
+async function countOf(db: SupabaseClient, table: string): Promise<number | null> {
+  const { count, error } = await db.from(table).select("*", { count: "exact", head: true });
+  return error ? null : (count ?? 0);
+}
+
+/**
+ * Runs only when a read came back empty, so the cost lands on the rare path
+ * rather than on every request.
+ */
+export async function whyEmpty(db: SupabaseClient): Promise<EmptyCheck> {
+  let host = "unknown";
+  try {
+    host = new URL((db as unknown as { supabaseUrl: string }).supabaseUrl).host;
+  } catch {
+    /* Reading it is a convenience, not a requirement. */
+  }
+
+  const [uploads, snapshots] = await Promise.all([
+    countOf(db, "uploads"),
+    countOf(db, "account_snapshots"),
+  ]);
+
+  /*
+   * The contradiction worth naming: rows exist and the read found none. That
+   * is never a database that is simply empty, so it should not be reported as
+   * one.
+   */
+  const problem =
+    (snapshots ?? 0) > 0
+      ? `${snapshots} snapshots are stored but the report list came back empty.`
+      : null;
+
+  return { host, uploads, snapshots, problem };
+}
 
 const why = (e: unknown): string | null => (e as { message?: string })?.message ?? null;
 
@@ -126,7 +184,9 @@ export async function reportDates(
 export async function newestReport(db: SupabaseClient): Promise<ReadResult> {
   const dates = await reportDates(db);
   if (!dates.ok) return { ok: false, error: dates.error, detail: null };
-  if (dates.dates.length === 0) return { ok: true, report: null, reason: "no reports stored" };
+  if (dates.dates.length === 0) {
+    return { ok: true, report: null, reason: "no reports stored", checked: await whyEmpty(db) };
+  }
   return reportOn(db, dates.dates[0]!);
 }
 

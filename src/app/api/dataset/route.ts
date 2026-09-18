@@ -51,7 +51,17 @@ export async function GET(request: Request) {
   }
 
   if (!result.report) {
-    return NextResponse.json({ ok: true, dataset: null, reason: result.reason });
+    /*
+     * The counts go with the answer. An empty screen and a screen whose data
+     * the server could not see look the same to the person in front of it, and
+     * the difference is the whole of what they need to do next.
+     */
+    return NextResponse.json({
+      ok: true,
+      dataset: null,
+      reason: result.reason,
+      checked: result.checked ?? null,
+    });
   }
 
   return NextResponse.json({ ok: true, dataset: result.report });
