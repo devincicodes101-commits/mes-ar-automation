@@ -33,6 +33,7 @@ import {
   stillOwing,
 } from "../src/lib/cycle.ts";
 import { bucketForAge, bucketLabelForAge, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
+import { datasetFromResults } from "../src/lib/dataset.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
@@ -1104,6 +1105,73 @@ check("with their lines kept apart",
       twoDorms.payload?.p_invoices.map((i) => i.tenant_id).join(","),
       "dorm-1-bsd,dorm-1-jpd1");
 
+
+/* ---------------------- where chasing actually begins, in days past due -- */
+
+console.log("\nWhere chasing begins");
+
+/*
+ * The screens quote fifteen days. They used to quote thirty, about the same
+ * figure, which put a tenant twenty days late under a label saying they were
+ * past thirty. The wording is checked in test:wiring; the number behind it is
+ * checked here, so that if the bucket rule ever moves, the labels quoting
+ * fifteen fail with it rather than quietly becoming the next wrong number.
+ */
+check("Current ends at 15 days past due", bucketForAge(15), "current");
+check("and the day after is the first chaseable bucket", bucketForAge(16), "d30");
+check("a charge 20 days past due is already chaseable",
+      overdueTotal({
+        buckets: { current: 0, d30: 500, d60: 0, d90: 0, d90plus: 0 },
+      } as never) > 0, true);
+check("and one 15 days past due is not",
+      overdueTotal({
+        buckets: { current: 500, d30: 0, d60: 0, d90: 0, d90plus: 0 },
+      } as never), 0);
+
+/* ------------------------- a month where everybody paid is still a month -- */
+
+console.log("\nA report with nobody owing anything");
+
+/*
+ * The outcome the whole process aims at, and the one the system refused.
+ *
+ * Uploading it answered "neither file could be read as an AR report": the
+ * words used for a corrupt file, for the month MES finally collected
+ * everything. Two separate checks had to agree that an empty report was
+ * nonsense, and both did. The reader called it an error, which was fixed
+ * first; the builder then asked for at least one account before it would use
+ * the result, which is what this covers.
+ *
+ * Refusing the genuinely unreadable file still matters, because importing one
+ * would replace a month of real figures with nothing. So the two cases are
+ * asserted together: shape decides, not emptiness.
+ */
+const emptyExport = () => {
+  const head = ["Customer","Transaction Type","Company Name","Date","Description",
+    "Categories","Document Number","Linked Contract","Contract Item Start Date",
+    "P.O. No.","Due Date","Age","Open Balance","Item: Item Type"];
+  const rows: unknown[][] = [["MES"],["Consol : X"],["Title"],["As of 30 November 2026"],[],[],head,
+    [],["Grand Total","","","","","","","","","","","",0,""]];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Sheet1");
+  return parseAgingDetail(wb);
+};
+
+const nobodyOwes = emptyExport();
+check("an empty AR export reads without error", nobodyOwes.problems.filter((p) => p.severity === "error").length, 0);
+check("and says plainly that everyone has paid",
+      nobodyOwes.problems.some((p) => /every tenant has paid/.test(p.message)), true);
+check("it still knows the date it was run for", nobodyOwes.asOf !== null, true);
+check("and a dataset can be built from it, rather than nothing usable",
+      datasetFromResults([nobodyOwes as never], "2026-11") !== null, true);
+
+const notAnArReport = () => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Invoice log"],["Name","Amount"]]), "Sheet1");
+  return parseAgingDetail(wb);
+};
+check("a workbook that is not an AR export is still refused",
+      datasetFromResults([notAnArReport() as never], "2026-11"), null);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

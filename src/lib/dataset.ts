@@ -201,7 +201,33 @@ export function datasetFromResults(
   const aging =
     (results.find((r) => r.kind === "ar-aging-detail") as ParsedAgingDetail) ??
     null;
-  if (aging && aging.accounts.length > 0) {
+
+  /*
+   * A report with nobody in it is a real report.
+   *
+   * This asked for at least one account, so the month MES finally collect
+   * everything was the month the screen answered "neither file could be read
+   * as an AR report". The best outcome their whole process aims at was the one
+   * outcome the system would not accept, and it said so in the words it uses
+   * for a corrupt file.
+   *
+   * The reader already tells the two apart. A workbook with the header row and
+   * an "As of" date and no charges is an AR export where nothing is
+   * outstanding, and it comes back with a warning. A workbook that is not an
+   * AR export at all comes back with an error, and is still refused here,
+   * because importing that would replace a month of real figures with nothing.
+   *
+   * The other guard is arithmetic rather than shape: the upload checks compare
+   * what was read against MES's own Grand Total cell. A file whose total says
+   * 58,800 that parsed to nobody fails that check, so a silent parsing failure
+   * cannot arrive here dressed as a month where everyone paid.
+   */
+  const agingUsable =
+    aging !== null &&
+    (aging.accounts.length > 0 ||
+      !aging.problems.some((p) => p.severity === "error"));
+
+  if (agingUsable) {
     return datasetFromAgingDetail(aging, period, contacts);
   }
 

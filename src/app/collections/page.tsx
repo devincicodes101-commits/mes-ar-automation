@@ -28,11 +28,15 @@ type StatusFilter = "All" | "Live" | "Terminated";
  * Proposal 4.4: filter by aging bucket.
  *
  * There is deliberately no "30 days or worse" option. Every account in this
- * list is already past the 30 day trigger line, so that choice would return
- * the identical set as "all overdue" and make the control look broken.
+ * list already has money in the 30 days bucket or worse, so that choice would
+ * return the identical set as "all overdue" and make the control look broken.
+ *
+ * Worth being exact about what that bucket is, because the label used to say
+ * "past 30 days" and meant no such thing: MES call a charge Current until it
+ * is sixteen days past its due date, so the 30 days bucket starts at sixteen.
  */
 const AGE_FILTERS = [
-  { key: "any", label: "All overdue, past 30 days" },
+  { key: "any", label: "All overdue" },
   { key: "d60", label: "60 days or worse" },
   { key: "d90", label: "90 days or worse" },
   { key: "d90plus", label: "Over 90 days only" },
@@ -151,7 +155,7 @@ export default function ActionListPage() {
           label="Money being chased"
           prefix="SGD"
           value={formatSgd(totalOverdue)}
-          note="Everything past 30 days"
+          note="Everything more than 15 days past due"
           emphasis
         />
         <StatTile

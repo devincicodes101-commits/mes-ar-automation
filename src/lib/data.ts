@@ -501,7 +501,10 @@ export function feesDue(
 /** Written for the officer reading the screen, not for the spec. */
 export const REASON_LABEL: Record<QueueReason, string> = {
   "repeat-late-fees": "Charged late fees repeatedly",
-  "aging-30": "Overdue more than 30 days",
+  // Set whenever any money sits outside the Current bucket, which begins at
+  // sixteen days past due. It read "more than 30 days", which put a tenant
+  // twenty days late under a label saying thirty.
+  "aging-30": "Overdue more than 15 days",
   "aging-90": "Owed for over 90 days",
   "promise-broken": "Promised to pay",
   "no-contact": "No email address",

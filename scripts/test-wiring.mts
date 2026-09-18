@@ -956,7 +956,7 @@ check("a run reads the line's own bucket rather than recomputing the boundary",
 // The credit clock is still shown, and must not be labelled as the same thing.
 check("the two clocks are labelled differently on screen",
       read("src/components/BillingCycles.tsx").includes("Credit clock, from billing") &&
-        read("src/components/BillingCycles.tsx").includes("Of that, past due"), true);
+        read("src/components/BillingCycles.tsx").includes("Of that, chaseable"), true);
 
 
 /* -------------------------------------- a month where everybody paid ----- */
@@ -1045,5 +1045,58 @@ check("saving it again is still possible",
 check("both paths save through one function",
       UPLOAD.includes("async function save(") &&
         UPLOAD.split("storeDataset(").length === 2, true);
+
+/* ----------------------------- the screens say the number they act on ---- */
+
+console.log("\nWhat the screens call overdue is when they start chasing");
+
+/*
+ * Five places said "past 30 days" about money the system chases from sixteen.
+ *
+ * Nothing was miscounted. The overdue total is every bucket outside Current,
+ * and Current ends at fifteen days past the due date, so chasing begins at
+ * sixteen. The words on top of that figure said thirty, which is a different
+ * fortnight and a real one: a tenant twenty days late appeared in the count,
+ * in the queue and in the reminder run under a label saying they were past
+ * thirty days. Reading that screen to a client, the officer would have been
+ * wrong.
+ *
+ * The boundary itself is asserted in test:behaviour, so that if the bucket
+ * rule ever moves, the labels quoting fifteen fail with it rather than quietly
+ * becoming the next wrong number.
+ */
+const HOME = read("src/app/page.tsx");
+const COLLECT = read("src/app/collections/page.tsx");
+const SETTINGS_PAGE = read("src/app/settings/page.tsx");
+const CYCLES = read("src/components/BillingCycles.tsx");
+const DATA_LIB = lib("data.ts");
+
+check("the overdue tile does not claim 30 days",
+      !HOME.includes("tenants past 30 days"), true);
+check("nor does the tenant table's note",
+      !HOME.includes("thick line is past 30 days"), true);
+check("nor the collections filter",
+      !COLLECT.includes("All overdue, past 30 days"), true);
+check("nor the money-being-chased tile",
+      !COLLECT.includes("Everything past 30 days"), true);
+check("nor the automatic sending warning",
+      !SETTINGS_PAGE.includes("balance\n            past 30 days"), true);
+check("nor the reason shown against a queued tenant",
+      !DATA_LIB.includes('"aging-30": "Overdue more than 30 days"'), true);
+
+/*
+ * The billing runs column is a separate fault with the same shape. It said
+ * "past due" and printed a dash against a run five days past its due date,
+ * two columns from the due date itself.
+ */
+check("the billing runs column is named for what it counts",
+      CYCLES.includes("Of that, chaseable") && !CYCLES.includes("Of that, past due"), true);
+
+/*
+ * The credit clock is measured from the billing date against MES's own 14 and
+ * 30 day deadlines, so "past 30 days" is correct there and must stay.
+ */
+check("the credit clock keeps its own 14 and 30 day stages",
+      CYCLES.includes('stage === "past 30 days"'), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -70,7 +70,7 @@ const k = kpis(accounts);
 
 head("OUTSTANDING BALANCES  —  the four tiles at the top");
 console.log(`  TOTAL OWED             ${sgd(k.outstanding)}          ${k.accounts} tenants shown`);
-console.log(`  OVERDUE, NEEDS CHASING ${sgd(k.overdue)}          ${k.actionable} tenants past 30 days`);
+console.log(`  OVERDUE, NEEDS CHASING ${sgd(k.overdue)}          ${k.actionable} tenants with money to chase`);
 console.log(`  OWED FOR OVER 90 DAYS  ${sgd(k.severe)}`);
 console.log(`  IN CREDIT, DO NOT CHASE ${k.inCredit}`);
 

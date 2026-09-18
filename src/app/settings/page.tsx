@@ -249,7 +249,7 @@ export default function SettingsPage() {
           <p className="text-xs leading-relaxed text-ink-secondary">
             Reminders will go out on the 7th and the 21st without anyone reading
             them first. Any tenant with an email address on file and a balance
-            past 30 days will be emailed.
+            more than 15 days past due will be emailed.
           </p>
           <p className="mt-3 text-xs text-ink-secondary">
             This overrides the review step agreed with MES.

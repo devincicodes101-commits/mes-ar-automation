@@ -84,8 +84,14 @@ export function BillingCycles({
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Tenants</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Charges</th>
               <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Still owed</th>
+              {/* Not "past due", which it said and which was wrong in the one
+                  place it mattered. A run billed on the 11th falls due on the
+                  26th and is five days past that by the 31st, yet MES bucket it
+                  as Current and nothing may be chased: this column was printing
+                  a dash two columns from a due date that had plainly passed.
+                  What it counts is money old enough to act on. */}
               <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
-                Of that, past due
+                Of that, chaseable
               </th>
             </tr>
           </thead>
@@ -134,12 +140,14 @@ export function BillingCycles({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line-hair px-5 py-3 text-[11px] text-ink-muted">
         <span>
-          <b className="text-ink-secondary">{formatSgd(overdue)}</b> is past its
-          due date across all {cycles.length} runs, which is the figure the
-          tiles above count. The credit clock beside each run counts from the
-          billing date instead, so a run can be past its {CREDIT_DAYS} days and
-          still hold nothing chaseable: MES issue due dates at fifteen days, not
-          fourteen.
+          <b className="text-ink-secondary">{formatSgd(overdue)}</b> is old
+          enough to chase across all {cycles.length} runs, which is the figure
+          the tiles above count. That means more than fifteen days past the due
+          date, which is where MES{"’"}s own aging stops calling a charge
+          Current. A run can therefore be a few days past its due date and still
+          hold nothing chaseable. The credit clock beside each run is a
+          different measure again: it counts from the billing date, not the due
+          date, so it always reads higher.
         </span>
         {undated > 0 ? (
           <span>
