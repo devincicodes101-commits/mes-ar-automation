@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { gmailConfigFromEnv, gmailConnector } from "./gmail.ts";
 import { gmailOAuthConnector } from "./gmail-oauth.ts";
-import { googleConfig } from "./google-oauth.ts";
+import { clientFor } from "./google-oauth.ts";
 import { note, withToken } from "./accounts.ts";
 import {
   allowlistFromEnv,
@@ -50,7 +50,7 @@ export async function connector(
   asUser: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Chosen> {
-  const google = googleConfig(env);
+  const google = await clientFor(db, env);
 
   if (db && !("error" in google)) {
     const found = await withToken(db, asUser);
@@ -123,7 +123,7 @@ export async function sendingStatus(
 }> {
   const mode = modeFromEnv(env);
   const allowlist = allowlistFromEnv(env);
-  const google = googleConfig(env);
+  const google = await clientFor(db, env);
   const chosen = await connector(db, asUser, env);
 
   const problem = chosen.ok ? null : chosen.error;

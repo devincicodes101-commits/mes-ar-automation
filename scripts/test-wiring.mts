@@ -799,5 +799,40 @@ check("both read it from the one component, not their own copy",
 check("and the strip keeps quiet when there is nothing wrong",
       read("src/components/MailAccounts.tsx").includes("if (connected && status.ready"), true);
 
+
+/*
+ * The client secret goes in and never comes back.
+ *
+ * A form that showed it back would put it in a browser, in whatever that
+ * browser remembers, and in any log that captures a response body. There is
+ * no reading it once it is in: it is replaced, not edited.
+ */
+const CLIENT_ROUTE = code("src/app/api/mail/client/route.ts");
+
+check("the client route exists", CLIENT_ROUTE.length > 0, true);
+check("it never selects the secret",
+      /select\([^)]*client_secret/.test(CLIENT_ROUTE), false);
+check("and no screen asks for it back",
+      /client_secret|clientSecret\s*[:=]\s*(body|data|state)/.test(
+        code("src/components/GoogleClient.tsx")), false);
+
+// Swapping the client points every future sign in at a different Google
+// project, so it is an administrator's decision and it leaves a trace.
+check("only an administrator may change it",
+      CLIENT_ROUTE.includes("admin(who.caller.role)"), true);
+check("and the change is recorded",
+      CLIENT_ROUTE.includes("Changed the Google sign in client"), true);
+
+/*
+ * The button and the callback must agree about which Google project they are
+ * talking to. Disagreeing produces a sign in that starts and cannot finish,
+ * with an error that explains nothing.
+ */
+check("the connect route and the callback ask for the client the same way",
+      read("src/app/api/mail/connect/route.ts").includes("clientFor(") &&
+        read("src/app/api/mail/callback/route.ts").includes("clientFor("), true);
+check("and the stored client wins over the environment",
+      read("src/lib/mail/google-oauth.ts").includes("const stored = await storedClient"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { serverSupabase } from "@/lib/supabase-server";
-import { exchange, googleConfig } from "@/lib/mail/google-oauth";
+import { clientFor, exchange } from "@/lib/mail/google-oauth";
 import { readState } from "@/lib/mail/state";
 import { save } from "@/lib/mail/accounts";
 
@@ -46,18 +46,24 @@ export async function GET(request: Request) {
   if ("error" in state) return back(base, { mail: "failed", detail: state.error });
   if (!code) return back(base, { mail: "failed", detail: "Google sent no code back." });
 
-  const config = googleConfig();
-  if ("error" in config) return back(base, { mail: "failed", detail: config.error });
-
-  const connected = await exchange(config, code);
-  if ("error" in connected) return back(base, { mail: "failed", detail: connected.error });
-
   let db;
   try {
     db = serverSupabase();
   } catch (e) {
     return back(base, { mail: "failed", detail: (e as Error).message });
   }
+
+  /*
+   * The same client the button used. Asked for the same way rather than read
+   * from the environment here, because a sign in that starts against one
+   * Google project and finishes against another fails with a message that
+   * explains nothing.
+   */
+  const config = await clientFor(db);
+  if ("error" in config) return back(base, { mail: "failed", detail: config.error });
+
+  const connected = await exchange(config, code);
+  if ("error" in connected) return back(base, { mail: "failed", detail: connected.error });
 
   const stored = await save(db, state.userId, connected);
   if (!stored.ok) return back(base, { mail: "failed", detail: stored.error });

@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
  * Connecting a Google account, so letters can be sent as the person who
  * connected it.
@@ -51,6 +53,51 @@ export interface GoogleConfig {
   redirectUri: string;
 }
 
+/**
+ * The client stored in the database, or nothing.
+ *
+ * Preferred over the environment, so MES can paste in their own client and
+ * rotate the secret without a deploy and without anybody from DeVinci being
+ * available. The environment stays as a fallback: it is what got this working
+ * in the first place, and removing it would mean a half finished settings form
+ * could leave the system unable to sign anybody in.
+ *
+ * Read with the service role. The table has row level security on and no
+ * policy, so nothing else can reach it.
+ */
+export async function storedClient(
+  db: SupabaseClient,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<GoogleConfig | null> {
+  const { data, error } = await db
+    .from("oauth_client")
+    .select("client_id,client_secret,redirect_uri")
+    .maybeSingle();
+
+  // A missing table means 0016 has not been applied, which is not a fault in
+  // itself: the environment may still be configured.
+  if (error || !data) return null;
+
+  const clientId = String(data.client_id ?? "").trim();
+  const clientSecret = String(data.client_secret ?? "").trim();
+  if (!clientId || !clientSecret) return null;
+
+  const base = (env.APP_URL ?? env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
+  const stored = String(data.redirect_uri ?? "").trim();
+
+  return {
+    clientId,
+    clientSecret,
+    /*
+     * The stored address wins. It is the one somebody pasted into Google, and
+     * if it disagrees with APP_URL then APP_URL is the thing that is wrong:
+     * Google will refuse anything that does not match its own list exactly.
+     */
+    redirectUri: stored || `${base}/api/mail/callback`,
+  };
+}
+
+/** The client from the environment, which is the fallback. */
 export function googleConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): GoogleConfig | { error: string } {
@@ -208,4 +255,23 @@ export async function revoke(refreshToken: string): Promise<void> {
   } catch {
     /* Revoking is a courtesy to the person; removing our row is the guarantee. */
   }
+}
+
+/**
+ * The client this installation should use: the stored one, or the environment.
+ *
+ * Every caller goes through here rather than choosing for itself, so there is
+ * one answer to "which Google project are we signing people in to" and it
+ * cannot differ between the button and the callback. Those disagreeing would
+ * produce a sign in that starts and cannot finish.
+ */
+export async function clientFor(
+  db: SupabaseClient | null,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<GoogleConfig | { error: string }> {
+  if (db) {
+    const stored = await storedClient(db, env);
+    if (stored) return stored;
+  }
+  return googleConfig(env);
 }

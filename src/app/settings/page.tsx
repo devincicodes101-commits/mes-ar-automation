@@ -18,6 +18,7 @@ import {
   Tag,
 } from "@/components/ui";
 import { MailAccounts } from "@/components/MailAccounts";
+import { GoogleClient } from "@/components/GoogleClient";
 
 export default function SettingsPage() {
   const store = useStore();
@@ -196,6 +197,11 @@ export default function SettingsPage() {
           ))}
         </ul>
       </Card>
+
+      {/* Above the mailbox panel, because nobody can connect one until this
+          is done, and a screen that offers a button that cannot work reads as
+          broken rather than unfinished. */}
+      <GoogleClient />
 
       {/* --------------------------------------------------------- mailbox */}
       {/* Placed above the wording on purpose. Which mailbox a letter comes

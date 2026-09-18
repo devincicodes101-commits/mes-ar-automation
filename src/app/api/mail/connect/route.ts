@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { identify } from "@/lib/api-auth";
-import { consentUrl, googleConfig } from "@/lib/mail/google-oauth";
+import { clientFor, consentUrl } from "@/lib/mail/google-oauth";
+import { serverSupabase } from "@/lib/supabase-server";
 import { signState } from "@/lib/mail/state";
 
 /**
@@ -25,7 +26,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
   }
 
-  const config = googleConfig();
+  let db = null;
+  try {
+    db = serverSupabase();
+  } catch {
+    // No database means no stored client, only the environment. Still worth
+    // trying rather than refusing outright.
+  }
+
+  const config = await clientFor(db);
   if ("error" in config) {
     return NextResponse.json({ ok: false, error: config.error }, { status: 500 });
   }
