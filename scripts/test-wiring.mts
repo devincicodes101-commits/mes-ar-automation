@@ -379,5 +379,66 @@ check("no screen is left with no link to it",
 check("the board is linked", LINKED.has("/"), true);
 check("and so is Chased to the End", LINKED.has("/chased"), true);
 
+/* ------------------------------ the one secret that would actually matter ---
+ * The service role key bypasses every policy in 0002_security.sql. A
+ * relationship manager who got hold of it could read all 190 tenants, their
+ * balances and their addresses.
+ *
+ * So the check is not "is it handled carefully" but "can it reach a browser at
+ * all". Anything under src/app that is a client component, and anything in
+ * src/lib without the server-only import, must never name it.
+ */
+section("The service role key cannot reach the browser");
+
+const SERVER_CLIENT = lib("supabase-server.ts");
+check("the server client declares itself server-only",
+      /^import "server-only";/m.test(SERVER_CLIENT), true);
+check("and it is the only place the service key is read",
+      SERVER_CLIENT.includes("SUPABASE_SERVICE_ROLE_KEY"), true);
+
+const BROWSER_CLIENT = lib("supabase.ts");
+check("the browser client never names the service key",
+      BROWSER_CLIENT.includes("SERVICE_ROLE"), false);
+
+const appFiles = [];
+(function walk(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) walk(full);
+    else if (/\.tsx?$/.test(e.name)) appFiles.push(full);
+  }
+})(path.join(HERE, "..", "src"));
+
+const leaks = appFiles.filter((f) => {
+  const src = readFileSync(f, "utf8");
+  if (!src.includes("SUPABASE_SERVICE_ROLE_KEY")) return false;
+  if (f.endsWith("supabase-server.ts")) return false;
+  // A route or server component may use it, but only through the guarded
+  // client, never by reading the variable itself.
+  return true;
+});
+check("no other file reads the service key",
+      leaks.map((f) => path.basename(f)).join(", ") || "none", "none");
+
+const clientsImportingServer = appFiles.filter((f) => {
+  const src = readFileSync(f, "utf8");
+  return src.startsWith('"use client"') && src.includes("supabase-server");
+});
+check("no client component imports the server client",
+      clientsImportingServer.map((f) => path.basename(f)).join(", ") || "none",
+      "none");
+
+// An import that half succeeded and said nothing is the failure this phase
+// exists to avoid.
+const ROUTE = read("src/app/api/upload/route.ts");
+check("the upload route exists", ROUTE.length > 0, true);
+check("it maps through the tested mapper", ROUTE.includes("toImportPayload"), true);
+check("it refuses a report it cannot map completely",
+      /if \(!payload\)/.test(ROUTE), true);
+check("and calls the import function rather than writing tables itself",
+      ROUTE.includes('rpc("import_ar_report"'), true);
+check("it never inserts into a table directly",
+      /\.from\(["']/.test(ROUTE), false);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

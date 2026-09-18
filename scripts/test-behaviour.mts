@@ -44,6 +44,7 @@ import {
   DEADLINE_DAYS, rmEmail, lateFeeEmail, fillLetter, LETTER_BODIES,
 } from "../src/lib/letters.ts";
 import { simulateSend, buildMessage, recipientsFor } from "../src/lib/outbox.ts";
+import { toImportPayload, tenantId, periodOf } from "../src/lib/to-database.ts";
 import { parseContacts } from "../src/lib/parser.ts";
 import { linkContacts } from "../src/lib/pipeline.ts";
 import { simulateReportSend, DEFAULT_RECIPIENTS } from "../src/lib/dispatch.ts";
@@ -947,6 +948,109 @@ check("and is not chased as a broken promise",
 const undated = { ...promisePipe, asOf: null } as typeof promisePipe;
 check("with no report date, a promise is given the benefit of the doubt",
       stillOwing(undated, stale).length, 0);
+
+
+/* ------------------------------------ what the app holds, as the database wants ---
+ * An import that half succeeded and said nothing is the failure this whole
+ * phase exists to avoid, so the mapper refuses a report it cannot map
+ * completely rather than storing the part it understood.
+ */
+console.log("\nMapping a report onto the database\n");
+
+const mapAcct = (over: Partial<Account> = {}): Account =>
+  ({
+    id: "dorm-1-bsd", customerCode: "DORM-1", companyName: "ALPHA PTE LTD",
+    property: "BSD", propertyName: "Blue Stars Dormitory", status: "Live",
+    buckets: { current: 100, d30: 200, d60: 0, d90: 0, d90plus: 0 },
+    total: 300, legacyNote: null, emails: [], hasContact: false,
+    industry: "Marine", entity: "KT Mesdorm Pte Ltd", invoiceCount: 1,
+    isOneFm: false, revenueTypes: ["Occupancy Fee"], lateFeeCount: 0,
+    ...over,
+  }) as Account;
+
+const mapLine = (over: Record<string, unknown> = {}) =>
+  ({
+    customerCode: "DORM-1", property: "BSD", companyName: "ALPHA PTE LTD",
+    transactionType: "Invoice", date: "2026-08-15", dueDate: "2026-08-30",
+    description: "Occupancy Fee Charges", documentNumber: "BSD-786/1",
+    linkedContract: null, age: 16, bucket: "30 days", openBalance: 300,
+    revenueType: "Occupancy Fee", isOneFm: false, category: "",
+    ...over,
+  }) as never;
+
+// The identifier the whole system keys on: a company at one dormitory.
+check("a tenant id is the code and the dormitory, lower case",
+      tenantId("DORM-166", "JPD2"), "dorm-166-jpd2");
+check("the same company at another dormitory is another tenant",
+      tenantId("DORM-166", "BSD"), "dorm-166-bsd");
+check("the period is the first of the report's month",
+      periodOf("2026-08-28"), "2026-08-01");
+check("even at the very end of a month", periodOf("2026-01-31"), "2026-01-01");
+
+const good = toImportPayload([mapAcct()], [mapLine()], "2026-08-28", "aug.xlsx");
+check("a report that reads cleanly maps", good.problems.length, 0);
+check("one account becomes one tenant", good.payload?.p_tenants.length, 1);
+check("and one snapshot", good.payload?.p_snapshots.length, 1);
+check("carrying every bucket", good.payload?.p_snapshots[0]?.bucket_30, 200);
+check("and the total", good.payload?.p_snapshots[0]?.total, 300);
+check("the line is filed under its tenant",
+      good.payload?.p_invoices[0]?.tenant_id, "dorm-1-bsd");
+check("the file name is kept, so an import can be traced back to it",
+      good.payload?.p_ar_filename, "aug.xlsx");
+
+// Live and Terminated, which MES do not currently send. The mapper must not
+// invent one: an account with no status is treated as still renting, the same
+// assumption the parser makes, and terminated is only ever stored when it was
+// actually read.
+check("a live tenant is stored live", good.payload?.p_snapshots[0]?.status, "live");
+check("a terminated one is stored terminated",
+      toImportPayload([mapAcct({ status: "Terminated" })], [], "2026-08-28", null)
+        .payload?.p_snapshots[0]?.status,
+      "terminated");
+
+/* --------------------------------------------- what it refuses, and why ---
+ * Each of these would otherwise put a figure in front of somebody that looks
+ * right and is not.
+ */
+const noDate = toImportPayload([mapAcct()], [mapLine()], null, null);
+check("a report with no date is refused", noDate.payload, null);
+check("and says why", noDate.problems[0]?.what, "No report date");
+
+const empty = toImportPayload([], [], "2026-08-28", null);
+check("a report with no tenants is refused", empty.payload, null);
+
+const badDorm = toImportPayload(
+  [mapAcct({ property: "XXX" as never })], [], "2026-08-28", null);
+check("an unknown dormitory is refused rather than stored", badDorm.payload, null);
+check("and the dormitory is named in the problem",
+      badDorm.problems[0]?.what.includes("unknown dormitory"), true);
+
+const twice = toImportPayload(
+  [mapAcct(), mapAcct({ id: "other" })], [], "2026-08-28", null);
+check("the same company twice at one dormitory is refused", twice.payload, null);
+check("because only one of the two balances would survive",
+      twice.problems[0]?.what.includes("appears twice"), true);
+
+// A line naming a company and dormitory that is not in the accounts would be
+// a charge stored against nobody.
+const orphan = toImportPayload(
+  [mapAcct()],
+  [mapLine(), mapLine({ customerCode: "DORM-999" })],
+  "2026-08-28", null);
+check("a line belonging to no tenant is refused", orphan.payload, null);
+check("and counted, so the size of the problem is visible",
+      orphan.problems[0]?.what.includes("1 charge lines"), true);
+
+// The same company at two dormitories is two accounts, not a duplicate.
+const twoDorms = toImportPayload(
+  [mapAcct(), mapAcct({ id: "dorm-1-jpd1", property: "JPD1", propertyName: "Jurong Penjuru Dormitory 1" })],
+  [mapLine(), mapLine({ property: "JPD1" })],
+  "2026-08-28", null);
+check("one company at two dormitories maps to two tenants",
+      twoDorms.payload?.p_tenants.length, 2);
+check("with their lines kept apart",
+      twoDorms.payload?.p_invoices.map((i) => i.tenant_id).join(","),
+      "dorm-1-bsd,dorm-1-jpd1");
 
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
