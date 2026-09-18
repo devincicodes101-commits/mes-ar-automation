@@ -978,5 +978,37 @@ check("and one that does not is still an error",
 check("the two are told apart by the header and the date",
       AGING.includes("headerAt !== -1 && asOf !== null"), true);
 
+
+/* ------------------------------------- the server must not read a cache -- */
+
+console.log("\nServer reads go to the database, not to Next's cache");
+
+/*
+ * The fault this guards against showed no error anywhere.
+ *
+ * Next.js replaces global fetch and caches GET responses in a store that
+ * outlives the request and, on Vercel, outlives the deployment. supabase-js
+ * reads through that fetch, so a select becomes a cached document. The
+ * database was emptied for testing, the empty report list was cached, and
+ * after that every upload saved and disappeared on the next load: the tables
+ * held two months while /api/dataset kept replaying the empty answer.
+ *
+ * It survived a long look because counts still worked. A count is a HEAD
+ * request and HEAD is not cached, so the same request could count eight rows
+ * and list none. It cannot be reproduced in development either, because the
+ * cache is per build and short lived there.
+ *
+ * Checked as text rather than by behaviour on purpose: the behaviour only
+ * differs on Vercel, so a test that ran the code would pass everywhere and
+ * catch nothing.
+ */
+const SERVER = lib("supabase-server.ts");
+
+check("the server client is built with its own fetch",
+      SERVER.includes("global: {") && SERVER.includes("fetch:"), true);
+check("and that fetch refuses the cache",
+      SERVER.includes('cache: "no-store"'), true);
+check("the reason is written down, not just the flag",
+      SERVER.includes("HEAD is not cached"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

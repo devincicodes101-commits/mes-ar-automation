@@ -57,6 +57,34 @@ export function serverSupabase(): SupabaseClient {
 
   cached = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    /*
+     * Never cached, and this is not a tuning choice.
+     *
+     * Next.js replaces global fetch and, in the App Router, stores GET
+     * responses in a data cache that outlives the request and is shared across
+     * deployments on Vercel. supabase-js reads through that same fetch, so a
+     * plain select becomes a cached document: right once, then frozen.
+     *
+     * What that looked like was worse than a stale figure. The database was
+     * emptied for testing, something read the report list and cached the empty
+     * answer, and from then on every upload saved correctly and vanished on
+     * the next load, because /api/dataset kept replaying the empty list and
+     * the browser believed it. Two months of data were in the tables the whole
+     * time.
+     *
+     * It hid well because a count is a HEAD request and HEAD is not cached, so
+     * the rows could be counted and not listed in the same breath. Local
+     * development never shows it: the cache is per build and short lived
+     * there, so the bug only exists where the data is real.
+     *
+     * Reads here are of a live ledger that people are changing, and a route
+     * that answers from a cache is answering about a month that may no longer
+     * exist.
+     */
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return cached;
 }
