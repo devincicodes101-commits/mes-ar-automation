@@ -1,5 +1,3 @@
-"use client";
-
 import type { ParseResult, ParsedContacts } from "./parser.ts";
 import type { ParsedAgingDetail } from "./aging-detail.ts";
 import type { Dataset } from "./dataset.ts";

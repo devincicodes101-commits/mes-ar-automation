@@ -28,7 +28,9 @@
     "test:import:rest": "node scripts/test-import-rest.mjs",
     "import:report": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/import-report.mjs",
     "test:activity:rest": "node --experimental-strip-types scripts/test-activity-rest.mjs",
-    "test:routes": "node scripts/test-routes.mjs"
+    "test:routes": "node scripts/test-routes.mjs",
+    "test:schedule": "node --experimental-strip-types scripts/test-schedule.mts",
+    "test:cron": "node --experimental-strip-types scripts/test-cron.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

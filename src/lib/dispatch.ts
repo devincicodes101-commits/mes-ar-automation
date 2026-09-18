@@ -1,5 +1,3 @@
-"use client";
-
 import type { Report } from "./reports.ts";
 import { lateFeeEmail, rmEmail, addDays, type InternalEmail } from "./letters.ts";
 

@@ -1,5 +1,3 @@
-"use client";
-
 import * as XLSX from "xlsx";
 import type { Account } from "./types";
 import {

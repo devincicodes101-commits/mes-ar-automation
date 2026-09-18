@@ -13,7 +13,8 @@
  * rule was fixed.
  */
 
-import type { Account, Invoice, PropertyCode } from "./types";
+import type { Account, PropertyCode } from "./types";
+import type { DetailInvoice } from "./aging-detail.ts";
 import type { Manager } from "./dataset";
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -48,6 +49,14 @@ export interface SnapshotRow {
   } | null;
 }
 
+/**
+ * One charge line, with its tenant joined on.
+ *
+ * The tenant is joined rather than derived from the id. tenant_id looks like
+ * "dorm-63-bsd" and the pieces could be pulled back out of it, but a customer
+ * code with a hyphen in it would split wrongly and nothing would say so. The
+ * join is one embed and it cannot be misread.
+ */
 export interface InvoiceRow {
   id: string;
   tenant_id: string;
@@ -62,6 +71,12 @@ export interface InvoiceRow {
   revenue_type: string;
   is_onefm: boolean;
   open_balance: number | string;
+  category: string | null;
+  tenants: {
+    customer_code: string;
+    company_name: string;
+    property_code: string;
+  } | null;
 }
 
 /*
@@ -131,10 +146,26 @@ export function accountsFromRows(
   });
 }
 
-export function invoicesFromRows(rows: readonly InvoiceRow[]): Invoice[] {
+/**
+ * Charge lines as everything downstream expects them.
+ *
+ * Returns the fuller DetailInvoice rather than Invoice, because buildPipeline
+ * takes that shape and the three extra fields are all in the database already.
+ * Without them the simulation screen was casting `as never` to get past the
+ * type, which is the compiler being told to stop asking rather than the data
+ * being right.
+ *
+ * companyName used to be filled with tenant_id, so every charge line on every
+ * screen said "dorm-63-bsd" where a company name belongs. That is what the
+ * join is for.
+ */
+export function invoicesFromRows(rows: readonly InvoiceRow[]): (DetailInvoice & { id: string })[] {
   return rows.map((r) => ({
     id: r.id,
-    companyName: r.tenant_id,
+    companyName: r.tenants?.company_name ?? r.tenant_id,
+    customerCode: r.tenants?.customer_code ?? "",
+    property: (r.tenants?.property_code ?? "BSD") as PropertyCode,
+    category: r.category ?? "",
     transactionType: r.transaction_type ?? "Invoice",
     date: r.issued_on,
     dueDate: r.due_on,

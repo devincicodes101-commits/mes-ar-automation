@@ -1,5 +1,3 @@
-"use client";
-
 import type { Account, BucketKey, Invoice, PropertyCode } from "./types";
 import { BUCKETS } from "./types.ts";
 import { round2 } from "./aging-detail.ts";

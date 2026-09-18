@@ -583,5 +583,58 @@ for (const shared of ["src/lib/roles.ts", "src/lib/sending.ts"]) {
         true);
 }
 
+/* ------------------------------------------------ the schedule ---------- */
+
+console.log("\nThe schedule runs the month, it does not reimplement it");
+
+const CRON = read("src/app/api/cron/route.ts");
+
+check("the cron route exists", CRON.length > 0, true);
+check("it asks the tested library what the day does",
+      CRON.includes("runDay(") && CRON.includes("planFor("), true);
+
+/*
+ * The fault this is here for would not look like a fault. A route that decided
+ * for itself who gets charged on the 16th would run, write plausible rows, and
+ * disagree with the simulation screen by some tenants nobody would think to
+ * count. Both would look right on their own.
+ */
+check("it does not decide for itself who is overdue",
+      /buildQueue\(|overdueTotal\(|\.filter\([^)]*bucket/.test(CRON), false);
+check("and it does not carry its own fee amount",
+      /(=|:)\s*100\b/.test(CRON), false);
+
+/*
+ * The whole reason the database had to come first. A cron job has no browser,
+ * so anything reading local storage would work on a screen and silently do
+ * nothing at 9am on the 16th.
+ */
+check("it never reaches for the browser",
+      /localStorage|useStore|window\./.test(CRON), false);
+
+// Same reader as the screens, so the month cannot run against figures nobody
+// can see.
+check("it reads the report through the shared reader",
+      CRON.includes("newestReport("), true);
+check("and /api/dataset reads it the same way",
+      read("src/app/api/dataset/route.ts").includes("newestReport("), true);
+
+check("the secret is checked before anything is read",
+      CRON.indexOf("authorised(request)") < CRON.indexOf("newestReport("), true);
+check("and a missing secret refuses rather than allows",
+      /if \(!secret\) return false;/.test(CRON), true);
+
+/*
+ * Running twice must not charge twice. Vercel does not promise exactly once
+ * and a person may call this by hand.
+ */
+check("a rerun cannot raise the fee twice",
+      CRON.includes("ignoreDuplicates: true"), true);
+check("and cannot write a second letter to the same tenant",
+      CRON.includes("letterId("), true);
+
+check("nothing it writes claims to be a real send",
+      CRON.includes("was_simulated: !CAN_SEND_FOR_REAL"), true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Clients who have been all the way round MES's cycle and still owe.
  *

@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * Who may sign in, and what each role may do.
  *

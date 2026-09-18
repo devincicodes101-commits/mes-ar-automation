@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * The test cases, and the operations that answer them.
  *
