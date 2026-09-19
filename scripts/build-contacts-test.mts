@@ -63,6 +63,18 @@ const ROWS: { code: string; name: string; status: "Live" | "Terminated"; emails:
    * both reports. A tenant with no charges is simply never written to.
    */
   { code: "DORM-205", name: "CHANGI MARINE SUPPLY PTE. LTD.", status: "Live", emails: [DEVINCI] },
+  /*
+   * Sentosa arrives in December with no history at all, so they are the one
+   * tenant who can be taken round the whole cycle in front of somebody. They
+   * need an address or they go to the call list instead, which is a different
+   * demonstration.
+   */
+  { code: "DORM-309", name: "SENTOSA COLD STORAGE PTE. LTD.", status: "Live", emails: [IYUSRAK] },
+  /*
+   * Tuas is deliberately left out. They arrive already carrying three of MES's
+   * own late payment fees and no address, which is how a real tenant reaches
+   * Send By Hand and the call list rather than the email run.
+   */
 ];
 
 /* The layout MES send: the header on the third row, the code and the name
