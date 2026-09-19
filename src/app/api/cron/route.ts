@@ -402,9 +402,35 @@ async function persist(
       if (r.error) notes.push(`letters not recorded: ${r.error.message}`);
       else lettersWritten = rows.length;
 
+      /*
+       * Which of these letters genuinely left last time.
+       *
+       * The row ids are derived from the date, the day and the tenant, so a
+       * rerun upserts the same rows and the record never doubles. The delivery
+       * did. A caught-up day, or a day that crashed half way and was replayed,
+       * would put the same letter in a tenant's inbox twice — and replaying a
+       * missed day is the whole point of the catch-up.
+       *
+       * was_simulated is the test rather than mere existence, because a row
+       * written and not sent is exactly the state a crash leaves behind, and
+       * that one does need sending.
+       */
+      const already = new Set<string>();
+      const sentBefore = await db
+        .from("emails_sent")
+        .select("id")
+        .in("id", rows.map((r) => r.id))
+        .eq("was_simulated", false);
+      for (const r of sentBefore.data ?? []) already.add(r.id as string);
+
       for (const row of rows) {
         const account = byId.get(row.tenant_id);
         if (!account) continue;
+
+        if (already.has(row.id)) {
+          lettersSent += 1;
+          continue;
+        }
 
         /*
          * Null for the user, because the schedule is nobody. That is what the

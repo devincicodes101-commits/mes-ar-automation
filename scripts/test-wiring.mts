@@ -1400,5 +1400,35 @@ check("and it says which runs caught up late",
       SCHED_PAGE.includes("caught up"), true);
 check("the screen is in the navigation",
       read("src/components/Shell.tsx").includes('href: "/schedule"'), true);
+
+/* ------------------- replaying a day must not write to a tenant twice ---- */
+
+console.log("\nA replayed day does not send the same letter again");
+
+/*
+ * The record was already idempotent and the delivery was not.
+ *
+ * Letter ids are derived from the date, the day and the tenant, so a rerun
+ * upserts the same rows and emails_sent never doubles. But the send loop ran
+ * over those rows regardless, so a caught-up day — or a day that crashed half
+ * way and was replayed — put the same letter in a tenant's inbox twice. And
+ * replaying a missed day is the entire purpose of the catch-up, so this was
+ * not an edge case: it was the designed path.
+ *
+ * The test is was_simulated, not mere existence, because a row written and not
+ * sent is exactly what a crash leaves behind and that one does still need
+ * sending.
+ */
+const CRON_SEND = read("src/app/api/cron/route.ts");
+
+check("the run asks which letters genuinely left before sending",
+      CRON_SEND.includes('.eq("was_simulated", false)'), true);
+check("and skips those",
+      CRON_SEND.includes("if (already.has(row.id))"), true);
+check("a row written but never sent is still sent",
+      CRON_SEND.includes("was_simulated is the test rather than mere existence"), true);
+check("fees stay idempotent the way they already were",
+      CRON_SEND.includes('onConflict: "tenant_id,period"') &&
+        CRON_SEND.includes("ignoreDuplicates: true"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
