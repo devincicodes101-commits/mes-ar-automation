@@ -354,6 +354,13 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/no-email": "send-reminders",
   "/simulation": "generate-reports",
   //
+  // The Schedule shows every run and lets an administrator fire one. Running a
+  // day raises fees and writes to tenants, so it takes the heavier of the two
+  // capabilities it can exercise; the route itself refuses anybody who is not
+  // an administrator regardless, because a capability check in the browser is
+  // a courtesy and the route is the lock.
+  "/schedule": "raise-late-fees",
+  //
   // /checks is deliberately absent, which by the rule above means it needs
   // only a session. It carries no tenant names, no addresses and no amounts:
   // it is arithmetic against MES's stated requirements, run in front of the

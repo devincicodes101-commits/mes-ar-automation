@@ -1356,5 +1356,49 @@ check("and the activity log reads it back",
    sent in, which is the only answer available for them. */
 check("older letters fall back to when they were sent",
       REMINDERS_PAGE.includes("e.period ?? `${e.at.slice(0, 7)}-01`"), true);
+
+/* ---------------------------- the schedule has a face, and one lock ------ */
+
+console.log("\nThe schedule can be seen, and the cron's guard is untouched");
+
+/*
+ * cron_runs was written on every run and nothing read it. So the one part of
+ * the system that works on its own was the one part nobody could be shown:
+ * the fees appeared, the letters went, and the only evidence the schedule had
+ * fired was a row in a table with no screen. A dry run is a different claim —
+ * it proves the code decides correctly, not that the schedule ran.
+ *
+ * The obvious way to make it demonstrable was to let an administrator's own
+ * token past the CRON_SECRET check. That weakens the one lock that matters, on
+ * the one endpoint whose mistakes reach people outside MES and cannot be taken
+ * back. So the secret stays where it is: /api/schedule authenticates the
+ * administrator the ordinary way and makes the privileged call itself, server
+ * side, holding a secret the browser never sees.
+ */
+const CRON_ROUTE = read("src/app/api/cron/route.ts");
+const SCHED_ROUTE = read("src/app/api/schedule/route.ts");
+const SCHED_PAGE = read("src/app/schedule/page.tsx");
+
+check("the cron still accepts nothing but the secret",
+      CRON_ROUTE.includes("const secret = process.env.CRON_SECRET") &&
+        !CRON_ROUTE.includes("identify("), true);
+check("and still compares it without leaking its length",
+      CRON_ROUTE.includes("diff |= given.charCodeAt(i)"), true);
+
+check("the schedule route holds the secret server side",
+      SCHED_ROUTE.includes("Authorization: `Bearer ${secret}`"), true);
+check("and refuses anybody who is not an administrator",
+      SCHED_ROUTE.includes("if (!admin(who.caller.role))"), true);
+check("running a day by hand is recorded",
+      SCHED_ROUTE.includes("Ran a day of the schedule by hand"), true);
+check("the date is checked before a letter can go for the wrong month",
+      SCHED_ROUTE.includes("askedFor(asked"), true);
+
+check("a screen finally reads cron_runs",
+      SCHED_ROUTE.includes('from("cron_runs")') && SCHED_PAGE.includes("/api/schedule"), true);
+check("and it says which runs caught up late",
+      SCHED_PAGE.includes("caught up"), true);
+check("the screen is in the navigation",
+      read("src/components/Shell.tsx").includes('href: "/schedule"'), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

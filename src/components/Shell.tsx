@@ -39,6 +39,18 @@ export const NAV: {
     note: "Bring in this month's AR report.",
   },
   {
+    /*
+     * In the cycle rather than in Review, because it is not a rehearsal. It is
+     * the record of the six days actually firing, and before it existed the one
+     * part of the system that runs on its own was the one part with no screen.
+     */
+    href: "/schedule",
+    label: "The Schedule",
+    group: "The cycle",
+    when: "9am daily",
+    note: "Every run, and what each one did. Run a day from here.",
+  },
+  {
     // First in Review rather than in the cycle, because it is not part of the
     // month. It is how you look at a month without living through one, and
     // how a file gets tried against the whole flow before it is uploaded for
