@@ -1195,5 +1195,54 @@ check("only a letter that left is recorded as not simulated",
       SEND_ROUTE.includes("if (outcome.sent) {") && SEND_ROUTE.includes("was_simulated: false"), true);
 check("and the record keeps which wording produced it",
       SEND_ROUTE.includes("letter.templateName ??"), true);
+
+/* ------------------------- a fee raised here is a fee this system knows --- */
+
+console.log("\nThe late fee screen knows what this system has raised");
+
+/*
+ * It knew only what NetSuite carried.
+ *
+ * "Fees already charged" counted the Late Payment Fee lines in the uploaded
+ * report. A fee raised on the 16th does not reach that report until somebody
+ * at MES enters it into NetSuite, so every tenant read "first time" however
+ * many months running the system had charged them.
+ *
+ * Two consequences, and the second is the worse one. The screen offered to
+ * charge the same tenant again the next day. And the repeat-defaulter rule,
+ * which MES set at three fees, counted zero forever — a rule they asked for
+ * that had never once fired.
+ *
+ * On top of that the button charged nobody: it called recordExport(), which
+ * appends a line to the browser's own log, and reported three fees raised for
+ * three hundred dollars.
+ */
+const FEES_PAGE = read("src/app/late-fees/page.tsx");
+const RAISER = lib("raise-fees.ts");
+const FEE_DATA = lib("data.ts");
+const ACTIVITY_ROUTE = read("src/app/api/activity/route.ts");
+
+check("the screen raises fees through the server",
+      FEES_PAGE.includes("raiseFees("), true);
+check("and no longer reports a raise it did not make",
+      !/recordExport\(`Late payment fees[^`]*`\);\s*\n\s*notify/.test(FEES_PAGE), true);
+check("the two counts are kept apart on screen",
+      FEES_PAGE.includes("raised by us") && FEES_PAGE.includes("billed in NetSuite"), true);
+check("a tenant charged this month is left out of the batch",
+      FEES_PAGE.includes("!l.raisedThisPeriod"), true);
+check("but is still shown, rather than vanishing from the month",
+      FEES_PAGE.includes("chargeable") && FEES_PAGE.includes("lines.map"), true);
+
+check("the server builds the fee row itself",
+      ACTIVITY_ROUTE.includes('kind === "late-fee"') && ACTIVITY_ROUTE.includes("not a plausible late fee"), true);
+check("and a second attempt is ignored, not charged",
+      ACTIVITY_ROUTE.includes('"tenant_id,period"') && ACTIVITY_ROUTE.includes("ignoreDuplicates"), true);
+
+check("the repeat-defaulter rule counts both",
+      FEE_DATA.includes("account.lateFeeCount + (raisedByUs.get(account.id) ?? 0)"), true);
+check("and the fees are counted in one place, not per screen",
+      lib("store.ts").includes("export function feeCountsByTenant"), true);
+check("the raiser reports refusals rather than swallowing them",
+      RAISER.includes("failed") && RAISER.includes("problems"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

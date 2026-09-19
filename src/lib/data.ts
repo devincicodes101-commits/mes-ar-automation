@@ -122,7 +122,22 @@ export function bucketTotals(accounts: Account[]): Record<BucketKey, number> {
  * Deterministic queue ranking. No AI anywhere near this: MES asked for
  * predictable behaviour on anything involving money.
  */
-export function buildQueue(accounts: Account[]): QueueItem[] {
+export function buildQueue(
+  accounts: Account[],
+  /**
+   * Fees this system has raised, counted per tenant.
+   *
+   * MES escalate a tenant at three late fees. That test read only the late
+   * fee lines in the uploaded report, which is NetSuite's count, and a fee
+   * raised on the 16th does not reach NetSuite until somebody at MES enters
+   * it. So a tenant this system had charged three months running still
+   * counted as zero, and the rule MES asked for never once fired.
+   *
+   * Optional: left out, the count is NetSuite's alone, which is the old
+   * behaviour and is what the sample data has.
+   */
+  raisedByUs: ReadonlyMap<string, number> = new Map(),
+): QueueItem[] {
   const items: QueueItem[] = [];
 
   for (const account of accounts) {
@@ -132,9 +147,14 @@ export function buildQueue(accounts: Account[]): QueueItem[] {
     const overdue = overdueTotal(account);
     const reasons: QueueReason[] = [];
 
+    /* Both counts, added. A fee is a fee whether MES have billed it yet or
+       not — the tenant has been charged either way, and the escalation is
+       about their behaviour, not about how far the paperwork has got. */
+    const fees = account.lateFeeCount + (raisedByUs.get(account.id) ?? 0);
+
     if (overdue > 0) reasons.push("aging-30");
     if (severeTotal(account) > 0) reasons.push("aging-90");
-    if (account.lateFeeCount >= 3) reasons.push("repeat-late-fees");
+    if (fees >= 3) reasons.push("repeat-late-fees");
     if (!account.hasContact && overdue > 0) reasons.push("no-contact");
     if (account.legacyNote) reasons.push("promise-broken");
 
@@ -144,7 +164,7 @@ export function buildQueue(accounts: Account[]): QueueItem[] {
     priority += severeTotal(account) * 3;
     priority += account.buckets.d60 * 2;
     priority += account.buckets.d30;
-    priority += account.lateFeeCount * 500;
+    priority += fees * 500;
     if (account.status === "Terminated") priority *= 0.6;
 
     items.push({ account, reasons, priority, overdue });
@@ -438,7 +458,18 @@ export interface FeeLine {
   /** What the fee is being charged on: due at least minimumAgeDays ago. */
   overdue: number;
   fee: number;
-  alreadyCharged: number;
+  /**
+   * Late fee lines MES have billed, counted from the uploaded report.
+   *
+   * NetSuite's answer, not ours. A fee raised by this system does not appear
+   * here until somebody at MES enters it, which is why this alone read as
+   * "first time" for a tenant the system had charged three months running.
+   */
+  billedByMes: number;
+  /** Fees this system has raised, in any month. */
+  raisedByUs: number;
+  /** Whether this system already raised one for the month being charged. */
+  raisedThisPeriod: boolean;
   /**
    * True when the figure came from the aging buckets rather than from invoice
    * dates, because the upload carried no line detail. The buckets cannot
@@ -469,7 +500,29 @@ export function feesDue(
   accounts: Account[],
   rule: FeeRule,
   invoices: Invoice[] = data.invoices as Invoice[],
+  /**
+   * What this system has already raised, and for which month.
+   *
+   * Optional, and left out nothing changes: the listing reads the report
+   * alone, which is what it did before and what made it offer the same tenant
+   * the same fee on every day of the month.
+   */
+  raised: readonly { tenantId: string; period: string }[] = [],
+  period: string | null = null,
 ): FeeLine[] {
+  /*
+   * Counted two ways because two different questions are being asked. How
+   * many times we have ever charged them decides whether they are a repeat
+   * defaulter; whether we charged them this month decides whether they may be
+   * charged again today.
+   */
+  const everRaised = new Map<string, number>();
+  const thisPeriod = new Set<string>();
+  for (const r of raised) {
+    everRaised.set(r.tenantId, (everRaised.get(r.tenantId) ?? 0) + 1);
+    if (period && r.period === period) thisPeriod.add(r.tenantId);
+  }
+
   return accounts
     .filter((a) => !isInCredit(a))
     .filter((a) => (rule.skipTerminated ? a.status !== "Terminated" : true))
@@ -493,7 +546,9 @@ export function feesDue(
         rule.basis === "flat"
           ? rule.value
           : Math.round(r.overdue * (rule.value / 100) * 100) / 100,
-      alreadyCharged: r.account.lateFeeCount,
+      billedByMes: r.account.lateFeeCount,
+      raisedByUs: everRaised.get(r.account.id) ?? 0,
+      raisedThisPeriod: thisPeriod.has(r.account.id),
     }))
     .sort((a, b) => b.overdue - a.overdue);
 }
@@ -517,9 +572,9 @@ export const REASON_LABEL: Record<QueueReason, string> = {
  * times" are different conversations, and a number baked into the string would
  * be wrong the moment the data moves. Everything else is fixed text.
  */
-export function reasonLabel(reason: QueueReason, a: Account): string {
+export function reasonLabel(reason: QueueReason, a: Account, fees?: number): string {
   if (reason === "repeat-late-fees") {
-    return `Charged late fees ${a.lateFeeCount} times`;
+    return `Charged late fees ${fees ?? a.lateFeeCount} times`;
   }
   if (reason === "promise-broken" && a.legacyNote) {
     return `Promise: ${a.legacyNote}`;

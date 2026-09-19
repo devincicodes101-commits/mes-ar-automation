@@ -32,7 +32,7 @@ import {
   snapshot,
   stillOwing,
 } from "../src/lib/cycle.ts";
-import { bucketForAge, bucketLabelForAge, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
+import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -1200,6 +1200,83 @@ check("and still carries the report date it will be filed under",
       emptyReport(true).payload!.p_report_date, "2026-11-30");
 check("a report with no date is refused however it is described",
       toImportPayload([], [], null, "x.xlsx", null, true).payload, null);
+
+/* --------------------- counting a fee we raised and one MES billed ------- */
+
+console.log("\nFees raised here count as much as fees MES have billed");
+
+/*
+ * MES escalate a tenant at three late fees. The test read the uploaded
+ * report's Late Payment Fee lines only, which is NetSuite's count, and a fee
+ * raised on the 16th does not reach NetSuite until somebody enters it. So a
+ * tenant this system had charged three months running counted as zero, and
+ * the rule never fired.
+ *
+ * Both halves are asserted, because the fix is only right if it also leaves
+ * the old behaviour alone when nothing has been raised.
+ */
+const feeAcct = (id: string, billed: number) => ({
+  id,
+  customerCode: id.toUpperCase(),
+  companyName: id,
+  property: "BSD",
+  status: "Live",
+  total: 5000,
+  buckets: { current: 0, d30: 5000, d60: 0, d90: 0, d90plus: 0 },
+  lateFeeCount: billed,
+  hasContact: true,
+  emails: ["x@y.z"],
+  isOneFm: false,
+  revenueTypes: [],
+  legacyNote: null,
+}) as never;
+
+const feeNoneRaised = buildQueue([feeAcct("a", 0)]);
+check("nothing raised and nothing billed is not a repeat defaulter",
+      feeNoneRaised[0]!.reasons.includes("repeat-late-fees"), false);
+
+const feeBilledThree = buildQueue([feeAcct("b", 3)]);
+check("three billed by MES still is",
+      feeBilledThree[0]!.reasons.includes("repeat-late-fees"), true);
+
+const feeRaisedThree = buildQueue([feeAcct("c", 0)], new Map([["c", 3]]));
+check("three raised by us now is too",
+      feeRaisedThree[0]!.reasons.includes("repeat-late-fees"), true);
+
+const feeMixed = buildQueue([feeAcct("d", 1)], new Map([["d", 2]]));
+check("and one billed plus two raised makes three",
+      feeMixed[0]!.reasons.includes("repeat-late-fees"), true);
+
+const feeUnder = buildQueue([feeAcct("e", 1)], new Map([["e", 1]]));
+check("two is still not three",
+      feeUnder[0]!.reasons.includes("repeat-late-fees"), false);
+
+/* ------------------------- the fee listing, against what we have raised -- */
+
+console.log("\nThe late fee listing and the month already charged");
+
+const lateRule = { ...DEFAULT_FEE_RULE };
+const feeDueNow = feesDue([feeAcct("f", 0)], lateRule, []);
+check("a tenant with no fee raised is chargeable", feeDueNow[0]!.raisedThisPeriod, false);
+check("and reads as first time", feeDueNow[0]!.raisedByUs + feeDueNow[0]!.billedByMes, 0);
+
+const feeDueAfter = feesDue(
+  [feeAcct("f", 0)], lateRule, [],
+  [{ tenantId: "f", period: "2026-09-01" }], "2026-09-01",
+);
+check("once raised for that month it is not chargeable again",
+      feeDueAfter[0]!.raisedThisPeriod, true);
+check("and the count is ours, not NetSuite's",
+      `${feeDueAfter[0]!.raisedByUs}/${feeDueAfter[0]!.billedByMes}`, "1/0");
+
+const feeOtherMonth = feesDue(
+  [feeAcct("f", 0)], lateRule, [],
+  [{ tenantId: "f", period: "2026-08-01" }], "2026-09-01",
+);
+check("a fee raised in a different month does not block this one",
+      feeOtherMonth[0]!.raisedThisPeriod, false);
+check("but it still counts towards how often they have been charged",
+      feeOtherMonth[0]!.raisedByUs, 1);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

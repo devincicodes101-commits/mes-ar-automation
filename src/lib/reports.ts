@@ -521,8 +521,26 @@ export interface LateFeeCandidate {
   account: Account;
   overdue: number;
   fee: number;
-  alreadyCharged: number;
+  /**
+   * Late fee lines MES have billed, counted from the uploaded report.
+   *
+   * This is NetSuite's answer, not ours. A fee raised here does not appear in
+   * it until somebody at MES enters it, so it stays at zero for months while
+   * the system charges every one of them.
+   */
+  billedByMes: number;
+  /** Fees this system has raised, in any month. */
+  raisedByUs: number;
+  /** Whether this system already raised one for the month being looked at. */
+  raisedThisPeriod: boolean;
   approximate: boolean;
+}
+
+/** One fee this system raised, as the activity log reports it. */
+export interface RaisedFee {
+  tenantId: string;
+  period: string;
+  amount: number;
 }
 
 export interface LateFeeListing {
@@ -541,11 +559,37 @@ export function buildLateFeeListing(
   invoices: readonly Line[],
   asOf: string | null,
   entity: string | null,
-  opts: { fee?: number; minimumAgeDays?: number } = {},
+  opts: {
+    fee?: number;
+    minimumAgeDays?: number;
+    /**
+     * What this system has already raised.
+     *
+     * Left out entirely, nothing changes and the listing reads the report
+     * alone, which is what it did before and what made it offer the same
+     * tenant the same fee every day of the month.
+     */
+    raised?: readonly RaisedFee[];
+    /** The month being charged, as the first of it. */
+    period?: string | null;
+  } = {},
 ): LateFeeListing {
   const fee = opts.fee ?? 100;
   const minimumAgeDays = opts.minimumAgeDays ?? 14;
   const onGiro = giroEnrolled(invoices);
+
+  /*
+   * Counted by tenant id, which is what late_fees stores, and separately for
+   * the month in question. "Charged before" and "charged this month" answer
+   * different questions: the first decides whether they are a repeat
+   * defaulter, the second whether they may be charged again today.
+   */
+  const raisedEver = new Map<string, number>();
+  const raisedNow = new Set<string>();
+  for (const r of opts.raised ?? []) {
+    raisedEver.set(r.tenantId, (raisedEver.get(r.tenantId) ?? 0) + 1);
+    if (opts.period && r.period === opts.period) raisedNow.add(r.tenantId);
+  }
 
   const byKey = new Map<string, Line[]>();
   for (const i of invoices) {
@@ -582,7 +626,9 @@ export function buildLateFeeListing(
       account: a,
       overdue,
       fee,
-      alreadyCharged: a.lateFeeCount,
+      billedByMes: a.lateFeeCount,
+      raisedByUs: raisedEver.get(a.id) ?? 0,
+      raisedThisPeriod: raisedNow.has(a.id),
       approximate: dated.length === 0,
     });
   }
@@ -595,6 +641,14 @@ export function buildLateFeeListing(
       `anything more than ${minimumAgeDays} calendar days past its due date. ` +
       "MES's own reminder letter states the rule.",
   ];
+  const already = rows.filter((r) => r.raisedThisPeriod).length;
+  if (already > 0) {
+    notes.push(
+      `${already} of these ${already === 1 ? "has" : "have"} already been ` +
+        "charged this month by this system. They are shown with the rest so " +
+        "the month reads completely, and are left out of the batch.",
+    );
+  }
   if (giroExcluded.length > 0) {
     notes.push(
       `${giroExcluded.length} tenant${giroExcluded.length === 1 ? " is" : "s are"} ` +

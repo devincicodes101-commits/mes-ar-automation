@@ -8,7 +8,8 @@ import {
   feesDue,
   formatSgd,
 } from "@/lib/data";
-import { recordExport, useStore } from "@/lib/store";
+import { hydrateActivity, recordExport, useStore } from "@/lib/store";
+import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { giroEnrolled } from "@/lib/reports";
@@ -37,10 +38,18 @@ export default function LateFeesPage() {
   const { notify } = useToast();
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
   const [preview, setPreview] = useState(false);
+  /* Raising now goes over the network, so the button has to say so and refuse
+     a second press while the first batch is still going. */
+  const [raising, setRaising] = useState(false);
+
+  /* The month being charged, as the first of it, which is how a fee is filed.
+     The report date decides it, not today: a September report uploaded in
+     October still charges September. */
+  const period = ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null;
 
   const all = useMemo(
-    () => feesDue(scope(ds.accounts), rule, ds.invoices),
-    [ds, rule, scope],
+    () => feesDue(scope(ds.accounts), rule, ds.invoices, store.fees, period),
+    [ds, rule, scope, store.fees, period],
   );
 
   /**
@@ -72,8 +81,20 @@ export default function LateFeesPage() {
   // rather than left for somebody to discover from a figure that is slightly
   // off in a direction nobody can explain.
   const approximate = lines.filter((l) => l.approximate).length;
-  const totalFees = lines.reduce((s, l) => s + l.fee, 0);
-  const repeat = lines.filter((l) => l.alreadyCharged > 0).length;
+
+  /*
+   * Charged already this month, so not chargeable again.
+   *
+   * Shown in the table with everybody else, because a month that quietly lost
+   * three rows reads as a month where three tenants stopped owing anything.
+   * Left out of the batch and out of the total, because the database would
+   * refuse them anyway and a total that counts refusals is a total nobody can
+   * reconcile.
+   */
+  const chargeable = lines.filter((l) => !l.raisedThisPeriod);
+  const alreadyThisMonth = lines.length - chargeable.length;
+  const totalFees = chargeable.reduce((s, l) => s + l.fee, 0);
+  const repeat = lines.filter((l) => l.raisedByUs + l.billedByMes > 0).length;
 
   return (
     <div className="space-y-5">
@@ -204,12 +225,18 @@ export default function LateFeesPage() {
       <Card>
         <CardHeader
           title="Fees that would be raised this month"
-          hint="Nothing is charged until you approve it."
+          hint={
+            alreadyThisMonth > 0
+              ? `Nothing is charged until you approve it. ${alreadyThisMonth} of ` +
+                `these ${alreadyThisMonth === 1 ? "has" : "have"} already been ` +
+                "charged this month and will be left out."
+              : "Nothing is charged until you approve it."
+          }
           right={
             <button
               type="button"
               onClick={() => setPreview(true)}
-              disabled={lines.length === 0 || !canAct}
+              disabled={chargeable.length === 0 || !canAct}
               className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Review and raise
@@ -266,12 +293,32 @@ export default function LateFeesPage() {
                     <td className="tabular px-3 py-3 text-right text-ink-secondary">
                       {formatSgd(l.overdue)}
                     </td>
+                    {/* Both answers, side by side, because they are different
+                        facts. "MES have billed this" comes from the uploaded
+                        report; "we raised this" comes from what the system
+                        itself did on the 16th. A fee waits in the second until
+                        somebody at MES enters it into the first, and showing
+                        only NetSuite made every tenant read as "first time"
+                        however many months running we had charged them. */}
                     <td className="px-3 py-3 text-right">
-                      {l.alreadyCharged > 0 ? (
-                        <StatusBadge
-                          kind={l.alreadyCharged >= 3 ? "critical" : "warning"}
-                          label={`${l.alreadyCharged} before`}
-                        />
+                      {l.raisedByUs > 0 || l.billedByMes > 0 ? (
+                        <div className="flex flex-col items-end gap-1">
+                          {l.raisedByUs > 0 ? (
+                            <StatusBadge
+                              kind={l.raisedByUs + l.billedByMes >= 3 ? "critical" : "warning"}
+                              label={
+                                l.raisedThisPeriod
+                                  ? "raised this month"
+                                  : `${l.raisedByUs} raised by us`
+                              }
+                            />
+                          ) : null}
+                          {l.billedByMes > 0 ? (
+                            <span className="text-[11px] text-ink-muted">
+                              {l.billedByMes} billed in NetSuite
+                            </span>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-xs text-ink-muted">first time</span>
                       )}
@@ -288,7 +335,7 @@ export default function LateFeesPage() {
               <tfoot>
                 <tr className="border-t-2 border-line-base font-medium">
                   <td className="px-5 py-3 text-xs text-ink-secondary">
-                    {lines.length} accounts
+                    {chargeable.length} accounts
                   </td>
                   <td className="tabular px-3 py-3 text-right text-xs text-ink" />
                   <td />
@@ -361,7 +408,7 @@ export default function LateFeesPage() {
           onClose={() => setPreview(false)}
         >
           <p className="text-xs leading-relaxed text-ink-secondary">
-            This raises {lines.length} fee notices totalling{" "}
+            This raises {chargeable.length} fee notices totalling{" "}
             <span className="tabular font-medium text-ink">
               SGD {formatSgd(totalFees)}
             </span>
@@ -387,17 +434,36 @@ export default function LateFeesPage() {
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
             <button
               type="button"
-              onClick={() => {
-                recordExport(`Late payment fees, ${lines.length} notices`);
-                notify(
-                  `${lines.length} late payment fees raised`,
-                  `SGD ${formatSgd(totalFees)} added across ${lines.length} accounts`,
+              disabled={raising}
+              onClick={async () => {
+                /*
+                 * Raised, then reported. This used to call recordExport(),
+                 * which writes one line into the browser's own activity log
+                 * and charges nobody: the toast said three fees had been
+                 * raised and the database was untouched. The schedule on the
+                 * 16th was the only thing that ever charged a tenant.
+                 */
+                setRaising(true);
+                const outcome = await raiseFees(
+                  chargeable.map((l) => ({
+                    tenantId: l.account.id,
+                    companyName: l.account.companyName,
+                    period: period as string,
+                    amount: l.fee,
+                  })),
                 );
-                setPreview(false);
+                setRaising(false);
+
+                if (outcome.raised > 0) {
+                  recordExport(`Late payment fees, ${outcome.raised} notices`);
+                }
+                notify(outcome.title, outcome.detail);
+                await hydrateActivity(true);
+                if (outcome.failed === 0) setPreview(false);
               }}
               className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
             >
-              Raise the fees
+              {raising ? "Raising..." : "Raise the fees"}
             </button>
             <button
               type="button"

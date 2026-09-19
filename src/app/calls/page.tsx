@@ -13,6 +13,7 @@ import {
   CALL_OUTCOMES,
   CallOutcome,
   recordCall,
+  feeCountsByTenant,
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
@@ -33,7 +34,14 @@ export default function CallListPage() {
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [active, setActive] = useState<Account | null>(null);
 
-  const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
+  /* The fees this system has raised count towards the repeat-defaulter rule
+     as much as the ones MES have billed. A tenant charged three months running
+     used to count as zero here, because only NetSuite's lines were read. */
+  const raised = useMemo(() => feeCountsByTenant(store.fees), [store.fees]);
+  const queue = useMemo(
+    () => buildQueue(scope(ds.accounts), raised),
+    [ds, scope, raised],
+  );
   const calledIds = new Set(store.calls.map((c) => c.accountId));
 
   /**

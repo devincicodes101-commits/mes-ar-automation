@@ -9,7 +9,7 @@ import {
   severeTotal,
 } from "@/lib/data";
 import { Account, QueueReason } from "@/lib/types";
-import { useStore } from "@/lib/store";
+import { feeCountsByTenant, useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
@@ -70,6 +70,8 @@ function matchesAge(a: Account, f: AgeFilter): boolean {
 
 export default function ActionListPage() {
   const store = useStore();
+  /* Fees this system raised count towards the repeat-defaulter rule too. */
+  const raised = useMemo(() => feeCountsByTenant(store.fees), [store.fees]);
   const { scope } = useSession();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [property, setProperty] = useState<(typeof PROPERTIES)[number]>("All");
@@ -87,8 +89,8 @@ export default function ActionListPage() {
       .filter((a) => (oneFmOnly ? a.isOneFm : true))
       .filter((a) => (charge === "All" ? true : a.revenueTypes.includes(charge)))
       .filter((a) => matchesAge(a, age));
-    return buildQueue(accounts);
-  }, [ds, property, status, age, charge, oneFmOnly, scope]);
+    return buildQueue(accounts, raised);
+  }, [ds, property, status, age, charge, oneFmOnly, scope, raised]);
 
   /**
    * How many tenants each aging option would return, given the other filters.

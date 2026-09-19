@@ -152,10 +152,41 @@ export const DEFAULT_SETTINGS: Settings = {
   recipients: DEFAULT_RECIPIENTS,
 };
 
+/**
+ * One late fee this system raised.
+ *
+ * Kept apart from the late fee lines in the uploaded report, which are what
+ * MES have billed. A fee lives here from the moment the 16th raises it until
+ * somebody at MES enters it into NetSuite, and the two counts must never be
+ * added together as though they were the same event.
+ */
+export interface RaisedFee {
+  id: string;
+  tenantId: string;
+  period: string;
+  amount: number;
+  raisedAt: string;
+}
+
+/**
+ * How many fees this system has raised, per tenant.
+ *
+ * Here rather than in each screen, so the Call List and the collections board
+ * cannot arrive at two different counts for the same tenant — which is the
+ * shape of disagreement nobody notices until a client asks why one screen
+ * calls somebody a repeat defaulter and the other does not.
+ */
+export function feeCountsByTenant(fees: readonly RaisedFee[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const f of fees) out.set(f.tenantId, (out.get(f.tenantId) ?? 0) + 1);
+  return out;
+}
+
 export interface StoreState {
   calls: CallLog[];
   promises: PromiseRecord[];
   emails: SentEmail[];
+  fees: RaisedFee[];
   audit: AuditEntry[];
   templates: Template[];
   manualEmails: ManualEmails;
@@ -248,6 +279,7 @@ const EMPTY: StoreState = {
   calls: [],
   promises: [],
   emails: [],
+  fees: [],
   audit: [],
   templates: DEFAULT_TEMPLATES,
   manualEmails: {},
@@ -269,6 +301,9 @@ function read(): StoreState {
       promises: parsed.promises ?? [],
       // Left undefined on purpose where it was never captured. See SentEmail.
       emails: parsed.emails ?? [],
+      /* Never read from local storage in earlier builds, so it is absent for
+         everyone who used one. The server fills it on the next load. */
+      fees: parsed.fees ?? [],
       audit: parsed.audit ?? [],
       templates: parsed.templates?.length ? parsed.templates : DEFAULT_TEMPLATES,
       manualEmails: parsed.manualEmails ?? {},
@@ -454,6 +489,7 @@ export async function hydrateActivity(force = false): Promise<void> {
       calls?: CallLog[];
       promises?: PromiseRecord[];
       emails?: SentEmail[];
+      fees?: RaisedFee[];
       unreadableCalls?: number;
       error?: string;
       hint?: string;
@@ -474,6 +510,7 @@ export async function hydrateActivity(force = false): Promise<void> {
       calls: body.calls ?? state.calls,
       promises: body.promises ?? state.promises,
       emails: body.emails ?? state.emails,
+      fees: body.fees ?? state.fees,
     });
 
     setSync({

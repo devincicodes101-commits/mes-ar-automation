@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
-  const [calls, promises, emails] = await Promise.all([
+  const [calls, promises, emails, fees] = await Promise.all([
     db
       .from("calls")
       .select(
@@ -70,9 +70,25 @@ export async function GET(request: Request) {
         `id,tenant_id,template_id,template_name,subject,body,recipients,sent_at,was_simulated,${WITH_NAME}`,
       )
       .order("sent_at", { ascending: false }),
+    /*
+     * The fees this system has raised, which is not the same question as the
+     * fees MES have billed.
+     *
+     * The late fee screen counted only the Late Payment Fee lines in the
+     * uploaded report — that is, what NetSuite carries. A fee raised here on
+     * the 16th appears in neither until somebody at MES types it in, so every
+     * tenant read as "first time" however many months running the system had
+     * charged them. Two consequences, and the second is the worse one: the
+     * screen offered to charge the same tenant again the next day, and the
+     * repeat-defaulter rule, which fires at three fees, counted zero forever.
+     */
+    db
+      .from("late_fees")
+      .select("id,tenant_id,period,amount,raised_at")
+      .order("raised_at", { ascending: false }),
   ]);
 
-  const failed = [calls, promises, emails].find((r) => r.error);
+  const failed = [calls, promises, emails, fees].find((r) => r.error);
   if (failed?.error) {
     return NextResponse.json(
       {
@@ -100,11 +116,18 @@ export async function GET(request: Request) {
      * one fewer would be wrong in the direction nobody checks.
      */
     unreadableCalls: read.unreadable,
+    fees: (fees.data ?? []).map((f) => ({
+      id: f.id as string,
+      tenantId: f.tenant_id as string,
+      period: f.period as string,
+      amount: Number(f.amount),
+      raisedAt: f.raised_at as string,
+    })),
   });
 }
 
 interface Body {
-  kind?: "call" | "promise" | "email";
+  kind?: "call" | "promise" | "email" | "late-fee";
   record?: unknown;
 }
 
@@ -160,6 +183,38 @@ export async function POST(request: Request) {
         ...emailToRow(body.record as SentEmail, !CAN_SEND_FOR_REAL),
         sent_by: who.caller.userId,
       };
+    } else if (body.kind === "late-fee") {
+      table = "late_fees";
+      /*
+       * Built here, not taken from the caller.
+       *
+       * A fee is money on a tenant's account, so the amount, the basis and the
+       * month it belongs to are all decided on the server from the rule and
+       * the report date. A browser that could name its own figure could charge
+       * a tenant anything.
+       */
+      const fee = body.record as { tenantId?: string; period?: string; amount?: number };
+      if (!fee?.tenantId || !fee?.period) {
+        return NextResponse.json(
+          { ok: false, error: "A late fee needs a tenant and a period." },
+          { status: 400 },
+        );
+      }
+      const amount = Number(fee.amount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 1000) {
+        return NextResponse.json(
+          { ok: false, error: "That is not a plausible late fee." },
+          { status: 422 },
+        );
+      }
+      row = {
+        tenant_id: fee.tenantId,
+        period: fee.period,
+        basis: "flat",
+        rule_value: amount,
+        amount,
+        raised_by: who.caller.userId,
+      };
     } else {
       return NextResponse.json(
         { ok: false, error: `Unknown kind: ${String(body.kind)}` },
@@ -180,7 +235,19 @@ export async function POST(request: Request) {
    * whether the first attempt landed, and asking them to check is asking them
    * to do the thing the system is for.
    */
-  let { error } = await db.from(table).upsert(row, { onConflict: "id" });
+  /*
+   * A late fee conflicts on the tenant and the month, not on a row id.
+   *
+   * The browser does not generate an id for one, and the guarantee that
+   * matters is MES's own: the 16th runs once per tenant per month, and a
+   * second attempt must be ignored rather than charge them again. That is the
+   * same constraint the scheduled run relies on, so pressing the button after
+   * the schedule has already run cannot double charge.
+   */
+  const conflict = table === "late_fees" ? "tenant_id,period" : "id";
+  let { error } = await db
+    .from(table)
+    .upsert(row, { onConflict: conflict, ignoreDuplicates: table === "late_fees" });
 
   /*
    * A letter that went out must leave a record, even if its template does not.
