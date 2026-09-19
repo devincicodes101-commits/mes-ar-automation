@@ -16,11 +16,12 @@ import { useSession, useToast } from "@/lib/session";
 import {
   Card,
   CardHeader,
-  Modal,
   EmptyState,
+  Modal,
   StatTile,
   StatusBadge,
   Tag,
+  TenantLink,
 } from "@/components/ui";
 
 const ORDER: PromiseState[] = ["broken", "due-today", "upcoming"];
@@ -148,7 +149,9 @@ export default function PromisesPage() {
                       className="flex flex-wrap items-center gap-4 px-5 py-3"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-ink">{p.companyName}</p>
+                        <p className="font-medium text-ink">
+                          <TenantLink id={p.accountId} name={p.companyName} />
+                        </p>
                         <p className="mt-0.5 text-[11px] text-ink-muted">
                           Promised on{" "}
                           {new Date(p.createdAt).toLocaleDateString("en-SG")}{" "}

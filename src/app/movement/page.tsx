@@ -32,6 +32,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  TenantLink,
 } from "@/components/ui";
 
 interface Answer {
@@ -210,7 +211,9 @@ export default function MovementPage() {
               {mine.map((m) => (
                 <tr key={m.id}>
                   <td className="px-5 py-2.5">
-                    <div className="font-medium text-ink">{m.companyName}</div>
+                    <div className="font-medium text-ink">
+                      <TenantLink id={m.id} name={m.companyName} />
+                    </div>
                     <div className="text-xs text-ink-muted">
                       {m.customerCode} · {m.property}
                       {m.hasContact ? "" : " · no email address"}
@@ -307,7 +310,9 @@ function ChronicPanel({ rows, across }: { rows: Chronic[]; across: number }) {
               {rows.map((c) => (
                 <tr key={c.id}>
                   <td className="px-5 py-2.5">
-                    <div className="font-medium text-ink">{c.companyName}</div>
+                    <div className="font-medium text-ink">
+                      <TenantLink id={c.id} name={c.companyName} />
+                    </div>
                     <div className="text-xs text-ink-muted">
                       {c.customerCode} · {c.property}
                       {c.hasContact ? "" : " · no email address"}

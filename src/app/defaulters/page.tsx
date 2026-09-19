@@ -18,10 +18,11 @@ import {
   Card,
   CardHeader,
   EmptyState,
+  ScrollPanel,
   StatTile,
   StatusBadge,
   Tag,
-  ScrollPanel,
+  TenantLink,
 } from "@/components/ui";
 
 /**
@@ -196,7 +197,7 @@ export default function DefaultersPage() {
                   >
                     <td className="px-5 py-3">
                       <div className="font-medium text-ink">
-                        {r.account.companyName}
+                        <TenantLink id={r.account.id} name={r.account.companyName} />
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] text-ink-muted">

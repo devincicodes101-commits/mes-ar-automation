@@ -14,6 +14,7 @@ import {
   ScrollPanel,
   StatTile,
   StatusBadge,
+  TenantLink,
 } from "@/components/ui";
 import { MailboxStrip } from "@/components/MailAccounts";
 
@@ -147,7 +148,7 @@ export default function OutboxPage() {
                         }`}
                       >
                         <p className="truncate text-[13px] font-medium text-ink">
-                          {e.companyName}
+                          <TenantLink id={e.accountId} name={e.companyName} />
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                           {e.templateName} · {e.at.slice(0, 16).replace("T", " ")}

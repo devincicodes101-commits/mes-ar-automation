@@ -31,9 +31,10 @@ import {
 import {
   Card,
   CardHeader,
+  ScrollPanel,
   StatTile,
   StatusBadge,
-  ScrollPanel,
+  TenantLink,
 } from "@/components/ui";
 
 const SEVERITY_LABEL = {
@@ -145,7 +146,9 @@ function Row({ row }: { row: ChasedRow }) {
   return (
     <tr className="border-b border-line-hair last:border-0">
       <td className="px-5 py-3">
-        <span className="block text-ink">{row.account.companyName}</span>
+        <span className="block text-ink">
+          <TenantLink id={row.account.id} name={row.account.companyName} />
+        </span>
         <span className="mt-0.5 block text-[11px] text-ink-muted">
           {row.account.customerCode} &middot; {row.account.propertyName}
           {row.giroFails > 0 ? (

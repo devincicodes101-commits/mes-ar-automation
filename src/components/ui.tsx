@@ -1,4 +1,36 @@
+import Link from "next/link";
 import { ReactNode } from "react";
+
+/**
+ * A tenant's name, as the way into their history.
+ *
+ * Here rather than written out on each screen, because it was added to two of
+ * them and the client clicked a name on a third. A name that is a link on the
+ * call list and plain text on What Changed teaches people it is not clickable,
+ * which is worse than never having linked it.
+ *
+ * Falls back to plain text where there is no id to link to — a row read from
+ * an older record, or one that never carried one.
+ */
+export function TenantLink({
+  id,
+  name,
+  className = "",
+}: {
+  id: string | null | undefined;
+  name: string;
+  className?: string;
+}) {
+  if (!id) return <span className={className}>{name}</span>;
+  return (
+    <Link
+      href={`/tenant/${encodeURIComponent(id)}`}
+      className={`underline decoration-line-hair underline-offset-4 hover:decoration-accent ${className}`}
+    >
+      {name}
+    </Link>
+  );
+}
 
 /* ------------------------------------------------------------------ card */
 

@@ -18,10 +18,11 @@ import {
   CardHeader,
   EmptyState,
   Modal,
+  ScrollPanel,
   StatTile,
   StatusBadge,
   Tag,
-  ScrollPanel,
+  TenantLink,
 } from "@/components/ui";
 
 /**
@@ -291,7 +292,7 @@ export default function LateFeesPage() {
                   >
                     <td className="px-5 py-3">
                       <div className="font-medium text-ink">
-                        {l.account.companyName}
+                        <TenantLink id={l.account.id} name={l.account.companyName} />
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] text-ink-muted">

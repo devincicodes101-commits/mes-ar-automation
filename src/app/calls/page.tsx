@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   buildQueue,
@@ -27,6 +26,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  TenantLink,
 } from "@/components/ui";
 
 export default function CallListPage() {
@@ -142,12 +142,11 @@ export default function CallListPage() {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      href={`/tenant/${encodeURIComponent(item.account.id)}`}
-                      className="font-medium text-ink underline decoration-line-hair underline-offset-4 hover:decoration-accent"
-                    >
-                      {item.account.companyName}
-                    </Link>
+                    <TenantLink
+                      id={item.account.id}
+                      name={item.account.companyName}
+                      className="font-medium text-ink"
+                    />
                     <span className="text-[11px] text-ink-muted">
                       {item.account.customerCode} · {item.account.propertyName}
                     </span>

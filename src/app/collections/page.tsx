@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   buildQueue,
@@ -20,6 +19,7 @@ import {
   StatTile,
   StatusBadge,
   Tag,
+  TenantLink,
 } from "@/components/ui";
 
 const PROPERTIES = ["All", "JPD1", "JPD2", "BSD", "LEO"] as const;
@@ -310,12 +310,11 @@ export default function ActionListPage() {
                       {/* The name is the way in. Everything done about this
                           tenant is on one page, which is the question anybody
                           asks before picking up the phone. */}
-                      <Link
-                        href={`/tenant/${encodeURIComponent(item.account.id)}`}
-                        className="font-medium text-ink underline decoration-line-hair underline-offset-4 hover:decoration-accent"
-                      >
-                        {item.account.companyName}
-                      </Link>
+                      <TenantLink
+                        id={item.account.id}
+                        name={item.account.companyName}
+                        className="font-medium text-ink"
+                      />
                       <span className="text-[11px] text-ink-muted">
                         {item.account.customerCode} · {item.account.property}
                       </span>

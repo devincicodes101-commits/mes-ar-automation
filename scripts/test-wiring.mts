@@ -1281,10 +1281,23 @@ check("a relationship manager cannot reach another manager's tenant",
 
 check("the charge lines are joined the same way every other screen joins them",
       TENANT_PAGE.includes("invoicesForAccount("), true);
-check("the tenant name links to it from the call list",
-      read("src/app/calls/page.tsx").includes("/tenant/${encodeURIComponent"), true);
-check("and from the collections board",
-      read("src/app/collections/page.tsx").includes("/tenant/${encodeURIComponent"), true);
+/*
+ * On every screen that lists a tenant, not two of them.
+ *
+ * It was added to the call list and the collections board, and the client
+ * clicked a name on What Changed. A name that is a link on one screen and
+ * plain text on another teaches people it is not clickable, which is worse
+ * than never having linked it at all.
+ */
+check("the link is one component, not written out per screen",
+      read("src/components/ui.tsx").includes("export function TenantLink"), true);
+for (const screen of [
+  "calls", "collections", "movement", "late-fees", "defaulters", "chased",
+  "promises", "outbox",
+]) {
+  check(`${screen} links the tenant name`,
+        read(`src/app/${screen}/page.tsx`).includes("<TenantLink"), true);
+}
 
 /* ------------------------------- the unsaved count has to be able to fall */
 
