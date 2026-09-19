@@ -70,10 +70,16 @@ function matchesAge(a: Account, f: AgeFilter): boolean {
 
 export default function ActionListPage() {
   const store = useStore();
-  /* Fees this system raised count towards the repeat-defaulter rule too. */
-  const raised = useMemo(() => feeCountsByTenant(store.fees), [store.fees]);
   const { scope } = useSession();
   const ds = withManualEmails(useDataset(), store.manualEmails);
+  /* Fees this system raised count towards the repeat-defaulter rule too, and
+     a fee against a tenant who has since gone from the report does not: they
+     have paid. */
+  const stillOwing = useMemo(() => new Set(ds.accounts.map((a) => a.id)), [ds.accounts]);
+  const raised = useMemo(
+    () => feeCountsByTenant(store.fees, stillOwing),
+    [store.fees, stillOwing],
+  );
   const [property, setProperty] = useState<(typeof PROPERTIES)[number]>("All");
   const [status, setStatus] = useState<StatusFilter>("All");
   const [age, setAge] = useState<AgeFilter>("any");

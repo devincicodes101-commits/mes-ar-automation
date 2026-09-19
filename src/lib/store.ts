@@ -176,10 +176,46 @@ export interface RaisedFee {
  * shape of disagreement nobody notices until a client asks why one screen
  * calls somebody a repeat defaulter and the other does not.
  */
-export function feeCountsByTenant(fees: readonly RaisedFee[]): Map<string, number> {
+export function feeCountsByTenant(
+  fees: readonly RaisedFee[],
+  /**
+   * The tenants in the report on screen now.
+   *
+   * Given, a fee raised against somebody who is no longer in the report is
+   * left out: absent from a newer report means they have paid, which is the
+   * rule the whole system turns on, and a fee cannot be outstanding against a
+   * tenant who owes nothing. Left out, every fee counts, which is the right
+   * answer where there is no report to compare against.
+   */
+  stillOwing?: ReadonlySet<string>,
+): Map<string, number> {
   const out = new Map<string, number>();
-  for (const f of fees) out.set(f.tenantId, (out.get(f.tenantId) ?? 0) + 1);
+  for (const f of fees) {
+    if (stillOwing && !stillOwing.has(f.tenantId)) continue;
+    out.set(f.tenantId, (out.get(f.tenantId) ?? 0) + 1);
+  }
   return out;
+}
+
+/**
+ * Fees raised against tenants who have since gone from the report.
+ *
+ * MES's rule, from the meeting: a company missing from a later file has paid.
+ * The system already applies that everywhere else — a tenant who disappears
+ * is settled in full on What Changed, and drops off every screen — but a fee
+ * raised before they paid stayed behind, counted, and had nowhere to be seen.
+ *
+ * Worked out rather than stored, so nothing is deleted. A fee row is the one
+ * kind of record here that cannot be rebuilt from any file, and a partial or
+ * mistaken export that dropped a tenant would otherwise destroy it for good.
+ * If that tenant appears in the next report still owing, the fee is simply
+ * counted again.
+ */
+export function settledFees(
+  fees: readonly RaisedFee[],
+  stillOwing: ReadonlySet<string>,
+): RaisedFee[] {
+  return fees.filter((f) => !stillOwing.has(f.tenantId));
 }
 
 export interface StoreState {

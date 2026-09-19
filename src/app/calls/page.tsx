@@ -37,7 +37,14 @@ export default function CallListPage() {
   /* The fees this system has raised count towards the repeat-defaulter rule
      as much as the ones MES have billed. A tenant charged three months running
      used to count as zero here, because only NetSuite's lines were read. */
-  const raised = useMemo(() => feeCountsByTenant(store.fees), [store.fees]);
+  const stillOwing = useMemo(
+    () => new Set(ds.accounts.map((a) => a.id)),
+    [ds.accounts],
+  );
+  const raised = useMemo(
+    () => feeCountsByTenant(store.fees, stillOwing),
+    [store.fees, stillOwing],
+  );
   const queue = useMemo(
     () => buildQueue(scope(ds.accounts), raised),
     [ds, scope, raised],

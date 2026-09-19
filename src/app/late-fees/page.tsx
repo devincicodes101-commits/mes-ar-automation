@@ -8,7 +8,7 @@ import {
   feesDue,
   formatSgd,
 } from "@/lib/data";
-import { hydrateActivity, recordExport, useStore } from "@/lib/store";
+import { hydrateActivity, recordExport, settledFees, useStore } from "@/lib/store";
 import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
@@ -91,6 +91,18 @@ export default function LateFeesPage() {
    * refuse them anyway and a total that counts refusals is a total nobody can
    * reconcile.
    */
+  /*
+   * Fees raised against tenants who have since gone from the report.
+   *
+   * MES's rule: a company missing from a later file has paid. They already
+   * drop off every screen, including this one, so the fee raised before they
+   * paid had nowhere left to appear — it simply stopped being mentioned.
+   * Shown here instead, because a charge that quietly evaporates is the kind
+   * of thing a tenant asks about six weeks later.
+   */
+  const stillOwing = useMemo(() => new Set(ds.accounts.map((a) => a.id)), [ds.accounts]);
+  const settled = useMemo(() => settledFees(store.fees, stillOwing), [store.fees, stillOwing]);
+
   const chargeable = lines.filter((l) => !l.raisedThisPeriod);
   const alreadyThisMonth = lines.length - chargeable.length;
   const totalFees = chargeable.reduce((s, l) => s + l.fee, 0);
@@ -349,6 +361,38 @@ export default function LateFeesPage() {
           </ScrollPanel>
         )}
       </Card>
+
+      {settled.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="No longer chargeable — these tenants have paid"
+            hint="They are gone from the latest report, which MES read as paid in full. The fee is not pursued, and the record of having raised it is kept."
+            right={<StatusBadge kind="good" label={`${settled.length} settled`} />}
+          />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line-hair text-left text-xs text-ink-muted">
+                  <th className="px-5 py-2 font-medium">Tenant</th>
+                  <th className="px-3 py-2 font-medium">Month it was raised for</th>
+                  <th className="px-5 py-2 text-right font-medium">Fee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {settled.map((f) => (
+                  <tr key={f.id} className="border-b border-line-hair last:border-0">
+                    <td className="px-5 py-3 text-ink-secondary">{f.tenantId}</td>
+                    <td className="tabular px-3 py-3 text-ink-secondary">{f.period.slice(0, 7)}</td>
+                    <td className="tabular px-5 py-3 text-right text-ink-secondary">
+                      {formatSgd(f.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
 
       {/* The exclusion, shown rather than silently applied. */}
       {excluded.length > 0 ? (

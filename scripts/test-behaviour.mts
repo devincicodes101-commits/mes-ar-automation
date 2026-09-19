@@ -34,6 +34,7 @@ import {
 } from "../src/lib/cycle.ts";
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
+import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
@@ -1277,6 +1278,43 @@ check("a fee raised in a different month does not block this one",
       feeOtherMonth[0]!.raisedThisPeriod, false);
 check("but it still counts towards how often they have been charged",
       feeOtherMonth[0]!.raisedByUs, 1);
+
+/* ------------- a tenant gone from the newer report has paid, fees too ---- */
+
+console.log("\nA fee raised before a tenant paid");
+
+/*
+ * MES's rule, from the meeting: a company missing from a later file has paid.
+ *
+ * The system applied that everywhere except here. A tenant who disappears is
+ * settled in full on What Changed and drops off every screen, so they were
+ * never charged again — that half was already right. But a fee raised before
+ * they paid stayed behind, went on counting towards the repeat-defaulter
+ * rule, and had nowhere left to be seen, because the screen that would show
+ * it only lists tenants who are in the report.
+ *
+ * Worked out rather than stored. A fee row is the one kind of record here
+ * that cannot be rebuilt from any file, so a partial export that dropped a
+ * tenant must not be able to destroy it. If they appear again still owing,
+ * the fee counts again.
+ */
+const owing = new Set(["a", "b"]);
+const someFees = [
+  { id: "1", tenantId: "a", period: "2026-09-01", amount: 100, raisedAt: "x" },
+  { id: "2", tenantId: "c", period: "2026-09-01", amount: 100, raisedAt: "x" },
+];
+
+check("a fee against a tenant still in the report counts",
+      feeCountsByTenant(someFees as never, owing).get("a"), 1);
+check("one against a tenant who has gone does not",
+      feeCountsByTenant(someFees as never, owing).has("c"), false);
+check("and with no report to compare against, every fee counts",
+      feeCountsByTenant(someFees as never).size, 2);
+
+check("the settled one can be named", settledFees(someFees as never, owing).length, 1);
+check("and it is the right one", settledFees(someFees as never, owing)[0]!.tenantId, "c");
+check("nothing is settled when everybody is still there",
+      settledFees(someFees as never, new Set(["a", "b", "c"])).length, 0);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
