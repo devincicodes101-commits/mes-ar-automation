@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   buildQueue,
@@ -141,9 +142,12 @@ export default function CallListPage() {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-ink">
+                    <Link
+                      href={`/tenant/${encodeURIComponent(item.account.id)}`}
+                      className="font-medium text-ink underline decoration-line-hair underline-offset-4 hover:decoration-accent"
+                    >
                       {item.account.companyName}
-                    </span>
+                    </Link>
                     <span className="text-[11px] text-ink-muted">
                       {item.account.customerCode} · {item.account.propertyName}
                     </span>

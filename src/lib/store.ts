@@ -424,6 +424,28 @@ export interface SyncState {
 let sync: SyncState = { unsaved: 0, lastError: null, loading: false };
 const syncListeners = new Set<() => void>();
 
+/*
+ * Which records failed, by id, rather than only how many.
+ *
+ * The count used to go up and never down. A letter counted as unsaved during
+ * an outage stayed counted for the rest of the session even once it had been
+ * accepted, so the banner went on saying three records were saved in this
+ * browser alone while all three were sitting in the database. A warning that
+ * stays on after the thing it warns about has been fixed is one people learn
+ * to ignore, which is the one outcome this banner cannot afford.
+ *
+ * Kept by id so a load from the server can settle it properly: anything the
+ * server now has is no longer unsaved, and anything it still does not have
+ * genuinely is.
+ */
+const unsavedIds = new Set<string>();
+
+function noteUnsaved(record: unknown, why: string) {
+  const id = (record as { id?: string })?.id;
+  if (id) unsavedIds.add(id);
+  setSync({ unsaved: unsavedIds.size || sync.unsaved + 1, lastError: why });
+}
+
 function setSync(next: Partial<SyncState>) {
   sync = { ...sync, ...next };
   syncListeners.forEach((l) => l());
@@ -470,23 +492,24 @@ function mirror(kind: "call" | "promise" | "email", record: unknown): void {
         const body = (await r.json().catch(() => null)) as
           | { error?: string; hint?: string }
           | null;
-        setSync({
-          unsaved: sync.unsaved + 1,
-          lastError: [body?.error, body?.hint].filter(Boolean).join(" ") ||
+        noteUnsaved(
+          record,
+          [body?.error, body?.hint].filter(Boolean).join(" ") ||
             `The server refused it (${r.status}).`,
-        });
+        );
         return;
       }
-      // Only a genuine acceptance clears anything, and it clears one, not all:
-      // an earlier failure is still a record sitting in this browser alone.
-      if (sync.unsaved === 0) setSync({ lastError: null });
+      /* Accepted, so this one is no longer in this browser alone. An earlier
+         failure still is, and is still counted. */
+      const id = (record as { id?: string })?.id;
+      if (id) unsavedIds.delete(id);
+      setSync({ unsaved: unsavedIds.size, lastError: unsavedIds.size ? sync.lastError : null });
     } catch {
-      setSync({
-        unsaved: sync.unsaved + 1,
-        lastError:
-          "This record is saved in this browser only. It could not reach the " +
+      noteUnsaved(
+        record,
+        "This record is saved in this browser only. It could not reach the " +
           "server, so nobody else can see it yet.",
-      });
+      );
     }
   })();
 }
@@ -549,13 +572,37 @@ export async function hydrateActivity(force = false): Promise<void> {
       fees: body.fees ?? state.fees,
     });
 
+    /*
+     * A load from the server settles what is actually unsaved.
+     *
+     * Anything counted as unsaved that the server turns out to hold was
+     * saved after all — a retry landed, or the first attempt did and the
+     * reply was lost. Anything the server still does not hold genuinely is
+     * missing, and stays counted.
+     */
+    const onServer = new Set<string>();
+    for (const r of [
+      ...(body.calls ?? []),
+      ...(body.promises ?? []),
+      ...(body.emails ?? []),
+    ]) {
+      const id = (r as { id?: string })?.id;
+      if (id) onServer.add(id);
+    }
+    for (const id of Array.from(unsavedIds)) {
+      if (onServer.has(id)) unsavedIds.delete(id);
+    }
+
     setSync({
       loading: false,
+      unsaved: unsavedIds.size,
       lastError:
         body.unreadableCalls
           ? `${body.unreadableCalls} calls could not be read by this version ` +
             "and are not shown. They are still in the database."
-          : null,
+          : unsavedIds.size
+            ? sync.lastError
+            : null,
     });
   } catch {
     setSync({

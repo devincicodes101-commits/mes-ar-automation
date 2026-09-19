@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   buildQueue,
@@ -306,9 +307,15 @@ export default function ActionListPage() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-ink">
+                      {/* The name is the way in. Everything done about this
+                          tenant is on one page, which is the question anybody
+                          asks before picking up the phone. */}
+                      <Link
+                        href={`/tenant/${encodeURIComponent(item.account.id)}`}
+                        className="font-medium text-ink underline decoration-line-hair underline-offset-4 hover:decoration-accent"
+                      >
                         {item.account.companyName}
-                      </span>
+                      </Link>
                       <span className="text-[11px] text-ink-muted">
                         {item.account.customerCode} · {item.account.property}
                       </span>

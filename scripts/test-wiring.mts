@@ -507,8 +507,12 @@ for (const fn of ["recordCall", "recordEmails", "recordPromise", "markPromiseCon
         /mirror\(/.test(end > 0 ? rest.slice(0, end) : rest), true);
 }
 
+/* The counting moved from a bare increment to a set of ids, so that a record
+   which turns out to have saved can stop being counted. The rule it enforces
+   is unchanged: a failure is never silent. */
 check("a record that did not reach the server is counted, not swallowed",
-      STORE.includes("unsaved: sync.unsaved + 1"), true);
+      STORE.includes("function noteUnsaved(") &&
+        (STORE.match(/noteUnsaved\(/g) ?? []).length >= 3, true);
 check("and the count is shown on every screen",
       SHELL.includes("useSync()") && SHELL.includes("sync.unsaved"), true);
 check("the log is loaded when somebody signs in",
@@ -1244,5 +1248,61 @@ check("and the fees are counted in one place, not per screen",
       lib("store.ts").includes("export function feeCountsByTenant"), true);
 check("the raiser reports refusals rather than swallowing them",
       RAISER.includes("failed") && RAISER.includes("problems"), true);
+
+/* ------------------------------ one tenant, everything done about them --- */
+
+console.log("\nA tenant's whole history in one place");
+
+/*
+ * The record was complete and scattered. The letter was on Sent Mail, the call
+ * that followed on the Call List, the promise on Payment Promises, the $100 on
+ * Late Payment Fees — four screens, each sorted by its own thing, none of them
+ * answering what anybody actually asks: what have we done about this company?
+ *
+ * It gets asked twice and both matter. An officer picking up the phone needs
+ * to know what the tenant has already been told; a tenant ringing to dispute a
+ * charge is the moment MES need the sequence with dates.
+ */
+const TENANT_PAGE = read("src/app/tenant/[id]/page.tsx");
+const HISTORY = lib("tenant-history.ts");
+
+check("there is a page for one tenant", TENANT_PAGE.length > 0, true);
+check("it merges all four kinds into one order",
+      HISTORY.includes('"letter"') && HISTORY.includes('"call"') &&
+        HISTORY.includes('"promise"') && HISTORY.includes('"fee"'), true);
+check("sorted by when it happened, and nothing else",
+      HISTORY.includes("b.at.localeCompare(a.at)"), true);
+check("and says which events the tenant holds too",
+      HISTORY.includes("reachedTheTenant"), true);
+
+/* A page is a URL, and a URL somebody can type is a door. */
+check("a relationship manager cannot reach another manager's tenant",
+      TENANT_PAGE.includes("scope(ds.accounts).find"), true);
+
+check("the charge lines are joined the same way every other screen joins them",
+      TENANT_PAGE.includes("invoicesForAccount("), true);
+check("the tenant name links to it from the call list",
+      read("src/app/calls/page.tsx").includes("/tenant/${encodeURIComponent"), true);
+check("and from the collections board",
+      read("src/app/collections/page.tsx").includes("/tenant/${encodeURIComponent"), true);
+
+/* ------------------------------- the unsaved count has to be able to fall */
+
+console.log("\nThe unsaved banner can clear itself");
+
+/*
+ * It only ever went up. Three letters counted as unsaved during one bad
+ * moment stayed counted for the rest of the session, so the banner went on
+ * saying they were in this browser alone while all three sat in the database.
+ * A warning that stays on after the problem is fixed is one people learn to
+ * ignore, which is the single thing this banner cannot afford.
+ */
+const SYNC_STORE = lib("store.ts");
+check("failures are remembered by id, not just counted",
+      SYNC_STORE.includes("const unsavedIds = new Set<string>()"), true);
+check("an accepted record stops being counted",
+      SYNC_STORE.includes("unsavedIds.delete(id)"), true);
+check("and a load from the server settles the rest",
+      SYNC_STORE.includes("if (onServer.has(id)) unsavedIds.delete(id)"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
