@@ -48,9 +48,13 @@ export default function ChasedPage() {
   const store = useStore();
   const ds = withManualEmails(useDataset(), store.manualEmails);
 
+  /* Our own completed cycles count as much as the ones in MES's export. A
+     tenant chased all the way round by this system — both letters, the call,
+     the $100 — used to show nowhere, because the only evidence that the cycle
+     had run was a fee row this screen was not reading. */
   const rows = useMemo(
-    () => chasedToTheEnd(ds.invoices, scope(ds.accounts), ds.asOf),
-    [ds, scope],
+    () => chasedToTheEnd(ds.invoices, scope(ds.accounts), ds.asOf, 1, store.fees),
+    [ds, scope, store.fees],
   );
 
   const chronic = rows.filter((r) => severity(r) === "chronic");
@@ -164,7 +168,14 @@ function Row({ row }: { row: ChasedRow }) {
         />
       </td>
 
-      <td className="tabular px-3 py-3 text-right text-ink-secondary">{row.cycles}</td>
+      <td className="tabular px-3 py-3 text-right text-ink-secondary">
+        {row.cycles}
+        {row.ourCycles > 0 ? (
+          <span className="ml-2 text-[11px] text-ink-muted">
+            {row.ourCycles} by us
+          </span>
+        ) : null}
+      </td>
 
       <td className="tabular px-3 py-3 text-right">
         {row.inARow >= 3 ? (

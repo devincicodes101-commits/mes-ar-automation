@@ -35,6 +35,7 @@ import {
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
+import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
@@ -1315,6 +1316,60 @@ check("the settled one can be named", settledFees(someFees as never, owing).leng
 check("and it is the right one", settledFees(someFees as never, owing)[0]!.tenantId, "c");
 check("nothing is settled when everybody is still there",
       settledFees(someFees as never, new Set(["a", "b", "c"])).length, 0);
+
+/* ------------------ a cycle this system ran is a cycle that happened ----- */
+
+console.log("\nChased to the end, counting our own runs");
+
+/*
+ * The list read MES's export alone. That is right for a first upload — it can
+ * show seven past cycles for a tenant this system has never chased — and
+ * wrong from the moment the system starts raising fees itself.
+ *
+ * A tenant taken all the way round by us, both letters and the $100, showed
+ * nowhere. The screen that exists to answer "who has had everything and still
+ * owes" was empty for exactly the tenants it was built for, because the only
+ * evidence the cycle had run was a fee row it was not reading.
+ */
+const chasedAcct = (id: string) => ({
+  id,
+  customerCode: id.toUpperCase(),
+  companyName: id,
+  property: "BSD",
+  status: "Live",
+  total: 9000,
+  buckets: { current: 0, d30: 0, d60: 9000, d90: 0, d90plus: 0 },
+  lateFeeCount: 0,
+  hasContact: true,
+  emails: ["x@y.z"],
+  isOneFm: false,
+  revenueTypes: [],
+  legacyNote: null,
+}) as never;
+
+const noneRun = chasedToTheEnd([], [chasedAcct("z")], "2026-10-31");
+check("nobody has been round the cycle yet", noneRun.length, 0);
+
+const weRanTwo = chasedToTheEnd([], [chasedAcct("z")], "2026-10-31", 1, [
+  { tenantId: "z", period: "2026-09-01" },
+  { tenantId: "z", period: "2026-10-01" },
+]);
+check("two cycles we ran ourselves put them on the list", weRanTwo.length, 1);
+check("and both are counted", weRanTwo[0]!.cycles, 2);
+check("with how many were ours said separately", weRanTwo[0]!.ourCycles, 2);
+
+/* MES entering our fee into NetSuite must not turn one cycle into two. */
+const both = chasedToTheEnd(
+  [{
+    companyName: "z", customerCode: "Z", revenueType: "Late Payment Fee",
+    date: "2026-09-16", dueDate: null, age: 40, bucket: "30 days",
+    openBalance: 100, description: "Admin Fee For Late Payment", isOneFm: false,
+    transactionType: "Invoice", documentNumber: "x", linkedContract: null,
+  }] as never,
+  [chasedAcct("z")], "2026-10-31", 1,
+  [{ tenantId: "z", period: "2026-09-01" }],
+);
+check("the same month from both sources counts once", both[0]!.cycles, 1);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

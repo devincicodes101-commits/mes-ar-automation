@@ -61,6 +61,16 @@ export interface ChasedRow {
    */
   monthsSince: number | null;
 
+  /**
+   * Of those cycles, how many this system ran itself.
+   *
+   * Separate from the total because the two are different evidence. A fee in
+   * MES's export is a charge their ledger carries; a fee raised here is one
+   * this system raised on the 16th and nobody has entered into NetSuite yet.
+   * Both mean a cycle ran to the end with the tenant still owing.
+   */
+  ourCycles: number;
+
   /** Bounced GIRO deductions, which are a different failure from paying late. */
   giroFails: number;
 
@@ -121,6 +131,19 @@ export function chasedToTheEnd(
   accounts: readonly Account[],
   asOf: string | null,
   minimumCycles = 1,
+  /**
+   * Fees this system raised, as {tenantId, period}.
+   *
+   * Without them this list reads MES's export alone, which is right for a
+   * first upload and wrong from the moment the system starts raising fees
+   * itself: a tenant chased all the way round — both letters, a call, the
+   * $100 — showed nowhere, because the only evidence of the cycle having run
+   * was a row nobody here was reading.
+   *
+   * Optional, so the old answer is still available where there is nothing of
+   * our own to add.
+   */
+  raised: readonly { tenantId: string; period: string }[] = [],
 ): ChasedRow[] {
   const feeMonths = new Map<string, string[]>();
   const giro = new Map<string, number>();
@@ -138,12 +161,24 @@ export function chasedToTheEnd(
     }
   }
 
+  /* Ours are keyed on the tenant id, MES's on the customer code, because the
+     two arrive from different places. Merged per account below rather than
+     forcing one key on both. */
+  const ourMonths = new Map<string, string[]>();
+  for (const r of raised) {
+    ourMonths.set(r.tenantId, [...(ourMonths.get(r.tenantId) ?? []), r.period.slice(0, 7)]);
+  }
+
   const reportMonth = asOf ? asOf.slice(0, 7) : null;
   const rows: ChasedRow[] = [];
 
   for (const account of accounts) {
     const key = keyOf(account.customerCode || account.companyName);
-    const months = Array.from(new Set(feeMonths.get(key) ?? [])).sort();
+    const theirs = feeMonths.get(key) ?? [];
+    const ours = ourMonths.get(account.id) ?? [];
+    /* A month counts once however many places it came from. MES entering our
+       fee into NetSuite must not turn one cycle into two. */
+    const months = Array.from(new Set([...theirs, ...ours])).sort();
     if (months.length < minimumCycles) continue;
 
     // Still owing is the whole point. A client who completed the cycle and
@@ -160,6 +195,7 @@ export function chasedToTheEnd(
       lastMonth,
       monthsSince:
         lastMonth && reportMonth ? monthsBetween(lastMonth, reportMonth) : null,
+      ourCycles: Array.from(new Set(ours)).length,
       giroFails: giro.get(key) ?? 0,
       outstanding,
       severe: severeTotal(account),
