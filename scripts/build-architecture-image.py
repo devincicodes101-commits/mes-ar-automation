@@ -19,8 +19,11 @@ built rather than by what they do.
 
 So this starts where the work starts, with an officer and a spreadsheet, and
 follows one month through to the next. No endpoint is named. A table is named
-only where the point is that it cannot be rebuilt, and each stage says what
-somebody would actually see.
+only where the point is that it cannot be rebuilt.
+
+Under the six stages sit the three things somebody always asks next: how a
+charge is aged, what stops a letter reaching a tenant, and which days of the
+month the system acts on its own.
 
 Drawn rather than screenshotted, so every box is placed deliberately and the
 file can be regenerated when the system changes.
@@ -36,7 +39,7 @@ from PIL import Image, ImageDraw, ImageFont
 # that started at screen resolution comes out the other side unreadable, so it
 # starts with room to lose.
 S = 2
-W, H = 1240 * S, 1020 * S
+W, H = 1240 * S, 1306 * S
 
 FONTS = "C:/Windows/Fonts"
 
@@ -54,9 +57,11 @@ f_layer = font(MONOB, 10)
 f_stage = font(BOLD, 15)
 f_body = font(REG, 11.5)
 f_small = font(REG, 10)
+f_tiny = font(REG, 9.5)
 f_chip = font(MONO, 10)
 f_num = font(MONOB, 17)
 f_stagenum = font(MONOB, 12)
+f_bucket = font(BOLD, 12.5)
 f_daylbl = font(BOLD, 11)
 f_daysub = font(REG, 10)
 f_note = font(REG, 10.5)
@@ -116,18 +121,19 @@ def arrow(x1, y1, x2, y2, fill=(51, 82, 92), width=1.4, size=7):
         line(x2, y2, x2 + size * math.cos(b), y2 + size * math.sin(b), fill, width)
 
 
-def bullets(x, y, items, gap=17, fill=INK2):
-    """An item may be one line or several.
+def bullets(x, y, items, gap=16, fill=INK2, f=None):
+    """An item may be one line or several; only the first line gets a dot.
 
-    Every wrapped line used to get its own dot, which turned one point into
-    two and made a five-point list read as eight."""
+    Every wrapped line used to get its own, which turned one point into two and
+    made a five-point list read as eight."""
     yy = y
     for item in items:
         lines = [item] if isinstance(item, str) else item
-        d.ellipse([x * S, (yy + 6) * S, (x + 3.5) * S, (yy + 9.5) * S], fill=INK3)
+        d.ellipse([x * S, (yy + 5.5) * S, (x + 3.5) * S, (yy + 9) * S], fill=INK3)
         for ln in lines:
-            text(x + 12, yy, ln, f_body, fill)
+            text(x + 12, yy, ln, f or f_small, fill)
             yy += gap
+    return yy
 
 
 # ===================================================================== title
@@ -140,9 +146,9 @@ d.line([52 * S, 106 * S, 1188 * S, 106 * S], fill=INK, width=int(2 * S))
 
 # ==================================================================== stages
 
-BW, BH = 352, 214
+BW, BH = 352, 256
 COL = [52, 436, 820]
-ROW = [136, 396]
+ROW = [130, 418]
 
 
 def stage(n, col, row, title, colour=TEAL):
@@ -154,66 +160,90 @@ def stage(n, col, row, title, colour=TEAL):
     return x, y
 
 
+def footer_strip(x, y, s, fill=TINT, outline=SOFT, tint=INK2):
+    box(x + 16, y + BH - 46, BW - 32, 30, fill=fill, outline=outline)
+    text(x + 28, y + BH - 38, s, f_small, tint)
+
+
 # -- 1 ----------------------------------------------------------------------
 x, y = stage(1, 0, 0, "The officer uploads")
 text(x + 16, y + 48, "Any day of the month, usually the 4th.", f_small, INK3)
-box(x + 16, y + 72, BW - 32, 54, fill=TINT, outline=SOFT)
-text(x + 28, y + 80, "The AR report", f_noteb, INK)
-text(x + 28, y + 98, "Exported from NetSuite. Every charge still", f_small, INK2)
-text(x + 28, y + 112, "owed, across all four dormitories.", f_small, INK2)
-box(x + 16, y + 136, BW - 32, 54, fill=TINT, outline=SOFT)
-text(x + 28, y + 144, "The contact list", f_noteb, INK)
-text(x + 28, y + 162, "Only when it changes. The system keeps", f_small, INK2)
-text(x + 28, y + 176, "the last one it was given.", f_small, INK2)
+
+box(x + 16, y + 68, BW - 32, 82, fill=TINT, outline=SOFT)
+text(x + 28, y + 76, "The AR report", f_noteb, INK)
+text(x + 28, y + 94, "The Finance AR Download sheet, exported from", f_small, INK2)
+text(x + 28, y + 108, "NetSuite. Every charge still owed across JPD1,", f_small, INK2)
+text(x + 28, y + 122, "JPD2, Blue Stars and The Leo — around 190", f_small, INK2)
+text(x + 28, y + 136, "tenants and 3,000 charge lines.", f_small, INK2)
+
+box(x + 16, y + 156, BW - 32, 50, fill=TINT, outline=SOFT)
+text(x + 28, y + 163, "The client contact list", f_noteb, INK)
+text(x + 28, y + 180, "Only when it changes. Addresses are added to,", f_small, INK2)
+text(x + 28, y + 192, "never wiped by a later upload.", f_small, INK2)
+
+footer_strip(x, y, "Both files stay on the officer's machine until approved.")
 
 arrow(COL[0] + BW + 4, ROW[0] + BH / 2, COL[1] - 10, ROW[0] + BH / 2)
 
 # -- 2 ----------------------------------------------------------------------
 x, y = stage(2, 1, 0, "It is read and checked")
-text(x + 16, y + 48, "On the officer's own machine. Nothing is sent yet.", f_small, INK3)
-bullets(x + 16, y + 72, [
-    ["Every charge, with its age and how", "overdue it has become"],
-    ["Our total is checked against the file's", "own grand total — they must agree"],
+text(x + 16, y + 48, "In the browser. Nothing has been sent anywhere yet.", f_small, INK3)
+bullets(x + 16, y + 70, [
+    ["Each charge is aged from its due date, not the",
+     "billing date, and falls into one of five buckets"],
+    ["What a charge is for is worked out from its",
+     "description: occupancy, late fee, security",
+     "deposit, 1FM maintenance"],
+    ["Our total is checked against the file's own",
+     "grand total — a mismatch stops the upload"],
     ["Anything unreadable is named, row by row"],
-], gap=17)
-box(x + 16, y + 168, BW - 32, 30, fill=AMBER_BG, outline=AMBER_LINE)
-text(x + 28, y + 176, "The officer reads all of this before approving it.",
+])
+box(x + 16, y + BH - 46, BW - 32, 30, fill=AMBER_BG, outline=AMBER_LINE)
+text(x + 28, y + BH - 38, "The officer reads all of this before approving it.",
      f_small, AMBER_INK)
 
 arrow(COL[1] + BW + 4, ROW[0] + BH / 2, COL[2] - 10, ROW[0] + BH / 2)
 
 # -- 3 ----------------------------------------------------------------------
 x, y = stage(3, 2, 0, "Stored, once approved")
-text(x + 16, y + 48, "It all saves, or none of it does.", f_small, INK3)
-box(x + 16, y + 72, 156, 118, fill=TINT, outline=SOFT)
-text(x + 26, y + 80, "Rebuilt each upload", f_noteb, INK2)
+text(x + 16, y + 48, "One step. It all saves, or none of it does.", f_small, INK3)
+
+box(x + 16, y + 68, 156, 102, fill=TINT, outline=SOFT)
+text(x + 26, y + 76, "Rebuilt each upload", f_noteb, INK2)
 for i, s in enumerate(["balances", "charges", "tenants", "addresses"]):
-    text(x + 26, y + 102 + i * 19, s, f_chip, INK2)
-box(x + 180, y + 72, 156, 118, fill=RED_BG, outline=RED_LINE)
-text(x + 190, y + 80, "Exists nowhere else", f_noteb, RED)
+    text(x + 26, y + 96 + i * 17, s, f_chip, INK2)
+box(x + 180, y + 68, 156, 102, fill=RED_BG, outline=RED_LINE)
+text(x + 190, y + 76, "Exists nowhere else", f_noteb, RED)
 for i, s in enumerate(["phone calls", "promises", "letters sent", "late fees"]):
-    text(x + 190, y + 102 + i * 19, s, f_chip, RED_INK)
+    text(x + 190, y + 96 + i * 17, s, f_chip, RED_INK)
+
+bullets(x + 16, y + 178, [
+    ["Re-uploading a month replaces it. A different",
+     "month is added; earlier months are untouched."],
+], gap=14)
+
+footer_strip(x, y, "A tenant who moved out keeps their record — work hangs off it.")
 
 # the wrap from row one to row two, routed under the first row
-WRAP_Y = ROW[0] + BH + 22
+WRAP_Y = ROW[0] + BH + 20
 line(COL[2] + BW / 2, ROW[0] + BH, COL[2] + BW / 2, WRAP_Y)
 line(COL[2] + BW / 2, WRAP_Y, COL[0] + BW / 2, WRAP_Y)
 arrow(COL[0] + BW / 2, WRAP_Y, COL[0] + BW / 2, ROW[1] - 6)
-text(COL[1] + 30, WRAP_Y - 18, "this is now the month every screen shows", f_small, INK3)
+text(COL[1] + 24, WRAP_Y - 18, "this is now the month every screen shows", f_small, INK3)
 
 # -- 4 ----------------------------------------------------------------------
 x, y = stage(4, 0, 1, "Every screen updates")
 text(x + 16, y + 48, "The same figures for everyone, on any machine.", f_small, INK3)
-bullets(x + 16, y + 72, [
-    "Who owes what, and how overdue",
-    "The chase list, worst money first",
-    "Who has no email and must be phoned",
-    "What changed since last month",
-    "Who has been stuck for months",
-], gap=19)
-box(x + 16, y + 172, BW - 32, 26, fill=TINT, outline=SOFT)
-text(x + 28, y + 179, "A relationship manager sees only their own tenants.",
-     f_small, INK2)
+bullets(x + 16, y + 70, [
+    ["Outstanding Balances — total owed, what needs",
+     "chasing, what is over 90 days, who is in credit"],
+    ["Call List — worst money first, with the reason",
+     "each tenant is on it"],
+    ["Send By Hand — the tenants with no address"],
+    ["What Changed — who paid since last month"],
+    ["Repeat Defaulters · Chased to the End · Dry Run"],
+])
+footer_strip(x, y, "A relationship manager sees only their own tenants.")
 
 arrow(COL[0] + BW + 4, ROW[1] + BH / 2, COL[1] - 10, ROW[1] + BH / 2)
 
@@ -221,41 +251,99 @@ arrow(COL[0] + BW + 4, ROW[1] + BH / 2, COL[1] - 10, ROW[1] + BH / 2)
 x, y = stage(5, 1, 1, "The chasing happens", RED)
 text(x + 16, y + 48, "On MES's dates, whether or not anyone is at a desk.", f_small, INK3)
 
-box(x + 16, y + 68, BW - 32, 58, fill=RED_BG, outline=RED_LINE)
-text(x + 28, y + 75, "7th — first reminder        21st — final notice", f_noteb, RED)
-text(x + 28, y + 94, "Letters leave from the officer's own Gmail, so the", f_small, RED_INK)
-text(x + 28, y + 108, "tenant sees a real person at MES.", f_small, RED_INK)
+box(x + 16, y + 70, BW - 32, 84, fill=RED_BG, outline=RED_LINE)
+text(x + 28, y + 78, "7th — first reminder        21st — final notice", f_noteb, RED)
+text(x + 28, y + 97, "Letters leave from the officer's own Gmail, so the", f_small, RED_INK)
+text(x + 28, y + 111, "tenant sees a real person at MES. Sent one at a", f_small, RED_INK)
+text(x + 28, y + 125, "time, and recorded as sent only once the mail", f_small, RED_INK)
+text(x + 28, y + 139, "server has accepted it.", f_small, RED_INK)
 
-box(x + 16, y + 132, 156, 70, fill=AMBER_BG, outline=AMBER_LINE)
-text(x + 26, y + 139, "16th — late fee", f_noteb, AMBER_INK)
-text(x + 26, y + 157, "S$100, once only.", f_small, AMBER)
-text(x + 26, y + 171, "Anyone paying by", f_small, AMBER)
-text(x + 26, y + 185, "GIRO is held back.", f_small, AMBER)
+box(x + 16, y + 158, 156, 48, fill=AMBER_BG, outline=AMBER_LINE)
+text(x + 26, y + 164, "16th — late fee", f_noteb, AMBER_INK)
+text(x + 26, y + 180, "S$100, once a month.", f_small, AMBER)
+text(x + 26, y + 192, "GIRO tenants held back.", f_small, AMBER)
 
-box(x + 180, y + 132, 156, 70, fill=TINT, outline=SOFT)
-text(x + 190, y + 139, "No email address", f_noteb, INK2)
-text(x + 190, y + 157, "They go on the call", f_small, INK2)
-text(x + 190, y + 171, "list and are phoned,", f_small, INK2)
-text(x + 190, y + 185, "never just dropped.", f_small, INK2)
+box(x + 180, y + 158, 156, 48, fill=TINT, outline=SOFT)
+text(x + 190, y + 164, "No email address", f_noteb, INK2)
+text(x + 190, y + 180, "They go on the call list", f_small, INK2)
+text(x + 190, y + 192, "and are phoned instead.", f_small, INK2)
+
+footer_strip(x, y, "Every call and promise is logged against the tenant.")
 
 arrow(COL[1] + BW + 4, ROW[1] + BH / 2, COL[2] - 10, ROW[1] + BH / 2)
 
 # -- 6 ----------------------------------------------------------------------
 x, y = stage(6, 2, 1, "Next month answers")
 text(x + 16, y + 48, "The next report says what the chasing achieved.", f_small, INK3)
-bullets(x + 16, y + 72, [
-    ["A tenant missing from the newer report", "has paid in full"],
-    ["A smaller balance is a part payment"],
-    ["Money that aged is flagged even where", "the balance did not move"],
-], gap=17)
-box(x + 16, y + 168, BW - 32, 30, fill=TINT, outline=SOFT)
-text(x + 28, y + 176, "No arithmetic across files. The report is the truth.",
-     f_small, INK2)
+bullets(x + 16, y + 70, [
+    ["Missing from the newer report — paid in full"],
+    ["A smaller balance — a part payment"],
+    ["A larger balance — owes more than before"],
+    ["The same balance in an older bucket — the",
+     "money aged, even though nothing was paid"],
+    ["A name not seen before — owing for the",
+     "first time"],
+])
+footer_strip(x, y, "No arithmetic across files. The report is the truth.")
+
+
+# ================================================================== buckets
+
+BK_Y = 700
+box(52, BK_Y, 1136, 108, fill=WHITE, outline=LINE)
+tracked(68, BK_Y + 14, "HOW OVERDUE A CHARGE IS — COUNTED FROM ITS DUE DATE")
+text(660, BK_Y + 16, "MES's own five buckets. Every screen and every letter uses these.",
+     f_small, INK3)
+
+buckets = [
+    ("Current", "0 – 15 days", "not chased yet", TEAL, TINT, SOFT),
+    ("30 days", "16 – 45 days", "chasing begins", AMBER, AMBER_BG, AMBER_LINE),
+    ("60 days", "46 – 75 days", "", AMBER, AMBER_BG, AMBER_LINE),
+    ("90 days", "76 – 105 days", "", RED, RED_BG, RED_LINE),
+    ("Over 90 days", "106 days and on", "hardest to recover", RED, RED_BG, RED_LINE),
+]
+bw = 214
+for i, (name, span, note, tint, bg, edge) in enumerate(buckets):
+    bx = 68 + i * (bw + 8)
+    box(bx, BK_Y + 34, bw, 56, fill=bg, outline=edge)
+    text(bx + 12, BK_Y + 41, name, f_bucket, tint)
+    text(bx + 12, BK_Y + 59, span, f_chip, INK2)
+    if note:
+        text(bx + 12, BK_Y + 74, note, f_tiny, INK3)
+    if i:
+        arrow(bx - 6, BK_Y + 62, bx - 1, BK_Y + 62, INK3, 1.2, 4)
+
+
+# ==================================================================== gates
+
+GT_Y = 828
+box(52, GT_Y, 1136, 112, fill=WHITE, outline=LINE)
+tracked(68, GT_Y + 14, "WHAT STOPS A LETTER")
+text(400, GT_Y + 16, "Five checks. Any one of them refusing means nothing is sent, "
+                     "and nothing is recorded as sent.", f_small, INK3)
+
+gates = [
+    ("Sending is switched off", "Letters are still written", "and recorded. None leave."),
+    ("Not on the approved list", "While testing, only agreed", "addresses can be written to."),
+    ("The tenant has no address", "They go to the call list", "and are phoned instead."),
+    ("A blank was left in it", "A demand addressed to", "{{company}} is worse than none."),
+    ("No mailbox is connected", "Nobody has signed in with", "Google. Blocked, not failed."),
+]
+gw = 214
+for i, (title, l1, l2) in enumerate(gates):
+    gx = 68 + i * (gw + 8)
+    box(gx, GT_Y + 38, gw, 60, fill=TINT, outline=SOFT)
+    d.ellipse([(gx + 10) * S, (GT_Y + 46) * S, (gx + 25) * S, (GT_Y + 61) * S], fill=RED)
+    d.text(((gx + 17.5) * S, (GT_Y + 53.5) * S), str(i + 1),
+           font=font(MONOB, 9), fill=WHITE, anchor="mm")
+    text(gx + 32, GT_Y + 46, title, f_noteb, INK)
+    text(gx + 12, GT_Y + 68, l1, f_tiny, INK2)
+    text(gx + 12, GT_Y + 81, l2, f_tiny, INK2)
 
 
 # ================================================================= the month
 
-MB_Y = 664
+MB_Y = 960
 box(52, MB_Y, 1136, 216, fill=WHITE, outline=LINE)
 tracked(68, MB_Y + 14, "THE MONTH — SIX DAYS CARRY MEANING")
 text(560, MB_Y + 16, "Every other day, the schedule wakes, finds nothing to do, and stops.",
@@ -303,7 +391,6 @@ for day, label, sub, colour, side in days:
 d.text((x0 * S, (BAR_Y + 21) * S), "day 1", font=f_chip, fill=INK3, anchor="ms")
 d.text((x1 * S, (BAR_Y + 21) * S), "31", font=f_chip, fill=INK3, anchor="ms")
 
-# a short key, in the empty right end of the bar
 for i, (colour, label) in enumerate([
     (RED, "sends mail"), (AMBER, "raises money"), (TEAL, "moves the picture"),
 ]):
@@ -314,20 +401,18 @@ for i, (colour, label) in enumerate([
 
 # ================================================================== footnotes
 
-d.line([52 * S, 904 * S, 1188 * S, 904 * S], fill=(214, 223, 226), width=int(1 * S))
-text(52, 920, "What the system will not do", f_noteb, INK)
+d.line([52 * S, 1200 * S, 1188 * S, 1200 * S], fill=(214, 223, 226), width=int(1 * S))
+text(52, 1216, "What the system will not do", f_noteb, INK)
 for i, n in enumerate([
-    "Send to anyone who is not on the approved list while it is being tested.",
-    "Record a letter as sent unless a mail server accepted it.",
     "Charge the S$100 fee twice, or to a tenant paying by GIRO.",
     "Replace a month of real figures with a file it could not read.",
+    "Let a relationship manager see another manager's tenants.",
 ]):
-    text(64, 942 + i * 17, "—   " + n, f_note, INK2)
+    text(64, 1238 + i * 17, "—   " + n, f_note, INK2)
 
-text(700, 942, "190 tenants · 4 dormitories: JPD1, JPD2, Blue Stars, The Leo", f_note, INK2)
-text(700, 959, "Charges age from the due date. Chasing begins at 16 days.", f_note, INK2)
-text(700, 976, "A missed day is caught up the next morning, not lost.", f_note, INK2)
-text(700, 993, "Every figure here is taken from the system as it runs today.", f_note, INK3)
+text(700, 1238, "A missed day is caught up the next morning, not lost.", f_note, INK2)
+text(700, 1255, "Every letter records which mailbox it actually left from.", f_note, INK2)
+text(700, 1272, "Every figure here is taken from the system as it runs today.", f_note, INK3)
 
 
 # ======================================================================= save
