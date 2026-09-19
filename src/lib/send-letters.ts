@@ -37,6 +37,8 @@ export interface Outgoing {
   body: string;
   templateId?: string;
   templateName?: string;
+  /** The billing month this letter is about, as the first of it. */
+  period?: string;
 }
 
 export interface SendReport {

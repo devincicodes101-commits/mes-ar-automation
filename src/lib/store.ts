@@ -62,6 +62,17 @@ export interface SentEmail {
   id: string;
   accountId: string;
   companyName: string;
+  /**
+   * The billing month this letter was about, as the first of it.
+   *
+   * Not the month it was sent, which is what was recorded before and what
+   * caused the bug this field exists to fix: MES upload late, so the October
+   * report goes out in November, and a screen asking "has this tenant had this
+   * wording" with no month in the question crossed them off for good.
+   *
+   * Undefined for letters stored before the column existed.
+   */
+  period?: string;
   templateId: string;
   templateName: string;
   subject: string;

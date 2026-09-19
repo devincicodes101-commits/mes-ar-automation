@@ -67,7 +67,8 @@ export async function GET(request: Request) {
     db
       .from("emails_sent")
       .select(
-        `id,tenant_id,template_id,template_name,subject,body,recipients,sent_at,was_simulated,${WITH_NAME}`,
+        "id,tenant_id,template_id,template_name,subject,body,recipients," +
+          `sent_at,was_simulated,period,${WITH_NAME}`,
       )
       .order("sent_at", { ascending: false }),
     /*

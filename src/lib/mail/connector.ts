@@ -36,6 +36,14 @@ export interface Letter {
    */
   templateId?: string;
   templateName?: string;
+  /**
+   * The billing month this letter is about, as the first of it.
+   *
+   * Not the month it is sent. MES upload late — the October report arrives on
+   * the 4th of November and its reminder goes out on the 7th — so the two are
+   * routinely different and neither can be worked out from the other.
+   */
+  period?: string;
 }
 
 export type SendOutcome =

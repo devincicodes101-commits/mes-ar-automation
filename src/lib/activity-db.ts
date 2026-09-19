@@ -99,6 +99,9 @@ export interface EmailRow {
   recipients: string[];
   sent_at: string;
   was_simulated: boolean;
+  /** The billing month the letter was about. Null for rows written before
+      0018_email_period.sql added it. */
+  period?: string | null;
   tenants?: { company_name: string } | null;
 }
 
@@ -226,5 +229,8 @@ export function emailsFromRows(rows: readonly EmailRow[]): SentEmail[] {
     body: r.body === null ? undefined : r.body,
     to: r.recipients ?? [],
     at: r.sent_at,
+    /* The month the letter was about, which is not the month it was sent.
+       Undefined for letters stored before the column existed. */
+    period: r.period ?? undefined,
   }));
 }

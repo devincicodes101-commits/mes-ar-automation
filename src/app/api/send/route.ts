@@ -176,6 +176,7 @@ export async function POST(request: Request) {
         tenant_id: letter.tenantId,
         template_id: letter.templateId ?? null,
         template_name: letter.templateName ?? "Sent by the connector",
+        period: letter.period ?? null,
         subject: letter.subject,
         body: letter.body,
         recipients: letter.to,

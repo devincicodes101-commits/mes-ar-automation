@@ -1317,5 +1317,44 @@ check("an accepted record stops being counted",
       SYNC_STORE.includes("unsavedIds.delete(id)"), true);
 check("and a load from the server settles the rest",
       SYNC_STORE.includes("if (onServer.has(id)) unsavedIds.delete(id)"), true);
+
+/* ------------------------- a reminder is monthly, not once and for all --- */
+
+console.log("\nWho has already had this month's reminder");
+
+/*
+ * The question had no month in it: "has this tenant ever had this template".
+ * A tenant chased in September was crossed off in October, in November, and
+ * for good. Month one worked, the list emptied out after that, and the screen
+ * said "everyone who can be emailed has had this one" — which reads as
+ * success, which is why it survived every demo we ran on a single month.
+ *
+ * The scheduled run never shared the fault, and that made it worse rather
+ * than better. It builds a letter id from the date, so a new month is a new id
+ * and it sends. On the 7th of December the cron would write to a tenant the
+ * screen showed as done, and the officer reading the screen would not know a
+ * letter had gone.
+ */
+const REMINDERS_PAGE = read("src/app/reminders/page.tsx");
+
+check("the screen asks per month, not ever",
+      REMINDERS_PAGE.includes("function alreadyHadIt(") &&
+        !/filter\(\(e\) => e\.templateId === templateId\)/.test(REMINDERS_PAGE), true);
+check("the month comes from the report, not from today",
+      REMINDERS_PAGE.includes("ds.asOf ? `${ds.asOf.slice(0, 7)}-01`"), true);
+check("and every letter says which month it is for",
+      (REMINDERS_PAGE.match(/period: `\$\{asOf\.slice\(0, 7\)\}-01`/g) ?? []).length >= 2, true);
+
+check("the schedule records it too",
+      read("src/app/api/cron/route.ts").includes("period,\n          subject: letter.subject"), true);
+check("the send route stores what it was given",
+      read("src/app/api/send/route.ts").includes("period: letter.period ?? null"), true);
+check("and the activity log reads it back",
+      read("src/app/api/activity/route.ts").includes("was_simulated,period,"), true);
+
+/* Letters stored before the column existed fall back to the month they were
+   sent in, which is the only answer available for them. */
+check("older letters fall back to when they were sent",
+      REMINDERS_PAGE.includes("e.period ?? `${e.at.slice(0, 7)}-01`"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

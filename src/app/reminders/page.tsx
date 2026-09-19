@@ -14,6 +14,7 @@ import {
   useStore,
 } from "@/lib/store";
 import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
+import type { SentEmail } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { LetterView } from "@/components/LetterView";
@@ -91,6 +92,39 @@ function merge(
  * is three chances for the automatic run on the 7th to say something slightly
  * different from the one an officer reads on screen before approving it.
  */
+/**
+ * Who has already had this wording for the month on screen.
+ *
+ * The question used to have no month in it — "has this tenant ever had this
+ * template" — so a tenant chased in September was crossed off in October, in
+ * November, and for good. Month one worked, the list emptied out after that,
+ * and the screen said "everyone who can be emailed has had this one", which
+ * reads as success.
+ *
+ * The scheduled run never shared the fault, which made it worse rather than
+ * better: it builds a letter id from the date, so a new month is a new id and
+ * it sends. On the 7th of December the cron would write to a tenant the screen
+ * showed as done, and the officer reading the screen would not know.
+ *
+ * Letters stored before the period column existed count for whatever month
+ * they were sent in. That is the best available answer for them and the reason
+ * the column is written from now on rather than derived.
+ */
+function alreadyHadIt(
+  emails: readonly SentEmail[],
+  templateId: string,
+  period: string | null,
+): Set<string> {
+  const out = new Set<string>();
+  for (const e of emails) {
+    if (e.templateId !== templateId) continue;
+    const forMonth = e.period ?? `${e.at.slice(0, 7)}-01`;
+    if (period && forMonth !== period) continue;
+    out.add(e.accountId);
+  }
+  return out;
+}
+
 function letterFor(account: Account, template: Template, asOf: string): Outgoing {
   return {
     tenantId: account.id,
@@ -100,6 +134,7 @@ function letterFor(account: Account, template: Template, asOf: string): Outgoing
     body: merge(template.body, account, asOf, template.id),
     templateId: template.id,
     templateName: template.name,
+    period: `${asOf.slice(0, 7)}-01`,
   };
 }
 
@@ -118,9 +153,10 @@ export default function RemindersPage() {
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
 
   const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
-  const sentIds = new Set(
-    store.emails.filter((e) => e.templateId === templateId).map((e) => e.accountId),
-  );
+  /* The month the report covers, which is the cycle a letter belongs to. Not
+     today: MES upload late, so the October report goes out in November. */
+  const period = ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null;
+  const sentIds = alreadyHadIt(store.emails, templateId, period);
 
   /**
    * Each wording goes to a different set of tenants. Without this the list was
@@ -186,8 +222,10 @@ export default function RemindersPage() {
     const due = templateDueOn(new Date(), store.templates);
     if (!due) return;
 
-    const alreadySent = new Set(
-      store.emails.filter((e) => e.templateId === due.id).map((e) => e.accountId),
+    const alreadySent = alreadyHadIt(
+      store.emails,
+      due.id,
+      ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null,
     );
     const batch = buildQueue(scope(ds.accounts)).filter(
       (q) => q.account.hasContact && !alreadySent.has(q.account.id),
@@ -575,6 +613,7 @@ function Draft({
         body,
         templateId: template.id,
         templateName: template.name,
+        period: `${asOf.slice(0, 7)}-01`,
       },
     ]);
     setSending(false);

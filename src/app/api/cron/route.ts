@@ -379,6 +379,9 @@ async function persist(
           tenant_id: id,
           template_id: day === 21 ? "final-21st" : "reminder-7th",
           template_name: day === 21 ? "Final notice" : "First reminder",
+          /* Which cycle this belongs to, so the screens can tell a letter
+             already sent this month from one sent last month. */
+          period,
           subject: letter.subject,
           recipients: account.emails,
           sent_at: new Date().toISOString(),
