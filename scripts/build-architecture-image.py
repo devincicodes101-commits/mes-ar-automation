@@ -2,17 +2,31 @@
 The whole system on one page, as a single image.
 
     python scripts/build-architecture-image.py
+    npm run build:architecture
 
 Written because the thing that actually gets looked at is a picture somebody
 can send on WhatsApp and open on a phone. A web page needs a link, a browser
 and a network; a PNG needs none of those, and it survives being forwarded.
 
-Drawn rather than screenshotted so that every box is positioned deliberately
-and the file can be regenerated when the system changes. The figures in it are
-the real ones: six cycle days, the $100 fee on the 16th, four dormitories, the
-tables that exist and the ones that cannot be rebuilt.
+---------------------------------------------------------------------------
+Told as the month, not as the stack
+
+An earlier version drew the layers — browser, routes, database — with the URL
+of every endpoint on it. That is the diagram an engineer joining the project
+wants, and the wrong one for everybody else: it opens with the part of the
+system nobody outside it will ever touch, and names things by how they are
+built rather than by what they do.
+
+So this starts where the work starts, with an officer and a spreadsheet, and
+follows one month through to the next. No endpoint is named. A table is named
+only where the point is that it cannot be rebuilt, and each stage says what
+somebody would actually see.
+
+Drawn rather than screenshotted, so every box is placed deliberately and the
+file can be regenerated when the system changes.
 """
 
+import math
 import os
 from PIL import Image, ImageDraw, ImageFont
 
@@ -22,7 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 # that started at screen resolution comes out the other side unreadable, so it
 # starts with room to lose.
 S = 2
-W, H = 1240 * S, 1000 * S
+W, H = 1240 * S, 1020 * S
 
 FONTS = "C:/Windows/Fonts"
 
@@ -31,19 +45,18 @@ def font(name, size):
     return ImageFont.truetype(os.path.join(FONTS, name), int(size * S))
 
 
-REG = "segoeui.ttf"
-BOLD = "segoeuib.ttf"
-MONO = "consola.ttf"
-MONOB = "consolab.ttf"
+REG, BOLD = "segoeui.ttf", "segoeuib.ttf"
+MONO, MONOB = "consola.ttf", "consolab.ttf"
 
 f_title = font(BOLD, 26)
 f_sub = font(REG, 13)
 f_layer = font(MONOB, 10)
-f_head = font(BOLD, 14)
-f_body = font(REG, 11)
+f_stage = font(BOLD, 15)
+f_body = font(REG, 11.5)
 f_small = font(REG, 10)
-f_chip = font(MONO, 10.5)
+f_chip = font(MONO, 10)
 f_num = font(MONOB, 17)
+f_stagenum = font(MONOB, 12)
 f_daylbl = font(BOLD, 11)
 f_daysub = font(REG, 10)
 f_note = font(REG, 10.5)
@@ -56,13 +69,17 @@ INK = (15, 29, 36)
 INK2 = (70, 96, 107)
 INK3 = (122, 146, 156)
 LINE = (168, 186, 192)
+SOFT = (198, 212, 216)
+TINT = (240, 246, 247)
 TEAL = (14, 110, 120)
-TEAL_BG = (220, 238, 240)
 AMBER = (156, 94, 7)
 AMBER_BG = (253, 243, 223)
 AMBER_LINE = (201, 167, 90)
 RED = (166, 43, 33)
 RED_BG = (250, 232, 230)
+RED_LINE = (224, 176, 170)
+RED_INK = (130, 45, 37)
+AMBER_INK = (95, 74, 14)
 WHITE = (255, 255, 255)
 
 img = Image.new("RGB", (W, H), PAPER)
@@ -82,157 +99,174 @@ def text(x, y, s, f=None, fill=INK, anchor="la"):
     d.text((x * S, y * S), s, font=f or f_body, fill=fill, anchor=anchor)
 
 
-def layer_label(x, y, s, fill=TEAL):
-    """The small tracked-out caps that name a band, as in the reference."""
+def tracked(x, y, s, fill=TEAL):
+    """The small spaced-out caps that name a band."""
     d.text((x * S, y * S), " ".join(s), font=f_layer, fill=fill, anchor="la")
 
 
-def arrow(x1, y1, x2, y2, fill=(51, 82, 92), width=1.4, head=6, dash=None):
-    if dash:
-        _dashed(x1, y1, x2, y2, fill, width, dash)
-    else:
-        d.line([x1 * S, y1 * S, x2 * S, y2 * S], fill=fill, width=int(width * S))
-    # arrowhead, pointing along the line
-    import math
+def line(x1, y1, x2, y2, fill=(51, 82, 92), width=1.4):
+    d.line([x1 * S, y1 * S, x2 * S, y2 * S], fill=fill, width=int(width * S))
+
+
+def arrow(x1, y1, x2, y2, fill=(51, 82, 92), width=1.4, size=7):
+    line(x1, y1, x2, y2, fill, width)
     a = math.atan2(y2 - y1, x2 - x1)
     for sign in (1, -1):
         b = a + sign * 2.5
-        d.line(
-            [x2 * S, y2 * S, (x2 + head * math.cos(b)) * S, (y2 + head * math.sin(b)) * S],
-            fill=fill, width=int(width * S),
-        )
+        line(x2, y2, x2 + size * math.cos(b), y2 + size * math.sin(b), fill, width)
 
 
-def _dashed(x1, y1, x2, y2, fill, width, dash):
-    import math
-    total = math.hypot(x2 - x1, y2 - y1)
-    if total == 0:
-        return
-    ux, uy = (x2 - x1) / total, (y2 - y1) / total
-    on, off = dash
-    pos = 0.0
-    while pos < total:
-        seg = min(on, total - pos)
-        d.line(
-            [(x1 + ux * pos) * S, (y1 + uy * pos) * S,
-             (x1 + ux * (pos + seg)) * S, (y1 + uy * (pos + seg)) * S],
-            fill=fill, width=int(width * S),
-        )
-        pos += on + off
+def bullets(x, y, items, gap=17, fill=INK2):
+    """An item may be one line or several.
 
-
-def chip(x, y, w, label, fill=TEAL_BG, outline=LINE, tint=INK):
-    box(x, y, w, 21, fill=fill, outline=outline, radius=3)
-    text(x + 8, y + 5, label, f_chip, tint)
+    Every wrapped line used to get its own dot, which turned one point into
+    two and made a five-point list read as eight."""
+    yy = y
+    for item in items:
+        lines = [item] if isinstance(item, str) else item
+        d.ellipse([x * S, (yy + 6) * S, (x + 3.5) * S, (yy + 9.5) * S], fill=INK3)
+        for ln in lines:
+            text(x + 12, yy, ln, f_body, fill)
+            yy += gap
 
 
 # ===================================================================== title
 
-text(52, 44, "MES Group — Accounts Receivable Automation", f_title, INK)
-text(52, 80, "How the system is put together, and what it does on its own. "
-             "Built by DeVinci Codes.", f_sub, INK2)
-d.line([52 * S, 104 * S, 1188 * S, 104 * S], fill=INK, width=int(2 * S))
+text(52, 44, "MES Group — Accounts Receivable", f_title, INK)
+text(52, 80, "One month, end to end: from the report landing on a desk to knowing who "
+             "paid. Built by DeVinci Codes.", f_sub, INK2)
+d.line([52 * S, 106 * S, 1188 * S, 106 * S], fill=INK, width=int(2 * S))
 
 
-# =============================================================== client layer
+# ==================================================================== stages
 
-box(300, 128, 640, 92, outline=TEAL, width=1.6)
-layer_label(316, 140, "CLIENT LAYER")
-text(316, 158, "The browser — Next.js, React, TypeScript", f_head, INK)
-text(316, 180, "Upload Reports · Outstanding Balances · Reminder Emails · Call List", f_body, INK2)
-text(316, 195, "Send By Hand · Payment Promises · What Changed · Sent Mail · Dry Run", f_body, INK2)
-
-text(954, 152, "The spreadsheet is", f_small, INK3)
-text(954, 166, "read in the browser.", f_small, INK3)
-text(954, 186, "Tenant data never", f_small, INK3)
-text(954, 200, "leaves the officer's", f_small, INK3)
-text(954, 214, "machine unread.", f_small, INK3)
-
-arrow(620, 220, 620, 252)
-text(630, 228, "HTTPS  ·  signed-in request", f_chip, (51, 82, 92))
+BW, BH = 352, 214
+COL = [52, 436, 820]
+ROW = [136, 396]
 
 
-# ================================================================== api layer
+def stage(n, col, row, title, colour=TEAL):
+    x, y = COL[col], ROW[row]
+    box(x, y, BW, BH, outline=colour, width=1.6)
+    d.ellipse([(x + 16) * S, (y + 16) * S, (x + 38) * S, (y + 38) * S], fill=colour)
+    d.text(((x + 27) * S, (y + 27) * S), str(n), font=f_stagenum, fill=WHITE, anchor="mm")
+    text(x + 48, y + 18, title, f_stage, INK)
+    return x, y
 
-box(180, 254, 880, 122, outline=LINE)
-layer_label(196, 266, "API ROUTES — NODE, ON VERCEL")
 
-# The cron chip sits first, beside the schedule that calls it, so the one route
-# nobody presses is next to the only thing that presses it.
-chip(196, 286, 96, "/api/cron", AMBER_BG, AMBER_LINE, (95, 74, 14))
-chips = [
-    ("/api/upload", 306, 108),
-    ("/api/dataset", 426, 112),
-    ("/api/send", 550, 94),
-    ("/api/activity", 656, 112),
-    ("/api/movement", 780, 122),
-    ("/api/mail/*", 914, 104),
-]
-for label, x, w in chips:
-    chip(x, 286, w, label)
+# -- 1 ----------------------------------------------------------------------
+x, y = stage(1, 0, 0, "The officer uploads")
+text(x + 16, y + 48, "Any day of the month, usually the 4th.", f_small, INK3)
+box(x + 16, y + 72, BW - 32, 54, fill=TINT, outline=SOFT)
+text(x + 28, y + 80, "The AR report", f_noteb, INK)
+text(x + 28, y + 98, "Exported from NetSuite. Every charge still", f_small, INK2)
+text(x + 28, y + 112, "owed, across all four dormitories.", f_small, INK2)
+box(x + 16, y + 136, BW - 32, 54, fill=TINT, outline=SOFT)
+text(x + 28, y + 144, "The contact list", f_noteb, INK)
+text(x + 28, y + 162, "Only when it changes. The system keeps", f_small, INK2)
+text(x + 28, y + 176, "the last one it was given.", f_small, INK2)
 
-text(196, 320, "Every route verifies the caller before anything runs, and reads their role from the", f_body, INK2)
-text(196, 336, "database — never from the request. These routes hold the keys to everything.", f_body, INK2)
-text(196, 358, "All the rules MES gave us live in one tested library, called by the screens and the schedule alike.",
+arrow(COL[0] + BW + 4, ROW[0] + BH / 2, COL[1] - 10, ROW[0] + BH / 2)
+
+# -- 2 ----------------------------------------------------------------------
+x, y = stage(2, 1, 0, "It is read and checked")
+text(x + 16, y + 48, "On the officer's own machine. Nothing is sent yet.", f_small, INK3)
+bullets(x + 16, y + 72, [
+    ["Every charge, with its age and how", "overdue it has become"],
+    ["Our total is checked against the file's", "own grand total — they must agree"],
+    ["Anything unreadable is named, row by row"],
+], gap=17)
+box(x + 16, y + 168, BW - 32, 30, fill=AMBER_BG, outline=AMBER_LINE)
+text(x + 28, y + 176, "The officer reads all of this before approving it.",
+     f_small, AMBER_INK)
+
+arrow(COL[1] + BW + 4, ROW[0] + BH / 2, COL[2] - 10, ROW[0] + BH / 2)
+
+# -- 3 ----------------------------------------------------------------------
+x, y = stage(3, 2, 0, "Stored, once approved")
+text(x + 16, y + 48, "It all saves, or none of it does.", f_small, INK3)
+box(x + 16, y + 72, 156, 118, fill=TINT, outline=SOFT)
+text(x + 26, y + 80, "Rebuilt each upload", f_noteb, INK2)
+for i, s in enumerate(["balances", "charges", "tenants", "addresses"]):
+    text(x + 26, y + 102 + i * 19, s, f_chip, INK2)
+box(x + 180, y + 72, 156, 118, fill=RED_BG, outline=RED_LINE)
+text(x + 190, y + 80, "Exists nowhere else", f_noteb, RED)
+for i, s in enumerate(["phone calls", "promises", "letters sent", "late fees"]):
+    text(x + 190, y + 102 + i * 19, s, f_chip, RED_INK)
+
+# the wrap from row one to row two, routed under the first row
+WRAP_Y = ROW[0] + BH + 22
+line(COL[2] + BW / 2, ROW[0] + BH, COL[2] + BW / 2, WRAP_Y)
+line(COL[2] + BW / 2, WRAP_Y, COL[0] + BW / 2, WRAP_Y)
+arrow(COL[0] + BW / 2, WRAP_Y, COL[0] + BW / 2, ROW[1] - 6)
+text(COL[1] + 30, WRAP_Y - 18, "this is now the month every screen shows", f_small, INK3)
+
+# -- 4 ----------------------------------------------------------------------
+x, y = stage(4, 0, 1, "Every screen updates")
+text(x + 16, y + 48, "The same figures for everyone, on any machine.", f_small, INK3)
+bullets(x + 16, y + 72, [
+    "Who owes what, and how overdue",
+    "The chase list, worst money first",
+    "Who has no email and must be phoned",
+    "What changed since last month",
+    "Who has been stuck for months",
+], gap=19)
+box(x + 16, y + 172, BW - 32, 26, fill=TINT, outline=SOFT)
+text(x + 28, y + 179, "A relationship manager sees only their own tenants.",
+     f_small, INK2)
+
+arrow(COL[0] + BW + 4, ROW[1] + BH / 2, COL[1] - 10, ROW[1] + BH / 2)
+
+# -- 5 ----------------------------------------------------------------------
+x, y = stage(5, 1, 1, "The chasing happens", RED)
+text(x + 16, y + 48, "On MES's dates, whether or not anyone is at a desk.", f_small, INK3)
+
+box(x + 16, y + 68, BW - 32, 58, fill=RED_BG, outline=RED_LINE)
+text(x + 28, y + 75, "7th — first reminder        21st — final notice", f_noteb, RED)
+text(x + 28, y + 94, "Letters leave from the officer's own Gmail, so the", f_small, RED_INK)
+text(x + 28, y + 108, "tenant sees a real person at MES.", f_small, RED_INK)
+
+box(x + 16, y + 132, 156, 70, fill=AMBER_BG, outline=AMBER_LINE)
+text(x + 26, y + 139, "16th — late fee", f_noteb, AMBER_INK)
+text(x + 26, y + 157, "S$100, once only.", f_small, AMBER)
+text(x + 26, y + 171, "Anyone paying by", f_small, AMBER)
+text(x + 26, y + 185, "GIRO is held back.", f_small, AMBER)
+
+box(x + 180, y + 132, 156, 70, fill=TINT, outline=SOFT)
+text(x + 190, y + 139, "No email address", f_noteb, INK2)
+text(x + 190, y + 157, "They go on the call", f_small, INK2)
+text(x + 190, y + 171, "list and are phoned,", f_small, INK2)
+text(x + 190, y + 185, "never just dropped.", f_small, INK2)
+
+arrow(COL[1] + BW + 4, ROW[1] + BH / 2, COL[2] - 10, ROW[1] + BH / 2)
+
+# -- 6 ----------------------------------------------------------------------
+x, y = stage(6, 2, 1, "Next month answers")
+text(x + 16, y + 48, "The next report says what the chasing achieved.", f_small, INK3)
+bullets(x + 16, y + 72, [
+    ["A tenant missing from the newer report", "has paid in full"],
+    ["A smaller balance is a part payment"],
+    ["Money that aged is flagged even where", "the balance did not move"],
+], gap=17)
+box(x + 16, y + 168, BW - 32, 30, fill=TINT, outline=SOFT)
+text(x + 28, y + 176, "No arithmetic across files. The report is the truth.",
+     f_small, INK2)
+
+
+# ================================================================= the month
+
+MB_Y = 664
+box(52, MB_Y, 1136, 216, fill=WHITE, outline=LINE)
+tracked(68, MB_Y + 14, "THE MONTH — SIX DAYS CARRY MEANING")
+text(560, MB_Y + 16, "Every other day, the schedule wakes, finds nothing to do, and stops.",
      f_small, INK3)
 
-# the schedule, calling in from the side
-box(52, 266, 106, 62, fill=AMBER_BG, outline=AMBER_LINE)
-layer_label(64, 276, "SCHEDULE", AMBER)
-text(64, 292, "09:00 daily", f_head, (95, 74, 14))
-text(64, 312, "Singapore time", f_small, AMBER)
-_dashed(158, 296, 188, 296, AMBER_LINE, 1.3, (5, 4))
-arrow(182, 296, 196, 296, AMBER_LINE, 1.3)
+box(940, MB_Y + 38, 232, 36, fill=AMBER_BG, outline=AMBER_LINE)
+text(952, MB_Y + 45, "09:00 daily, Singapore time", f_noteb, AMBER_INK)
+text(952, MB_Y + 60, "Nobody has to remember to run it.", f_small, AMBER)
 
-arrow(400, 376, 400, 414)
-arrow(840, 376, 840, 414)
-
-
-# ==================================================================== storage
-
-box(180, 416, 500, 190, outline=TEAL, width=1.6)
-layer_label(196, 428, "SUPABASE POSTGRES — SINGAPORE")
-text(196, 446, "The only memory", f_head, INK)
-
-box(196, 472, 224, 116, fill=(240, 246, 247), outline=(198, 212, 216))
-text(208, 482, "Rebuilt on every upload", f_noteb, INK2)
-for i, s in enumerate([
-    "uploads", "tenants", "account_snapshots", "invoices", "contacts",
-]):
-    text(208, 502 + i * 16, s, f_chip, INK2)
-
-box(436, 472, 228, 116, fill=RED_BG, outline=(224, 176, 170))
-text(448, 482, "Exists nowhere else", f_noteb, RED)
-for i, s in enumerate([
-    "calls", "promises", "emails_sent", "late_fees", "cron_runs",
-]):
-    text(448, 502 + i * 16, s, f_chip, (130, 45, 37))
-
-
-# =================================================================== external
-
-box(700, 416, 360, 190, outline=LINE)
-layer_label(716, 428, "OUTSIDE MES")
-text(716, 446, "Google", f_head, INK)
-
-box(716, 472, 328, 52, fill=(240, 246, 247), outline=(198, 212, 216))
-text(728, 480, "Sign in once", f_noteb, INK2)
-text(728, 498, "Each officer connects their own Gmail. The", f_small, INK2)
-text(728, 512, "connection is kept, so the 7th can send.", f_small, INK2)
-
-box(716, 532, 328, 56, fill=(240, 246, 247), outline=(198, 212, 216))
-text(728, 540, "Letters leave as that person", f_noteb, INK2)
-text(728, 558, "A tenant sees a real name at MES, not a", f_small, INK2)
-text(728, 572, "system address nobody can reply to.", f_small, INK2)
-
-
-# ============================================================== the month bar
-
-box(180, 616, 880, 224, fill=WHITE, outline=LINE)
-layer_label(196, 630, "THE MONTH — SIX DAYS CARRY MEANING")
-
-BAR_Y = 740
-x0, x1 = 260, 1000
+BAR_Y = MB_Y + 126
+x0, x1 = 132, 890
 d.line([x0 * S, BAR_Y * S, x1 * S, BAR_Y * S], fill=LINE, width=int(1.6 * S))
 
 
@@ -240,8 +274,8 @@ def day_x(day):
     return x0 + (day - 1) / 30 * (x1 - x0)
 
 
-# Alternating sides. The 15th and the 16th are a day apart and would otherwise
-# print on top of each other, which is the whole reason for alternating at all.
+# Alternating sides. The 15th and the 16th are one day apart and would print on
+# top of each other otherwise, which is the whole reason for alternating.
 days = [
     (1, "GIRO deductions", "14-day deadline passes", TEAL, "up"),
     (4, "Report uploaded", "the month is rebuilt", TEAL, "down"),
@@ -252,109 +286,54 @@ days = [
 ]
 
 for day, label, sub, colour, side in days:
-    x = day_x(day)
+    dx = day_x(day)
     r = 5.5 if colour is TEAL else 6.5
-    d.ellipse([(x - r) * S, (BAR_Y - r) * S, (x + r) * S, (BAR_Y + r) * S], fill=colour)
+    d.ellipse([(dx - r) * S, (BAR_Y - r) * S, (dx + r) * S, (BAR_Y + r) * S], fill=colour)
     if side == "up":
-        d.line([x * S, (BAR_Y - 7) * S, x * S, (BAR_Y - 32) * S], fill=colour, width=int(1.3 * S))
-        d.text((x * S, (BAR_Y - 38) * S), str(day), font=f_num, fill=colour, anchor="ms")
-        d.text((x * S, (BAR_Y - 58) * S), label, font=f_daylbl, fill=colour, anchor="ms")
-        d.text((x * S, (BAR_Y - 73) * S), sub, font=f_daysub, fill=INK2, anchor="ms")
+        line(dx, BAR_Y - 7, dx, BAR_Y - 30, colour, 1.3)
+        d.text((dx * S, (BAR_Y - 36) * S), str(day), font=f_num, fill=colour, anchor="ms")
+        d.text((dx * S, (BAR_Y - 56) * S), label, font=f_daylbl, fill=colour, anchor="ms")
+        d.text((dx * S, (BAR_Y - 71) * S), sub, font=f_daysub, fill=INK2, anchor="ms")
     else:
-        d.line([x * S, (BAR_Y + 7) * S, x * S, (BAR_Y + 30) * S], fill=colour, width=int(1.3 * S))
-        d.text((x * S, (BAR_Y + 48) * S), str(day), font=f_num, fill=colour, anchor="ms")
-        d.text((x * S, (BAR_Y + 66) * S), label, font=f_daylbl, fill=INK, anchor="ms")
-        d.text((x * S, (BAR_Y + 81) * S), sub, font=f_daysub, fill=INK2, anchor="ms")
+        line(dx, BAR_Y + 7, dx, BAR_Y + 28, colour, 1.3)
+        d.text((dx * S, (BAR_Y + 46) * S), str(day), font=f_num, fill=colour, anchor="ms")
+        d.text((dx * S, (BAR_Y + 64) * S), label, font=f_daylbl, fill=INK, anchor="ms")
+        d.text((dx * S, (BAR_Y + 79) * S), sub, font=f_daysub, fill=INK2, anchor="ms")
 
-d.text((x0 * S, (BAR_Y + 22) * S), "day 1", font=f_chip, fill=INK3, anchor="ms")
-d.text((x1 * S, (BAR_Y + 22) * S), "31", font=f_chip, fill=INK3, anchor="ms")
+d.text((x0 * S, (BAR_Y + 21) * S), "day 1", font=f_chip, fill=INK3, anchor="ms")
+d.text((x1 * S, (BAR_Y + 21) * S), "31", font=f_chip, fill=INK3, anchor="ms")
 
-# On the heading line, not under the bar: below the bar it lands on the label
-# for the 4th, and the two read as one sentence.
-text(700, 632, "Every other day, the schedule wakes, finds nothing to do, and stops.",
-     f_small, INK3)
-
-
-# ============================================================ what happens box
-
-box(52, 416, 110, 190, fill=(240, 246, 247), outline=(198, 212, 216))
-layer_label(64, 428, "LEGEND", INK3)
-d.line([64 * S, 454 * S, 96 * S, 454 * S], fill=(51, 82, 92), width=int(1.4 * S))
-arrow(88, 454, 98, 454)
-text(64, 462, "a call", f_small, INK2)
-_dashed(64, 490, 98, 490, AMBER_LINE, 1.3, (5, 4))
-text(64, 498, "the schedule,", f_small, INK2)
-text(64, 512, "nobody logged in", f_small, INK2)
-d.ellipse([64 * S, 540 * S, 74 * S, 550 * S], fill=RED)
-text(80, 539, "sends mail", f_small, INK2)
-d.ellipse([64 * S, 564 * S, 74 * S, 574 * S], fill=AMBER)
-text(80, 563, "raises money", f_small, INK2)
+# a short key, in the empty right end of the bar
+for i, (colour, label) in enumerate([
+    (RED, "sends mail"), (AMBER, "raises money"), (TEAL, "moves the picture"),
+]):
+    yy = BAR_Y - 30 + i * 22
+    d.ellipse([944 * S, yy * S, 954 * S, (yy + 10) * S], fill=colour)
+    text(962, yy - 1, label, f_small, INK2)
 
 
-# ================================================================== send flow
+# ================================================================== footnotes
 
-box(1078, 128, 110, 478, fill=WHITE, outline=LINE)
-layer_label(1090, 142, "REMINDER", TEAL)
-text(1090, 160, "end to end", f_small, INK3)
-
-steps = [
-    "The officer picks the wording on Reminder Emails.",
-    "The letter is filled in with that tenant's own balance and dates.",
-    "Five checks decide whether it may leave at all.",
-    "Gmail delivers it, one tenant at a time.",
-    "It is recorded as sent only once Google accepts it.",
-    "A tenant with no address goes to the call list instead.",
-]
-
-
-def wrapped(s_, width):
-    """Wrapped by character count. The column is fixed and so is the wording,
-    so a measured wrap would buy nothing a counted one does not."""
-    words, line, lines = s_.split(), "", []
-    for w in words:
-        trial = (line + " " + w).strip()
-        if len(trial) > width:
-            lines.append(line)
-            line = w
-        else:
-            line = trial
-    lines.append(line)
-    return lines
-
-
-y = 184
-for n, step in enumerate(steps, 1):
-    d.ellipse([1090 * S, y * S, (1090 + 15) * S, (y + 15) * S], fill=TEAL)
-    d.text(((1090 + 7.5) * S, (y + 7.5) * S), str(n), font=font(MONOB, 9), fill=WHITE, anchor="mm")
-    lines = wrapped(step, 19)
-    for i, ln in enumerate(lines):
-        text(1090, y + 21 + i * 13, ln, f_small, INK2)
-    y += 28 + len(lines) * 13
-
-
-# ==================================================================== footnote
-
-d.line([52 * S, 862 * S, 1188 * S, 862 * S], fill=(214, 223, 226), width=int(1 * S))
-text(52, 878, "What the system will not do", f_noteb, INK)
-notes = [
+d.line([52 * S, 904 * S, 1188 * S, 904 * S], fill=(214, 223, 226), width=int(1 * S))
+text(52, 920, "What the system will not do", f_noteb, INK)
+for i, n in enumerate([
     "Send to anyone who is not on the approved list while it is being tested.",
     "Record a letter as sent unless a mail server accepted it.",
-    "Charge the S$100 fee twice, or to a tenant on GIRO.",
+    "Charge the S$100 fee twice, or to a tenant paying by GIRO.",
     "Replace a month of real figures with a file it could not read.",
-]
-for i, n in enumerate(notes):
-    text(64, 900 + i * 17, "—   " + n, f_note, INK2)
+]):
+    text(64, 942 + i * 17, "—   " + n, f_note, INK2)
 
-text(700, 900, "190 tenants · 4 dormitories: JPD1, JPD2, Blue Stars, The Leo", f_note, INK2)
-text(700, 917, "Charges age from the due date. Chasing begins at 16 days.", f_note, INK2)
-text(700, 934, "A missed day is caught up the next morning, not lost.", f_note, INK2)
-text(700, 951, "Every figure here is taken from the system as it runs today.", f_note, INK3)
+text(700, 942, "190 tenants · 4 dormitories: JPD1, JPD2, Blue Stars, The Leo", f_note, INK2)
+text(700, 959, "Charges age from the due date. Chasing begins at 16 days.", f_note, INK2)
+text(700, 976, "A missed day is caught up the next morning, not lost.", f_note, INK2)
+text(700, 993, "Every figure here is taken from the system as it runs today.", f_note, INK3)
 
 
 # ======================================================================= save
 
 out = os.path.join(os.environ.get("USERPROFILE", "."), "Downloads",
-                   "MES AR System — Architecture.png")
+                   "MES AR System — How it works.png")
 img.save(out, "PNG", optimize=True)
 print(out)
 print("  %d x %d px   %.1f KB" % (img.width, img.height, os.path.getsize(out) / 1024))
