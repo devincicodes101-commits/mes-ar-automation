@@ -218,7 +218,10 @@ const chased = chasedToTheEnd(ar.invoices, accounts, ar.asOf);
 head("CHASED TO THE END  —  went round the whole cycle and still owe");
 if (chased.length === 0) console.log("  Nobody. No tenant carries a late fee from a completed cycle.");
 for (const c of chased) {
-  console.log(`  ${c.companyName.slice(0, 34).padEnd(35)} ${formatSgd(c.outstanding).padStart(11)}  ${c.months.join(", ")}`);
+  // c.account.companyName, not c.companyName: a ChasedRow wraps the account
+  // rather than copying its name, and this line had never run against a file
+  // that put anybody on the list.
+  console.log(`  ${c.account.companyName.slice(0, 34).padEnd(35)} ${formatSgd(c.outstanding).padStart(11)}  ${c.cycles} cycles: ${c.months.join(", ")}`);
 }
 
 head("WHAT CHANGED");

@@ -10,6 +10,7 @@
     "test:revenue": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/test-revenue.mts",
     "test:snapshots": "node scripts/test-snapshots.mjs",
     "build:architecture": "python scripts/build-architecture-image.py",
+    "build:november": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-november.mts",
     "build:contacts:test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/build-contacts-test.mts",
     "test:rls": "node scripts/test-rls.mjs",
     "test:import": "node scripts/test-import.mjs",
