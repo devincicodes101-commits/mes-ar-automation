@@ -9,11 +9,11 @@ import {
 import { Account } from "@/lib/types";
 import {
   Template,
-  recordEmail,
-  recordEmails,
+  hydrateActivity,
   templateDueOn,
   useStore,
 } from "@/lib/store";
+import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { LetterView } from "@/components/LetterView";
@@ -82,6 +82,25 @@ function merge(
     today: fmt.today(asOf),
     dueBy: fmt.dueBy(addDays(asOf, days)),
   });
+}
+
+/**
+ * One letter, built once.
+ *
+ * The three places that send used to each merge the wording themselves, which
+ * is three chances for the automatic run on the 7th to say something slightly
+ * different from the one an officer reads on screen before approving it.
+ */
+function letterFor(account: Account, template: Template, asOf: string): Outgoing {
+  return {
+    tenantId: account.id,
+    companyName: account.companyName,
+    to: account.emails,
+    subject: merge(template.subject, account, asOf, template.id),
+    body: merge(template.body, account, asOf, template.id),
+    templateId: template.id,
+    templateName: template.name,
+  };
 }
 
 export default function RemindersPage() {
@@ -176,24 +195,31 @@ export default function RemindersPage() {
     if (batch.length === 0) return;
 
     autoRan.current = true;
-    const n = recordEmails(
-      batch.map((q) => ({
-        accountId: q.account.id,
-        companyName: q.account.companyName,
-        templateId: due.id,
-        templateName: due.name,
-        subject: merge(due.subject, q.account, ds.asOf, due.id),
-        body: merge(due.body, q.account, ds.asOf, due.id),
-        to: q.account.emails,
-      })),
-    );
-    notify(
-      `${due.name} sent automatically to ${n} tenants`,
-      `Today is the ${due.triggerDay}th. Turn this off in Settings to approve each one instead.`,
-    );
+
+    /*
+     * Sent, then recorded. It was recorded and never sent: this called
+     * recordEmails(), which writes "Sent the first reminder" into the store
+     * and contacts nothing at all. On the 7th that produced a screen saying
+     * the batch had gone out, an activity log agreeing with it, and a mailbox
+     * that had not been touched.
+     */
+    void (async () => {
+      const report = await sendLetters(batch.map((q) => letterFor(q.account, due, ds.asOf)));
+      const said = describe(report, due.name);
+      notify(
+        report.sent > 0 ? `${said.title}, automatically` : said.title,
+        report.sent > 0
+          ? `${said.detail} Today is the ${due.triggerDay}th; turn this off in Settings to approve each one instead.`
+          : said.detail,
+      );
+      await hydrateActivity(true);
+    })();
   }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify]);
 
   const [bulk, setBulk] = useState(false);
+  /* Sending now goes over the network, so the button has to be able to say so
+     and to refuse a second press while the first batch is still going. */
+  const [sending, setSending] = useState(false);
   const cannotEmail = queue.filter((q) => !q.account.hasContact);
   const pending = audience.list.filter((q) => !sentIds.has(q.account.id));
 
@@ -473,27 +499,23 @@ export default function RemindersPage() {
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
             <button
               type="button"
-              onClick={() => {
-                const n = recordEmails(
-                  pending.map((q) => ({
-                    accountId: q.account.id,
-                    companyName: q.account.companyName,
-                    templateId: template.id,
-                    templateName: template.name,
-                    subject: merge(template.subject, q.account, ds.asOf, template.id),
-                    body: merge(template.body, q.account, ds.asOf, template.id),
-                    to: q.account.emails,
-                  })),
+              disabled={sending}
+              onClick={async () => {
+                setSending(true);
+                const report = await sendLetters(
+                  pending.map((q) => letterFor(q.account, template, ds.asOf)),
                 );
-                notify(
-                  `${template.name} sent to ${n} tenants`,
-                  "Each one recorded separately in the activity log",
-                );
-                setBulk(false);
+                setSending(false);
+                const said = describe(report, template.name);
+                notify(said.title, said.detail);
+                await hydrateActivity(true);
+                /* Kept open when any were refused, so the tenants that did not
+                   go are still in front of the person who pressed it. */
+                if (report.sent > 0 && report.blocked + report.failed === 0) setBulk(false);
               }}
               className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
             >
-              Send all {pending.length}
+              {sending ? "Sending..." : `Send all ${pending.length}`}
             </button>
             <button
               type="button"
@@ -533,21 +555,43 @@ function Draft({
     merge(template.body, account, asOf, template.id),
   );
 
-  function send() {
-    recordEmail({
-      accountId: account.id,
-      companyName: account.companyName,
-      templateId: template.id,
-      templateName: template.name,
-      subject,
-      body,
-      to: account.emails,
-    });
+  const [sending, setSending] = useState(false);
+
+  /*
+   * The subject and body are the ones on screen, not the template's.
+   *
+   * This letter can be edited before it goes, and the point of reading it is
+   * being able to change it. Sending the unedited template while showing the
+   * edited one would make the review step a decoration.
+   */
+  async function send() {
+    setSending(true);
+    const report = await sendLetters([
+      {
+        tenantId: account.id,
+        companyName: account.companyName,
+        to: account.emails,
+        subject,
+        body,
+        templateId: template.id,
+        templateName: template.name,
+      },
+    ]);
+    setSending(false);
+
+    const said = describe(report, template.name);
     notify(
-      `${template.name} sent to ${account.companyName}`,
-      `${account.emails.length} recipient${account.emails.length === 1 ? "" : "s"}, recorded in the activity log`,
+      report.sent > 0 ? `${template.name} sent to ${account.companyName}` : said.title,
+      report.sent > 0
+        ? `${account.emails.length} recipient${account.emails.length === 1 ? "" : "s"}, accepted by the mail server`
+        : said.detail,
     );
-    onClose();
+    await hydrateActivity(true);
+
+    /* Closed only when it went. A letter that was refused leaves the window
+       open with the reason on screen, rather than vanishing as though it had
+       been sent. */
+    if (report.sent > 0) onClose();
   }
 
   return (
@@ -591,9 +635,10 @@ function Draft({
           <button
             type="button"
             onClick={send}
-            className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+            disabled={sending}
+            className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Send this email
+            {sending ? "Sending..." : "Send this email"}
           </button>
           <button
             type="button"

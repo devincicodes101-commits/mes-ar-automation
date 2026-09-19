@@ -114,8 +114,12 @@ check("settings lets somebody fill in those addresses",
   settings.includes("Who reports can be emailed to"), true);
 
 const reminders = page("reminders");
+/* The merge moved inside letterFor() when the three senders were made to
+   build one letter the same way. The rule is unchanged and so is this check:
+   the date comes from the report being looked at, never from the clock. */
 check("reminders dates letters from the report, not from today",
-  /merge\([^)]*ds\.asOf/.test(reminders), true);
+  /letterFor\([^)]*ds\.asOf/.test(reminders) &&
+    /merge\([^)]*asOf/.test(reminders), true);
 check("and never calls new Date() for a letter date",
   /const today = new Date\(\)/.test(reminders), false);
 
@@ -1140,5 +1144,56 @@ check("the upload check defers to the reader rather than deciding again",
       UPLOAD_CHECKS.includes("readerRefusedIt"), true);
 check("but still speaks up when the reader rejected the file",
       UPLOAD_CHECKS.includes("No tenant accounts were found"), true);
+
+/* --------------------------- a screen that says "sent" has to have sent --- */
+
+console.log("\nSending a letter means a mail server accepted it");
+
+/*
+ * Reminder Emails recorded sends and contacted nothing.
+ *
+ * It called recordEmails(), which writes "Sent the first reminder" into the
+ * store, logs it, and counts it under "Sent so far". Every signal on the
+ * screen said the letters had gone, and every one of those signals was the
+ * browser describing its own behaviour. The mailbox was never touched. The
+ * only place the truth showed was the Sent folder of the connected account,
+ * which stayed empty, and the one person who thought to look there.
+ *
+ * The connector was finished and tested the whole time. /api/send was
+ * reachable from exactly one place: the test button in Settings. The screen
+ * the entire system exists to drive was the one screen not wired to it. That
+ * is the third time in this project the same shape has appeared, so it is
+ * guarded rather than fixed and trusted.
+ */
+const REMINDERS = read("src/app/reminders/page.tsx");
+const SENDER = lib("send-letters.ts");
+
+check("the reminders screen sends through the connector",
+      REMINDERS.includes("sendLetters("), true);
+/* Checked on the import rather than on the text, because the comment above
+   the fix names the function it replaced and would otherwise fail this. */
+check("and no longer records a send without one",
+      !/^\s*recordEmails?,/m.test(REMINDERS) &&
+        !/[^a-zA-Z.]recordEmails?\(/.test(REMINDERS.replace(/\/\*[\s\S]*?\*\//g, "")), true);
+check("all three senders build the letter the same way",
+      REMINDERS.includes("function letterFor("), true);
+check("the edited wording is what goes, not the template",
+      REMINDERS.includes("subject,\n        body,"), true);
+check("the sender reports refusals rather than throwing them away",
+      SENDER.includes("blocked") && SENDER.includes("results"), true);
+check("and the browser re-reads the log instead of writing its own row",
+      SENDER.includes("The server records it, not the browser"), true);
+check("the log can be refreshed after a send",
+      lib("store.ts").includes("hydrateActivity(force = false)"), true);
+
+/*
+ * The route is the only thing that knows whether a letter left, so it is the
+ * only thing that may write the row saying one did.
+ */
+const SEND_ROUTE = read("src/app/api/send/route.ts");
+check("only a letter that left is recorded as not simulated",
+      SEND_ROUTE.includes("if (outcome.sent) {") && SEND_ROUTE.includes("was_simulated: false"), true);
+check("and the record keeps which wording produced it",
+      SEND_ROUTE.includes("letter.templateName ??"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

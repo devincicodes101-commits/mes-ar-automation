@@ -174,8 +174,8 @@ export async function POST(request: Request) {
     if (outcome.sent) {
       const stored = await db.from("emails_sent").insert({
         tenant_id: letter.tenantId,
-        template_id: null,
-        template_name: "Sent by the connector",
+        template_id: letter.templateId ?? null,
+        template_name: letter.templateName ?? "Sent by the connector",
         subject: letter.subject,
         body: letter.body,
         recipients: letter.to,

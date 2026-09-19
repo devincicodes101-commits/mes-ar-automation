@@ -28,6 +28,14 @@ export interface Letter {
   /** Which tenant this is about, for the record and for the error message. */
   tenantId: string;
   companyName: string;
+  /*
+   * Which wording produced it. Optional because the test letter has no
+   * template, and recorded because "the first reminder" and "the final notice"
+   * are different events to a tenant, and Sent Mail is the only place anybody
+   * can check which one they were sent.
+   */
+  templateId?: string;
+  templateName?: string;
 }
 
 export type SendOutcome =

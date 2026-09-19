@@ -433,8 +433,17 @@ let activityLoaded = false;
  * A failure leaves local storage exactly as it was. An officer who cannot
  * reach the server should still see yesterday's calls.
  */
-export async function hydrateActivity(): Promise<void> {
-  if (activityLoaded || typeof window === "undefined") return;
+export async function hydrateActivity(force = false): Promise<void> {
+  /*
+   * Once per load, unless something has just changed the server's copy.
+   *
+   * The latch is what stops every screen re-fetching the whole log on mount.
+   * It also meant that after a send there was no way to pick up the row the
+   * server had just written, so the screen went on showing the count it had
+   * before: right until the moment it mattered most.
+   */
+  if (typeof window === "undefined") return;
+  if (activityLoaded && !force) return;
   activityLoaded = true;
   setSync({ loading: true });
 
