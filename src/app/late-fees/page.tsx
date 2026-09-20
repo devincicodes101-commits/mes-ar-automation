@@ -13,6 +13,7 @@ import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { giroEnrolled } from "@/lib/reports";
+import { currentPeriod } from "@/lib/schedule";
 import {
   Card,
   CardHeader,
@@ -44,9 +45,13 @@ export default function LateFeesPage() {
   const [raising, setRaising] = useState(false);
 
   /* The month being charged, as the first of it, which is how a fee is filed.
-     The report date decides it, not today: a September report uploaded in
-     October still charges September. */
-  const period = ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null;
+     From the calendar, not from the report. MES's rule is a calendar rule —
+     the $100 applies "if payment is not received by the 15th day of each
+     calendar month" — and the schedule that raises these on the 16th has
+     always read it that way. Taking it off the uploaded sheet instead meant
+     that opening a December report in November made this screen look up
+     December, find no fees, and offer to charge everybody a second time. */
+  const period = currentPeriod();
 
   const all = useMemo(
     () => feesDue(scope(ds.accounts), rule, ds.invoices, store.fees, period),
@@ -493,7 +498,7 @@ export default function LateFeesPage() {
                   chargeable.map((l) => ({
                     tenantId: l.account.id,
                     companyName: l.account.companyName,
-                    period: period as string,
+                    period,
                     amount: l.fee,
                   })),
                 );

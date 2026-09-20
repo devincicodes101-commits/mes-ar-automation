@@ -17,6 +17,7 @@ import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
 import type { SentEmail } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
+import { currentPeriod } from "@/lib/schedule";
 import { LetterView } from "@/components/LetterView";
 import {
   DEADLINE_DAYS,
@@ -134,7 +135,9 @@ function letterFor(account: Account, template: Template, asOf: string): Outgoing
     body: merge(template.body, account, asOf, template.id),
     templateId: template.id,
     templateName: template.name,
-    period: `${asOf.slice(0, 7)}-01`,
+    /* Which month's letter this is — from the calendar, not from asOf. The
+       7th's reminder is November's reminder because it is November. */
+    period: currentPeriod(),
   };
 }
 
@@ -153,9 +156,13 @@ export default function RemindersPage() {
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
 
   const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
-  /* The month the report covers, which is the cycle a letter belongs to. Not
-     today: MES upload late, so the October report goes out in November. */
-  const period = ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null;
+  /* The cycle a letter belongs to, taken from the calendar. Each tenant gets
+     one reminder and one final notice per month, and "per month" means the
+     month we are in — which is how the schedule has always counted it, and
+     how MES's own rule is written. Reading it off the uploaded report instead
+     meant that loading next month's sheet early wiped this screen's memory of
+     the letters it had already sent, and offered to send them again. */
+  const period = currentPeriod();
   const sentIds = alreadyHadIt(store.emails, templateId, period);
 
   /**
@@ -222,11 +229,11 @@ export default function RemindersPage() {
     const due = templateDueOn(new Date(), store.templates);
     if (!due) return;
 
-    const alreadySent = alreadyHadIt(
-      store.emails,
-      due.id,
-      ds.asOf ? `${ds.asOf.slice(0, 7)}-01` : null,
-    );
+    /* The same month the rest of the screen uses. This one matters most: it
+       is the only path that writes to a tenant without anybody pressing
+       anything, so a month it got wrong would be a second letter nobody
+       asked for and nobody saw being sent. */
+    const alreadySent = alreadyHadIt(store.emails, due.id, period);
     const batch = buildQueue(scope(ds.accounts)).filter(
       (q) => q.account.hasContact && !alreadySent.has(q.account.id),
     );
@@ -252,7 +259,7 @@ export default function RemindersPage() {
       );
       await hydrateActivity(true);
     })();
-  }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify]);
+  }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify, period]);
 
   const [bulk, setBulk] = useState(false);
   /* Sending now goes over the network, so the button has to be able to say so
@@ -613,7 +620,7 @@ function Draft({
         body,
         templateId: template.id,
         templateName: template.name,
-        period: `${asOf.slice(0, 7)}-01`,
+        period: currentPeriod(),
       },
     ]);
     setSending(false);

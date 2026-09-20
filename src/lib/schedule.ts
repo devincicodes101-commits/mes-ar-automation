@@ -54,6 +54,27 @@ export function cycleDayFor(d: SgDate): CycleDay | null {
   return (CYCLE_DAYS as readonly number[]).includes(d.day) ? (d.day as CycleDay) : null;
 }
 
+/**
+ * The month we are actually in, as the first of it.
+ *
+ * The one answer to "which month is this", for everything that happens once
+ * per tenant per month: the reminder, the final notice, the $100.
+ *
+ * It comes from the calendar rather than from the report on screen, and the
+ * difference is not academic. The screens used to read the month off the
+ * uploaded sheet, so loading a December report during November made them
+ * forget every letter sent and every fee raised that month — they were
+ * looking up December, finding nothing, and offering to do it all again. The
+ * schedule never had the fault, because it had always used the date.
+ *
+ * MES's own rule is written as a calendar rule: the fee applies "if payment is
+ * not received by the 15th day of each calendar month". The month is November
+ * because it is November, not because of what is printed on a spreadsheet.
+ */
+export function currentPeriod(at: Date = new Date()): string {
+  return periodOf(inSingapore(at));
+}
+
 /** The first of the month, which is how periods are stored. */
 export function periodOf(d: SgDate): string {
   return `${d.year}-${String(d.month).padStart(2, "0")}-01`;

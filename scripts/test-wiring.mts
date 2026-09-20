@@ -1340,10 +1340,43 @@ const REMINDERS_PAGE = read("src/app/reminders/page.tsx");
 check("the screen asks per month, not ever",
       REMINDERS_PAGE.includes("function alreadyHadIt(") &&
         !/filter\(\(e\) => e\.templateId === templateId\)/.test(REMINDERS_PAGE), true);
-check("the month comes from the report, not from today",
-      REMINDERS_PAGE.includes("ds.asOf ? `${ds.asOf.slice(0, 7)}-01`"), true);
+/*
+ * And the month comes from the calendar, which is a correction of the first
+ * answer here rather than a new rule.
+ *
+ * The month used to be read off the date printed on the loaded report. That
+ * is the same answer almost always, because November's report is read in
+ * November, and it is wrong the moment somebody opens next month's sheet
+ * early: the screen then looks up a month nothing has happened in, finds no
+ * letters and no fees, and offers to send and charge it all again. The
+ * schedule never had the fault — it has always used the clock — so the two
+ * halves of one rule disagreed, and the half that writes to tenants without
+ * being asked was the screen's.
+ *
+ * MES's own wording settles it. The fee applies "if payment is not received
+ * by the 15th day of each calendar month". It is a calendar rule.
+ *
+ * Checked by absence as well as presence, because the fault was never a
+ * missing import. It was a one-line expression sitting under a comment
+ * explaining why the report decided the month.
+ */
+const FEES_CODE = code(path.join(APP, "late-fees", "page.tsx"));
+const REMINDERS_CODE = code(path.join(APP, "reminders", "page.tsx"));
+
+check("reminders takes the month from the calendar",
+      REMINDERS_CODE.includes("const period = currentPeriod()"), true);
+check("late fees takes the same month",
+      FEES_CODE.includes("const period = currentPeriod()"), true);
+check("neither screen still reads it off the report",
+      /ds\.asOf \? `\$\{ds\.asOf\.slice\(0, 7\)\}-01`/.test(REMINDERS_CODE + FEES_CODE), false);
+check("the run that sends without being asked uses it too",
+      REMINDERS_CODE.includes("alreadyHadIt(store.emails, due.id, period)"), true);
 check("and every letter says which month it is for",
-      (REMINDERS_PAGE.match(/period: `\$\{asOf\.slice\(0, 7\)\}-01`/g) ?? []).length >= 2, true);
+      (REMINDERS_CODE.match(/period: currentPeriod\(\)/g) ?? []).length >= 2, true);
+check("there is one definition of that month, not several",
+      (lib("schedule.ts").match(/export function currentPeriod/g) ?? []).length, 1);
+check("the schedule still reads it the way it always did",
+      read("src/app/api/cron/route.ts").includes("periodOf(today)"), true);
 
 check("the schedule records it too",
       read("src/app/api/cron/route.ts").includes("period,\n          subject: letter.subject"), true);
