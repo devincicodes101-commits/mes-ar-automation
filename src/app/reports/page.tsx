@@ -25,6 +25,7 @@ import {
   type ReportDispatch,
 } from "@/lib/dispatch";
 import { useSession, useToast } from "@/lib/session";
+import { updateColumn } from "@/lib/update-column";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { downloadCsv, exportName } from "@/lib/export";
 import {
@@ -119,12 +120,21 @@ export default function ReportsPage() {
         accounts,
         ds.asOf,
         accounts.find((a) => a.entity)?.entity ?? null,
-        new Map(),
+        /*
+         * The Update column, from the calls and promises already logged.
+         *
+         * This was new Map(), so the column was blank on every workbook ever
+         * generated — which looked exactly like MES's own blank template and
+         * was therefore never questioned. A call Ray logs now fills the cell
+         * Jacqueline reads, so the file is answered when it is generated
+         * rather than after somebody replies to it.
+         */
+        updateColumn(store.calls, store.promises),
         // Raman, 14 September: take the deposit from the AR report's own
         // Security Deposit lines, not from the dormitory tabs.
         depositsFromLedger(ds.invoices),
       ),
-    [accounts, ds.asOf, ds.invoices],
+    [accounts, ds.asOf, ds.invoices, store.calls, store.promises],
   );
 
   /*

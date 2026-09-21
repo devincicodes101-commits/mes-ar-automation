@@ -34,6 +34,7 @@ import {
   snapshot,
   stillOwing,
 } from "../src/lib/cycle.ts";
+import { updateColumn, updateNotes } from "../src/lib/update-column.ts";
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
@@ -1061,6 +1062,87 @@ check("and running the 7th again adds nobody",
 check("the plan says how many are held back",
       planFor(seqPipe, missedTheSeventh, 21, null).willDo
         .some((t) => /held back until next month/.test(t)), true);
+
+section("The Update column, written from what was logged");
+
+/*
+ * The column Jacqueline asks each manager to fill in before replying. It was
+ * always blank, because buildManagerReports read it from a notes map and the
+ * Reports screen handed it new Map() — plumbing with nothing in it, and it
+ * looked exactly like MES's own blank template so nobody questioned it.
+ *
+ * Asserted on the text, because the text is the deliverable: somebody reads a
+ * column of these and decides who to chase.
+ */
+
+const call = (over: Record<string, unknown> = {}) =>
+  ({
+    id: "c1", accountId: "t-1", companyName: "ORCHARD FACILITIES PTE. LTD.",
+    at: "2026-08-12T09:30:00.000Z", reached: "Finance manager",
+    outcome: "no-answer", promisedAmount: null, promisedDate: null,
+    nextActionDate: null, notes: "", agingBucket: "30 days",
+    deductionFailDate: null, ...over,
+  }) as never;
+
+const vow = (over: Record<string, unknown> = {}) =>
+  ({
+    id: "p1", accountId: "t-1", companyName: "ORCHARD FACILITIES PTE. LTD.",
+    amount: 12000, promisedFor: "2026-08-20", createdAt: "2026-08-12T09:35:00.000Z",
+    source: "call", confirmationSentAt: null, ...over,
+  }) as never;
+
+check("nothing logged leaves the cell empty",
+      updateColumn([], []).get("t-1"), undefined);
+
+check("a promise leads, because it is what changes the chase",
+      updateColumn([call({ outcome: "promised-to-pay" })], [vow()]).get("t-1"),
+      "Promised $12,000 by 20 Aug. 12 Aug");
+
+check("a promise from a reply says so",
+      updateColumn([], [vow({ source: "email" })]).get("t-1"),
+      "Promised $12,000 by 20 Aug. from a reply");
+
+check("with no promise, the latest outcome is the note",
+      updateColumn([call()], []).get("t-1"), "No answer. 12 Aug");
+
+check("attempts are counted, because five is not one",
+      updateColumn(
+        [call(), call({ id: "c2", at: "2026-08-14T09:00:00.000Z" }),
+         call({ id: "c3", at: "2026-08-15T09:00:00.000Z" })], [],
+      ).get("t-1"),
+      "No answer. 3 calls. 15 Aug");
+
+check("the officer's own words survive to the end of the line",
+      updateColumn(
+        [call({ outcome: "disputes-amount", notes: "Says the 60-day figure is a duplicate" })],
+        [],
+      ).get("t-1"),
+      "Disagrees with the amount. 12 Aug. Says the 60-day figure is a duplicate");
+
+check("the newest call is the one reported",
+      updateColumn(
+        [call({ at: "2026-08-01T09:00:00.000Z", outcome: "wrong-number" }),
+         call({ id: "c2", at: "2026-08-14T09:00:00.000Z", outcome: "will-call-back" })], [],
+      ).get("t-1"),
+      "Said they would call back. 2 calls. 14 Aug");
+
+/* It must never claim payment. That comes from the next export, where a tenant
+   who has paid is simply absent, and a note saying otherwise would be one
+   person's memory of a call overriding the ledger. */
+const everyOutcome = ["promised-to-pay", "will-call-back", "disputes-amount", "no-answer", "wrong-number"]
+  .map((o) => updateColumn([call({ outcome: o })], []).get("t-1") ?? "")
+  .join(" | ");
+check("no wording anywhere says a tenant has paid",
+      /paid/i.test(everyOutcome), false);
+
+check("tenants with nothing logged are absent, not blank-mapped",
+      updateNotes([call()], []).has("t-2"), false);
+check("and the promise flag is carried for the screen to lean on",
+      updateNotes([call()], [vow()]).get("t-1")?.hasPromise, true);
+
+check("the reports screen actually feeds it",
+      readFileSync(path.join(ROOT, "src/app/reports/page.tsx"), "utf8")
+        .includes("updateColumn(store.calls, store.promises)"), true);
 
 // Paying settles it outright, whatever the promise says.
 const paidAnyway = markPaid(stale, one, 9);
