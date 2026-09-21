@@ -887,8 +887,18 @@ check("no list given means null, not an empty list",
  */
 const DS = code("src/lib/dataset.ts");
 
-check("a server holding no report clears an uploaded copy",
-      /if \(active\.source === "uploaded"\) commit\(EMPTY\)/.test(DS), true);
+/*
+ * Strengthened. This asked that a server holding no report cleared an
+ * UPLOADED copy, which left the sample standing — and the sample is MES's own
+ * August export, so somebody who cleared the database saw 190 tenants and
+ * 2.78m and concluded the reset had failed. Now nothing is kept: a reachable
+ * server saying "nothing stored" is the whole answer.
+ */
+check("a server holding no report clears whatever was on screen",
+      /commit\(EMPTY\);\s*setState\(\{ loading: false, serverError: null, origin: "empty" \}\)/.test(DS),
+      true);
+check("not merely an uploaded copy, leaving the sample up",
+      /if \(active\.source === "uploaded"\) commit\(EMPTY\)/.test(DS), false);
 check("and empty is a state of its own, not a kind of sample",
       DS.includes('source: "empty"'), true);
 check("neither sample nor empty is kept in the browser",
@@ -1654,6 +1664,16 @@ check("and nothing more: not sending, not uploading, not raising a fee",
    clear the database concluded the reset had failed. Worse is available:
    uploading a file, having it silently refused, and showing a client the
    sample in the belief it is theirs. */
+/* A reachable server saying "nothing stored" is the whole answer: nothing is
+   stored, so nothing is shown. Keeping the sample meant somebody who had just
+   cleared the database saw the totals they meant to remove — and the sample is
+   MES's own August export, so it reads exactly like the real thing. */
+check("an empty database shows an empty system, not the sample",
+      code(path.join(LIB, "dataset.ts")).includes('origin: "empty" });'), true);
+check("and the sample is no longer kept when the server says there is none",
+      code(path.join(LIB, "dataset.ts")).includes('origin: active.source === "sample" ? "sample" : "empty"'), false);
+check("the shell says so",
+      code(path.join("src", "components", "Shell.tsx")).includes('dataset.origin === "empty"'), true);
 check("the app says when the figures are only the sample",
       code(path.join("src", "components", "Shell.tsx")).includes('dataset.origin === "sample"'), true);
 check("on every screen, because the figures are on every screen",

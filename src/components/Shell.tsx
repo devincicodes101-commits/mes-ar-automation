@@ -454,14 +454,24 @@ export function Shell({ children }: { children: ReactNode }) {
           *
           * On every screen, because the figures are on every screen.
           */}
-        {dataset.origin === "sample" ? (
+        {dataset.origin === "empty" ? (
+          <div
+            className="border-b border-line-hair bg-surface-raised px-6 py-3 text-sm text-ink-secondary"
+            role="status"
+          >
+            <span className="font-medium text-ink">No report is loaded.</span>{" "}
+            The database holds nothing yet, so every figure reads zero. Upload
+            an AR report and the month fills in.
+          </div>
+        ) : dataset.origin === "sample" ? (
           <div
             className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900"
             role="status"
           >
             <span className="font-medium">This is sample data.</span>{" "}
-            No report has been uploaded, so the app is showing the example
-            figures it ships with. Upload a report and these are replaced.
+            The stored report has not been read yet, so the app is showing the
+            example figures it ships with. They are not MES&rsquo;s current
+            balances.
           </div>
         ) : null}
 

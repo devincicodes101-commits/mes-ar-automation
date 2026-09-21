@@ -480,16 +480,26 @@ export async function hydrateFromServer(): Promise<void> {
          * cleared the database is told it worked, rather than being shown the
          * old totals and left wondering.
          *
-         * An uploaded copy is therefore dropped. A sample one is left alone,
-         * because sample data is a stand in for having nothing rather than a
-         * claim about what is stored.
+         * The sample is dropped too, and that is a correction.
+         *
+         * It used to be kept, on the reasoning that sample data stands in for
+         * having nothing rather than claiming anything about what is stored.
+         * But the sample is MES's own August export — 190 tenants and SGD
+         * 2.78m — so "the app is not a blank page" came out as a full system
+         * that reads exactly like the real thing. Somebody who has just
+         * cleared the database sees the totals they meant to remove, and a
+         * banner saying so is a smaller thing than the figures underneath it.
+         *
+         * A reachable server saying "nothing stored" is the whole answer:
+         * nothing is stored, so nothing is shown. Every screen has an empty
+         * state that says what to do next, which is upload a report.
+         *
+         * The sample still appears where it belongs — before the server has
+         * been asked, and when it cannot be reached — because those are the
+         * cases where nobody has told us anything.
          */
-        if (active.source === "uploaded") commit(EMPTY);
-        setState({
-          loading: false,
-          serverError: null,
-          origin: active.source === "sample" ? "sample" : "empty",
-        });
+        commit(EMPTY);
+        setState({ loading: false, serverError: null, origin: "empty" });
         return;
       }
 
