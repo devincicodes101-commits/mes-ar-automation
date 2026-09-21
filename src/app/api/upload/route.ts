@@ -163,8 +163,9 @@ export async function POST(request: Request) {
         detail: error.message,
         hint: missingSignature
           ? "This database is behind the code. Run the migrations that have " +
-            "not been applied yet, newest last: 0017_import_contacts.sql. " +
-            "Run it in the Supabase SQL editor and upload again."
+            "not been applied yet, newest last: 0017_import_contacts.sql, " +
+            "0018_email_period.sql, 0019_rm_key.sql. Run them in the " +
+            "Supabase SQL editor and upload again."
           : error.hint ?? null,
       },
       { status: 502 },
@@ -178,6 +179,15 @@ export async function POST(request: Request) {
       accounts: payload.p_tenants.length,
       lines: payload.p_invoices.length,
       contacts: payload.p_contacts?.length ?? 0,
+      /*
+       * Said on every upload, because the whole failure this fixes was silent.
+       * A file whose Primary Sales Rep column has gone missing imports
+       * perfectly and quietly assigns nobody, and the next sign is a manager
+       * opening an empty screen a week later. A zero here is visible at the
+       * moment it happens.
+       */
+      managers: payload.p_managers.length,
+      assigned: payload.p_tenants.filter((t) => t.rm_key).length,
     },
   });
 }

@@ -153,11 +153,24 @@ export function buildPipeline(
       sheet: "-",
       row: null,
       severity: "warning",
+      /*
+       * Said without naming a cause, because this cannot tell them apart and
+       * the previous wording picked the wrong one.
+       *
+       * It read "this export has no Primary Sales Rep column", and for a long
+       * time that was false every time it appeared: the column was there, the
+       * parser read it, and the import dropped it on the way to the database,
+       * so a pipeline built from stored data saw no manager on any tenant.
+       * The message pointed at MES's file for a fault that was ours, which is
+       * an hour of somebody re-exporting something that was already right.
+       */
       message:
-        "No manager report: this export has no Primary Sales Rep column, so " +
-        "there is nothing to group clients by. It is present on MES's " +
-        "Finance AR Download tab but not on the Custom A/R Aging Detail. One " +
-        "export carrying both that column and Categories would produce it.",
+        "No manager report: no tenant here carries a relationship manager, " +
+        "so there is nothing to group them by. Either the Primary Sales Rep " +
+        "column was missing from the file — it is on MES's Finance AR " +
+        "Download tab but not on the Custom A/R Aging Detail — or nobody has " +
+        "been assigned yet. The upload result says how many managers the " +
+        "last file named.",
     });
   }
 

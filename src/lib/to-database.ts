@@ -37,6 +37,35 @@ export interface DbTenant {
   property_code: string;
   industry: string | null;
   entity: string | null;
+  /**
+   * Which relationship manager owns them, as MES write it: "2611 Ray Ang".
+   *
+   * From the report's own Primary Sales Rep column. It was parsed, used for
+   * the manager reports in the browser, and then dropped on the way to the
+   * database — the insert simply did not list the column. So tenants.rm_key
+   * stayed null for every tenant ever imported, and three things silently did
+   * nothing: the by-RM grouping the standard upload routine asks for on every
+   * upload, the manager workbooks, and the RM login, which showed an empty
+   * system because row level security found no row whose key matched.
+   *
+   * Null where the export has no rep for that tenant. Null means "this file
+   * does not say", never "nobody owns them": the import leaves an existing
+   * assignment alone rather than clearing it.
+   */
+  rm_key: string | null;
+}
+
+/**
+ * A relationship manager, as the report names them.
+ *
+ * tenants.rm_key is a foreign key to managers(key), so a manager has to exist
+ * before a tenant can point at one. They are taken from the report rather than
+ * typed in anywhere: the names MES use are the names in their own export, and
+ * a list maintained by hand would drift from it the first time somebody joins.
+ */
+export interface DbManager {
+  key: string;
+  name: string;
 }
 
 export interface DbSnapshot {
@@ -89,6 +118,12 @@ export interface ImportPayload {
   p_report_date: string;
   p_period: string;
   p_tenants: DbTenant[];
+  /*
+   * Sent before the tenants that point at them, because tenants.rm_key is a
+   * foreign key to managers(key) and the database will refuse a tenant whose
+   * manager it has never heard of.
+   */
+  p_managers: DbManager[];
   p_snapshots: DbSnapshot[];
   p_invoices: DbInvoice[];
   p_ar_filename: string | null;
@@ -185,6 +220,11 @@ export function toImportPayload(
 
   const tenants: DbTenant[] = [];
   const snapshots: DbSnapshot[] = [];
+  /* Keyed so the same rep on four hundred lines is one row. The key is the
+     rep string as MES write it, whitespace tidied and nothing else: it is what
+     profiles.rm_key already holds, so an existing RM login matches without
+     anybody editing anything. */
+  const managers = new Map<string, string>();
 
   for (const a of accounts) {
     if (!PROPERTIES.includes(a.property)) {
@@ -211,6 +251,9 @@ export function toImportPayload(
     }
     known.add(id);
 
+    const rep = ((a as Account & { rm?: string }).rm ?? "").trim().replace(/\s+/g, " ");
+    if (rep) managers.set(rep, rep);
+
     tenants.push({
       id,
       customer_code: a.customerCode,
@@ -218,6 +261,7 @@ export function toImportPayload(
       property_code: a.property,
       industry: a.industry ?? null,
       entity: a.entity ?? null,
+      rm_key: rep || null,
     });
 
     snapshots.push({
@@ -280,6 +324,7 @@ export function toImportPayload(
       p_report_date: reportDate as string,
       p_period: period,
       p_tenants: tenants,
+      p_managers: Array.from(managers, ([key, name]) => ({ key, name })),
       p_snapshots: snapshots,
       p_invoices: lines,
       p_ar_filename: fileName,

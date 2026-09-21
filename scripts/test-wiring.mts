@@ -1540,4 +1540,47 @@ check("fees stay idempotent the way they already were",
       CRON_SEND.includes('onConflict: "tenant_id,period"') &&
         CRON_SEND.includes("ignoreDuplicates: true"), true);
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
+/* ------------------- the owner of a tenant survives the import ---------- */
+
+console.log("\nThe report says who owns each tenant, and the import keeps it");
+
+/*
+ * tenants.rm_key existed from 0005 and nothing ever wrote to it.
+ *
+ * The parser read MES's Primary Sales Rep column, grouped the manager reports
+ * in the browser from it, and the import then dropped it: the insert did not
+ * list the column. So every tenant ever stored had rm_key null, and three
+ * things quietly did nothing — the by-RM grouping that MES's standard upload
+ * routine asks for on every upload, the manager workbooks, and the RM login,
+ * which showed an empty system because can_see_account() found no row whose
+ * key matched.
+ *
+ * Checked at both ends, because the fault was a gap between them: the payload
+ * has to carry it and the SQL has to store it.
+ */
+const TO_DB_CODE = code(path.join(LIB, "to-database.ts"));
+const M19 = read("supabase/migrations/0019_rm_key.sql");
+
+check("the payload carries the owner",
+      /rm_key: rep \|\| null/.test(TO_DB_CODE), true);
+check("and the managers it names, for the foreign key",
+      TO_DB_CODE.includes("p_managers:"), true);
+check("the import writes the column",
+      M19.includes("rm_key, industry, entity, first_seen, last_seen") &&
+        M19.includes("r.rm_key, r.industry, r.entity"), true);
+check("managers go in before the tenants that point at them",
+      M19.indexOf("insert into managers") < M19.indexOf("insert into tenants") &&
+        M19.indexOf("insert into managers") > 0, true);
+check("a file that names no manager does not un-assign anybody",
+      M19.includes("rm_key        = coalesce(excluded.rm_key, tenants.rm_key)"), true);
+check("the old overload is dropped rather than left beside the new one",
+      /drop function if exists import_ar_report\(/.test(M19), true);
+check("the upload says how many were assigned, so a zero is visible",
+      code(path.join(APP, "api", "upload", "route.ts")).includes("assigned:"), true);
+/* code(), not lib(): the comment explaining the old wording quotes it, and a
+   guard that failed on the prose written to justify it would be the third
+   time that has happened in this file. */
+check("and the pipeline no longer blames MES's export for it",
+      code(path.join(LIB, "pipeline.ts")).includes("this export has no Primary Sales Rep column"), false);
+
 process.exit(failures === 0 ? 0 : 1);
