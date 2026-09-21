@@ -1640,6 +1640,13 @@ check("and nothing more: not sending, not uploading, not raising a fee",
    screens gated their write button on it — so a manager got their own three
    tenants and "View only" against each, which is the thing they had just
    been allowed to do. */
+/* Eight random characters into a uuid column. Every call and every promise
+   an officer logged was refused by Postgres, kept in local storage, and shown
+   on screen as saved. */
+check("records are given an id the database will accept",
+      lib("store.ts").includes("crypto.randomUUID()"), true);
+check("and not eight characters of Math.random",
+      code(path.join(LIB, "store.ts")).includes("toString(36).slice(2, 10)"), false);
 check("the call list gates on logging a call, not on sending",
       code(path.join(APP, "calls", "page.tsx")).includes('can("log-calls")'), true);
 check("and no longer on canAct",

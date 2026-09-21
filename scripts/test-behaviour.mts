@@ -35,6 +35,7 @@ import {
   stillOwing,
 } from "../src/lib/cycle.ts";
 import { updateColumn, updateNotes } from "../src/lib/update-column.ts";
+import { newId } from "../src/lib/store.ts";
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
@@ -1072,6 +1073,28 @@ check("and running the 7th again adds nobody",
 check("the plan says how many are held back",
       planFor(seqPipe, missedTheSeventh, 21, null).willDo
         .some((t) => /held back until next month/.test(t)), true);
+
+section("The ids a record is given");
+
+/*
+ * Every call and every promise an officer logged was refused by the database
+ * for two years' worth of code, and the screens showed them anyway.
+ *
+ * id() was Math.random().toString(36).slice(2, 10) — eight characters, like
+ * "k3j9x2mq". calls.id, promises.id and emails_sent.id are uuid columns, so
+ * Postgres answered "invalid input syntax for type uuid", the record stayed
+ * in local storage, and the screen listed it. One browser had the history;
+ * nobody else did, the Update column stayed blank, and the schedule never
+ * knew a promise had been made.
+ *
+ * Asserted on the shape, because the shape is the whole of the fault.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const minted = Array.from({ length: 200 }, () => newId());
+check("a new record gets a uuid the database will take", UUID.test(minted[0]!), true);
+check("every one of two hundred", minted.every((v) => UUID.test(v)), true);
+check("and no two are the same", new Set(minted).size, minted.length);
 
 section("A promise the schedule can see");
 

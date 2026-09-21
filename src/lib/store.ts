@@ -627,7 +627,51 @@ export async function hydrateActivity(force = false): Promise<void> {
 
 /* ------------------------------------------------------------------ actions */
 
-const id = () => Math.random().toString(36).slice(2, 10);
+/**
+ * A real uuid, because the database asks for one.
+ *
+ * This was Math.random().toString(36).slice(2, 10) — eight characters, like
+ * "k3j9x2mq". calls.id, promises.id and emails_sent.id are all uuid columns,
+ * so every call and every promise an officer logged was refused by Postgres
+ * with "invalid input syntax for type uuid", kept in local storage, and shown
+ * on screen as though it had been saved.
+ *
+ * Which is why it survived: the screens read from the store, the store is
+ * local storage, and the records were all there. They were there for one
+ * browser. The next person to open the app saw none of them, the manager
+ * workbook's Update column stayed blank, and the schedule — which reads the
+ * database — never knew a promise had been made, so the final notice went out
+ * to tenants who had arranged to pay.
+ *
+ * The banner saying "saved in this browser only" was written to report the
+ * occasional failure. It was reporting every single one.
+ *
+ * randomUUID needs a secure context, which is every deployment and every
+ * localhost, and the fallback is there for the one that is neither rather
+ * than as a preference.
+ */
+export const newId = (): string => {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* Fall through. */
+  }
+  /* RFC 4122 version 4, laid out by hand. */
+  const hex = "0123456789abcdef";
+  let out = "";
+  for (let i = 0; i < 36; i += 1) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) out += "-";
+    else if (i === 14) out += "4";
+    else if (i === 19) out += hex[(Math.floor(Math.random() * 16) & 0x3) | 0x8]!;
+    else out += hex[Math.floor(Math.random() * 16)]!;
+  }
+  return out;
+};
+
+/* The name the rest of this file has always used. */
+const id = newId;
 const now = () => new Date().toISOString();
 
 function log(action: string, subject: string, actor = "CSD Officer") {
