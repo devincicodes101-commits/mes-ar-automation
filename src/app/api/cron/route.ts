@@ -5,6 +5,7 @@ import { newestReport } from "@/lib/read-report";
 import { buildPipeline } from "@/lib/pipeline";
 import { planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
 import { priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
+import { runLog, type RunLog } from "@/lib/run-log";
 import type { Pipeline } from "@/lib/pipeline";
 import { send } from "@/lib/mail";
 import { renderLetter } from "@/lib/letters";
@@ -158,7 +159,26 @@ export async function GET(request: Request) {
 
   const missed = missedSince((last.data?.ran_for as string) ?? null, today);
 
+  /*
+   * The diary. Lines are held in memory and written once, after cron_runs
+   * exists — run_log points at it, so the parent row has to be there first.
+   */
+  const log = runLog(db, today.iso);
+  log.say("start", `The schedule woke for ${today.iso}`, {
+    singaporeDate: today.iso,
+    cycleDay: day,
+    askedFor: requested ?? null,
+    caughtUp,
+    missedDays: missed,
+  });
+
   const finish = async (row: Omit<RunRow, "ran_for" | "missed" | "finished_at">) => {
+    log.say("finish", `The run ended as "${row.status}"`, {
+      status: row.status,
+      error: row.error,
+      summary: row.summary,
+    }, { level: row.status === "failed" ? "error" : "info" });
+
     const full: RunRow = {
       ...row,
       ran_for: today.iso,
@@ -166,6 +186,14 @@ export async function GET(request: Request) {
       finished_at: new Date().toISOString(),
     };
     const written = await db.from("cron_runs").upsert(full, { onConflict: "ran_for" });
+
+    /*
+     * After the upsert, never before: run_log.ran_for references cron_runs,
+     * so the day has to exist. And swallowed rather than raised — the run has
+     * happened, and reporting the day as failed because its diary could not
+     * be written would be the tail wagging the dog.
+     */
+    const logged = await log.flush();
     return NextResponse.json({
       ok: row.status !== "failed",
       ranFor: today.iso,
@@ -181,6 +209,7 @@ export async function GET(request: Request) {
        * somebody should know which of the two is wrong.
        */
       recorded: written.error ? `not recorded: ${written.error.message}` : true,
+      logged: logged ?? `${log.size()} lines`,
     });
   };
 
@@ -199,6 +228,9 @@ export async function GET(request: Request) {
   const stored = await newestReport(db);
 
   if (!stored.ok) {
+    log.say("report", "Could not read the stored report", {
+      error: stored.error, detail: stored.detail,
+    }, { level: "error" });
     return finish({
       cycle_day: day,
       status: "failed",
@@ -216,6 +248,9 @@ export async function GET(request: Request) {
    * it happens on the 16th.
    */
   if (!stored.report) {
+    log.say("report", "There is no stored report to run against", {
+      reason: stored.reason, checked: stored.checked ?? null,
+    }, { level: "warn" });
     return finish({
       cycle_day: day,
       status: "no-report",
@@ -226,6 +261,14 @@ export async function GET(request: Request) {
   }
 
   const report = stored.report;
+  log.say("report", `Read the report of ${report.asOf}`, {
+    reportDate: report.asOf,
+    tenants: report.accounts.length,
+    invoiceLines: report.invoices.length,
+    owing: report.accounts.filter((a) => a.total > 0).length,
+    withAnAddress: report.accounts.filter((a) => a.hasContact).length,
+    label: report.label,
+  });
 
   try {
     const pipeline = buildPipeline(
@@ -264,6 +307,9 @@ export async function GET(request: Request) {
      */
     const memory = await priorContact(db, period);
     if (!memory.ok) {
+      log.say("memory", "Could not read this month's record, so the run stopped", {
+        error: memory.error,
+      }, { level: "error" });
       return finish({
         cycle_day: day,
         status: "failed",
@@ -272,12 +318,30 @@ export async function GET(request: Request) {
         error: memory.error,
       });
     }
+    log.say("memory", "Read what has already been done this month", {
+      period,
+      alreadyReminded: Array.from(memory.prior.reminded),
+      alreadyFinalised: Array.from(memory.prior.finalised),
+      alreadyCharged: Array.from(memory.prior.charged),
+      promisesStanding: Array.from(memory.prior.promises).map(([id, p]) => ({
+        tenantId: id, amount: p.amount, by: p.by,
+      })),
+    });
+
     const before = stateFrom(memory.prior, today.iso);
 
     const plan = planFor(pipeline, before, day, null);
     const after = runDay(pipeline, before, day, null);
 
-    const wrote = await persist(db, day, today, period, after, pipeline, memory.prior);
+    log.say("plan", plan.title, {
+      willDo: plan.willDo,
+      blockers: plan.blockers,
+      affected: plan.affected,
+      value: plan.value,
+      fromFlowTab: plan.fromFlowTab,
+    });
+
+    const wrote = await persist(db, day, today, period, after, pipeline, memory.prior, log);
 
     return finish({
       cycle_day: day,
@@ -332,6 +396,7 @@ async function persist(
   after: SimState,
   pipeline: Pipeline,
   prior: PriorContact,
+  log: RunLog,
 ): Promise<{
   feesRaised: number;
   lettersWritten: number;
@@ -392,8 +457,26 @@ async function persist(
       onConflict: "tenant_id,period",
       ignoreDuplicates: true,
     });
-    if (r.error) notes.push(`fees not raised: ${r.error.message}`);
-    else feesRaised = rows.length;
+    if (r.error) {
+      notes.push(`fees not raised: ${r.error.message}`);
+      log.say("fee", "The fees could not be written", { error: r.error.message },
+        { level: "error" });
+    } else {
+      feesRaised = rows.length;
+      /* One line per tenant, not one for the batch. The question asked six
+         weeks later is about one tenant, and a row saying "3 fees" cannot
+         answer it. */
+      for (const id of charged) {
+        const a = byId.get(id);
+        log.say("fee", `Raised $${pipeline.lateFees.fee} against ${a?.companyName ?? id}`, {
+          period,
+          amount: pipeline.lateFees.fee,
+          overdue: a?.total ?? null,
+          customerCode: a?.customerCode ?? null,
+          property: a?.property ?? null,
+        }, { tenant: id });
+      }
+    }
   }
 
   let lettersWritten = 0;
@@ -510,6 +593,13 @@ async function persist(
 
         if (outcome.sent) {
           lettersSent += 1;
+          log.say("letter", `${row.template_name} sent to ${account.companyName}`, {
+            to: row.recipients,
+            from: outcome.from ?? null,
+            subject: row.subject,
+            period,
+            templateId: row.template_id,
+          }, { tenant: row.tenant_id });
           // was_simulated false only once a letter genuinely left, so the day
           // sending was switched on stays findable in the data afterwards.
           await db
@@ -518,6 +608,14 @@ async function persist(
             .eq("id", row.id);
         } else if (outcome.blocked) {
           lettersBlocked += 1;
+          /* Blocked and failed are different words here for the same reason
+             they are different words on screen: one of them means trying
+             again will do exactly the same thing. */
+          log.say("letter", `Held back: ${account.companyName}`, {
+            to: row.recipients,
+            reason: outcome.reason,
+            subject: row.subject,
+          }, { level: "warn", tenant: row.tenant_id });
           /* The gate's own words, kept for the note below. It knows whether
              sending is off, whether the address is outside the test list, or
              whether the letter came out with a merge field still in it, and
@@ -525,6 +623,10 @@ async function persist(
           if (!blockedBecause) blockedBecause = outcome.reason ?? null;
         } else {
           notes.push(`${account.companyName}: ${outcome.reason}`);
+          log.say("letter", `Failed to send to ${account.companyName}`, {
+            to: row.recipients,
+            reason: outcome.reason,
+          }, { level: "error", tenant: row.tenant_id });
         }
       }
 
@@ -575,6 +677,13 @@ async function persist(
               ? "never had the first reminder, so they wait for next month's 7th"
               : "not due today";
       heldBack.push({ ...name(a.id), why });
+      log.say("plan", `Not written to: ${a.companyName} — ${why}`, {
+        why,
+        owes: a.total,
+        hasAddress: a.hasContact,
+        promise: promise ?? null,
+        hadThisLetterThisMonth: had.has(a.id),
+      }, { tenant: a.id });
     }
   }
 

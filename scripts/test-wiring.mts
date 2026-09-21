@@ -680,7 +680,7 @@ check("and cannot write a second letter to the same tenant",
 check("a letter is recorded as a dry run before anything is attempted",
       CRON.includes("was_simulated: true"), true);
 check("and only becomes a real send once one has left",
-      /if \(outcome\.sent\)[\s\S]{0,400}was_simulated: false/.test(CRON), true);
+      /if \(outcome\.sent\)[\s\S]{0,900}was_simulated: false/.test(CRON), true);
 check("the schedule sends as nobody, so it uses the nominated account",
       /send\(db, null,/.test(CRON), true);
 
@@ -1684,6 +1684,27 @@ check("the GIRO exclusions are named in it, not removed",
       code(path.join(LIB, "workbook.ts")).includes("listing.giroExcluded"), true);
 check("and the fee screen offers it",
       code(path.join(APP, "late-fees", "page.tsx")).includes("lateFeeXlsx(listing, period)"), true);
+/* cron_runs answers "what happened" and not "why", and the two are asked at
+   different times: the summary the morning after, this six weeks later when
+   somebody asks why one tenant got one letter. */
+check("every run writes a line-by-line diary",
+      CRON_CODE.includes("runLog(db, today.iso)"), true);
+check("the report it read is in it",
+      CRON_CODE.includes('log.say("report"'), true);
+check("what it already knew is in it",
+      CRON_CODE.includes('log.say("memory"'), true);
+check("each fee is a line of its own, not a count",
+      CRON_CODE.includes('log.say("fee", `Raised'), true);
+check("each letter too, sent, blocked and failed apart",
+      (CRON_CODE.match(/log\.say\("letter"/g) ?? []).length >= 3, true);
+check("and every tenant the day chose not to write to",
+      CRON_CODE.includes("Not written to:"), true);
+check("the diary is written once, after the day it points at exists",
+      CRON_CODE.indexOf("await log.flush()") > CRON_CODE.indexOf('from("cron_runs").upsert'), true);
+check("and a diary that cannot be written never fails the run",
+      lib("run-log.ts").includes("return `The run was not logged in detail"), true);
+check("the log cannot be edited afterwards",
+      read("supabase/migrations/0020_run_log.sql").includes("run_log is append only"), true);
 check("a run records who it wrote to, not only how many",
       CRON_CODE.includes("wrote: written.map(name)"), true);
 check("and who it held back, with the reason",
