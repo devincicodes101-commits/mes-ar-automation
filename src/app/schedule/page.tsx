@@ -214,6 +214,36 @@ export default function SchedulePage() {
                 className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
               />
             </label>
+
+            {/*
+              * The six days of this month, as buttons.
+              *
+              * A date field defaults to empty and the button beside it then
+              * reads "Run today", so pressing it runs a day nobody asked for
+              * — and on twenty-five days of the month that is a quiet day,
+              * which does nothing and looks like the schedule is broken. It
+              * happened twice in one sitting during testing.
+              *
+              * Only days that have already passed: a day can be caught up,
+              * not run early, and offering one the route will refuse is worse
+              * than not offering it.
+              */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {cycleDatesSoFar(history?.today ?? "").map((d) => (
+                <button
+                  key={d.iso}
+                  type="button"
+                  onClick={() => setWhen(d.iso)}
+                  className={`rounded border px-2.5 py-1.5 text-xs ${
+                    when === d.iso
+                      ? "border-accent bg-accent text-accent-ink"
+                      : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={runDay}
@@ -327,6 +357,23 @@ export default function SchedulePage() {
       </Card>
     </div>
   );
+}
+
+/**
+ * This month's cycle days that have already happened.
+ *
+ * Named by day rather than by date — "the 7th", not "2026-09-07" — because
+ * that is how MES talk about them, and the full date is in the button beside
+ * these anyway.
+ */
+function cycleDatesSoFar(todayIso: string): { iso: string; label: string }[] {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayIso);
+  if (!m) return [];
+  const [, year, month, dayOfMonth] = m;
+  return CYCLE_DAYS.filter((d) => d <= Number(dayOfMonth)).map((d) => ({
+    iso: `${year}-${month}-${String(d).padStart(2, "0")}`,
+    label: `the ${d}${ordinal(d)}`,
+  }));
 }
 
 function ordinal(d: number): string {
