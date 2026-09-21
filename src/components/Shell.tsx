@@ -8,7 +8,7 @@ import { ReactNode, useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 import { ROLE_LABEL, canOpen, useSession } from "@/lib/session";
-import { hydrateFromServer, useDataset } from "@/lib/dataset";
+import { hydrateFromServer, useDataset, useDatasetState } from "@/lib/dataset";
 import { hydrateActivity, useSync } from "@/lib/store";
 import { Loading } from "@/components/ui";
 
@@ -241,6 +241,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const { session, ready, role, scopeNote, signOut } = useSession();
   const ds = useDataset();
   const sync = useSync();
+  /* Whether the figures on screen came from a real upload or the bundled
+     example. See the banner below. */
+  const dataset = useDatasetState();
   const current = navFor(pathname);
 
   // The nav only offers what this role may actually open, so nobody is invited
@@ -433,6 +436,32 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
             ) : null}
             {sync.lastError}
+          </div>
+        ) : null}
+
+        {/*
+          * Sample data, said out loud.
+          *
+          * When the database holds no report the app falls back to a bundled
+          * sample so a fresh install is not a blank page. Nothing said so, and
+          * the sample is MES's own August export — 190 tenants and SGD 2.78m,
+          * which reads exactly like the real thing.
+          *
+          * The first person to clear the database and open the app therefore
+          * saw a full system and concluded the reset had failed. Worse is
+          * available: uploading a file, having it silently refused, and
+          * demonstrating the sample to a client in the belief it is theirs.
+          *
+          * On every screen, because the figures are on every screen.
+          */}
+        {dataset.origin === "sample" ? (
+          <div
+            className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900"
+            role="status"
+          >
+            <span className="font-medium">This is sample data.</span>{" "}
+            No report has been uploaded, so the app is showing the example
+            figures it ships with. Upload a report and these are replaced.
           </div>
         ) : null}
 

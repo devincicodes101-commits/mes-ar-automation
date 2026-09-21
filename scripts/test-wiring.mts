@@ -1649,6 +1649,15 @@ check("and nothing more: not sending, not uploading, not raising a fee",
    fee.xlsx". The listing was built, shown on the fee screen, and could not
    leave it. The GIRO exclusions go in the file named rather than dropped,
    because her second sentence asks the AR team to check for them. */
+/* The bundled sample is MES's own August export — 190 tenants and SGD 2.78m
+   — so an empty database looks exactly like a full one. The first person to
+   clear the database concluded the reset had failed. Worse is available:
+   uploading a file, having it silently refused, and showing a client the
+   sample in the belief it is theirs. */
+check("the app says when the figures are only the sample",
+      code(path.join("src", "components", "Shell.tsx")).includes('dataset.origin === "sample"'), true);
+check("on every screen, because the figures are on every screen",
+      code(path.join("src", "components", "Shell.tsx")).includes("useDatasetState()"), true);
 check("the fee listing can be written as the workbook MES attach",
       code(path.join(LIB, "workbook.ts")).includes("export function lateFeeXlsx"), true);
 check("the GIRO exclusions are named in it, not removed",
