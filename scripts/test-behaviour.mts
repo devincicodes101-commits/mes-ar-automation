@@ -1074,6 +1074,46 @@ check("the plan says how many are held back",
       planFor(seqPipe, missedTheSeventh, 21, null).willDo
         .some((t) => /held back until next month/.test(t)), true);
 
+section("Which months a tenant was charged for");
+
+/*
+ * "1 raised by us" is a number with no date on it, and it is read as "last
+ * month" by everybody who sees it. It can be any month at all, and the
+ * difference changes what an officer does next.
+ */
+const chargedAcct = (id: string) =>
+  ({
+    id, customerCode: id.toUpperCase(), companyName: `${id} PTE LTD`,
+    property: "BSD", propertyName: "Boon Lay", status: "Live",
+    buckets: { current: 0, d30: 5000, d60: 0, d90: 0, d90plus: 0 },
+    total: 5000, emails: ["x@y.com"], hasContact: true, isOneFm: false,
+    lateFeeCount: 0, revenueTypes: [], lineCount: 1,
+  }) as never;
+
+const feeRows = feesDue(
+  [chargedAcct("a"), chargedAcct("b")],
+  DEFAULT_FEE_RULE,
+  [],
+  [
+    { tenantId: "a", period: "2026-12-01" },
+    { tenantId: "a", period: "2026-11-01" },
+    { tenantId: "b", period: "2026-09-01" },
+  ],
+  "2026-09-01",
+);
+const byTenant = new Map(feeRows.map((r) => [r.account.id, r]));
+
+check("the months are carried, oldest first",
+      byTenant.get("a")?.raisedIn.join(","), "2026-11,2026-12");
+check("and the count still agrees with them",
+      byTenant.get("a")?.raisedIn.length, byTenant.get("a")?.raisedByUs);
+check("a tenant charged this month is marked as such",
+      byTenant.get("b")?.raisedThisPeriod, true);
+check("and this month's charge is in the list too",
+      byTenant.get("b")?.raisedIn.join(","), "2026-09");
+check("a tenant never charged has an empty list",
+      feesDue([chargedAcct("c")], DEFAULT_FEE_RULE, [], [], "2026-09-01")[0]?.raisedIn.length, 0);
+
 section("The ids a record is given");
 
 /*

@@ -468,6 +468,8 @@ export interface FeeLine {
   billedByMes: number;
   /** Fees this system has raised, in any month. */
   raisedByUs: number;
+  /** The months those fees were for, oldest first, as YYYY-MM. */
+  raisedIn: string[];
   /** Whether this system already raised one for the month being charged. */
   raisedThisPeriod: boolean;
   /**
@@ -518,9 +520,19 @@ export function feesDue(
    */
   const everRaised = new Map<string, number>();
   const thisPeriod = new Set<string>();
+  /*
+   * And which months, not only how many.
+   *
+   * The screen read "1 raised by us", which is a number with no date attached
+   * and is read as "last month" by everybody who sees it. It can be any month
+   * at all, and getting that wrong changes what an officer does next: a fee
+   * raised eleven months ago and one raised last month are different tenants.
+   */
+  const months = new Map<string, string[]>();
   for (const r of raised) {
     everRaised.set(r.tenantId, (everRaised.get(r.tenantId) ?? 0) + 1);
     if (period && r.period === period) thisPeriod.add(r.tenantId);
+    months.set(r.tenantId, [...(months.get(r.tenantId) ?? []), r.period.slice(0, 7)].sort());
   }
 
   return accounts
@@ -549,6 +561,7 @@ export function feesDue(
       billedByMes: r.account.lateFeeCount,
       raisedByUs: everRaised.get(r.account.id) ?? 0,
       raisedThisPeriod: thisPeriod.has(r.account.id),
+      raisedIn: months.get(r.account.id) ?? [],
     }))
     .sort((a, b) => b.overdue - a.overdue);
 }

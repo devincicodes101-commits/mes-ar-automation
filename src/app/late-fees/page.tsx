@@ -377,6 +377,21 @@ export default function LateFeesPage() {
                               }
                             />
                           ) : null}
+                          {/*
+                            * The months, not only the count.
+                            *
+                            * "1 raised by us" is a number with no date on it,
+                            * and everybody reads it as "last month". It can be
+                            * any month at all, and the difference changes what
+                            * an officer does next: a fee raised eleven months
+                            * ago and one raised last month are different
+                            * tenants with the same badge.
+                            */}
+                          {l.raisedIn.length > 0 ? (
+                            <span className="text-[11px] text-ink-muted">
+                              {l.raisedIn.join(", ")}
+                            </span>
+                          ) : null}
                           {l.billedByMes > 0 ? (
                             <span className="text-[11px] text-ink-muted">
                               {l.billedByMes} billed in NetSuite
