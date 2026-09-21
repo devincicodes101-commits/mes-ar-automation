@@ -1063,6 +1063,47 @@ check("the plan says how many are held back",
       planFor(seqPipe, missedTheSeventh, 21, null).willDo
         .some((t) => /held back until next month/.test(t)), true);
 
+section("A promise the schedule can see");
+
+/*
+ * The half that was missing. Ray logs a promise, every screen honours it, and
+ * the scheduled run knew nothing: it started from a state with no promises in
+ * it, so the 21st sent a final notice to a tenant who had arranged to pay —
+ * which is the one thing recording the promise was for.
+ *
+ * And the date it is judged against has to be the real one. asAt() fell back
+ * to the loaded report's date, so a live promise measured against a report
+ * dated next January had already expired.
+ */
+
+const promiseOwing = simPipe([simAcct("keeps", 5000)]);
+const keeps = promiseOwing.accounts[0] as never;
+
+check("with no promise, the 21st writes to them",
+      runDay(promiseOwing, runDay(promiseOwing, emptyState(), 7, null), 21, null)
+        .finalNotice.length, 1);
+
+/* A promise for a date still ahead of the real today. */
+const held = {
+  ...runDay(promiseOwing, emptyState(), 7, null),
+  today: "2026-09-22",
+  promised: { [(keeps as { id: string }).id]: { amount: 5000, by: "2026-09-30" } },
+};
+check("a promise still standing holds the final notice back",
+      runDay(promiseOwing, held, 21, null).finalNotice.length, 0);
+
+const lapsed = { ...held, promised: { [(keeps as { id: string }).id]: { amount: 5000, by: "2026-09-01" } } };
+check("a promise whose date has passed does not",
+      runDay(promiseOwing, lapsed, 21, null).finalNotice.length, 1);
+
+/* The report is dated 2026-08-17 in this fixture. Without SimState.today the
+   promise would be judged against that and look like the future. */
+check("the real date decides, not the report's",
+      runDay(promiseOwing, { ...held, today: "2026-10-05" }, 21, null).finalNotice.length, 1);
+
+check("and the fee on the 16th is held back too",
+      runDay(promiseOwing, held, 16, null).charged.length, 0);
+
 section("The Update column, written from what was logged");
 
 /*

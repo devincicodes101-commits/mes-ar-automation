@@ -272,7 +272,7 @@ export async function GET(request: Request) {
         error: memory.error,
       });
     }
-    const before = stateFrom(memory.prior);
+    const before = stateFrom(memory.prior, today.iso);
 
     const plan = planFor(pipeline, before, day, null);
     const after = runDay(pipeline, before, day, null);

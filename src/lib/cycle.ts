@@ -56,6 +56,21 @@ export interface SimEvent {
 export interface SimState {
   /** The last day that has been run. Null before it starts. */
   at: CycleDay | null;
+  /**
+   * The real date, when there is one.
+   *
+   * The simulation walks a hypothetical month and asks for "day 21 of the
+   * report's month", which is what `at` means. The schedule is not walking
+   * anything: it runs on a real date, and a promise made for the 20th has
+   * either passed or not passed by that date, not by whatever is printed on
+   * the loaded report.
+   *
+   * It matters whenever the two differ, which is every time somebody loads a
+   * report for a month other than this one. Judging a live promise against a
+   * report dated next January expires it, and the tenant gets the final
+   * notice they arranged not to get.
+   */
+  today?: string;
   /** Account ids that have had the 7th's first reminder. */
   firstReminder: string[];
   /** Account ids that have had the 21st's final notice. */
@@ -145,6 +160,8 @@ const money = (n: number) =>
  * is no day yet, so the report date stands in.
  */
 function asAt(p: Pipeline, s: SimState): string | null {
+  /* A real date beats a report date. See SimState.today. */
+  if (s.today) return s.today;
   if (!p.asOf) return null;
   if (s.at === null) return p.asOf;
   const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(p.asOf);

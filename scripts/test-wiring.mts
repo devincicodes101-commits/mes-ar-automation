@@ -1480,7 +1480,11 @@ check("the run reads what has already been done this month",
    `before` reached runDay, which stayed true. What matters is where `before`
    came from. */
 check("and the state is what it read, not an empty one wearing its name",
-      CRON_CODE.includes("stateFrom(memory.prior)"), true);
+      CRON_CODE.includes("stateFrom(memory.prior, today.iso)"), true);
+check("promises reach the run, so a tenant who arranged to pay is left alone",
+      lib("prior-contact.ts").includes('.from("promises")'), true);
+check("and are judged against the real date, not the loaded report's",
+      lib("cycle.ts").includes("if (s.today) return s.today;"), true);
 check("and hands it to the day as its starting state",
       /runDay\(pipeline, before, day/.test(CRON_CODE) &&
         /planFor\(pipeline, before, day/.test(CRON_CODE), true);

@@ -53,12 +53,26 @@ export interface PriorContact {
   finalised: Set<string>;
   /** Tenants the $100 has already been raised against this month. */
   charged: Set<string>;
+  /**
+   * Promises still standing, by tenant.
+   *
+   * Not scoped to the month, unlike everything else here: a promise made in
+   * August for the 3rd of September holds into September, and dropping it at
+   * the month boundary would chase somebody who kept the arrangement.
+   *
+   * This is the half of the design that was missing. Ray logs a promise, the
+   * screens honour it, and the scheduled run knew nothing about it — so the
+   * 21st sent a final notice to a tenant who had arranged to pay, which is
+   * precisely what recording the promise was for.
+   */
+  promises: Map<string, { amount: number; by: string }>;
 }
 
 export const NOTHING_YET: PriorContact = {
   reminded: new Set(),
   finalised: new Set(),
   charged: new Set(),
+  promises: new Map(),
 };
 
 /* Scoped to one month, so this is a few hundred rows at MES's size. Paged
@@ -94,7 +108,7 @@ export async function priorContact(
   db: SupabaseClient,
   period: string,
 ): Promise<{ ok: true; prior: PriorContact } | { ok: false; error: string }> {
-  const [letters, fees] = await Promise.all([
+  const [letters, fees, promises] = await Promise.all([
     everything<{ tenant_id: string; template_id: string | null }>(() =>
       db
         .from("emails_sent")
@@ -105,9 +119,18 @@ export async function priorContact(
     everything<{ tenant_id: string }>(() =>
       db.from("late_fees").select("tenant_id").eq("period", period) as unknown as Pageable,
     ),
+    /* Every promise, not this month's: one made in August for the 3rd of
+       September is still an arrangement on the 1st of September. Settled ones
+       are excluded, because a promise that has been closed is history. */
+    everything<{ tenant_id: string; amount: number; promised_for: string }>(() =>
+      db
+        .from("promises")
+        .select("tenant_id,amount,promised_for")
+        .is("settled_at", null) as unknown as Pageable,
+    ),
   ]);
 
-  const failed = letters.error ?? fees.error;
+  const failed = letters.error ?? fees.error ?? promises.error;
   if (failed) {
     return {
       ok: false,
@@ -121,6 +144,7 @@ export async function priorContact(
     reminded: new Set(),
     finalised: new Set(),
     charged: new Set(),
+    promises: new Map(),
   };
 
   for (const r of letters.rows) {
@@ -128,6 +152,16 @@ export async function priorContact(
     else if (r.template_id === "final-21st") prior.finalised.add(r.tenant_id);
   }
   for (const r of fees.rows) prior.charged.add(r.tenant_id);
+
+  /* The furthest date wins where a tenant has promised more than once. Taking
+     the earliest would start chasing them again while a later arrangement is
+     still standing. */
+  for (const r of promises.rows) {
+    const held = prior.promises.get(r.tenant_id);
+    if (!held || r.promised_for > held.by) {
+      prior.promises.set(r.tenant_id, { amount: Number(r.amount), by: r.promised_for });
+    }
+  }
 
   return { ok: true, prior };
 }
@@ -144,9 +178,16 @@ export async function priorContact(
  * `at` stays null. It means "which day of this walkthrough has been run", and
  * a scheduled run is not walking through anything.
  */
-export function stateFrom(prior: PriorContact): SimState {
+export function stateFrom(prior: PriorContact, today?: string): SimState {
+  const promised: Record<string, { amount: number; by: string }> = {};
+  for (const [id, p] of Array.from(prior.promises)) promised[id] = p;
+
   return {
     ...emptyState(),
+    /* The real date, so a promise is judged against today rather than against
+       whatever month's report happens to be loaded. */
+    ...(today ? { today } : {}),
+    promised,
     /* Array.from rather than a spread: this project's TypeScript target
        predates iterating a Set without downlevelIteration, the same reason
        read-report.ts deduplicates by hand. */
