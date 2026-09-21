@@ -31,7 +31,18 @@ import {
 
 export default function CallListPage() {
   const store = useStore();
-  const { scope, canAct } = useSession();
+  /*
+   * can("log-calls"), not canAct.
+   *
+   * canAct is roleCan(role, "send-reminders") — a reasonable shorthand on the
+   * screens that send things, and the wrong question here. A relationship
+   * manager may log a call and may not send a reminder, so gating this screen
+   * on canAct showed them their own three tenants and a "View only" label
+   * against each, which is the exact thing they had just been given
+   * permission to do.
+   */
+  const { scope, can } = useSession();
+  const mayLog = can("log-calls");
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [active, setActive] = useState<Account | null>(null);
 
@@ -196,7 +207,7 @@ export default function CallListPage() {
                   </div>
                 </div>
 
-                {canAct ? (
+                {mayLog ? (
                   <button
                     type="button"
                     onClick={() => setActive(item.account)}

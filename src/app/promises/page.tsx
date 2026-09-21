@@ -34,7 +34,14 @@ const KIND: Record<PromiseState, "good" | "warning" | "critical"> = {
 
 export default function PromisesPage() {
   const store = useStore();
-  const { canAct } = useSession();
+  /*
+   * Two different permissions on one screen, and they are genuinely
+   * different. Recording a promise is writing down what a tenant said, which
+   * is a manager's own work. Sending the confirmation writes to the tenant,
+   * which is not. canAct is send-reminders and stays on the second.
+   */
+  const { canAct, can } = useSession();
+  const mayRecord = can("record-promises");
   const { notify } = useToast();
   const [adding, setAdding] = useState(false);
 
@@ -119,7 +126,7 @@ export default function PromisesPage() {
             <button
               type="button"
               onClick={() => setAdding(true)}
-              disabled={!canAct}
+              disabled={!mayRecord}
               className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Record a promise

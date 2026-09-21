@@ -1636,6 +1636,18 @@ check("a manager may record their own calls and promises",
       lib("auth.ts").includes('RM: ["view-own-tenants", "log-calls", "record-promises"]'), true);
 check("and nothing more: not sending, not uploading, not raising a fee",
       /RM: \[[^\]]*(send-reminders|upload-reports|raise-late-fees)/.test(lib("auth.ts")), false);
+/* Granting the capability is half of it. canAct is send-reminders, and both
+   screens gated their write button on it — so a manager got their own three
+   tenants and "View only" against each, which is the thing they had just
+   been allowed to do. */
+check("the call list gates on logging a call, not on sending",
+      code(path.join(APP, "calls", "page.tsx")).includes('can("log-calls")'), true);
+check("and no longer on canAct",
+      /\{canAct \?/.test(code(path.join(APP, "calls", "page.tsx"))), false);
+check("recording a promise gates on recording a promise",
+      code(path.join(APP, "promises", "page.tsx")).includes('can("record-promises")'), true);
+check("but sending its confirmation still needs the sending permission",
+      code(path.join(APP, "promises", "page.tsx")).includes("canAct ? ("), true);
 check("a write is checked against the tenant being theirs",
       ACTIVITY_CODE.includes("await ownsTenant(db, who.caller, subject)"), true);
 check("a missing tenant and somebody else's give the same answer",

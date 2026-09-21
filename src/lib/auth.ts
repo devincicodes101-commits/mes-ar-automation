@@ -51,7 +51,7 @@ export const ROLE_SUMMARY: Record<Role, string> = {
   admin:
     "The full monthly cycle: upload, send, call, raise fees, export. Cannot manage users.",
   CSD: "The daily collections work. Cannot change settings or manage users.",
-  RM: "Only the tenants assigned to them, and only to read.",
+  RM: "Only the tenants assigned to them. They can log a call and record a promise, and nothing else.",
   Management: "Totals and reports across every property. Read only.",
 };
 
