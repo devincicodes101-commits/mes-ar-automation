@@ -12,7 +12,9 @@ import { hydrateActivity, recordExport, settledFees, useStore } from "@/lib/stor
 import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
-import { giroEnrolled } from "@/lib/reports";
+import { buildLateFeeListing, giroEnrolled } from "@/lib/reports";
+import { lateFeeName, lateFeeXlsx } from "@/lib/workbook";
+import { downloadFile } from "@/lib/export";
 import { currentPeriod } from "@/lib/schedule";
 import {
   Card,
@@ -35,7 +37,7 @@ import {
  */
 export default function LateFeesPage() {
   const store = useStore();
-  const { scope, canAct } = useSession();
+  const { scope, canAct, can } = useSession();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
   const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
@@ -52,6 +54,23 @@ export default function LateFeesPage() {
      that opening a December report in November made this screen look up
      December, find no fees, and offer to charge everybody a second time. */
   const period = currentPeriod();
+
+  /*
+   * The listing as MES attach it, built from the same accounts and the same
+   * rule the table below shows. Built here rather than carried on the dataset
+   * because the fee and the minimum age are settings on this screen: a file
+   * built from anything else could disagree with what the officer is looking
+   * at while they press the button.
+   */
+  const listing = useMemo(
+    () =>
+      buildLateFeeListing(scope(ds.accounts), ds.invoices, ds.asOf, null, {
+        fee: rule.value,
+        raised: store.fees,
+        period,
+      }),
+    [ds, rule, scope, store.fees, period],
+  );
 
   const all = useMemo(
     () => feesDue(scope(ds.accounts), rule, ds.invoices, store.fees, period),
@@ -250,7 +269,33 @@ export default function LateFeesPage() {
                 "charged this month and will be left out."
               : "Nothing is charged until you approve it."
           }
+          /*
+           * Two buttons: the listing MES attach when they ask the AR team to
+           * issue the fee, and the approval that actually raises it.
+           *
+           * Jacqueline's email is two sentences and a spreadsheet, and until
+           * now the spreadsheet had nowhere to come from — the listing was
+           * built, shown on this screen, and could not leave it. The GIRO
+           * exclusions are in the file too, named rather than dropped,
+           * because her second sentence asks the AR team to check for them
+           * and a listing that had already removed them gives nobody anything
+           * to check.
+           */
           right={
+            <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!can("generate-reports")}
+              onClick={() =>
+                downloadFile(
+                  lateFeeName(period),
+                  lateFeeXlsx(listing, period),
+                )
+              }
+              className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:opacity-40"
+            >
+              Download the listing
+            </button>
             <button
               type="button"
               onClick={() => setPreview(true)}
@@ -259,6 +304,7 @@ export default function LateFeesPage() {
             >
               Review and raise
             </button>
+            </div>
           }
         />
 

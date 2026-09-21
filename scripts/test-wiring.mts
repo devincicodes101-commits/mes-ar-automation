@@ -1645,6 +1645,16 @@ check("and nothing more: not sending, not uploading, not raising a fee",
    on screen as saved. */
 /* "4 letters" is not something anybody can check against an inbox, and the
    tenant the schedule deliberately left alone is the more useful half. */
+/* Jacqueline's second email is a covering line and "August late payment
+   fee.xlsx". The listing was built, shown on the fee screen, and could not
+   leave it. The GIRO exclusions go in the file named rather than dropped,
+   because her second sentence asks the AR team to check for them. */
+check("the fee listing can be written as the workbook MES attach",
+      code(path.join(LIB, "workbook.ts")).includes("export function lateFeeXlsx"), true);
+check("the GIRO exclusions are named in it, not removed",
+      code(path.join(LIB, "workbook.ts")).includes("listing.giroExcluded"), true);
+check("and the fee screen offers it",
+      code(path.join(APP, "late-fees", "page.tsx")).includes("lateFeeXlsx(listing, period)"), true);
 check("a run records who it wrote to, not only how many",
       CRON_CODE.includes("wrote: written.map(name)"), true);
 check("and who it held back, with the reason",

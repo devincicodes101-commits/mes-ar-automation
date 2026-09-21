@@ -202,3 +202,131 @@ export function workbookName(report: Report, asOf: string | null): string {
   const stamp = (asOf ?? "").replace(/-/g, "");
   return stamp ? `${who} - ${stamp}.xlsx` : `${who}.xlsx`;
 }
+
+/* ------------------------------------------------- the late payment fee -- */
+
+import type { LateFeeListing } from "./reports.ts";
+
+/**
+ * The listing MES attach when they ask the AR team to issue the fee.
+ *
+ * Jacqueline's email is two sentences and a spreadsheet:
+ *
+ *   Please assist with the issuance of August late payment admin fee.
+ *   Please check if I might have included the giro clients in the listing
+ *   and remove accordingly.
+ *
+ * So the file has to answer both. The first block is who to charge. The
+ * second is the tenants held back for GIRO — named rather than silently
+ * dropped, because that sentence is her asking somebody to check, and a
+ * listing that quietly removed them gives her nothing to check against.
+ *
+ * A bounced GIRO deduction is the bank failing, not the tenant, which is why
+ * they are held back at all.
+ */
+export function lateFeeWorkbook(
+  listing: LateFeeListing,
+  period: string | null,
+): XLSX.WorkBook {
+  const head = (text: string, width: number): Cell[] => {
+    const row: Cell[] = Array.from({ length: width }, () => null);
+    row[0] = text;
+    return row;
+  };
+
+  const COLUMNS = [
+    "Company Name", "Dormitory", "Status", "Overdue",
+    "Fee", "New balance", "Billed in NetSuite", "Raised by us", "Sales Rep",
+  ];
+  const W = COLUMNS.length;
+  const rows: Cell[][] = [
+    head(listing.entity ?? "MES Group", W),
+    head(`Late payment admin fee${period ? ` — ${period.slice(0, 7)}` : ""}`, W),
+    head(`As of ${longDate(listing.asOf)}`, W),
+    head(
+      `$${listing.fee} each, on anything more than ${listing.minimumAgeDays} days overdue`,
+      W,
+    ),
+    Array.from({ length: W }, () => null),
+    COLUMNS,
+  ];
+
+  for (const c of listing.rows) {
+    rows.push([
+      `${c.account.customerCode} ${c.account.companyName}`,
+      c.account.property,
+      c.account.status,
+      c.overdue,
+      c.fee,
+      Math.round((c.overdue + c.fee) * 100) / 100,
+      c.billedByMes,
+      c.raisedByUs,
+      (c.account as { rm?: string }).rm ?? "",
+    ]);
+  }
+
+  rows.push(Array.from({ length: W }, () => null));
+  rows.push([
+    "Total",
+    null, null,
+    Math.round(listing.rows.reduce((t, c) => t + c.overdue, 0) * 100) / 100,
+    Math.round(listing.rows.reduce((t, c) => t + c.fee, 0) * 100) / 100,
+    null, null, null, null,
+  ]);
+
+  /*
+   * Named, not removed. Jacqueline asks the AR team to check whether GIRO
+   * clients crept into the listing; a file that had already dropped them
+   * silently would leave nothing to check, and the day the GIRO detection is
+   * wrong nobody would find out.
+   */
+  rows.push([], [], []);
+  rows.push(head("Held back — on GIRO, a bounced deduction is not their failure", W));
+  rows.push(["Company Name", "Dormitory", "Status", "Overdue", null, null, null, null, null]);
+  if (listing.giroExcluded.length === 0) {
+    rows.push(["Nobody in this report is on GIRO.", null, null, null, null, null, null, null, null]);
+  }
+  for (const g of listing.giroExcluded) {
+    rows.push([
+      `${g.account.customerCode} ${g.account.companyName}`,
+      g.account.property,
+      g.account.status,
+      g.overdue,
+      null, null, null, null, null,
+    ]);
+  }
+
+  for (const n of listing.notes) {
+    rows.push([]);
+    rows.push(head(n, W));
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows as unknown[][]);
+  const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
+  for (let r = range.s.r; r <= range.e.r; r += 1) {
+    for (const c of [3, 4, 5]) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })] as { t?: string; z?: string } | undefined;
+      if (cell && cell.t === "n") cell.z = MONEY;
+    }
+  }
+  ws["!cols"] = [{ wch: 44 }, { wch: 11 }, { wch: 12 }, { wch: 14 }, { wch: 10 },
+    { wch: 14 }, { wch: 18 }, { wch: 13 }, { wch: 16 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Late payment fee");
+  return wb;
+}
+
+/** The bytes, and MES's own filename shape. */
+export function lateFeeXlsx(listing: LateFeeListing, period: string | null): ArrayBuffer {
+  return XLSX.write(lateFeeWorkbook(listing, period), {
+    type: "array",
+    bookType: "xlsx",
+  }) as ArrayBuffer;
+}
+
+export function lateFeeName(period: string | null): string {
+  const m = /^(\d{4})-(\d{2})/.exec(period ?? "");
+  const month = m ? `${MONTHS[Number(m[2]) - 1]} ${m[1]}` : "";
+  return `${month ? `${month} ` : ""}late payment fee.xlsx`;
+}
