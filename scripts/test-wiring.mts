@@ -1626,6 +1626,15 @@ check("and no longer says narrowing is not done yet",
 check("the activity route narrows in the query, not after it",
       ACTIVITY_CODE.includes("visibleTenantIds(db, who.caller)") &&
         ACTIVITY_CODE.includes('q.in("tenant_id"'), true);
+/* The screens have always refused an RM the Calls screen and Management every
+   write. This route refused nobody: any signed-in account could POST a call,
+   a promise, a letter into a tenant history or a $100 fee. A permission that
+   depends on which door you came in by is not a permission. */
+check("writing an activity record needs the same permission as the screen",
+      ACTIVITY_CODE.includes("can(who.caller.role, needed)"), true);
+check("and each kind names the capability it needs",
+      ACTIVITY_CODE.includes('call: "log-calls"') &&
+        ACTIVITY_CODE.includes('"late-fee": "raise-late-fees"'), true);
 check("a failed lookup stops the read rather than returning everything",
       ACTIVITY_CODE.includes("if (!allowed.ok)"), true);
 check("only a relationship manager is narrowed",

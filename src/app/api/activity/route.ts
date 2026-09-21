@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { identify } from "@/lib/api-auth";
+import { can, type Capability } from "@/lib/auth";
 import { serverSupabase } from "@/lib/supabase-server";
 import { visibleTenantIds } from "@/lib/scope-server";
 import {
@@ -176,6 +177,39 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "The request body was not readable JSON." },
       { status: 400 },
+    );
+  }
+
+  /*
+   * What this record needs, which the screens have always checked and this
+   * route never did.
+   *
+   * Any signed-in account could POST here: a relationship manager, whose only
+   * capability is view-own-tenants, or Management, who are read-only by
+   * design and see the whole book. Either could have logged a call, recorded
+   * a promise, written a letter into a tenant's history or raised a $100 fee.
+   * The screens refused them and the API did not, which makes the permission
+   * a matter of which door you came in by.
+   *
+   * The same capabilities the routes map to, so a role that may not open the
+   * Calls screen may not write a call either.
+   */
+  const NEEDS: Record<string, Capability> = {
+    call: "log-calls",
+    promise: "record-promises",
+    email: "send-reminders",
+    "late-fee": "raise-late-fees",
+  };
+  const needed = body.kind ? NEEDS[body.kind] : undefined;
+  if (needed && !can(who.caller.role, needed)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          `A ${who.caller.role} may not do that. Recording this needs the ` +
+          `"${needed}" permission.`,
+      },
+      { status: 403 },
     );
   }
 
