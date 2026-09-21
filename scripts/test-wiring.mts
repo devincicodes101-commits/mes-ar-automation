@@ -1583,4 +1583,66 @@ check("the upload says how many were assigned, so a zero is visible",
 check("and the pipeline no longer blames MES's export for it",
       code(path.join(LIB, "pipeline.ts")).includes("this export has no Primary Sales Rep column"), false);
 
+console.log("\nThe workbook, the lock, and a send that sends");
+
+/*
+ * Three things that each looked finished and were not.
+ *
+ * The workbook: MES attach "Ray's Clients by dorm as of Aug 26.xlsx" and we
+ * offered a CSV, which loses the headed blocks and the entity and date lines
+ * above them.
+ *
+ * The lock: row level security refuses a manager every tenant that is not
+ * theirs, and the routes went round it. They hold the service role key, which
+ * bypasses every policy by design, and never narrowed the result — so an RM
+ * was sent the whole book and the screen hid most of it. /api/dataset said so
+ * in a comment and left it.
+ *
+ * The send: simulateReportSend built a covering note, named a file, marked
+ * itself "simulated" and stopped, under a button reading "Prepare email".
+ */
+const WB = code(path.join(LIB, "workbook.ts"));
+const REPORTS_PAGE = code(path.join(APP, "reports", "page.tsx"));
+const SCOPE = code(path.join(LIB, "scope-server.ts"));
+const DATASET_ROUTE = code(path.join(APP, "api", "dataset", "route.ts"));
+const ACTIVITY_CODE = code(path.join(APP, "api", "activity", "route.ts"));
+const REPORT_ROUTE = code(path.join(APP, "api", "report", "route.ts"));
+
+check("a report can be written as a real workbook",
+      WB.includes("export function reportToXlsx"), true);
+check("money stays numeric, so a manager can sum a column",
+      WB.includes('const MONEY = "#,##0.00"'), true);
+check("and the screen offers it",
+      REPORTS_PAGE.includes("reportToXlsx(report)"), true);
+
+check("the dataset route narrows what it returns",
+      DATASET_ROUTE.includes("narrowReport(result.report, who.caller)"), true);
+check("and no longer says narrowing is not done yet",
+      DATASET_ROUTE.includes("is not done yet"), false);
+check("the activity route narrows in the query, not after it",
+      ACTIVITY_CODE.includes("visibleTenantIds(db, who.caller)") &&
+        ACTIVITY_CODE.includes('q.in("tenant_id"'), true);
+check("a failed lookup stops the read rather than returning everything",
+      ACTIVITY_CODE.includes("if (!allowed.ok)"), true);
+check("only a relationship manager is narrowed",
+      SCOPE.includes('caller.role === "RM"'), true);
+check("an RM with no key is given nothing, not everything",
+      SCOPE.includes("if (!caller.rmKey) return { ok: true, ids: new Set() }"), true);
+check("invoices are matched on code AND property, so two dormitories stay apart",
+      SCOPE.includes("`${a.customerCode}|${a.property}`"), true);
+
+check("sending a report is a real route",
+      REPORT_ROUTE.includes("await send(db, who.caller.userId"), true);
+check("it refuses anybody who may not upload",
+      REPORT_ROUTE.includes("mayUpload(who.caller)"), true);
+check("the workbook goes with it",
+      REPORT_ROUTE.includes('Buffer.from(body.workbook, "base64")'), true);
+check("and the mail gate still applies, because it goes through send()",
+      code(path.join(LIB, "mail", "connector.ts")).includes("attachment?:"), true);
+check("the screen calls it rather than simulating",
+      REPORTS_PAGE.includes("await sendReport("), true);
+check("preview and send are different buttons",
+      REPORTS_PAGE.includes("Send with the workbook") &&
+        REPORTS_PAGE.includes("Preview"), true);
+
 process.exit(failures === 0 ? 0 : 1);

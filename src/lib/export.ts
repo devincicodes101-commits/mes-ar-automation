@@ -41,6 +41,29 @@ export function downloadCsv(
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * The same, for a workbook that is already bytes.
+ *
+ * Split from downloadCsv rather than generalised, because the two differ in
+ * the one place that matters: a Blob built from a string and one built from an
+ * ArrayBuffer need different types, and getting that wrong produces a file
+ * Excel refuses to open with no clue as to why.
+ */
+export function downloadFile(
+  filename: string,
+  bytes: ArrayBuffer,
+  type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+): void {
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Stamps a filename with the billing period, so files do not overwrite. */
 export function exportName(base: string, period: string): string {
   return `MES_${base}_${period.replace(/-/g, "")}.csv`;

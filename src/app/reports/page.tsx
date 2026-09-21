@@ -26,8 +26,10 @@ import {
 } from "@/lib/dispatch";
 import { useSession, useToast } from "@/lib/session";
 import { updateColumn } from "@/lib/update-column";
+import { reportToXlsx, workbookName } from "@/lib/workbook";
+import { sendReport } from "@/lib/send-report";
 import { useDataset, withManualEmails } from "@/lib/dataset";
-import { downloadCsv, exportName } from "@/lib/export";
+import { downloadCsv, downloadFile, exportName } from "@/lib/export";
 import {
   Card,
   CardHeader,
@@ -176,6 +178,9 @@ export default function ReportsPage() {
     useState<ReturnType<typeof buildManagerReports>[number] | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [dispatched, setDispatched] = useState<ReportDispatch | null>(null);
+  /* Sending crosses the network now, so the button has to say so and refuse a
+     second press while the first is still going. */
+  const [sendingReport, setSendingReport] = useState(false);
 
   const recipients = store.settings.recipients;
 
@@ -523,9 +528,50 @@ export default function ReportsPage() {
                   : out.reason ?? "Could not send.",
               );
             }}
+            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:opacity-40"
+          >
+            Preview
+          </button>
+          {/*
+            * And the one that actually sends it.
+            *
+            * Separate from Preview, because for a long time there was only
+            * one button and it said "Prepare email" while doing nothing that
+            * left the building. Two buttons, and the difference between them
+            * is that one of them sends.
+            *
+            * The workbook is built here, from the same function the download
+            * uses, so what arrives in the inbox is what was previewed.
+            */}
+          <button
+            type="button"
+            disabled={!canAct || sendingReport}
+            onClick={async () => {
+              const report = sendable.find((r) => r.code === sendingCode);
+              if (!report) return;
+              const picked = recipients.filter((r) => chosen.includes(r.id));
+              const note = simulateReportSend(report, picked, ds.asOf);
+              setDispatched(note);
+              if (note.state === "blocked") {
+                notify("Not sent", note.reason ?? "Could not send.");
+                return;
+              }
+
+              setSendingReport(true);
+              const said = await sendReport({
+                to: picked.map((r) => r.email).filter((e): e is string => Boolean(e)),
+                subject: note.subject,
+                body: note.body,
+                filename: workbookName(report, ds.asOf),
+                workbook: reportToXlsx(report),
+                reportName: report.name,
+              });
+              setSendingReport(false);
+              notify(said.title, said.detail);
+            }}
             className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-40"
           >
-            Prepare email
+            {sendingReport ? "Sending..." : "Send with the workbook"}
           </button>
           <span className="text-xs text-ink-muted">
             Addresses are set in Settings. MES have not sent one for anybody
@@ -976,10 +1022,33 @@ function ManagerSheet({
   return (
     <Modal title={report.managerName} onClose={onClose}>
       <div className="space-y-4">
-        <p className="text-[11px] text-ink-muted">
-          {report.entity ?? "MES Group"} &middot; as at {report.asOf ?? "unknown"}{" "}
-          &middot; {report.lineCount} tenants &middot; {formatSgd(report.total)}
-        </p>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <p className="text-[11px] text-ink-muted">
+            {report.entity ?? "MES Group"} &middot; as at {report.asOf ?? "unknown"}{" "}
+            &middot; {report.lineCount} tenants &middot; {formatSgd(report.total)}
+          </p>
+          {/*
+            * The workbook, not a CSV.
+            *
+            * MES attach "Ray's Clients by dorm as of Aug 26.xlsx". A CSV loses
+            * the headed blocks and the entity and date lines above them, so a
+            * manager opening one has to be told what he is looking at. This is
+            * also the file the send below attaches, built by the same
+            * function, so what leaves is what was downloaded.
+            */}
+          <button
+            type="button"
+            onClick={() =>
+              downloadFile(
+                workbookName(report, report.asOf),
+                reportToXlsx(report),
+              )
+            }
+            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+          >
+            Download as Excel
+          </button>
+        </div>
 
         {report.blocks.map((b) => (
           <div key={b.title}>

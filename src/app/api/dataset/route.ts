@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { identify } from "@/lib/api-auth";
 import { serverSupabase } from "@/lib/supabase-server";
 import { newestReport } from "@/lib/read-report";
+import { narrowReport } from "@/lib/scope-server";
 
 /**
  * The most recent report, as the app expects it.
@@ -23,11 +24,16 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   /*
-   * Every signed-in role may read the stored report, which is the same rule
-   * the screens follow: what a relationship manager is shown is narrowed by
-   * scope() rather than by being refused the data. Narrowing it here as well
-   * is the right next step and is not done yet, so it is named rather than
-   * implied: an RM calling this URL directly receives the whole file.
+   * Every signed-in role may read the stored report; what comes back is
+   * narrowed to the caller's own book below.
+   *
+   * This used to say that narrowing here "is the right next step and is not
+   * done yet", and meanwhile an RM calling this URL received all 190 tenants
+   * while their screen showed three. The database had always refused them —
+   * can_see_account() is on every table — but this route holds the service
+   * role key, which bypasses every policy by design, and never narrowed the
+   * result afterwards. Hidden by scope() in the browser is not the same as
+   * not sent.
    */
   const who = await identify(request);
   if (!who.ok) {
@@ -64,5 +70,8 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({ ok: true, dataset: result.report });
+  return NextResponse.json({
+    ok: true,
+    dataset: narrowReport(result.report, who.caller),
+  });
 }

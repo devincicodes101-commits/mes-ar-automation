@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { identify } from "@/lib/api-auth";
 import { serverSupabase } from "@/lib/supabase-server";
+import { visibleTenantIds } from "@/lib/scope-server";
 import {
   callToRow,
   promiseToRow,
@@ -50,27 +51,57 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
+  /*
+   * Which tenants this caller may see. Null for everyone but a relationship
+   * manager, who gets their own book and nobody else's.
+   *
+   * This route returns calls, promises, the full body of every letter sent and
+   * every fee raised, for every tenant. The database would have refused an RM
+   * most of it — can_see_account() is on all four of these tables — but this
+   * route holds the service role key, which bypasses every policy, and sent
+   * the lot. The screens then showed a manager only their own, which looked
+   * right and was not.
+   *
+   * A failed lookup stops the read rather than falling back to everything.
+   */
+  const allowed = await visibleTenantIds(db, who.caller);
+  if (!allowed.ok) {
+    return NextResponse.json({ ok: false, error: allowed.error }, { status: 502 });
+  }
+  const only = allowed.ids;
+  /* Applied in the query rather than after it, so the rows never leave the
+     database. Filtering afterwards would still read them, and at MES's size
+     would still meet PostgREST's thousand-row ceiling on somebody else's
+     tenants before reaching this manager's. */
+  /* Typed loosely on purpose. supabase-js builders carry a deep generic and
+     a faithful signature here makes the compiler give up with "type
+     instantiation is excessively deep"; the shape is proved by the four call
+     sites below rather than by the type. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mine = (q: any) =>
+    only === null ? q : q.in("tenant_id", Array.from(only));
+
   const [calls, promises, emails, fees] = await Promise.all([
-    db
+    mine(db
       .from("calls")
       .select(
         "id,tenant_id,period,called_at,reached,outcome,promised_amount," +
           `promised_date,next_action_date,aging_bucket,deduction_fail_date,notes,${WITH_NAME}`,
       )
-      .order("called_at", { ascending: false }),
-    db
+      .order("called_at", { ascending: false })),
+    mine(db
       .from("promises")
       .select(
         `id,tenant_id,amount,promised_for,source,created_at,confirmation_sent_at,${WITH_NAME}`,
       )
-      .order("created_at", { ascending: false }),
-    db
+      .order("created_at", { ascending: false })),
+    mine(db
       .from("emails_sent")
       .select(
         "id,tenant_id,template_id,template_name,subject,body,recipients," +
           `sent_at,was_simulated,period,${WITH_NAME}`,
       )
-      .order("sent_at", { ascending: false }),
+      .order("sent_at", { ascending: false })),
     /*
      * The fees this system has raised, which is not the same question as the
      * fees MES have billed.
@@ -83,10 +114,10 @@ export async function GET(request: Request) {
      * screen offered to charge the same tenant again the next day, and the
      * repeat-defaulter rule, which fires at three fees, counted zero forever.
      */
-    db
+    mine(db
       .from("late_fees")
       .select("id,tenant_id,period,amount,raised_at")
-      .order("raised_at", { ascending: false }),
+      .order("raised_at", { ascending: false })),
   ]);
 
   const failed = [calls, promises, emails, fees].find((r) => r.error);
@@ -117,7 +148,7 @@ export async function GET(request: Request) {
      * one fewer would be wrong in the direction nobody checks.
      */
     unreadableCalls: read.unreadable,
-    fees: (fees.data ?? []).map((f) => ({
+    fees: ((fees.data ?? []) as Record<string, unknown>[]).map((f) => ({
       id: f.id as string,
       tenantId: f.tenant_id as string,
       period: f.period as string,

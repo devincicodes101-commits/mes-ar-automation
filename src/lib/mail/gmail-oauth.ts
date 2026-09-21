@@ -111,6 +111,19 @@ export function gmailOAuthConnector(
           to: letter.to.join(", "),
           subject: letter.subject,
           text: letter.body,
+          /* Only when there is one. nodemailer treats an empty array as no
+             attachments, but an undefined filename inside one is an error at
+             send time rather than a missing file, so the key is left off. */
+          ...(letter.attachment
+            ? {
+                attachments: [
+                  {
+                    filename: letter.attachment.filename,
+                    content: letter.attachment.content,
+                  },
+                ],
+              }
+            : {}),
           /*
            * Replies go back to the person who sent it, which is the point of
            * connecting individual accounts. Stated rather than left implicit,

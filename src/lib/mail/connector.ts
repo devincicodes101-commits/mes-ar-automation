@@ -36,6 +36,15 @@ export interface Letter {
    */
   templateId?: string;
   templateName?: string;
+  /*
+   * A workbook to attach, for the reports that go out with one.
+   *
+   * MES's manager email is a covering line and a spreadsheet — "please refer
+   * to the enclosed" — so a send without the file is not a smaller version of
+   * the same thing, it is a letter that refers to nothing. Optional because a
+   * tenant reminder has no attachment and never should.
+   */
+  attachment?: { filename: string; content: Buffer };
   /**
    * The billing month this letter is about, as the first of it.
    *
