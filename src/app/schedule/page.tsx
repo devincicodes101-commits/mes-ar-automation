@@ -42,6 +42,11 @@ interface Run {
     lettersBlocked?: number;
     affected?: number;
     value?: number;
+    /* Who was written to, charged, and left alone. A count is not something
+       anybody can check against an inbox. */
+    wrote?: { code: string; name: string }[];
+    chargedTo?: { code: string; name: string }[];
+    heldBack?: { code: string; name: string; why: string }[];
   } | null;
   missed: string[] | null;
   report_date: string | null;
@@ -274,6 +279,34 @@ export default function SchedulePage() {
                       ) : null}
                       {r.status !== "ok" ? (
                         <StatusBadge kind="critical" label={r.error ?? r.status} />
+                      ) : null}
+
+                      {/* Named, because a number is not checkable. Somebody
+                          holding an inbox open wants to know whether these
+                          are the four they received. */}
+                      {(r.summary?.wrote ?? []).length > 0 ? (
+                        <div className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
+                          <span className="text-ink-secondary">Written to: </span>
+                          {r.summary!.wrote!.map((t) => t.name).join(", ")}
+                        </div>
+                      ) : null}
+                      {(r.summary?.chargedTo ?? []).length > 0 ? (
+                        <div className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                          <span className="text-ink-secondary">Charged: </span>
+                          {r.summary!.chargedTo!.map((t) => t.name).join(", ")}
+                        </div>
+                      ) : null}
+                      {/* The more useful half. A tenant the schedule chose not
+                          to write to, and the reason, is what turns "it sent
+                          four" into something anybody can agree with. */}
+                      {(r.summary?.heldBack ?? []).length > 0 ? (
+                        <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-ink-muted">
+                          {r.summary!.heldBack!.map((t) => (
+                            <li key={t.code}>
+                              <span className="text-ink-secondary">{t.name}</span> — {t.why}
+                            </li>
+                          ))}
+                        </ul>
                       ) : null}
                     </td>
                     <td className="tabular px-3 py-3 text-right text-ink-secondary">

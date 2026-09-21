@@ -338,6 +338,19 @@ async function persist(
   lettersSent: number;
   lettersBlocked: number;
   notes: string[];
+  /*
+   * Who, not how many.
+   *
+   * The record said "4 letters" and nothing else, which is a number nobody
+   * can check. A run is worth reading six weeks later only if it says which
+   * tenants it wrote to, and — the part that matters more — which ones it
+   * deliberately left alone and why. "Orchard was held back, they promised to
+   * pay by the 23rd" is the difference between a schedule somebody trusts and
+   * one they have to take on faith.
+   */
+  wrote: { code: string; name: string }[];
+  chargedTo: { code: string; name: string }[];
+  heldBack: { code: string; name: string; why: string }[];
 }> {
   const notes: string[] = [];
   const byId = new Map(pipeline.accounts.map((a) => [a.id, a]));
@@ -532,7 +545,49 @@ async function persist(
     }
   }
 
-  return { feesRaised, lettersWritten, lettersSent, lettersBlocked, notes };
+  const name = (id: string) => {
+    const a = byId.get(id);
+    return { code: a?.customerCode ?? id, name: a?.companyName ?? id };
+  };
+
+  /*
+   * Why each tenant who owes was not written to today.
+   *
+   * Worked out from the same facts the day used rather than guessed at, and
+   * in the order the rules are applied: no address beats everything, then a
+   * promise, then having already had this letter, then — on the 21st only —
+   * never having had the first one.
+   */
+  const heldBack: { code: string; name: string; why: string }[] = [];
+  if (day === 7 || day === 21) {
+    const had = day === 21 ? prior.finalised : prior.reminded;
+    for (const a of pipeline.accounts) {
+      if (a.total <= 0) continue;
+      if (written.includes(a.id)) continue;
+      const promise = prior.promises.get(a.id);
+      const why = !a.hasContact
+        ? "no email address, so they go to the call list"
+        : promise
+          ? `promised ${pipeline.lateFees.fee === 0 ? "" : ""}$${promise.amount} by ${promise.by}`
+          : had.has(a.id)
+            ? "already had this letter this month"
+            : day === 21 && !prior.reminded.has(a.id)
+              ? "never had the first reminder, so they wait for next month's 7th"
+              : "not due today";
+      heldBack.push({ ...name(a.id), why });
+    }
+  }
+
+  return {
+    feesRaised,
+    lettersWritten,
+    lettersSent,
+    lettersBlocked,
+    notes,
+    wrote: written.map(name),
+    chargedTo: charged.map(name),
+    heldBack,
+  };
 }
 
 /**

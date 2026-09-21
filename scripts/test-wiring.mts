@@ -1643,6 +1643,14 @@ check("and nothing more: not sending, not uploading, not raising a fee",
 /* Eight random characters into a uuid column. Every call and every promise
    an officer logged was refused by Postgres, kept in local storage, and shown
    on screen as saved. */
+/* "4 letters" is not something anybody can check against an inbox, and the
+   tenant the schedule deliberately left alone is the more useful half. */
+check("a run records who it wrote to, not only how many",
+      CRON_CODE.includes("wrote: written.map(name)"), true);
+check("and who it held back, with the reason",
+      CRON_CODE.includes("heldBack.push") && CRON_CODE.includes("promised "), true);
+check("the schedule screen shows them",
+      code(path.join(APP, "schedule", "page.tsx")).includes("summary!.heldBack!"), true);
 check("records are given an id the database will accept",
       lib("store.ts").includes("crypto.randomUUID()"), true);
 check("and not eight characters of Math.random",
