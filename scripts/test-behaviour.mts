@@ -23,7 +23,9 @@ import {
 import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
 import {
   brokenPromises,
+  dueTheLetter,
   emptyState,
+  heldBackFromFinal,
   markPaid,
   markPromised,
   planFor,
@@ -981,7 +983,15 @@ const dayBefore = markPromised({ ...base, at: 15 }, one, "2026-09-14", 15);
 check("one day earlier has lapsed", stillOwing(promisePipe, dayBefore).length, 1);
 
 // And it lapses as the month moves, without anybody touching it again.
-const midMonth = markPromised(base, one, "2026-09-16", 7);
+/*
+ * Reminded on the 7th, because that is when this tenant promised and the
+ * promise came out of the reminder. The fixture used to start from a blank
+ * state, which made the last check below quietly depend on the 21st writing to
+ * tenants nobody had ever contacted. That is the fault the final notice rule
+ * closes, and this assertion is about promises lapsing, not about it.
+ */
+const reminded = runDay(promisePipe, base, 7, null);
+const midMonth = markPromised(reminded, one, "2026-09-16", 7);
 check("on the 15th, a promise for the 16th is still good",
       stillOwing(promisePipe, { ...midMonth, at: 15 }).length, 0);
 check("on the 21st, the same promise has run out",
@@ -989,6 +999,68 @@ check("on the 21st, the same promise has run out",
 check("so the final notice reaches them",
       runDay(promisePipe, { ...midMonth, at: 21 }, 21).finalNotice.includes(one.id),
       true);
+
+section("The final notice only follows a first reminder");
+
+/*
+ * The rule the Reminders screen has always had, and the scheduled run never
+ * did. The run called runDay(pipeline, emptyState(), ...) every morning, so on
+ * the 21st every owing tenant with an address looked like a fresh case and got
+ * a letter citing the Employment of Foreign Manpower Regulations. It happened
+ * for real on 21 September 2026: four final notices went out and the run's own
+ * summary said "None of them was reminded on the 7th".
+ *
+ * Asserted on behaviour, not on the source. The guard covering the fault next
+ * door checked that a line of code was present, and the line was present and
+ * inert.
+ */
+
+/* Three tenants who all owe and all have an address, so the only thing
+   deciding who gets what is the rule under test. */
+const s1 = simAcct("seq-1", 1000);
+const s2 = simAcct("seq-2", 2000);
+const s3 = simAcct("seq-3", 3000);
+const seqPipe = simPipe([s1, s2, s3]);
+
+const coldStart = runDay(seqPipe, emptyState(), 21, null);
+check("a 21st with no memory writes to nobody", coldStart.finalNotice.length, 0);
+
+const afterSeventh = runDay(seqPipe, emptyState(), 7, null);
+check("the 7th still writes to everyone reachable",
+      afterSeventh.firstReminder.length > 0, true);
+
+const afterTwentyFirst = runDay(seqPipe, afterSeventh, 21, null);
+check("and the 21st then writes to exactly those tenants",
+      afterTwentyFirst.finalNotice.join("|"), afterSeventh.firstReminder.join("|"));
+
+/* The case that matters most: a tenant who appears only after the 7th. */
+const reachableNow = [s1, s2, s3] as unknown as Parameters<typeof dueTheLetter>[0];
+const newcomer = reachableNow[0]!;
+const missedTheSeventh = {
+  ...emptyState(),
+  firstReminder: reachableNow.slice(1).map((a) => a.id),
+};
+const due21 = dueTheLetter(reachableNow, missedTheSeventh, 21);
+check("a tenant who missed the 7th gets no final notice",
+      due21.some((a) => a.id === newcomer.id), false);
+check("everybody else still does", due21.length, reachableNow.length - 1);
+check("and the one held back is named rather than silently dropped",
+      heldBackFromFinal(reachableNow, missedTheSeventh).map((a) => a.id).join(),
+      newcomer.id);
+
+/* Nobody is written to twice in the same month, whichever letter it is. */
+check("running the 21st again adds nobody",
+      runDay(seqPipe, afterTwentyFirst, 21, null).finalNotice.length,
+      afterTwentyFirst.finalNotice.length);
+check("and running the 7th again adds nobody",
+      runDay(seqPipe, afterSeventh, 7, null).firstReminder.length,
+      afterSeventh.firstReminder.length);
+
+/* The plan has to say why the list is short, or an officer reads zero as a
+   fault in the system rather than as tenants waiting their turn. */
+check("the plan says how many are held back",
+      planFor(seqPipe, missedTheSeventh, 21, null).willDo
+        .some((t) => /held back until next month/.test(t)), true);
 
 // Paying settles it outright, whatever the promise says.
 const paidAnyway = markPaid(stale, one, 9);

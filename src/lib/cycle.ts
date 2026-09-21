@@ -84,6 +84,47 @@ export function emptyState(): SimState {
   };
 }
 
+/**
+ * Who is due one of the two letters today.
+ *
+ * Two rules, and the second one was missing from everything except the
+ * Reminders screen.
+ *
+ *   - Nobody gets the same letter twice in the same month.
+ *   - The final notice only goes to a tenant who actually received the first
+ *     reminder. It cites the Employment of Foreign Manpower Regulations and
+ *     threatens legal action, and sending that as the first thing a tenant
+ *     ever hears from MES is not an escalation, it is an ambush. A tenant who
+ *     appears in the report for the first time on the 20th waits for next
+ *     month's 7th and is chased in order.
+ *
+ * The screen has always done this. The simulation did it by accident, because
+ * a person stepping through a month runs the 7th before the 21st and the state
+ * carries. The schedule did not do it at all: it ran from a blank state, so
+ * every owing tenant with an address was "fresh" on the 21st. Written here
+ * once so that the three cannot drift apart again.
+ */
+export function dueTheLetter(
+  reachable: readonly Account[],
+  s: SimState,
+  day: 7 | 21,
+): Account[] {
+  const had = day === 7 ? s.firstReminder : s.finalNotice;
+  return reachable.filter(
+    (a) => !had.includes(a.id) && (day === 7 || s.firstReminder.includes(a.id)),
+  );
+}
+
+/** Owed a final notice, but never reminded, so held back rather than written to. */
+export function heldBackFromFinal(
+  reachable: readonly Account[],
+  s: SimState,
+): Account[] {
+  return reachable.filter(
+    (a) => !s.finalNotice.includes(a.id) && !s.firstReminder.includes(a.id),
+  );
+}
+
 const money = (n: number) =>
   `SGD ${n.toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -357,8 +398,8 @@ export function planFor(
     }
 
     case 21: {
-      const fresh = reachable.filter((a) => !s.finalNotice.includes(a.id));
-      const hadFirst = fresh.filter((a) => s.firstReminder.includes(a.id)).length;
+      const fresh = dueTheLetter(reachable, s, 21);
+      const heldBack = heldBackFromFinal(reachable, s);
       return {
         day,
         title: "Final notice, then the calls again",
@@ -367,9 +408,13 @@ export function planFor(
           "Repeated calls allowed. Call status count",
         willDo: [
           `${fresh.length} tenants get the final notice.`,
-          hadFirst > 0
-            ? `${hadFirst} of them had the first reminder on the 7th and have not paid since.`
-            : "None of them was reminded on the 7th, which is worth checking.",
+          /* Every one of them, now, rather than a count worth checking. The
+             line used to read "None of them was reminded on the 7th, which is
+             worth checking" while sending to all of them regardless. */
+          "Each of them had the first reminder this month and has not paid since.",
+          heldBack.length > 0
+            ? `${heldBack.length} owe money but were never reminded, so they are held back until next month's 7th.`
+            : "Nobody is held back: every tenant who owes has already been reminded.",
           "It cites the Employment of Foreign Manpower Regulations, so a tenant who has moved out must not receive it.",
           `${p.defaulters.length} have failed more than once and are flagged as repeat defaulters.`,
         ],
@@ -435,8 +480,7 @@ export function outputFor(
   }
 
   if (day === 7 || day === 21) {
-    const already = day === 7 ? s.firstReminder : s.finalNotice;
-    const fresh = reachable.filter((a) => !already.includes(a.id));
+    const fresh = dueTheLetter(reachable, s, day);
     const first = fresh[0];
     const letter = first
       ? renderLetter(day === 7 ? "first-reminder" : "final-notice", {
@@ -526,7 +570,7 @@ export function runDay(
   const add = (e: Omit<SimEvent, "day">) => next.log.push({ day, ...e });
 
   if (day === 7) {
-    const fresh = reachable.filter((a) => !s.firstReminder.includes(a.id));
+    const fresh = dueTheLetter(reachable, s, 7);
     next.firstReminder.push(...fresh.map((a) => a.id));
     for (const a of owing) next.calls[a.id] = (next.calls[a.id] ?? 0) + 1;
     add({
@@ -564,7 +608,7 @@ export function runDay(
   }
 
   if (day === 21) {
-    const fresh = reachable.filter((a) => !s.finalNotice.includes(a.id));
+    const fresh = dueTheLetter(reachable, s, 21);
     next.finalNotice.push(...fresh.map((a) => a.id));
     for (const a of owing) next.calls[a.id] = (next.calls[a.id] ?? 0) + 1;
     add({

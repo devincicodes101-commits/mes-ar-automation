@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { serverSupabase } from "@/lib/supabase-server";
 import { newestReport } from "@/lib/read-report";
 import { buildPipeline } from "@/lib/pipeline";
-import { emptyState, planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
+import { planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
+import { priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
 import type { Pipeline } from "@/lib/pipeline";
-import { CAN_SEND_FOR_REAL } from "@/lib/sending";
 import { send } from "@/lib/mail";
 import { renderLetter } from "@/lib/letters";
 import {
@@ -33,22 +33,33 @@ import {
  * only sign would be a fee that appears in one and not the other.
  *
  * ---------------------------------------------------------------------------
- * Nothing is sent
+ * Whether anything is sent
  *
- * CAN_SEND_FOR_REAL is false and is a constant rather than a setting. Letters
- * this produces are written to emails_sent with was_simulated true, so when
- * sending is finally switched on the dry runs stay distinguishable from the
- * real ones forever after. Turning it on needs a mailbox MES have nominated
- * and addresses for the 181 clients who owe money and have none.
+ * MAIL_MODE decides, and it is off by default. Every letter is written to
+ * emails_sent first with was_simulated true, and the flag is cleared only once
+ * the letter genuinely left, so the day sending was switched on stays findable
+ * in the data forever after.
+ *
+ * This section used to say "Nothing is sent", on the strength of
+ * CAN_SEND_FOR_REAL being a constant false. That constant never gated the
+ * send: the loop below calls send() regardless and the gate it meets is
+ * MAIL_MODE. The header was describing a build that had not existed for some
+ * time, and the run summary was repeating it.
  *
  * ---------------------------------------------------------------------------
- * Running twice
+ * Running twice, and the month's memory
  *
  * Vercel does not promise exactly once, and a person may call this by hand. So
  * every write is idempotent: late_fees has unique (tenant_id, period), letters
  * upsert on an id derived from the day and the tenant, and the run itself is
  * keyed on the Singapore date. A second call on the same day re-reports and
  * changes nothing.
+ *
+ * Idempotent writes were never the whole of it, though, because the run also
+ * has to know what happened on the days before this one and on this one from
+ * another hand. It reads that back from emails_sent and late_fees through
+ * priorContact(); see lib/prior-contact.ts for what went wrong while it did
+ * not.
  */
 
 export const runtime = "nodejs";
@@ -236,11 +247,37 @@ export async function GET(request: Request) {
      * answers to the same question, and the one in memory would be the one
      * that vanished when the function returned.
      */
-    const plan = planFor(pipeline, emptyState(), day, null);
-    const after = runDay(pipeline, emptyState(), day, null);
-
     const period = periodOf(today);
-    const wrote = await persist(db, day, today, period, after, pipeline);
+
+    /*
+     * What has already been done to these tenants this month.
+     *
+     * This used to be emptyState(). The run woke every morning knowing
+     * nothing: not who was written to on the 7th, not who it had written to
+     * itself the last time it ran, not what an officer had sent by hand. So
+     * the 21st sent the final notice to every owing tenant with an address,
+     * reminded or not, and a replayed day sent the lot again.
+     *
+     * A failed read is not an empty one. If the record cannot be read the run
+     * stops rather than proceeding as though nothing had happened, because
+     * "nothing has happened" is the answer that causes a second letter.
+     */
+    const memory = await priorContact(db, period);
+    if (!memory.ok) {
+      return finish({
+        cycle_day: day,
+        status: "failed",
+        summary: {},
+        report_date: report.asOf,
+        error: memory.error,
+      });
+    }
+    const before = stateFrom(memory.prior);
+
+    const plan = planFor(pipeline, before, day, null);
+    const after = runDay(pipeline, before, day, null);
+
+    const wrote = await persist(db, day, today, period, after, pipeline, memory.prior);
 
     return finish({
       cycle_day: day,
@@ -255,7 +292,15 @@ export async function GET(request: Request) {
         affected: plan.affected,
         value: plan.value,
         ...wrote,
-        simulated: !CAN_SEND_FOR_REAL,
+        /*
+         * No `simulated` flag. It was `!CAN_SEND_FOR_REAL`, a constant that is
+         * always false, so every run recorded simulated: true — including this
+         * morning's, which really sent four final notices. The real gate is
+         * MAIL_MODE, and lettersWritten, lettersSent and lettersBlocked above
+         * already say exactly what happened without anybody having to know
+         * that. A flag that is wrong in the direction nobody checks is worse
+         * than no flag.
+         */
       },
       report_date: report.asOf,
       error: null,
@@ -286,6 +331,7 @@ async function persist(
   period: string,
   after: SimState,
   pipeline: Pipeline,
+  prior: PriorContact,
 ): Promise<{
   feesRaised: number;
   lettersWritten: number;
@@ -302,11 +348,17 @@ async function persist(
    * change; these arrays are what the day decided, and they are what the
    * behaviour suite asserts on.
    *
-   * The run started from emptyState(), so everything in them is today's doing
-   * and nothing is carried over from an earlier day.
+   * The run no longer starts from emptyState(), so these arrays are everything
+   * that has happened this month and not only today's doing. Today's doing is
+   * the difference, and taking it is not cosmetic: without it a rerun would
+   * rewrite every letter already sent this month and report having sent them
+   * all again.
    */
-  const charged = after.charged;
-  const written = day === 21 ? after.finalNotice : after.firstReminder;
+  const charged = after.charged.filter((id) => !prior.charged.has(id));
+  const hadAlready = day === 21 ? prior.finalised : prior.reminded;
+  const written = (day === 21 ? after.finalNotice : after.firstReminder).filter(
+    (id) => !hadAlready.has(id),
+  );
 
   let feesRaised = 0;
   if (charged.length > 0) {
@@ -334,6 +386,7 @@ async function persist(
   let lettersWritten = 0;
   let lettersSent = 0;
   let lettersBlocked = 0;
+  let blockedBecause: string | null = null;
 
   if (written.length > 0) {
     /*
@@ -403,34 +456,30 @@ async function persist(
       else lettersWritten = rows.length;
 
       /*
-       * Which of these letters genuinely left last time.
+       * No second check here, and that is deliberate.
        *
-       * The row ids are derived from the date, the day and the tenant, so a
-       * rerun upserts the same rows and the record never doubles. The delivery
-       * did. A caught-up day, or a day that crashed half way and was replayed,
-       * would put the same letter in a tenant's inbox twice — and replaying a
-       * missed day is the whole point of the catch-up.
+       * There used to be one, and it did nothing. It asked which of these row
+       * ids were already marked really sent — but it asked immediately after
+       * the upsert above, whose payload carries was_simulated: true, so the
+       * upsert reset the flag on every row a moment before the query tested
+       * it. The answer was always "none". A replayed day resent the lot, which
+       * is exactly what the check had been written to prevent, and the wiring
+       * guard that covered it only checked that the code was present.
        *
-       * was_simulated is the test rather than mere existence, because a row
-       * written and not sent is exactly the state a crash leaves behind, and
-       * that one does need sending.
+       * It was blind in a second way too. Row ids are derived from the date,
+       * the day and the tenant, so a letter an officer sent by hand from the
+       * Reminders screen — which gets a random id — could never match one.
+       * Same tenant, same letter, same month, twice.
+       *
+       * Both are gone because the question is now asked once, earlier, and in
+       * the terms it should always have been asked in: has this tenant really
+       * received this letter this month, however it was sent. See
+       * priorContact(), and `written` above, which is what is left after the
+       * answer is taken away.
        */
-      const already = new Set<string>();
-      const sentBefore = await db
-        .from("emails_sent")
-        .select("id")
-        .in("id", rows.map((r) => r.id))
-        .eq("was_simulated", false);
-      for (const r of sentBefore.data ?? []) already.add(r.id as string);
-
       for (const row of rows) {
         const account = byId.get(row.tenant_id);
         if (!account) continue;
-
-        if (already.has(row.id)) {
-          lettersSent += 1;
-          continue;
-        }
 
         /*
          * Null for the user, because the schedule is nobody. That is what the
@@ -456,22 +505,28 @@ async function persist(
             .eq("id", row.id);
         } else if (outcome.blocked) {
           lettersBlocked += 1;
+          /* The gate's own words, kept for the note below. It knows whether
+             sending is off, whether the address is outside the test list, or
+             whether the letter came out with a merge field still in it, and
+             those need three different responses. */
+          if (!blockedBecause) blockedBecause = outcome.reason ?? null;
         } else {
           notes.push(`${account.companyName}: ${outcome.reason}`);
         }
       }
 
       /*
-       * Said once rather than forty times. Every letter blocked for the same
-       * reason is the normal state while sending is off, and repeating it per
-       * tenant would bury anything that actually went wrong.
+       * Said once rather than forty times, and in the gate's words rather than
+       * a guess. This used to read "Sending is switched off" whenever
+       * CAN_SEND_FOR_REAL was false — which is always, because it is a
+       * constant — while the thing actually deciding is MAIL_MODE. So a run
+       * blocked because an address was not on the test list reported that
+       * sending was off, and sent somebody to check the wrong setting.
        */
       if (lettersBlocked > 0) {
         notes.push(
           `${lettersBlocked} letters were written but not sent. ` +
-            (CAN_SEND_FOR_REAL
-              ? "Check the mailbox under Settings."
-              : "Sending is switched off."),
+            (blockedBecause ?? "No reason was given."),
         );
       }
     }

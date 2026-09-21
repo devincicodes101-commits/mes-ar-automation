@@ -1454,12 +1454,88 @@ console.log("\nA replayed day does not send the same letter again");
  */
 const CRON_SEND = read("src/app/api/cron/route.ts");
 
-check("the run asks which letters genuinely left before sending",
-      CRON_SEND.includes('.eq("was_simulated", false)'), true);
-check("and skips those",
-      CRON_SEND.includes("if (already.has(row.id))"), true);
-check("a row written but never sent is still sent",
-      CRON_SEND.includes("was_simulated is the test rather than mere existence"), true);
+/*
+ * Rewritten, because the three checks that stood here were satisfied by code
+ * that did nothing.
+ *
+ * They asked whether the guard was present. It was: a query for the row ids
+ * marked really sent, and a skip for each one it found. It never found any,
+ * because it ran immediately after an upsert whose payload carries
+ * was_simulated: true — so the flag was reset a line before the query tested
+ * it. And it compared row ids, which a letter sent by hand from the Reminders
+ * screen never shares, so those were invisible to it as well.
+ *
+ * That is the lesson worth keeping: a guard that greps for a line proves the
+ * line exists, not that it does anything. The behaviour suite now asserts the
+ * rule by running it. These check the wiring the behaviour suite cannot see —
+ * that the route reads the month back before it decides, and that it can no
+ * longer decide from a blank sheet.
+ */
+const CRON_CODE = code(path.join(APP, "api", "cron", "route.ts"));
+
+check("the run reads what has already been done this month",
+      CRON_CODE.includes("await priorContact(db, period)"), true);
+/* Named, because the first version of this guard did not catch a revert that
+   passed stateFrom() three empty sets: it checked that a variable called
+   `before` reached runDay, which stayed true. What matters is where `before`
+   came from. */
+check("and the state is what it read, not an empty one wearing its name",
+      CRON_CODE.includes("stateFrom(memory.prior)"), true);
+check("and hands it to the day as its starting state",
+      /runDay\(pipeline, before, day/.test(CRON_CODE) &&
+        /planFor\(pipeline, before, day/.test(CRON_CODE), true);
+check("it can no longer start from a blank sheet",
+      /emptyState\(\)/.test(CRON_CODE), false);
+check("a failed read stops the run instead of resending",
+      CRON_CODE.includes("if (!memory.ok)"), true);
+check("only letters not already sent this month are written",
+      CRON_CODE.includes("!hadAlready.has(id)"), true);
+check("and only fees not already raised are counted",
+      CRON_CODE.includes("!prior.charged.has(id)"), true);
+check("the inert id-based skip is gone",
+      CRON_CODE.includes("already.has(row.id)"), false);
+check("the record is still read for real sends only, not mere existence",
+      lib("prior-contact.ts").includes('.eq("was_simulated", false)'), true);
+check("and it pages, because a silent truncation here means a second letter",
+      lib("prior-contact.ts").includes("from += PAGE"), true);
+
+/* --------------- the final notice cannot be a tenant's first contact ----- */
+
+console.log("\nThe final notice only follows a first reminder");
+
+/*
+ * The screen has always had this rule. The schedule never did, because it ran
+ * from a blank state: every owing tenant with an address was "fresh" on the
+ * 21st. On 21 September 2026 four final notices went out and the run's own
+ * summary said "None of them was reminded on the 7th".
+ *
+ * One definition, used by the screen, the simulation and the schedule alike.
+ */
+const CYCLE_CODE = code(path.join(LIB, "cycle.ts"));
+
+check("there is one rule for who is due a letter",
+      (CYCLE_CODE.match(/export function dueTheLetter/g) ?? []).length, 1);
+check("the plan uses it", /dueTheLetter\(reachable, s, day\)/.test(CYCLE_CODE), true);
+check("the 21st uses it", /dueTheLetter\(reachable, s, 21\)/.test(CYCLE_CODE), true);
+check("the 7th uses it", /dueTheLetter\(reachable, s, 7\)/.test(CYCLE_CODE), true);
+check("no day still filters on finalNotice by hand",
+      /reachable\.filter\(\(a\) => !s\.finalNotice\.includes/.test(CYCLE_CODE), false);
+check("the tenants held back are named, not silently dropped",
+      CYCLE_CODE.includes("heldBackFromFinal"), true);
+check("the screen keeps the rule it already had",
+      code(path.join(APP, "reminders", "page.tsx")).includes("gotFirst.has(q.account.id)"), true);
+
+/* ------------------------- the summary stops claiming it was a dry run --- */
+
+/*
+ * `simulated: !CAN_SEND_FOR_REAL` recorded simulated: true on every run ever,
+ * including the one that really sent four letters, because the constant is
+ * always false and never gated the send. MAIL_MODE does.
+ */
+check("no run claims to be simulated on the strength of a constant",
+      CRON_CODE.includes("simulated: !CAN_SEND_FOR_REAL"), false);
+check("and a blocked letter reports the gate's own reason",
+      CRON_CODE.includes("blockedBecause ??"), true);
 check("fees stay idempotent the way they already were",
       CRON_SEND.includes('onConflict: "tenant_id,period"') &&
         CRON_SEND.includes("ignoreDuplicates: true"), true);
