@@ -128,9 +128,26 @@ check("admin can run the whole cycle but not manage users",
   can("admin", "send-reminders") && !can("admin", "manage-users"), true);
 check("CSD can send but cannot change settings",
   can("CSD", "send-reminders") && !can("CSD", "edit-settings"), true);
-check("an RM can only read their own tenants",
-  ROLE_CAPABILITIES.RM.join(","), "view-own-tenants");
+/*
+ * A manager records what came of their own calls, and does nothing else.
+ *
+ * They were read-only, which meant the person who made the call was never the
+ * person who wrote it down. A promise taken on the 12th that reaches the
+ * system after the 16th does not stop the $100, so the tenant is charged for
+ * being late after they had already arranged to pay.
+ *
+ * The exact list is asserted rather than the two new entries, because the
+ * risk here is a capability arriving quietly: this is the role held by people
+ * outside the finance team.
+ */
+check("a manager may record calls and promises",
+  ROLE_CAPABILITIES.RM.join(","), "view-own-tenants,log-calls,record-promises");
 check("an RM cannot send a reminder", can("RM", "send-reminders"), false);
+check("nor upload a report", can("RM", "upload-reports"), false);
+check("nor raise a fee", can("RM", "raise-late-fees"), false);
+check("nor read the audit log", can("RM", "read-audit-log"), false);
+check("nor see a tenant's email address",
+  can("RM", "view-tenant-emails"), false);
 check("management can read but not act",
   can("Management", "generate-reports") && !can("Management", "send-reminders"), true);
 check("nobody sees tenant emails without the capability",

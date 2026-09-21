@@ -1632,6 +1632,14 @@ check("the activity route narrows in the query, not after it",
    depends on which door you came in by is not a permission. */
 check("writing an activity record needs the same permission as the screen",
       ACTIVITY_CODE.includes("can(who.caller.role, needed)"), true);
+check("a manager may record their own calls and promises",
+      lib("auth.ts").includes('RM: ["view-own-tenants", "log-calls", "record-promises"]'), true);
+check("and nothing more: not sending, not uploading, not raising a fee",
+      /RM: \[[^\]]*(send-reminders|upload-reports|raise-late-fees)/.test(lib("auth.ts")), false);
+check("a write is checked against the tenant being theirs",
+      ACTIVITY_CODE.includes("await ownsTenant(db, who.caller, subject)"), true);
+check("a missing tenant and somebody else's give the same answer",
+      code(path.join(LIB, "scope-server.ts")).includes('if (!data || data.rm_key !== caller.rmKey)'), true);
 check("and each kind names the capability it needs",
       ACTIVITY_CODE.includes('call: "log-calls"') &&
         ACTIVITY_CODE.includes('"late-fee": "raise-late-fees"'), true);

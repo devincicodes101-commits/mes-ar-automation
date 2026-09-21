@@ -121,7 +121,21 @@ export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
     "log-calls", "record-promises", "raise-late-fees", "generate-reports",
     "email-reports", "read-audit-log",
   ],
-  RM: ["view-own-tenants"],
+  /*
+   * A manager may record what came of their own calls.
+   *
+   * They were read-only, which meant the person who made the call was never
+   * the person who wrote it down. That split is not untidiness, it is a
+   * delay: a promise taken on the 12th that reaches the system after the 16th
+   * does not stop the $100, so the tenant is charged for being late after
+   * they had already arranged to pay.
+   *
+   * Only these two. Not sending, not uploading, not raising a fee — a manager
+   * chases their own book and does not run the month. And only their own
+   * tenants: scope() narrows the screens, the API narrows what it hands over,
+   * and ownsTenant() checks it again on the way in.
+   */
+  RM: ["view-own-tenants", "log-calls", "record-promises"],
   Management: ["view-all-tenants", "generate-reports", "read-audit-log"],
 };
 

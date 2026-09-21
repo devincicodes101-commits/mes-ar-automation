@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { identify } from "@/lib/api-auth";
 import { can, type Capability } from "@/lib/auth";
 import { serverSupabase } from "@/lib/supabase-server";
-import { visibleTenantIds } from "@/lib/scope-server";
+import { ownsTenant, visibleTenantIds } from "@/lib/scope-server";
 import {
   callToRow,
   promiseToRow,
@@ -225,6 +225,23 @@ export async function POST(request: Request) {
     db = serverSupabase();
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+  }
+
+  /*
+   * And that it is their tenant, for a manager.
+   *
+   * The screens make this hard to get wrong already — scope() narrows the
+   * list an officer picks from, and this route narrows what it hands over, so
+   * a manager's browser never holds anybody else's tenants to choose. Asked
+   * again here because that is the only place it is enforced rather than made
+   * inconvenient, and because the id in this request came from the caller.
+   */
+  const about =
+    (body.record as { accountId?: string; tenantId?: string } | null) ?? {};
+  const subject = about.accountId ?? about.tenantId ?? "";
+  const owns = await ownsTenant(db, who.caller, subject);
+  if (!owns.ok) {
+    return NextResponse.json({ ok: false, error: owns.error }, { status: 403 });
   }
 
   let table: string;

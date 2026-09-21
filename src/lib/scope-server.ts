@@ -107,3 +107,43 @@ export function narrowReport<
     ),
   };
 }
+
+/**
+ * Whether this caller may write about this tenant.
+ *
+ * The screens already make it hard to get wrong: scope() narrows the list an
+ * officer picks from, and the API now narrows what it hands over, so a
+ * manager's browser never holds another manager's tenants to pick. This is
+ * the same question asked once more at the point of writing, because that is
+ * the only place it is enforced rather than merely made inconvenient.
+ *
+ * It costs one query and only for a manager. Everybody else may write about
+ * any tenant, which is what their roles already mean.
+ */
+export async function ownsTenant(
+  db: SupabaseClient,
+  caller: Caller,
+  tenantId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isNarrowed(caller)) return { ok: true };
+  if (!tenantId) return { ok: false, error: "No tenant was named." };
+
+  const { data, error } = await db
+    .from("tenants")
+    .select("rm_key")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: `Could not check that tenant: ${error.message}` };
+  }
+  /*
+   * A tenant that does not exist and one belonging to somebody else get the
+   * same answer. The difference is only useful to somebody guessing which
+   * tenant ids are real.
+   */
+  if (!data || data.rm_key !== caller.rmKey) {
+    return { ok: false, error: "That tenant is not on your list." };
+  }
+  return { ok: true };
+}

@@ -355,12 +355,22 @@ let leaks = 0;
 for (const r of ROUTES) if (canOpen(null, r)) leaks += 1;
 check("signed out, not one of the 14 routes opens", leaks, 0);
 
+/*
+ * A manager records their own calls and promises, and nothing else. The list
+ * below is everything they must not be able to do, checked exhaustively
+ * rather than by sampling, because this is the role held by people outside
+ * the finance team and a capability arriving quietly here is the one that
+ * would not be noticed.
+ */
 let rmCanAct = 0;
-for (const c of ["send-reminders", "log-calls", "raise-late-fees", "upload-reports",
-  "edit-settings", "manage-users", "view-tenant-emails"] as const) {
+for (const c of ["send-reminders", "raise-late-fees", "upload-reports",
+  "edit-settings", "manage-users", "view-tenant-emails", "view-all-tenants",
+  "generate-reports", "email-reports", "edit-templates", "read-audit-log"] as const) {
   if (can("RM", c)) rmCanAct += 1;
 }
-check("an RM can do none of the seven acting things", rmCanAct, 0);
+check("an RM can do none of the eleven things that are not theirs", rmCanAct, 0);
+check("but may record what came of their own calls",
+  can("RM", "log-calls") && can("RM", "record-promises"), true);
 
 let mgmtCanAct = 0;
 for (const c of ["send-reminders", "log-calls", "raise-late-fees", "upload-reports",
