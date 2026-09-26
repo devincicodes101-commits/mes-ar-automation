@@ -186,3 +186,83 @@ export function askedFor(value: string | null, today: SgDate): { date: SgDate } 
     date: { iso: value, year, month, day, hour: today.hour },
   };
 }
+
+/* ------------------------------------------------- how old is too old --- */
+
+/**
+ * The days a report may be behind before the schedule stops acting on it.
+ *
+ * MES upload three times a month — the 4th, the 7th and the 16th — and the
+ * whole cycle assumes it. The Age column in their export is fixed at the
+ * moment they press export; it does not advance as days pass. So a report
+ * pulled on the 4th and still the newest on the 21st has ages seventeen days
+ * stale, and every decision taken from it is seventeen days out of date.
+ *
+ * The longest legitimate gap is the 16th to the 4th of the next month, which
+ * is nineteen days, so at any cycle day the newest report should be at most
+ * about sixteen days old. Twenty-five means at least one upload was missed
+ * outright, not that somebody was a day late.
+ */
+export const STALE_AFTER_DAYS = 25;
+
+/** Where it is worth saying "this is getting old" without refusing. */
+export const AGEING_AFTER_DAYS = 16;
+
+/**
+ * How far behind the loaded report is, in days, or null where it cannot say.
+ *
+ * Negative means the report is dated in the future, which happens when
+ * somebody loads next month's export early. That is not stale, and treating
+ * it as such would refuse a run over a report fresher than today.
+ */
+export function reportAgeDays(reportDate: string | null, today: SgDate): number | null {
+  if (!reportDate) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(reportDate);
+  if (!m) return null;
+  const from = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const to = Date.UTC(today.year, today.month - 1, today.day);
+  return Math.round((to - from) / 86_400_000);
+}
+
+/**
+ * Whether a day that writes to tenants should act on this report.
+ *
+ * Only the three days that write: the 7th and the 21st put a letter in front
+ * of a tenant, and the 16th charges them $100. The other three record that
+ * they woke and are harmless on any data.
+ *
+ * Refusing is the right way round. A missed fee can be caught up the moment
+ * the report arrives — askedFor() exists for exactly that — while a $100
+ * charged to somebody who paid three weeks ago is a phone call from an angry
+ * customer and a credit note. The recoverable failure is the one to choose.
+ */
+export function tooOldToAct(
+  day: number,
+  ageDays: number | null,
+): { act: false; why: string } | { act: true; warn: string | null } {
+  const writes = day === 7 || day === 16 || day === 21;
+  if (!writes || ageDays === null) return { act: true, warn: null };
+
+  if (ageDays > STALE_AFTER_DAYS) {
+    return {
+      act: false,
+      why:
+        `The newest report is ${ageDays} days old, which is more than the ` +
+        `${STALE_AFTER_DAYS} days this day will act on. MES upload on the ` +
+        "4th, the 7th and the 16th, so a report this far behind means an " +
+        "upload was missed. Nothing was sent and no fee was raised: upload " +
+        "the current report and run this day again.",
+    };
+  }
+
+  if (ageDays > AGEING_AFTER_DAYS) {
+    return {
+      act: true,
+      warn:
+        `The report is ${ageDays} days old. It was acted on, but the figures ` +
+        "are from before the last upload was due.",
+    };
+  }
+
+  return { act: true, warn: null };
+}

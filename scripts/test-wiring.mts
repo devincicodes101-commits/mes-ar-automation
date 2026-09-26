@@ -1718,6 +1718,15 @@ check("and the fee screen offers it",
 /* cron_runs answers "what happened" and not "why", and the two are asked at
    different times: the summary the morning after, this six weeks later when
    somebody asks why one tenant got one letter. */
+/* MES's Age column is fixed at export. A report pulled on the 4th and still
+   newest on the 21st is seventeen days stale, and the 16th would charge $100
+   to somebody who paid a fortnight ago. */
+check("a day that writes checks how far behind the report is",
+      CRON_CODE.includes("tooOldToAct(day, ageDays)"), true);
+check("and stops rather than acting on it",
+      CRON_CODE.includes('status: "report-too-old"'), true);
+check("an ageing but usable report is flagged in the run's notes",
+      CRON_CODE.includes("wrote.notes.unshift(freshness.warn)"), true);
 check("every run writes a line-by-line diary",
       CRON_CODE.includes("runLog(db, today.iso)"), true);
 check("the report it read is in it",

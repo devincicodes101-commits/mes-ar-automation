@@ -24,6 +24,10 @@ import {
   inSingapore,
   missedSince,
   periodOf,
+  reportAgeDays,
+  tooOldToAct,
+  STALE_AFTER_DAYS,
+  AGEING_AFTER_DAYS,
 } from "../src/lib/schedule.ts";
 import { CYCLE_DAYS } from "../src/lib/cycle.ts";
 
@@ -183,6 +187,52 @@ check("at the expression the code documents", cron?.schedule, CRON_EXPRESSION);
  */
 check("it runs every day, so a gap can be seen",
       /^\S+ \S+ \* \* \*$/.test(cron?.schedule ?? ""), true);
+
+console.log("\nA report too far behind is not acted on");
+
+/*
+ * MES's Age column is fixed when they press export. It does not advance as
+ * days pass, so a report pulled on the 4th and still newest on the 21st is
+ * seventeen days stale and every decision from it is seventeen days old. On
+ * the 16th that is $100 charged to somebody who paid a fortnight ago.
+ *
+ * Refused rather than done anyway: a missed fee is caught up the moment the
+ * report arrives, and a wrong charge needs a phone call and a credit note.
+ */
+const sg = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return { iso, year: y!, month: m!, day: d!, hour: 9 };
+};
+
+check("a report from today is nought days behind",
+      reportAgeDays("2026-09-16", sg("2026-09-16")), 0);
+check("and one from a fortnight ago is fourteen",
+      reportAgeDays("2026-09-02", sg("2026-09-16")), 14);
+check("a report dated in the future is negative, not stale",
+      reportAgeDays("2026-12-31", sg("2026-09-16"))! < 0, true);
+check("no report date gives no answer rather than a guess",
+      reportAgeDays(null, sg("2026-09-16")), null);
+
+check("the 16th acts on a report from the 7th", tooOldToAct(16, 9).act, true);
+check("and on one at the edge of the window", tooOldToAct(16, STALE_AFTER_DAYS).act, true);
+check("but not one a day past it", tooOldToAct(16, STALE_AFTER_DAYS + 1).act, false);
+check("the 7th is refused too", tooOldToAct(7, 40).act, false);
+check("and the 21st", tooOldToAct(21, 40).act, false);
+
+/* The three that write are the three that matter. A day that only records
+   that it woke is harmless on any data. */
+check("the 1st still runs, however old the report", tooOldToAct(1, 400).act, true);
+check("so does the 4th, which is the day an upload arrives", tooOldToAct(4, 400).act, true);
+check("and the 15th", tooOldToAct(15, 400).act, true);
+
+check("an ageing report is acted on and flagged",
+      tooOldToAct(16, AGEING_AFTER_DAYS + 1).act === true &&
+        (tooOldToAct(16, AGEING_AFTER_DAYS + 1) as { warn: string | null }).warn !== null, true);
+check("a fresh one is not flagged",
+      (tooOldToAct(16, 3) as { warn: string | null }).warn, null);
+check("a future-dated report is never refused",
+      tooOldToAct(16, -40).act, true);
+
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

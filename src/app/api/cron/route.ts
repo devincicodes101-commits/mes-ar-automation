@@ -15,6 +15,8 @@ import {
   inSingapore,
   missedSince,
   periodOf,
+  reportAgeDays,
+  tooOldToAct,
   type SgDate,
 } from "@/lib/schedule";
 
@@ -261,10 +263,42 @@ export async function GET(request: Request) {
   }
 
   const report = stored.report;
+
+  /*
+   * How far behind the figures are, and whether this day should act on them.
+   *
+   * The Age column is fixed when MES press export; it does not advance as
+   * days pass. So a report pulled on the 4th and still newest on the 21st is
+   * seventeen days stale, and every decision from it is seventeen days out of
+   * date. On the three days that write to a tenant that matters: the 16th
+   * would charge $100 to somebody who paid a fortnight ago.
+   *
+   * Refused rather than done anyway, because a missed fee can be caught up
+   * the moment the report arrives and a wrong charge cannot be taken back
+   * without a phone call and a credit note.
+   */
+  const ageDays = reportAgeDays(report.asOf, today);
+  const freshness = tooOldToAct(day, ageDays);
+  if (!freshness.act) {
+    log.say("report", freshness.why, {
+      reportDate: report.asOf,
+      ageDays,
+      cycleDay: day,
+    }, { level: "error" });
+    return finish({
+      cycle_day: day,
+      status: "report-too-old",
+      summary: { title: "The report is too far behind to act on", reportAgeDays: ageDays },
+      report_date: report.asOf,
+      error: freshness.why,
+    });
+  }
+
   log.say("report", `Read the report of ${report.asOf}`, {
     reportDate: report.asOf,
     tenants: report.accounts.length,
     invoiceLines: report.invoices.length,
+    ageDays,
     owing: report.accounts.filter((a) => a.total > 0).length,
     withAnAddress: report.accounts.filter((a) => a.hasContact).length,
     label: report.label,
@@ -342,6 +376,10 @@ export async function GET(request: Request) {
     });
 
     const wrote = await persist(db, day, today, period, after, pipeline, memory.prior, log);
+    if (freshness.warn) {
+      wrote.notes.unshift(freshness.warn);
+      log.say("report", freshness.warn, { ageDays }, { level: "warn" });
+    }
 
     return finish({
       cycle_day: day,
