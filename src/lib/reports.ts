@@ -59,6 +59,15 @@ export interface Report {
 
 const PROPERTY_ORDER: PropertyCode[] = ["JPD1", "JPD2", "BSD", "LEO"];
 
+/* MES's own names for them, for a report title that reads like a document
+   rather than a code. */
+const PROPERTY_LABEL: Record<PropertyCode, string> = {
+  JPD1: "Jurong Penjuru Dormitory 1",
+  JPD2: "Jurong Penjuru Dormitory 2",
+  BSD: "Blue Stars Dormitory",
+  LEO: "The Leo",
+};
+
 const norm = (s: unknown) =>
   String(s ?? "").trim().replace(/\s+/g, " ").replace(/\.$/, "").toUpperCase();
 
@@ -254,6 +263,91 @@ export function buildRevenueTab(
     total: round2(mine.reduce((n, i) => n + i.openBalance, 0)),
     notes: spec.note ? [spec.note] : [],
   };
+}
+
+/* ------------------------------------------------------- the dorm tabs -- */
+
+/**
+ * One tab per dormitory, which is the first half of MES's own instruction.
+ *
+ *   "Show by Dorm followed by SD/PF/1FM/LP/SD/RM"
+ *
+ * Their workbook says plainly what that means. Its tab strip reads JPD1,
+ * JPD2, BSD, LEO, then Security Deposit(SD), Parking Fee(PF), 1FM, Late
+ * Payment(LP), Stamp Duty(SD), RM. Ten tabs: four dormitories, then the six
+ * reports. The sentence is a list of tabs, in order.
+ *
+ * It had been read here as "each report broken down by dormitory", which the
+ * revenue tabs already do and which is a reasonable reading of the words —
+ * but not what their file shows, and their file is the better evidence.
+ *
+ * Inside a dormitory the lines are grouped by charge type, so the second half
+ * of the sentence holds within the first: a dorm tab, and within it SD, PF,
+ * 1FM and the rest, each with its own total.
+ */
+export function buildPropertyTab(
+  property: PropertyCode,
+  invoices: readonly Line[],
+  asOf: string | null,
+  entity: string | null,
+): Report {
+  const mine = invoices.filter((i) => (i.property ?? "BSD") === property);
+
+  /* Charge types in the order MES list them, so two dormitory tabs read the
+     same way down the page. Anything the rules did not recognise goes last
+     under its own heading rather than being dropped. */
+  const ORDER = REVENUE_TABS.map((t) => t.revenueType);
+  const seen = Array.from(new Set(mine.map((i) => i.revenueType)));
+  const types = [
+    ...ORDER.filter((t) => seen.includes(t)),
+    ...seen.filter((t) => !ORDER.includes(t)).sort(),
+  ];
+
+  const blocks: ReportBlock[] = [];
+  for (const type of types) {
+    const rows = mine.filter((i) => i.revenueType === type);
+    if (rows.length === 0) continue;
+    blocks.push({
+      title: type,
+      columns: LINE_COLUMNS,
+      rows: rows.map((i) => ({
+        customerCode: i.customerCode ?? "",
+        companyName: i.companyName,
+        date: i.date,
+        description: i.description,
+        category: i.category ?? "",
+        documentNumber: i.documentNumber,
+        dueDate: i.dueDate,
+        age: i.age,
+        bucket: i.bucket,
+        openBalance: round2(i.openBalance),
+      })),
+      total: round2(rows.reduce((n, i) => n + i.openBalance, 0)),
+    });
+  }
+
+  return {
+    code: `DORM-${property}`,
+    name: `${PROPERTY_LABEL[property]} (${property})`,
+    shorthand: property,
+    asOf,
+    entity,
+    blocks,
+    lineCount: mine.length,
+    total: round2(mine.reduce((n, i) => n + i.openBalance, 0)),
+    notes: [],
+  };
+}
+
+/** All four, in MES's own tab order, skipping any with nothing in them. */
+export function buildPropertyTabs(
+  invoices: readonly Line[],
+  asOf: string | null,
+  entity: string | null,
+): Report[] {
+  return PROPERTY_ORDER.map((p) => buildPropertyTab(p, invoices, asOf, entity)).filter(
+    (r) => r.lineCount > 0,
+  );
 }
 
 /* ------------------------------------------------------ the manager report */

@@ -1626,6 +1626,17 @@ const REPORT_ROUTE = code(path.join(APP, "api", "report", "route.ts"));
    "Email a report" dropdown, whose preview shows the covering note rather
    than the report — so the dorm blocks were in the generated file and on no
    screen, which is the same as asking somebody to take it on trust. */
+/* Their Flow tab says "Show by Dorm followed by SD/PF/1FM/LP/SD/RM" and the
+   tab strip of the workbook they sent reads JPD1, JPD2, BSD, LEO, then the
+   six reports. Ten tabs, in that order. It had been read here as "each
+   report broken down by dormitory" — a fair reading of the words, and not
+   what their own file shows. */
+check("the four dormitory tabs exist",
+      lib("reports.ts").includes("export function buildPropertyTabs"), true);
+check("and inside a dorm the lines are grouped by charge type",
+      code(path.join(LIB, "reports.ts")).includes("i.revenueType === type"), true);
+check("they come before the six, as in MES's own tab strip",
+      REPORTS_PAGE.indexOf("buildPropertyTabs(") < REPORTS_PAGE.indexOf("REVENUE_TABS.map"), true);
 check("any of the six can be looked at, not only the manager one",
       REPORTS_PAGE.includes('setOpenManager(report as ReportShape)'), true);
 check("and the viewer titles itself from whichever it was given",

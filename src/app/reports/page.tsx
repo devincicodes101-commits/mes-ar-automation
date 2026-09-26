@@ -22,6 +22,7 @@ import {
   REVENUE_TABS,
   buildManagerReports,
   depositsFromLedger,
+  buildPropertyTabs,
   buildRevenueTab,
 } from "@/lib/reports";
 import {
@@ -169,8 +170,15 @@ export default function ReportsPage() {
     [managerReports],
   );
 
+  /*
+   * The ten tabs MES's own workbook has, in its own order: the four
+   * dormitories, then the six reports. Their Flow tab says "Show by Dorm
+   * followed by SD/PF/1FM/LP/SD/RM" and the tab strip of the file they sent
+   * is exactly that list, which is better evidence than the sentence.
+   */
   const sendable = useMemo(
     () => [
+      ...buildPropertyTabs(ds.invoices, ds.asOf, null),
       ...REVENUE_TABS.map((spec) =>
         buildRevenueTab(spec, ds.invoices, ds.asOf, null),
       ),
