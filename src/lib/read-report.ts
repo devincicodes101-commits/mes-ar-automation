@@ -205,8 +205,44 @@ export async function reportDates(
   return { ok: true, dates };
 }
 
-/** The newest stored report, or an explanation. */
+/**
+ * The report the app is currently working from: the last one uploaded.
+ *
+ * ---------------------------------------------------------------------------
+ * Last uploaded, not latest dated
+ *
+ * This used to take the highest report_date, on the reasoning that a newer
+ * report is a better report and loading an older one by mistake should not
+ * throw away the current picture.
+ *
+ * It is the wrong rule, and the way it fails is the worst kind. An officer
+ * uploads a file, the import succeeds, every screen carries on showing the
+ * previous month, and nothing says why. There is a warning at upload time —
+ * "this report is older than the one currently loaded" — and it sits among
+ * other warnings on a screen somebody is scrolling past. The conclusion they
+ * reach is that the upload is broken.
+ *
+ * Uploading a file is somebody saying "use this one". So it is used. If the
+ * file is older than it should be, the schedule already refuses to act on it
+ * — see tooOldToAct — which is the protection the date rule was reaching for,
+ * done in the place where a stale figure could actually cost a tenant $100
+ * rather than in the place where it only decides what is on screen.
+ *
+ * Falls back to the highest report_date where there is no upload row to go
+ * on, which is the case for anything imported before uploads were recorded.
+ */
 export async function newestReport(db: SupabaseClient): Promise<ReadResult> {
+  const last = await db
+    .from("uploads")
+    .select("report_date")
+    .order("uploaded_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!last.error && last.data?.report_date) {
+    return reportOn(db, last.data.report_date as string);
+  }
+
   const dates = await reportDates(db);
   if (!dates.ok) return { ok: false, error: dates.error, detail: null };
   if (dates.dates.length === 0) {

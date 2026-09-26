@@ -150,8 +150,16 @@ export function checkUpload(
       );
     }
 
-    // Uploading an older report than the one in use is almost always an
-    // accident, and it silently rewinds every figure on every screen.
+    /*
+     * Uploading an older report than the one in use is almost always an
+     * accident, and now that the last upload is the one shown, it takes
+     * effect rather than being quietly ignored.
+     *
+     * Which is the right way round — an upload that changes nothing is the
+     * worse surprise — but it makes this warning matter more than it did.
+     * It used to describe a thing that would not happen; it now describes
+     * what is about to.
+     */
     if (active && active.source === "uploaded" && aging.asOf) {
       const gap = daysBetween(aging.asOf, active.asOf);
       if (gap !== null && gap < 0) {
@@ -160,8 +168,9 @@ export function checkUpload(
           title: "This report is older than the one currently loaded",
           detail:
             `It is dated ${aging.asOf}; the system is using ${active.asOf}. ` +
-            `Using it would move every figure back ${Math.abs(gap)} days. ` +
-            "Check you picked the right export.",
+            `Applying it will move every figure back ${Math.abs(gap)} days, ` +
+            "because the last report uploaded is the one the system works " +
+            "from. Check you picked the right export.",
         });
       }
     }

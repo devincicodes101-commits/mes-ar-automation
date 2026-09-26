@@ -1779,6 +1779,17 @@ check("and each kind names the capability it needs",
    board that means scrolling to the bottom for a figure and all the way back
    for the navigation. */
 const SHELL_CODE = code(path.join("src", "components", "Shell.tsx"));
+/* An upload that changes nothing on screen is the worst way for this to
+   fail: the import succeeds, every screen carries on showing last month, and
+   the conclusion is that uploading is broken. The protection the date rule
+   was reaching for now lives in tooOldToAct, where a stale figure could cost
+   a tenant $100 rather than only decide what is displayed. */
+check("the report on screen is the last one uploaded",
+      lib("read-report.ts").includes('.order("uploaded_at", { ascending: false })'), true);
+check("with the highest report date only as a fallback",
+      code(path.join(LIB, "read-report.ts")).includes("return reportOn(db, dates.dates[0]!)"), true);
+check("and the upload warns that an older file will take effect",
+      lib("upload-checks.ts").includes("Applying it will move every figure back"), true);
 check("the shell is one screen tall, not one screen at minimum",
       SHELL_CODE.includes('className="flex h-dvh overflow-hidden"'), true);
 check("and the content is what scrolls",
