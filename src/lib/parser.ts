@@ -105,15 +105,45 @@ const norm = (s: unknown) =>
  * turn up too. Anything unreadable returns null so the caller can raise a
  * problem instead of silently treating it as zero.
  */
+/**
+ * A currency symbol in front of the amount.
+ *
+ * MES's own export mixes the two styles inside one file: most lines write
+ * "  650.00 " and a few write "S$650.00", with credit memos as "-S$500.00".
+ * Refusing the second kind cost real money on the DUMMY BALANCES upload - a
+ * whole customer's credit note of -609.00 vanished, and 1,300.00 went missing
+ * from another. Dropping a credit is the dangerous direction: it makes a
+ * customer look like they owe more than they do.
+ */
+const SYMBOL = /^(?:SGD|S\$|US\$|\$)/i;
+
 function money(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const s = clean(v).replace(/[,\s]/g, "");
+  let s = clean(v).replace(/[,\s]/g, "");
   if (s === "" || s === "-" || s === "–") return 0;
+
+  let sign = 1;
   // Accounting style negatives: (123.45)
   const paren = /^\((.*)\)$/.exec(s);
-  const n = Number(paren ? `-${paren[1]}` : s);
-  return Number.isFinite(n) ? n : null;
+  if (paren) {
+    sign = -1;
+    s = paren[1];
+  }
+
+  // The minus sits on either side of the symbol depending on who exported
+  // the sheet, so both orders are unwound: "-S$45.00" and "S$-45.00".
+  s = s.replace(SYMBOL, "");
+  if (/^[-–]/.test(s)) {
+    sign = -sign;
+    s = s.slice(1).replace(SYMBOL, "");
+  }
+
+  // A symbol with nothing after it is not zero, it is unreadable.
+  if (s === "") return null;
+
+  const n = Number(s);
+  return Number.isFinite(n) ? sign * n : null;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

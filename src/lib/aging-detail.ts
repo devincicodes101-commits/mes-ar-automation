@@ -107,14 +107,45 @@ function addDays(iso: string, days: number): string | null {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * A currency symbol in front of the amount.
+ *
+ * MES's own export mixes the two styles inside one file: most lines write
+ * "  650.00 " and a few write "S$650.00", with credit memos as "-S$500.00".
+ * Refusing the second kind cost real money on the DUMMY BALANCES upload - a
+ * whole customer's credit note of -609.00 vanished, and 1,300.00 went missing
+ * from another. Dropping a credit is the dangerous direction: it makes a
+ * customer look like they owe more than they do.
+ */
+const SYMBOL = /^(?:SGD|S\$|US\$|\$)/i;
+
 function money(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  const s = clean(v).replace(/[,\s]/g, "");
+  let s = clean(v).replace(/[,\s]/g, "");
   if (s === "" || s === "-" || s === "–") return 0;
+
+  let sign = 1;
+  // Accounting style negatives: (123.45)
   const paren = /^\((.*)\)$/.exec(s);
-  const n = Number(paren ? `-${paren[1]}` : s);
-  return Number.isFinite(n) ? n : null;
+  if (paren) {
+    sign = -1;
+    s = paren[1];
+  }
+
+  // The minus sits on either side of the symbol depending on who exported
+  // the sheet, so both orders are unwound: "-S$45.00" and "S$-45.00".
+  s = s.replace(SYMBOL, "");
+  if (/^[-–]/.test(s)) {
+    sign = -sign;
+    s = s.slice(1).replace(SYMBOL, "");
+  }
+
+  // A symbol with nothing after it is not zero, it is unreadable.
+  if (s === "") return null;
+
+  const n = Number(s);
+  return Number.isFinite(n) ? sign * n : null;
 }
 
 function splitCustomer(cell: unknown): { code: string; name: string } | null {
@@ -448,6 +479,25 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
 
   /* ---------------------------------------------------------- the rows */
   let current: { code: string; name: string } | null = null;
+
+  /*
+   * Who each customer code actually is, taken from the two places that state
+   * it outright: the heading that opens the block, and the "Total -" line
+   * that closes it. Both put the code and the name in the same cell, so they
+   * cannot be crossed the way the Company Name column can.
+   *
+   * The Company Name column is not trustworthy on its own. MES's DUMMY
+   * BALANCES export has two rows inside DORM-1744's block carrying
+   * "DORM-979 PIANO TECHNICIAN PTE. LTD." - a paste that landed a row out.
+   * Naming the account from the first line it happened to meet put Thomas
+   * Edison's 59,800 on screen under Piano Technician's name, which is not
+   * merely a wrong label: that name goes on the reminder letter.
+   */
+  const blockNames = new Map<string, string>();
+
+  /** Names that contradict the heading, and how many lines carried each. */
+  const nameConflicts = new Map<string, Map<string, number>>();
+
   const lineReps = new Map<string, Set<string>>();
   const lineIndustries = new Map<string, string>();
   const lineStatus = new Map<string, string>();
@@ -460,11 +510,12 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     const totalMatch = /^total\s*-\s*(DORM-\d+)\s+(.+)$/i.exec(first);
     if (totalMatch) {
       const total = money(row[COL.balance]);
-      subtotals.push({
-        customerCode: totalMatch[1].toUpperCase(),
-        companyName: clean(totalMatch[2]).replace(/\.$/, ""),
-        total: total ?? 0,
-      });
+      const totalCode = totalMatch[1].toUpperCase();
+      const totalName = clean(totalMatch[2]).replace(/\.$/, "");
+      subtotals.push({ customerCode: totalCode, companyName: totalName, total: total ?? 0 });
+      // Only where no heading was seen, so a block that opened properly keeps
+      // the name it opened with.
+      if (!blockNames.has(totalCode)) blockNames.set(totalCode, totalName);
       current = null;
       continue;
     }
@@ -475,6 +526,28 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     const heading = splitCustomer(first);
     if (heading) {
       current = heading;
+      blockNames.set(heading.code, heading.name);
+      /*
+       * A heading names the block and nothing else. Where one also carries a
+       * transaction and an amount the row is two things at once, and the
+       * charge on it is dropped by this `continue`. That is the right call -
+       * guessing which customer it belongs to would be worse - but dropping
+       * money without saying so is not, and this is exactly how the DUMMY
+       * BALANCES export lost a line.
+       */
+      const strayAmount = money(at(row, COL.balance));
+      if (clean(at(row, COL.txType)) !== "" && strayAmount !== null && strayAmount !== 0) {
+        problems.push({
+          sheet: clean(sheetName),
+          row: i + 1,
+          severity: "error",
+          message:
+            `${heading.code} ${heading.name}: the heading row also carries a ` +
+            `charge of ${strayAmount.toFixed(2)}. A heading cannot be an ` +
+            "invoice as well, so the charge was not imported. The export " +
+            "looks damaged - check this customer against the source.",
+        });
+      }
       continue;
     }
 
@@ -571,9 +644,17 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       unplaced.set(prefix, (unplaced.get(prefix) ?? 0) + 1);
     }
 
+    const lineName = withoutCode(company || current.name, current.code).replace(/\.$/, "");
+    const blockName = blockNames.get(current.code);
+    if (blockName && company && norm(lineName) !== norm(blockName)) {
+      const seen = nameConflicts.get(current.code) ?? new Map<string, number>();
+      seen.set(lineName, (seen.get(lineName) ?? 0) + 1);
+      nameConflicts.set(current.code, seen);
+    }
+
     invoices.push({
       customerCode: current.code,
-      companyName: withoutCode(company || current.name, current.code).replace(/\.$/, ""),
+      companyName: lineName,
       transactionType: txType,
       date: excelDate(row[COL.date]),
       dueDate: dueIso,
@@ -685,7 +766,9 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       acct = {
         id,
         customerCode: inv.customerCode,
-        companyName: inv.companyName,
+        // The heading, not the line. See blockNames above: the Company Name
+        // column can carry another customer's name entirely.
+        companyName: blockNames.get(inv.customerCode) ?? inv.companyName,
         property: inv.property,
         propertyName: PROPERTY_NAMES[inv.property],
         // No Status column in this export. "Live" is the assumption, and the
@@ -748,6 +831,22 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       });
     }
     if (reps.length > 0) (acct as Account & { rm?: string }).rm = reps[0];
+
+    const conflicts = nameConflicts.get(acct.customerCode);
+    const wrongNames = Array.from(conflicts?.keys() ?? []).sort();
+    const wrongLines = Array.from(conflicts?.values() ?? []).reduce((a, b) => a + b, 0);
+    if (wrongNames.length > 0) {
+      problems.push({
+        sheet: clean(sheetName),
+        row: null,
+        severity: "warning",
+        message:
+          `${acct.customerCode} ${acct.companyName}: ${wrongLines} ` +
+          `line${wrongLines === 1 ? "" : "s"} name a different company ` +
+          `(${wrongNames.join(", ")}). The heading was used, so the balance ` +
+          "and any letter carry the right name, but the export looks damaged.",
+      });
+    }
   }
 
   const accounts = Array.from(byAccount.values()).sort(

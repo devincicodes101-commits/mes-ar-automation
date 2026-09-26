@@ -569,5 +569,97 @@ check("filling it by hand gives the same text as rendering it",
       }),
       renderLetter("first-reminder", ctx).body);
 
+/* ============================== a damaged export, read without losing money */
+
+/*
+ * MES's DUMMY BALANCES upload carried three kinds of damage at once, and the
+ * parser quietly lost money on all three. Reproduced here as a small sheet so
+ * the behaviour is pinned without depending on that file.
+ *
+ *   1. Amounts written "S$250.00" instead of "  250.00 ". Six rows were
+ *      refused, one of them a whole customer's credit note.
+ *   2. A customer heading row that also carried an invoice line.
+ *   3. Invoice rows naming a different company than the block they sit in,
+ *      which put one customer's balance on screen under another's name -
+ *      and that name goes on the reminder letter.
+ */
+section("A damaged export: currency symbols, a stray charge, a crossed name");
+
+const DAMAGED_HEADER = [
+  "Customer", "Transaction Type", "Company Name", "End User: Industry Type",
+  "Date", "Description", "Document Number", "Linked Contract",
+  "Contract Item Start Date", "Contract: Contract End Date", "Due Date",
+  "Age", "Aging", "Open Balance", "Primary Sales Rep",
+];
+const blankRow = (first: string) =>
+  [first, "", "", "", "", "", "", "", "", "", "", "", "", "", ""];
+const totalRow = (label: string, amount: string) =>
+  [label, "", "", "", "", "", "", "", "", "", "", "", "", amount, ""];
+const dmgLine = (
+  customer: string, company: string, doc: string, amount: string,
+  type = "Invoice", date = "7/15/2026", due = "7/30/2026", age = 18,
+) => [
+  customer, type, company, "", date, "Occupancy Fee Charges", doc, "", "", "",
+  due, age, "30 days", amount, "900 Tester",
+];
+
+const damagedRows: unknown[][] = [
+  DAMAGED_HEADER,
+  blankRow("DORM-900 ALPHA PTE. LTD."),
+  dmgLine("", "DORM-900 ALPHA PTE. LTD.", "JPD1-786/009001", "  1,000.00 "),
+  // The whole point: the same money, a different notation.
+  dmgLine("", "DORM-900 ALPHA PTE. LTD.", "JPD1-786/009002", "S$250.00"),
+  totalRow("Total - DORM-900 ALPHA PTE. LTD.", "  1,250.00 "),
+  // A heading that is also an invoice. The charge cannot be placed, so it is
+  // dropped - but it has to be reported, not swallowed.
+  dmgLine("DORM-901 BETA PTE. LTD.", "DORM-900 ALPHA PTE. LTD.", "JPD1-786/009003", "  700.00 "),
+  // Inside BETA's block, naming ALPHA.
+  dmgLine("", "DORM-900 ALPHA PTE. LTD.", "JPD1-786/009004", "  400.00 "),
+  dmgLine("", "DORM-901 BETA PTE. LTD.", "JP1CN/900", "-S$100.00", "Credit Memo", "7/29/2026", "7/29/2026", 19),
+  totalRow("Total - DORM-901 BETA PTE. LTD.", "  300.00 "),
+];
+
+const damagedWb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(
+  damagedWb, XLSX.utils.aoa_to_sheet(damagedRows), "Finance AR Download",
+);
+const dmg = parseAgingDetail(damagedWb);
+const dmgAcct = (code: string) => dmg.accounts.find((a) => a.customerCode === code);
+const dmgSaid = (text: string) => dmg.problems.some((x) => x.message.includes(text));
+
+check("an S$ amount is money, not an unreadable cell", dmgAcct("DORM-900")?.total, 1250);
+check("so MES's own subtotal reconciles", dmgSaid("ALPHA PTE. LTD: the lines add"), false);
+check("a -S$ credit memo stays negative",
+  dmg.invoices.find((i) => i.documentNumber === "JP1CN/900")?.openBalance, -100);
+check("and the customer it belongs to is not lost", dmgAcct("DORM-901") !== undefined, true);
+check("the credit reduces what they owe", dmgAcct("DORM-901")?.total, 300);
+
+check("an account is named by its heading, not by a line",
+  dmgAcct("DORM-901")?.companyName, "BETA PTE. LTD");
+check("the contradicting line is reported", dmgSaid("1 line name a different company"), true);
+check("naming who it claimed to be, so the row can be found", dmgSaid("ALPHA PTE. LTD"), true);
+
+check("a charge on a heading row is refused, not guessed at",
+  dmg.invoices.some((i) => i.documentNumber === "JPD1-786/009003"), false);
+check("and refusing it is an error, because money went missing",
+  dmg.problems.some((x) =>
+    x.severity === "error" && x.message.includes("heading row also carries a charge of 700.00")),
+  true);
+check("nothing else failed to parse",
+  dmg.problems.filter((x) => x.severity === "error").length, 1);
+
+// A symbol with no number behind it is unreadable, not zero. Importing it as
+// zero would read as "paid up" on a customer who may owe thousands.
+const bareWb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(bareWb, XLSX.utils.aoa_to_sheet([
+  DAMAGED_HEADER,
+  blankRow("DORM-902 GAMMA PTE. LTD."),
+  dmgLine("", "DORM-902 GAMMA PTE. LTD.", "JPD1-786/009005", "S$"),
+]), "Finance AR Download");
+check("a bare currency symbol is refused rather than read as zero",
+  parseAgingDetail(bareWb).problems.some((x) =>
+    x.severity === "error" && x.message.includes("could not read the open balance")),
+  true);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
