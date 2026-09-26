@@ -1631,6 +1631,18 @@ const REPORT_ROUTE = code(path.join(APP, "api", "report", "route.ts"));
    six reports. Ten tabs, in that order. It had been read here as "each
    report broken down by dormitory" — a fair reading of the words, and not
    what their own file shows. */
+/* MES's Flow tab, under the 16th: "Send report to AR team (provide User the
+   option to select one or more RMs from drop down to send email)". The report
+   goes to the AR team, so the managers are not the recipients — they are
+   which book the AR team is being asked to issue against. */
+check("the fee listing can be narrowed to chosen managers",
+      FEES_CODE.includes("onlyRms.includes(rm)"), true);
+check("one or more, so chips rather than a single select",
+      FEES_CODE.includes("setOnlyRms((was) =>"), true);
+check("none chosen means every manager, not none",
+      FEES_CODE.includes("onlyRms.length === 0"), true);
+check("and the downloaded file is narrowed the same way",
+      /buildLateFeeListing\([\s\S]{0,400}onlyRms\.includes\(rm\)/.test(FEES_PAGE), true);
 check("the four dormitory tabs exist",
       lib("reports.ts").includes("export function buildPropertyTabs"), true);
 check("and inside a dorm the lines are grouped by charge type",

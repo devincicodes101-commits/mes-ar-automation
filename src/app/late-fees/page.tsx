@@ -56,6 +56,33 @@ export default function LateFeesPage() {
   const period = currentPeriod();
 
   /*
+   * Whose tenants to issue the fee for.
+   *
+   * MES's Flow tab, under the 16th: "Send report to AR team (provide User the
+   * option to select one or more RMs from drop down to send email)". The
+   * report goes to the AR team, so the managers cannot be the recipients —
+   * they are which book the AR team is being asked to issue against. One
+   * manager at a time is how somebody works through a month without issuing
+   * eight hundred fees in a single press.
+   *
+   * Empty means everybody, rather than nobody. A filter that starts by hiding
+   * the whole list reads as a broken screen, and the common case is issuing
+   * the lot.
+   */
+  /* From the report's own tenants rather than from whoever happens to be
+     chargeable, so the list of managers does not change shape as fees are
+     raised through the month. */
+  const managers = useMemo(() => {
+    const seen = new Set<string>();
+    for (const a of scope(ds.accounts)) {
+      const rm = (a as { rm?: string }).rm;
+      if (rm) seen.add(rm);
+    }
+    return Array.from(seen).sort();
+  }, [ds.accounts, scope]);
+  const [onlyRms, setOnlyRms] = useState<string[]>([]);
+
+  /*
    * The listing as MES attach it, built from the same accounts and the same
    * rule the table below shows. Built here rather than carried on the dataset
    * because the fee and the minimum age are settings on this screen: a file
@@ -64,12 +91,20 @@ export default function LateFeesPage() {
    */
   const listing = useMemo(
     () =>
-      buildLateFeeListing(scope(ds.accounts), ds.invoices, ds.asOf, null, {
+      buildLateFeeListing(
+        /* The same narrowing the table shows. A file that disagreed with the
+           screen it was downloaded from is worse than no file. */
+        scope(ds.accounts).filter((a) => {
+          if (onlyRms.length === 0) return true;
+          const rm = (a as { rm?: string }).rm;
+          return rm ? onlyRms.includes(rm) : false;
+        }),
+        ds.invoices, ds.asOf, null, {
         fee: rule.value,
         raised: store.fees,
         period,
       }),
-    [ds, rule, scope, store.fees, period],
+    [ds, rule, scope, store.fees, period, onlyRms],
   );
 
   const all = useMemo(
@@ -93,13 +128,24 @@ export default function LateFeesPage() {
    * exclusion nobody can check.
    */
   const onGiro = useMemo(() => giroEnrolled(ds.invoices), [ds.invoices]);
+  const byManager = useMemo(
+    () =>
+      onlyRms.length === 0
+        ? all
+        : all.filter((l) => {
+            const rm = (l.account as { rm?: string }).rm;
+            return rm ? onlyRms.includes(rm) : false;
+          }),
+    [all, onlyRms],
+  );
+
   const lines = useMemo(
-    () => all.filter((l) => !onGiro.has(l.account.customerCode.toUpperCase())),
-    [all, onGiro],
+    () => byManager.filter((l) => !onGiro.has(l.account.customerCode.toUpperCase())),
+    [byManager, onGiro],
   );
   const excluded = useMemo(
-    () => all.filter((l) => onGiro.has(l.account.customerCode.toUpperCase())),
-    [all, onGiro],
+    () => byManager.filter((l) => onGiro.has(l.account.customerCode.toUpperCase())),
+    [byManager, onGiro],
   );
   // Where an upload carried no line detail the selection falls back to the
   // aging buckets, which cannot express "14 days past due". Said out loud
@@ -283,6 +329,49 @@ export default function LateFeesPage() {
            */
           right={
             <div className="flex flex-wrap items-center gap-2">
+              {/*
+                * MES's Flow tab, under the 16th: "provide User the option to
+                * select one or more RMs from drop down". Chips rather than a
+                * select, because "one or more" is the requirement and a
+                * multi-select that needs ctrl-click is a way of getting one.
+                *
+                * Hidden when the report names no managers at all, which is
+                * what an export without the Primary Sales Rep column looks
+                * like — an empty filter bar would read as a fault.
+                */}
+              {managers.length > 0 ? (
+                <div className="mr-1 flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setOnlyRms([])}
+                    className={`rounded border px-2.5 py-1 text-xs ${
+                      onlyRms.length === 0
+                        ? "border-accent bg-accent text-accent-ink"
+                        : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
+                    }`}
+                  >
+                    Every manager
+                  </button>
+                  {managers.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() =>
+                        setOnlyRms((was) =>
+                          was.includes(m) ? was.filter((x) => x !== m) : [...was, m],
+                        )
+                      }
+                      className={`rounded border px-2.5 py-1 text-xs ${
+                        onlyRms.includes(m)
+                          ? "border-accent bg-accent text-accent-ink"
+                          : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             <button
               type="button"
               disabled={!can("generate-reports")}
