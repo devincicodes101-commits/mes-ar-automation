@@ -1770,6 +1770,17 @@ check("a missing tenant and somebody else's give the same answer",
 check("and each kind names the capability it needs",
       ACTIVITY_CODE.includes('call: "log-calls"') &&
         ACTIVITY_CODE.includes('"late-fee": "raise-late-fees"'), true);
+/* PostgREST stops at a thousand rows and says nothing: the request succeeds
+   and the array is short. read-report.ts learned it the hard way — MES's
+   August export has 3,117 lines and the aging board was summing under a third
+   of them as the total. The same cliff was on this route. */
+check("the activity log is read in pages",
+      ACTIVITY_CODE.includes("const PAGE = 1000") &&
+        ACTIVITY_CODE.includes("build().range(from, from + PAGE - 1)"), true);
+check("a short page ends it, so the cap cannot truncate silently",
+      ACTIVITY_CODE.includes("if (got.length < PAGE)"), true);
+check("all four tables go through it",
+      (ACTIVITY_CODE.match(/everything\(\(\) => mine\(db/g) ?? []).length, 4);
 check("a failed lookup stops the read rather than returning everything",
       ACTIVITY_CODE.includes("if (!allowed.ok)"), true);
 check("only a relationship manager is narrowed",

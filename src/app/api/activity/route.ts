@@ -82,27 +82,59 @@ export async function GET(request: Request) {
   const mine = (q: any) =>
     only === null ? q : q.in("tenant_id", Array.from(only));
 
+  /*
+   * Read in pages, because PostgREST stops at a thousand rows and says
+   * nothing about it.
+   *
+   * The request succeeds and the array is simply short. read-report.ts learned
+   * this the hard way: MES's August export has 3,117 charge lines and the
+   * aging board was summing under a third of them, showing the result as the
+   * total. Plausible figures, no error, and the only way to notice was to know
+   * what the total should have been.
+   *
+   * The same cliff was here. At 190 tenants this route passes a thousand
+   * letters in about two and a half months and a thousand fees in five.
+   * Ordered newest first, so what silently disappears is history — and the
+   * repeat-defaulter rule counts a tenant's fees out of that history, so it
+   * would have quietly stopped firing.
+   *
+   * The builder is rebuilt per page rather than reused: a supabase-js query
+   * can only be awaited once.
+   */
+  const PAGE = 1000;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const everything = async (build: () => any) => {
+    const rows: Record<string, unknown>[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await build().range(from, from + PAGE - 1);
+      if (error) return { data: rows, error };
+      const got = (data ?? []) as Record<string, unknown>[];
+      rows.push(...got);
+      if (got.length < PAGE) return { data: rows, error: null };
+    }
+  };
+
   const [calls, promises, emails, fees] = await Promise.all([
-    mine(db
+    everything(() => mine(db
       .from("calls")
       .select(
         "id,tenant_id,period,called_at,reached,outcome,promised_amount," +
           `promised_date,next_action_date,aging_bucket,deduction_fail_date,notes,${WITH_NAME}`,
       )
-      .order("called_at", { ascending: false })),
-    mine(db
+      .order("called_at", { ascending: false }))),
+    everything(() => mine(db
       .from("promises")
       .select(
         `id,tenant_id,amount,promised_for,source,created_at,confirmation_sent_at,${WITH_NAME}`,
       )
-      .order("created_at", { ascending: false })),
-    mine(db
+      .order("created_at", { ascending: false }))),
+    everything(() => mine(db
       .from("emails_sent")
       .select(
         "id,tenant_id,template_id,template_name,subject,body,recipients," +
           `sent_at,was_simulated,period,${WITH_NAME}`,
       )
-      .order("sent_at", { ascending: false })),
+      .order("sent_at", { ascending: false }))),
     /*
      * The fees this system has raised, which is not the same question as the
      * fees MES have billed.
@@ -115,10 +147,10 @@ export async function GET(request: Request) {
      * screen offered to charge the same tenant again the next day, and the
      * repeat-defaulter rule, which fires at three fees, counted zero forever.
      */
-    mine(db
+    everything(() => mine(db
       .from("late_fees")
       .select("id,tenant_id,period,amount,raised_at")
-      .order("raised_at", { ascending: false })),
+      .order("raised_at", { ascending: false }))),
   ]);
 
   const failed = [calls, promises, emails, fees].find((r) => r.error);

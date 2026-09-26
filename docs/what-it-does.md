@@ -188,13 +188,6 @@ nobody confirmed is worse than a screen saying it couldn't go.
   tenants should be a deliberate decision, not a settings change somebody
   makes by accident.
 
-### 4. One technical limit, in a few months
-
-One screen reads records without paging, and the database quietly stops at
-1,000 rows. At MES's size that's about two months of letters and five months
-of fees. Nothing breaks visibly — older history just stops being counted.
-Worth fixing within a month or two, not urgent today.
-
 ---
 
 ## Questions for MES
