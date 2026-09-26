@@ -105,6 +105,52 @@ MES's workflow document lists what they want. Here is where each one lives.
 
 ---
 
+## How the relationship managers work
+
+Each tenant belongs to a relationship manager. The system takes that from the
+**Primary Sales Rep** column in MES's own report, so nobody maintains a list —
+whoever the report says owns a company is who owns it.
+
+**The manager makes the calls.** The system writes the letters; a person picks
+up the phone. That's the split, and it's the same on the 7th and the 21st.
+
+**What a manager sees when they sign in:**
+
+- Only their own tenants. Not filtered on screen — the database itself refuses
+  to hand over another manager's companies.
+- Their call list, in priority order. Oldest money counts triple, and every
+  late fee pushes a tenant further up.
+- Their payment promises.
+
+**What they can do:** log a call and record a promise. Nothing else. They
+cannot send letters, upload reports, raise fees, see another manager's book,
+or see a tenant's email address.
+
+**What happens when they log a call.** One action, three results:
+
+1. The call is recorded — who was reached, what was agreed, how many attempts.
+2. If they agreed to pay, a promise is created. That tenant is then **left
+   alone until the promised date passes** — no final notice on the 21st to
+   somebody who has already made an arrangement.
+3. The **Update column fills itself** in that manager's report. So the file
+   Jacqueline opens already says "Promised $12,000 by 20 Oct" — nobody types
+   it twice and nothing waits in an inbox.
+
+**Their report.** One per manager, split into a block per dormitory, in the
+layout of the mock-up MES sent: company, status, the aging columns, grand
+total, overdue total, Update, security deposit, risk exposure, sales rep.
+
+- Viewed on screen — Reports & Export → Relationship manager balances
+- Downloaded as a real Excel file
+- Emailed to the manager with that file attached, and a covering note in
+  Jacqueline's own wording
+
+**On the 16th**, the late payment listing can be narrowed to one or more
+managers, so the AR team can be asked to issue fees for one book at a time
+rather than all of them at once.
+
+---
+
 ## What's missing, and why
 
 ### 1. GIRO deduction status — blocked on MES
@@ -126,8 +172,7 @@ documented and can be reversed in one step.
 ### 2. Internal email addresses — waiting on MES
 
 Reports can be emailed to the AR team, CSD, Management and each manager. None
-of them has an email address on file, because MES have never given one — their
-own screenshots show display names only.
+of them has an email address on file, because MES have not given one yet.
 
 Nothing was invented, because a screen saying a report went to an address
 nobody confirmed is worse than a screen saying it couldn't go.
@@ -154,16 +199,12 @@ Worth fixing within a month or two, not urgent today.
 
 ## Questions for MES
 
-1. **Who makes the calls** — the AR team, or the relationship managers? Their
-   document says "Call Customer" and never says who.
-2. **Should managers have logins?** Nothing in their documents asks for one.
-   It's built and works; if they don't want it, it's one line to turn off.
-3. **"SD" appears twice in their own list** — Security Deposit and Stamp Duty
+1. **"SD" appears twice in their own list** — Security Deposit and Stamp Duty
    share the abbreviation. Two reports, or a duplicate?
-4. **Is the credit period 14 days, 15, or to the 1st of the following month?**
+2. **Is the credit period 14 days, 15, or to the 1st of the following month?**
    Their documents say all three, and their system issues due dates at 15.
-5. **What email address** should each internal recipient use?
-6. **Are there only ever four dormitories?**
+3. **What email address** should each internal recipient use?
+4. **Are there only ever four dormitories?**
 
 ---
 
@@ -181,6 +222,11 @@ a clock. The 7th is the 7th whatever day the file arrived.
 **Nothing is a list somebody maintains.** Who gets an email is worked out
 fresh every time from three things: what they owe, whether there's an address,
 and what's already been done to them this month.
+
+**The managers make the calls, and everyone sees the result.** The letters are
+automatic and the phone calls are not. When a manager logs what was said, it
+appears on their own report, on the tenant's history, and in the note that
+stops the next letter going out.
 
 **Every automatic run is written down** — which tenants were written to, which
 were left alone, and why. So "why did that tenant get a letter" has an answer
