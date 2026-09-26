@@ -28,6 +28,7 @@ import {
   tooOldToAct,
   STALE_AFTER_DAYS,
   AGEING_AFTER_DAYS,
+  runNeedsLookingAt,
 } from "../src/lib/schedule.ts";
 import { CYCLE_DAYS } from "../src/lib/cycle.ts";
 
@@ -233,6 +234,27 @@ check("a fresh one is not flagged",
 check("a future-dated report is never refused",
       tooOldToAct(16, -40).act, true);
 
+
+console.log("\nWhich recorded runs actually need attention\n");
+
+/*
+ * The schedule screen counted every run whose status was not "ok" as a
+ * failure. Twenty five mornings a month record "nothing-due", so a month in
+ * which nothing went wrong reported five failed runs in red - on the screen
+ * a client is shown first, and in the guide written from it.
+ */
+check("a run that did work is fine", runNeedsLookingAt("ok"), false);
+check("a quiet day is fine too, not a failure", runNeedsLookingAt("nothing-due"), false);
+check("a run that errored needs looking at", runNeedsLookingAt("error"), true);
+check("so does one that could not read the report", runNeedsLookingAt("no-report"), true);
+check("and any status nobody anticipated", runNeedsLookingAt("something-new"), true);
+
+/* The whole point: a healthy month counts zero failures. */
+const month = ["ok", "nothing-due", "nothing-due", "ok", "nothing-due", "nothing-due", "nothing-due"];
+check("a month of work and quiet days has no failures",
+  month.filter(runNeedsLookingAt).length, 0);
+check("and one real error in that month counts exactly one",
+  [...month, "error"].filter(runNeedsLookingAt).length, 1);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

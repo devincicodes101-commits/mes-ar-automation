@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
 import { hydrateActivity } from "@/lib/store";
+import { runNeedsLookingAt } from "@/lib/schedule";
 import { Card, CardHeader, EmptyState, StatTile, StatusBadge, Tag } from "@/components/ui";
 
 /**
@@ -150,7 +151,8 @@ export default function SchedulePage() {
   }
   const totalFees = runs.reduce((n, r) => n + (r.summary?.feesRaised ?? 0), 0);
   const totalLetters = runs.reduce((n, r) => n + (r.summary?.lettersSent ?? 0), 0);
-  const failures = runs.filter((r) => r.status !== "ok").length;
+  // A quiet day is not a failure. See runNeedsLookingAt.
+  const failures = runs.filter((r) => runNeedsLookingAt(r.status)).length;
 
   return (
     <div className="space-y-5">
@@ -307,7 +309,7 @@ export default function SchedulePage() {
                       {r.missed && r.missed.length > 0 ? (
                         <Tag>caught up {r.missed.length} missed</Tag>
                       ) : null}
-                      {r.status !== "ok" ? (
+                      {runNeedsLookingAt(r.status) ? (
                         <StatusBadge kind="critical" label={r.error ?? r.status} />
                       ) : null}
 

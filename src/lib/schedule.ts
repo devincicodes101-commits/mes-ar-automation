@@ -266,3 +266,25 @@ export function tooOldToAct(
 
   return { act: true, warn: null };
 }
+
+/**
+ * Whether a recorded run needs somebody to look at it.
+ *
+ * Two statuses mean the morning went as it should. "ok" is a day that did
+ * work. "nothing-due" is one of the twenty five mornings a month when the
+ * schedule woke, found today is not one of MES's six days, and recorded that
+ * it had nothing to do. The cron route writes that row deliberately, so the
+ * next run can tell "nothing was due" from "nothing ran" - those need
+ * opposite responses, and a morning missing from the history is the one that
+ * matters.
+ *
+ * The schedule screen used to treat everything that was not "ok" as a
+ * failure, which counted a perfectly healthy month as five failed runs and
+ * badged each quiet day in red. Kept here rather than in the page because it
+ * is a statement about what the statuses mean, not about how they look.
+ */
+export const RUN_WENT_FINE = ["ok", "nothing-due"];
+
+export function runNeedsLookingAt(status: string): boolean {
+  return !RUN_WENT_FINE.includes(status);
+}
