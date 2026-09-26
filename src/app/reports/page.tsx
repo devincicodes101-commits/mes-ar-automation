@@ -2,6 +2,11 @@
 
 import { useMemo, useState } from "react";
 import type { Invoice } from "@/lib/types";
+import type { Report } from "@/lib/reports";
+
+/* Any of the six. managerName is only on the RM one, so the title falls back
+   to the report's own name for the other five. */
+type ReportShape = Report & { managerName?: string };
 import {
   allAccounts,
   data,
@@ -174,8 +179,7 @@ export default function ReportsPage() {
     [ds.invoices, ds.asOf, managerReports],
   );
   const [sendingCode, setSendingCode] = useState(sendable[0]?.code ?? "");
-  const [openManager, setOpenManager] =
-    useState<ReturnType<typeof buildManagerReports>[number] | null>(null);
+  const [openManager, setOpenManager] = useState<ReportShape | null>(null);
   const [chosen, setChosen] = useState<string[]>([]);
   const [dispatched, setDispatched] = useState<ReportDispatch | null>(null);
   /* Sending crosses the network now, so the button has to say so and refuse a
@@ -513,6 +517,25 @@ export default function ReportsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+          {/*
+            * Look at the report itself, not the email about it.
+            *
+            * Preview shows the covering note — right for checking what a
+            * manager will read, no use for checking the figures. MES ask for
+            * the six shown by dormitory, and until this button existed four
+            * of them could only be taken on trust: they lived in this
+            * dropdown and the dropdown previews an email.
+            */}
+          <button
+            type="button"
+            onClick={() => {
+              const report = sendable.find((r) => r.code === sendingCode);
+              if (report) setOpenManager(report as ReportShape);
+            }}
+            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+          >
+            View the report
+          </button>
           <button
             type="button"
             disabled={!canAct}
@@ -1012,15 +1035,25 @@ const MANAGER_COLUMN_COUNT = MANAGER_COLUMNS.length;
  * thing"; an empty one that explains itself is a question somebody can answer,
  * and both of these are questions still open with MES.
  */
+/**
+ * Any report, laid out the way MES lay them out: a block per dormitory.
+ *
+ * It was the manager report only, and the other five had nowhere to be
+ * looked at — they existed inside the "Email a report" dropdown, whose
+ * preview shows the covering note rather than the report. So MES's own
+ * instruction, "show by Dorm followed by SD / PF / 1FM / LP / SD / RM", was
+ * satisfied in the generated file and invisible on screen, which is the same
+ * as asking somebody to take it on trust.
+ */
 function ManagerSheet({
   report,
   onClose,
 }: {
-  report: ReturnType<typeof buildManagerReports>[number];
+  report: ReportShape;
   onClose: () => void;
 }) {
   return (
-    <Modal title={report.managerName} onClose={onClose}>
+    <Modal title={report.managerName ?? report.name} onClose={onClose}>
       <div className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <p className="text-[11px] text-ink-muted">

@@ -1622,6 +1622,14 @@ const DATASET_ROUTE = code(path.join(APP, "api", "dataset", "route.ts"));
 const ACTIVITY_CODE = code(path.join(APP, "api", "activity", "route.ts"));
 const REPORT_ROUTE = code(path.join(APP, "api", "report", "route.ts"));
 
+/* MES ask for the six shown by dormitory. Four of them lived only in the
+   "Email a report" dropdown, whose preview shows the covering note rather
+   than the report — so the dorm blocks were in the generated file and on no
+   screen, which is the same as asking somebody to take it on trust. */
+check("any of the six can be looked at, not only the manager one",
+      REPORTS_PAGE.includes('setOpenManager(report as ReportShape)'), true);
+check("and the viewer titles itself from whichever it was given",
+      REPORTS_PAGE.includes("report.managerName ?? report.name"), true);
 check("a report can be written as a real workbook",
       WB.includes("export function reportToXlsx"), true);
 check("money stays numeric, so a manager can sum a column",
