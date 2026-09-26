@@ -1774,6 +1774,17 @@ check("and each kind names the capability it needs",
    and the array is short. read-report.ts learned it the hard way — MES's
    August export has 3,117 lines and the aging board was summing under a third
    of them as the total. The same cliff was on this route. */
+/* The shell was min-h-screen, so the page grew with its content and the
+   window scrolled — taking the sidebar and header with it. On a 190 row
+   board that means scrolling to the bottom for a figure and all the way back
+   for the navigation. */
+const SHELL_CODE = code(path.join("src", "components", "Shell.tsx"));
+check("the shell is one screen tall, not one screen at minimum",
+      SHELL_CODE.includes('className="flex h-dvh overflow-hidden"'), true);
+check("and the content is what scrolls",
+      SHELL_CODE.includes('<main className="min-h-0 flex-1 overflow-y-auto'), true);
+check("min-h-0 is present, or the overflow escapes to the window again",
+      /flex min-w-0 flex-1 flex-col overflow-hidden/.test(SHELL_CODE), true);
 check("the activity log is read in pages",
       ACTIVITY_CODE.includes("const PAGE = 1000") &&
         ACTIVITY_CODE.includes("build().range(from, from + PAGE - 1)"), true);

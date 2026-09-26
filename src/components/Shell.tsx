@@ -303,8 +303,21 @@ export function Shell({ children }: { children: ReactNode }) {
   if (!session) return null;
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-line-hair bg-surface">
+    /*
+     * The shell is exactly one screen tall and the content scrolls inside it.
+     *
+     * It was min-h-screen, so the page grew with whatever was on it and the
+     * window scrolled — taking the sidebar and the header with it. On the
+     * aging board, which is 190 rows, that meant scrolling to the bottom to
+     * read a figure and then scrolling all the way back to reach the
+     * navigation.
+     *
+     * h-dvh rather than h-screen because on a phone h-screen is the window
+     * including the address bar, so the bottom of the content sits under it
+     * until the bar retracts.
+     */
+    <div className="flex h-dvh overflow-hidden">
+      <aside className="flex h-full w-64 shrink-0 flex-col border-r border-line-hair bg-surface">
         <div className="border-b border-line-hair px-5 py-4">
           <Image
             src="/mes-logo.png"
@@ -359,7 +372,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* overflow-hidden so the column cannot grow past the screen: the
+          scrolling belongs to <main> below, not to the window. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center gap-4 border-b border-line-hair bg-surface px-6 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">
@@ -475,7 +490,10 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         ) : null}
 
-        <main className="flex-1 px-6 py-6">{children}</main>
+        {/* The only thing that scrolls. min-h-0 is load bearing: without it a
+            flex child refuses to shrink below its content and the overflow
+            escapes to the window again, which is the bug this replaced. */}
+        <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</main>
       </div>
     </div>
   );
