@@ -661,5 +661,105 @@ check("a bare currency symbol is refused rather than read as zero",
     x.severity === "error" && x.message.includes("could not read the open balance")),
   true);
 
+/* ============================ columns are found by name, never by position */
+
+/*
+ * MES have two exports in use and they do not agree on layout. Open Balance
+ * is column 12 in the Custom A/R Aging Detail and column 13 in the Finance AR
+ * Download, where column 12 holds the word "30 days". The header sits on row
+ * 7 of one and row 1 of the other. So position means nothing and a fallback
+ * to one would eventually read a label as an amount.
+ */
+section("Columns found by name, wherever they sit");
+
+const FULL_HEADER = [
+  "Customer", "Transaction Type", "Company Name", "End User: Industry Type",
+  "Date", "Description", "Document Number", "Linked Contract",
+  "Contract Item Start Date", "Contract: Contract End Date", "Due Date",
+  "Age", "Aging", "Open Balance", "Primary Sales Rep",
+];
+
+/** One customer, two charges, laid out under whatever headings are given. */
+function sheetOf(headers: string[], opts: { before?: number; preamble?: number } = {}) {
+  const pad = Array.from({ length: opts.before ?? 0 }, () => "");
+  const cell = (rec: Record<string, unknown>) =>
+    [...pad, ...headers.map((h) => (h in rec ? rec[h] : ""))];
+
+  const rows: unknown[][] = [];
+  for (let i = 0; i < (opts.preamble ?? 0); i += 1) rows.push([...pad, "Consol : MES Group : KT Mesdorm Pte Ltd"]);
+  rows.push([...pad, ...headers]);
+  rows.push(cell({ Customer: "DORM-700 KAYA TOAST PTE. LTD." }));
+  rows.push(cell({
+    "Transaction Type": "Invoice", "Company Name": "DORM-700 KAYA TOAST PTE. LTD.",
+    Date: "7/15/2026", Description: "Occupancy Fee Charges",
+    "Document Number": "JPD1-786/007001", "Due Date": "7/30/2026",
+    Age: 18, Aging: "30 days", "Open Balance": "  2,000.00 ",
+    "Primary Sales Rep": "700 Tester",
+  }));
+  rows.push(cell({
+    "Transaction Type": "Invoice", "Company Name": "DORM-700 KAYA TOAST PTE. LTD.",
+    Date: "7/15/2026", Description: "Occupancy Fee Charges",
+    "Document Number": "JPD1-786/007002", "Due Date": "7/30/2026",
+    Age: 18, Aging: "30 days", "Open Balance": "  500.00 ",
+    "Primary Sales Rep": "700 Tester",
+  }));
+  rows.push(cell({ Customer: "Total - DORM-700 KAYA TOAST PTE. LTD.", "Open Balance": "  2,500.00 " }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Finance AR Download");
+  return parseAgingDetail(wb);
+}
+
+const said = (r: { problems: { message: string }[] }, text: string) =>
+  r.problems.some((x) => x.message.includes(text));
+
+const plain = sheetOf(FULL_HEADER);
+check("the ordinary layout reads", plain.accounts[0]?.total, 2500);
+
+/* The question that prompted this: a column pushed in before Customer. */
+const shifted = sheetOf(FULL_HEADER, { before: 1 });
+check("a column inserted before Customer changes nothing", shifted.accounts[0]?.total, 2500);
+check("and the customer is still found", shifted.accounts[0]?.customerCode, "DORM-700");
+
+/* Shuffled, with Open Balance nowhere near position 12 or 13. */
+const shuffled = sheetOf([
+  "Open Balance", "Due Date", "Customer", "Age", "Description",
+  "Document Number", "Transaction Type", "Company Name", "Date",
+  "Primary Sales Rep", "Aging", "Linked Contract",
+]);
+check("so does a completely different column order", shuffled.accounts[0]?.total, 2500);
+
+/* One export starts on row 1, the other on row 7. */
+const late = sheetOf(FULL_HEADER, { preamble: 6 });
+check("a header row further down the sheet is found", late.accounts[0]?.total, 2500);
+
+section("A column we need is missing: refuse, and name it");
+
+const noBalance = sheetOf(FULL_HEADER.filter((h) => h !== "Open Balance"));
+check("no Open Balance means nothing is imported", noBalance.accounts.length, 0);
+check("and the message names the column", said(noBalance, '"Open Balance" column is not in this file'), true);
+check("and says what it was for", said(noBalance, "amount still owed"), true);
+check("as an error, not a warning",
+  noBalance.problems.some((x) => x.severity === "error"), true);
+
+const noDue = sheetOf(FULL_HEADER.filter((h) => h !== "Due Date"));
+check("no Due Date is refused too", noDue.accounts.length, 0);
+check("naming what is measured from it", said(noDue, "how overdue a charge is"), true);
+
+section("A column we can live without: load it, say what stops working");
+
+const noRep = sheetOf(FULL_HEADER.filter((h) => h !== "Primary Sales Rep"));
+check("no sales rep still imports the money", noRep.accounts[0]?.total, 2500);
+check("but the manager reports are named as broken",
+  said(noRep, "manager reports"), true);
+check("as a warning, because the figures are still good",
+  noRep.problems.filter((x) => x.severity === "error").length, 0);
+
+const noCategories = sheetOf(FULL_HEADER);
+check("the Categories column is optional and already absent here",
+  said(noCategories, '"Categories" column'), true);
+check("the real export is unaffected by any of this",
+  p.problems.filter((x) => x.severity === "error").length, 0);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

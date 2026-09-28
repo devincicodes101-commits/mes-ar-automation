@@ -198,12 +198,126 @@ function columnsOf(headerRow: unknown[]): Map<string, number> {
   return m;
 }
 
-function col(cols: Map<string, number>, names: string[], fallback: number): number {
-  for (const n of names) {
+/* --------------------------------------------------------- the columns we read */
+
+/**
+ * Every column this reader uses, what it is for, and whether the file is
+ * usable without it.
+ *
+ * Positions are never assumed. MES have two exports in use and they do not
+ * agree: Open Balance is column 12 in the Custom A/R Aging Detail and column
+ * 13 in the Finance AR Download, where column 12 holds the word "30 days".
+ * A reader that fell back to a position would one day read that label as an
+ * amount and carry on without a word, which is the worst way for this to
+ * fail - the figures would simply be wrong.
+ *
+ * So a column is found by name or it is not found, and either way the screen
+ * says so. `purpose` is written to be shown to whoever uploaded the file,
+ * which is why it reads as a sentence rather than a field note.
+ */
+interface ColumnSpec {
+  /** Accepted headings. The first is the one shown in a message. */
+  names: string[];
+  /** Said on screen when it is missing. Plain words, complete sentence. */
+  purpose: string;
+}
+
+const COLUMNS = {
+  customer: {
+    names: ["Customer"],
+    purpose:
+      "It is the column that marks where one company's charges start and the " +
+      "next begin, so without it there are no customers at all.",
+  },
+  balance: {
+    names: ["Open Balance", "Balance"],
+    purpose:
+      "It holds the amount still owed, and every figure in the system is " +
+      "built from it.",
+  },
+  dueDate: {
+    names: ["Due Date"],
+    purpose:
+      "Everything is measured from the due date: how overdue a charge is, " +
+      "who gets chased, and who is charged the late payment fee.",
+  },
+  txType: {
+    names: ["Transaction Type"],
+    purpose: "Credit notes cannot be told apart from invoices.",
+  },
+  company: {
+    names: ["Company Name"],
+    purpose:
+      "Company names are taken from the block heading instead, which is " +
+      "usually the same answer.",
+  },
+  date: {
+    names: ["Date"],
+    purpose:
+      "The balance cannot be split by billing run, so Outstanding Balances " +
+      "shows one total rather than one per run.",
+  },
+  description: {
+    names: ["Description"],
+    purpose:
+      "Charge types cannot be worked out, so the revenue reports will be empty.",
+  },
+  category: {
+    names: ["Categories", "Category"],
+    purpose:
+      "Charge types will be worked out from the description text alone, " +
+      "which is less reliable.",
+  },
+  document: {
+    names: ["Document Number"],
+    purpose:
+      "The dormitory a charge belongs to is read from the document number, " +
+      "so every charge will be filed under one dormitory.",
+  },
+  contract: {
+    names: ["Linked Contract"],
+    purpose: "Charges cannot be tied back to a contract.",
+  },
+  age: {
+    names: ["Age"],
+    purpose:
+      "Age is worked out from the due date instead, which gives the same " +
+      "answer in almost every case.",
+  },
+  rep: {
+    names: ["Primary Sales Rep"],
+    purpose:
+      "Nobody is assigned to a relationship manager, so the manager reports " +
+      "cannot be built.",
+  },
+  industry: {
+    names: ["End User: Industry Type", "Industry"],
+    purpose: "The industry breakdown report for management will be empty.",
+  },
+  status: {
+    names: ["Status"],
+    purpose: "Every tenant is assumed to be still renting.",
+  },
+} as const satisfies Record<string, ColumnSpec>;
+
+type ColumnKey = keyof typeof COLUMNS;
+
+/** Without one of these the file cannot be read at all. */
+const ESSENTIAL: ColumnKey[] = ["customer", "balance", "dueDate"];
+
+/** Missing one of these costs something, and the screen says what. */
+const OPTIONAL: ColumnKey[] = [
+  "txType", "company", "date", "description", "category",
+  "document", "contract", "age", "rep", "industry", "status",
+];
+
+/** Where a column sits in this file, or -1 if its heading is not there. */
+function whereIs(spec: ColumnSpec, cols: Map<string, number>): number {
+  for (const n of spec.names) {
     const at = cols.get(norm(n));
     if (at !== undefined) return at;
   }
-  return fallback;
+  return -1;
 }
 
 /* ------------------------------------------------- dormitory from a number */
@@ -382,7 +496,14 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   let headerAt = -1;
   for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
     const first = clean(rows[i]?.[0]);
-    if (norm(first) === "CUSTOMER") {
+    /*
+     * The whole row, not just the first cell. MES's two exports already put
+     * the header in different places - row 1 in the Finance AR Download, row
+     * 7 in the Custom A/R Aging Detail - and a column inserted to the left of
+     * Customer would move it sideways as well. Looking only at column 0 meant
+     * a file that was perfectly readable would be refused outright.
+     */
+    if ((rows[i] ?? []).some((c) => norm(c) === "CUSTOMER")) {
       headerAt = i;
       break;
     }
@@ -447,33 +568,52 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   // officer for that outright.
   /* -------------------------------------------------------- the columns */
   const cols = columnsOf(rows[headerAt] ?? []);
-  const COL = {
-    txType: col(cols, ["Transaction Type"], 1),
-    company: col(cols, ["Company Name"], 2),
-    date: col(cols, ["Date"], 3),
-    description: col(cols, ["Description"], 4),
-    category: col(cols, ["Categories", "Category"], -1),
-    document: col(cols, ["Document Number"], 6),
-    contract: col(cols, ["Linked Contract"], 7),
-    dueDate: col(cols, ["Due Date"], 10),
-    age: col(cols, ["Age"], 11),
-    balance: col(cols, ["Open Balance"], 12),
-    // Not in the August export. Read anyway, so that the day MES add them the
-    // manager and industry reports start working with no code change.
-    rep: col(cols, ["Primary Sales Rep"], -1),
-    industry: col(cols, ["End User: Industry Type"], -1),
-    status: col(cols, ["Status"], -1),
-  };
+  const COL = Object.fromEntries(
+    (Object.keys(COLUMNS) as ColumnKey[]).map((k) => [k, whereIs(COLUMNS[k], cols)]),
+  ) as Record<ColumnKey, number>;
+
+  /** A cell, or "" where the column is not in this file. */
   const at = (row: unknown[], i: number) => (i < 0 ? "" : row[i]);
 
-  if (COL.category === -1) {
+  /*
+   * A column we need is missing. Refuse the file and name it.
+   *
+   * There is no sensible guess to make here. MES have two exports in use and
+   * they do not agree on position: Open Balance is column 12 in the Custom A/R
+   * Aging Detail and column 13 in the Finance AR Download, where 12 holds the
+   * word "30 days". Falling back to a position would one day read a label as
+   * an amount and say nothing.
+   */
+  const absent = ESSENTIAL.filter((k) => COL[k] < 0);
+  if (absent.length > 0) {
+    return {
+      kind: "ar-aging-detail",
+      asOf,
+      entity,
+      sheets: wb.SheetNames.map(clean),
+      invoices: [],
+      accounts: [],
+      subtotals: [],
+      problems: absent.map((k) => ({
+        sheet: clean(sheetName),
+        row: headerAt + 1,
+        severity: "error" as const,
+        message:
+          `The "${COLUMNS[k].names[0]}" column is not in this file. ` +
+          `${COLUMNS[k].purpose} Nothing was imported. The header row was ` +
+          `read on row ${headerAt + 1}; check the export includes this column.`,
+      })),
+    };
+  }
+
+  /* The rest are optional, but what each one costs is said out loud. */
+  for (const k of OPTIONAL) {
+    if (COL[k] >= 0) continue;
     problems.push({
       sheet: clean(sheetName),
       row: null,
       severity: "warning",
-      message:
-        "No Categories column. Charge types will be worked out from the " +
-        "description text alone, which is less reliable.",
+      message: `No "${COLUMNS[k].names[0]}" column. ${COLUMNS[k].purpose}`,
     });
   }
 
@@ -504,7 +644,10 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
 
   for (let i = headerAt + 1; i < rows.length; i += 1) {
     const row = rows[i] ?? [];
-    const first = clean(row[0]);
+    // The Customer column, wherever it sits, rather than column 0. This cell
+    // carries the shape of the file: a heading opens a block, a "Total -"
+    // closes one, and a blank means the row is a charge inside the block above.
+    const first = clean(at(row, COL.customer));
 
     // "Total - DORM-10 A STAR TECHNICAL SERVICES PTE. LTD."
     const totalMatch = /^total\s*-\s*(DORM-\d+)\s+(.+)$/i.exec(first);
