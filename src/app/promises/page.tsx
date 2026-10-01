@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { accountById, allAccounts, formatSgd } from "@/lib/data";
+import { formatSgd } from "@/lib/data";
+import { useDataset } from "@/lib/dataset";
 import {
   PROMISE_STATE_LABEL,
   PromiseRecord,
@@ -34,6 +35,18 @@ const KIND: Record<PromiseState, "good" | "warning" | "critical"> = {
 
 export default function PromisesPage() {
   const store = useStore();
+  /*
+   * The uploaded report, not the bundled example.
+   *
+   * This screen read allAccounts(), which returns the sample shipped with the
+   * app and nothing else. So "Send confirmation" was decided by whether a
+   * made-up company had an address, and the Record a promise list offered
+   * sample companies rather than MES's tenants - on a screen that otherwise
+   * shows real promises, which is the kind of mix nobody notices until a
+   * promise is filed against a tenant who does not exist.
+   */
+  const ds = useDataset();
+  const accountById = (id: string) => ds.accounts.find((a) => a.id === id);
   /*
    * Two different permissions on one screen, and they are genuinely
    * different. Recording a promise is writing down what a tenant said, which
@@ -216,7 +229,9 @@ export default function PromisesPage() {
 
 function RecordPromise({ onClose }: { onClose: () => void }) {
   const { notify } = useToast();
-  const accounts = allAccounts();
+  /* The tenants in the uploaded report, and only the ones this role may see:
+     useDataset is already narrowed, so a manager is offered their own book. */
+  const accounts = useDataset().accounts;
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");

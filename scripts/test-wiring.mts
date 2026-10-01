@@ -1913,4 +1913,32 @@ check("it says it sets no billing date",
 check("and warns what a wrong month costs",
       UPLOAD_PAGE_M.includes("filed under the wrong month"), true);
 
+/* ------------- the promises screen reads the report, not the sample */
+
+/*
+ * It read allAccounts(), which returns the example bundled with the app. So
+ * "Send confirmation" was decided by whether a made-up company had an address,
+ * and the Record a promise list offered sample companies - on a screen showing
+ * real promises beside them.
+ */
+const PROMISES_W = code("src/app/promises/page.tsx");
+check("the promises screen no longer reads the bundled sample",
+      /allAccounts\(\)/.test(PROMISES_W), false);
+check("it reads the uploaded report instead",
+      PROMISES_W.includes("useDataset()"), true);
+check("and the record dialog offers that report's tenants",
+      PROMISES_W.includes("useDataset().accounts"), true);
+
+/* allAccounts and accountById return the bundled example. Nothing a person
+   looks at should call them; they stay in lib for the fallback dataset. */
+const SAMPLE_READERS = appFiles
+  .filter((f) => f.includes(`${path.sep}app${path.sep}`) && /page\.tsx$/.test(f))
+  // code(), not the raw file: the comment explaining this very fix
+  // mentions allAccounts() and would match, which is how a guard comes to
+  // pass on text rather than on behaviour.
+  .filter((f) => /allAccounts\(\)/.test(code(path.relative(path.join(HERE, ".."), f))));
+check("no screen reads the bundled sample directly",
+      SAMPLE_READERS.map((f) => path.basename(path.dirname(f))).join(", ") || "none",
+      "none");
+
 process.exit(failures === 0 ? 0 : 1);
