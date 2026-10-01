@@ -1826,4 +1826,19 @@ check("preview and send are different buttons",
       REPORTS_PAGE.includes("Send with the workbook") &&
         REPORTS_PAGE.includes("Preview"), true);
 
+/* ---------------------- the email count reads the list that was uploaded */
+
+/*
+ * The "Email addresses" tile asked the AR report, whose older format carried
+ * a Contact Details tab. The Finance AR Download has none, so the tile read
+ * zero while the badge below it on the same screen said "8 companies with an
+ * email address" from the contact list uploaded alongside.
+ */
+const UPLOAD_PAGE = code("src/app/upload/page.tsx");
+check("the email tile counts the uploaded contact list first",
+      UPLOAD_PAGE.includes("const emailCount = contactList")
+        && UPLOAD_PAGE.includes("? contactList.contacts.length"), true);
+check("and the badge below it reads the same source",
+      UPLOAD_PAGE.includes("contactList.contacts.length} companies with an email address"), true);
+
 process.exit(failures === 0 ? 0 : 1);

@@ -597,11 +597,22 @@ function ParseReport({
   const inCredit = balances
     ? balances.accounts.filter((a) => a.total < 0).length
     : 0;
-  const emailCount = detail
-    ? detail.contacts.length
-    : aging
-      ? aging.accounts.filter((a) => a.emails.length > 0).length
-      : fallback.withEmail;
+  /*
+   * The contact list first, because that is where addresses come from now.
+   *
+   * This asked the AR report, whose older format carried a Contact Details
+   * tab. The Finance AR Download has no such tab, so the tile read zero while
+   * the badge a few inches below it said "8 companies with an email address"
+   * from the contact list that had just been uploaded alongside. Two counts
+   * of the same thing, disagreeing on the same screen.
+   */
+  const emailCount = contactList
+    ? contactList.contacts.length
+    : detail && detail.contacts.length > 0
+      ? detail.contacts.length
+      : aging
+        ? aging.accounts.filter((a) => a.emails.length > 0).length
+        : fallback.withEmail;
   const chargeTypes = lines
     ? new Set(lines.invoices.map((i) => i.revenueType)).size
     : 0;
