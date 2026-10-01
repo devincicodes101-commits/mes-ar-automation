@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { identify, mayUpload } from "@/lib/api-auth";
+import { markUsable, recordVerdict } from "@/lib/upload-verdict";
 import { serverSupabase } from "@/lib/supabase-server";
 import { toImportPayload } from "@/lib/to-database";
 import type { Account } from "@/lib/types";
@@ -54,6 +55,68 @@ interface Body {
    * report is refused, and MES's best month becomes their only unstorable one.
    */
   nothingOutstanding?: boolean;
+  /*
+   * What the upload screen's checks said about this file.
+   *
+   * Computed in the browser, because that is where the workbook is read and
+   * where the subtotals it compares against exist - the server receives
+   * accounts and lines, not the sheet. Stored here so the nine o'clock run has
+   * something to read: until it was, a file marked "do not use this data" was
+   * used the next morning by a job nobody was watching.
+   */
+  findings?: { severity?: string; title?: string; detail?: string }[] | null;
+}
+
+/**
+ * Mark the most recent upload usable although its checks failed.
+ *
+ * A gate with no way through is worse than no gate: the first time MES send a
+ * slightly odd but perfectly usable export, collections stop and nobody can
+ * start them again. So an officer can look at the figures and say they are
+ * right.
+ *
+ * Recorded against the upload with who and when, and written to the audit log,
+ * because this is a person overruling a safety check on money. A later upload
+ * starts clean - the decision does not carry forward.
+ */
+export async function PATCH(request: Request) {
+  const who = await identify(request);
+  if (!who.ok) {
+    return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
+  }
+  if (!mayUpload(who.caller)) {
+    return NextResponse.json(
+      { ok: false, error: "Your role cannot change an upload." },
+      { status: 403 },
+    );
+  }
+
+  let note = "";
+  try {
+    const body = (await request.json()) as { note?: string };
+    note = String(body?.note ?? "").slice(0, 300);
+  } catch {
+    note = "";
+  }
+
+  let db;
+  try {
+    db = serverSupabase();
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+  }
+
+  const done = await markUsable(
+    db,
+    { userId: who.caller.userId, name: who.caller.email ?? who.caller.role },
+    note,
+  );
+  if (!done.ok) {
+    return NextResponse.json({ ok: false, error: done.error }, { status: done.status });
+  }
+
+  return NextResponse.json({ ok: true, uploadId: done.uploadId });
+
 }
 
 export async function POST(request: Request) {
@@ -172,9 +235,29 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+   * The verdict, against the upload it belongs to.
+   *
+   * A separate statement rather than an argument to import_ar_report, so the
+   * import function keeps the signature every deployed database already has.
+   * A failure here is said out loud and does not fail the upload: the figures
+   * are stored and correct either way, and refusing a good import because its
+   * verdict could not be filed would be the tail wagging the dog.
+   */
+  /*
+   * The verdict, against the upload it belongs to. recordVerdict does the
+   * writing: this route stays thin by design, and everything it stores goes
+   * through one atomic import call.
+   */
+  const uploadId = (data as { upload_id?: string } | null)?.upload_id ?? null;
+  const verdictStored = uploadId
+    ? await recordVerdict(db, uploadId, Array.isArray(body.findings) ? body.findings : [])
+    : null;
+
   return NextResponse.json({
     ok: true,
     stored: data,
+    verdict: verdictStored,
     counted: {
       accounts: payload.p_tenants.length,
       lines: payload.p_invoices.length,

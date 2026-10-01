@@ -38,7 +38,7 @@
     "import:report": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --disable-warning=ExperimentalWarning scripts/import-report.mjs",
     "test:activity:rest": "node --experimental-strip-types scripts/test-activity-rest.mjs",
     "test:routes": "node scripts/test-routes.mjs",
-    "test:schedule": "node --experimental-strip-types scripts/test-schedule.mts",
+    "test:schedule": "node --conditions=react-server --experimental-strip-types scripts/test-schedule.mts",
     "test:cron": "node --experimental-strip-types scripts/test-cron.mjs",
     "test:mail": "node --experimental-strip-types scripts/test-mail.mts",
     "test:movement": "node --experimental-strip-types scripts/test-movement.mts",

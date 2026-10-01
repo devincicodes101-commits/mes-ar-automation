@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { serverSupabase } from "@/lib/supabase-server";
 import { newestReport } from "@/lib/read-report";
+import { refusedByChecks, uploadStanding } from "@/lib/upload-verdict";
 import { buildPipeline } from "@/lib/pipeline";
 import { planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
 import { priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
@@ -294,6 +295,43 @@ export async function GET(request: Request) {
     });
   }
 
+  /*
+   * And whether the file passed its own checks.
+   *
+   * Second gate, same shape as the staleness one above and for the same
+   * reason. That one asks whether the figures are current; this asks whether
+   * they hold together. The upload screen already decides it - the strongest
+   * check adds each customer up and compares against the total MES print for
+   * that customer in the same file - but the answer was only ever shown to
+   * whoever was looking. The run could not read it, so a file marked "do not
+   * use this data" was used at nine the next morning.
+   */
+  const standing = await uploadStanding(db);
+  const checks = refusedByChecks(day, standing);
+  if (!checks.act) {
+    log.say("report", checks.why, {
+      reportDate: report.asOf,
+      verdict: standing.verdict,
+      failed: standing.failed,
+      cycleDay: day,
+    }, { level: "error" });
+    return finish({
+      cycle_day: day,
+      status: "checks-failed",
+      summary: {
+        title: "The checks on this report failed, so nothing was sent",
+        failed: standing.failed,
+      },
+      report_date: report.asOf,
+      error: checks.why,
+    });
+  }
+  /* Carried rather than pushed: the run's notes are gathered further down. */
+  const checksWarning = checks.warn;
+  if (checksWarning) {
+    log.say("report", checksWarning, { verdict: standing.verdict }, { level: "warn" });
+  }
+
   log.say("report", `Read the report of ${report.asOf}`, {
     reportDate: report.asOf,
     tenants: report.accounts.length,
@@ -375,7 +413,9 @@ export async function GET(request: Request) {
       fromFlowTab: plan.fromFlowTab,
     });
 
-    const wrote = await persist(db, day, today, period, after, pipeline, memory.prior, log);
+    const wrote = await persist(
+      db, day, today, period, after, pipeline, memory.prior, log, checksWarning,
+    );
     if (freshness.warn) {
       wrote.notes.unshift(freshness.warn);
       log.say("report", freshness.warn, { ageDays }, { level: "warn" });
@@ -435,6 +475,8 @@ async function persist(
   pipeline: Pipeline,
   prior: PriorContact,
   log: RunLog,
+  /** Said by the checks gate, which runs before this list exists. */
+  checksWarning: string | null,
 ): Promise<{
   feesRaised: number;
   lettersWritten: number;
@@ -456,6 +498,7 @@ async function persist(
   heldBack: { code: string; name: string; why: string }[];
 }> {
   const notes: string[] = [];
+  if (checksWarning) notes.push(checksWarning);
   const byId = new Map(pipeline.accounts.map((a) => [a.id, a]));
 
   /*

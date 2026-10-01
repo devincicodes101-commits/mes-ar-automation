@@ -305,10 +305,22 @@ function ApplyBar({
      * and empty mean different things to the import.
      */
     const uploaded = results.find((r) => r.kind === "contact-list");
+    /*
+     * The same checks the panel below shows, sent with the file.
+     *
+     * Computed here rather than passed down, because this is where the save
+     * happens and the two must describe the same upload. checkUpload is a pure
+     * function of (results, active), so calling it twice gives one answer.
+     *
+     * They go to the server so the nine o'clock run can read them. Until it
+     * could, "Do not use this data" was advice to whoever was looking, and the
+     * run went ahead on the same figures the next morning.
+     */
     const result = await storeDataset(
       d,
       fileName ?? null,
       uploaded && "contacts" in uploaded ? uploaded.contacts : null,
+      checkUpload(results, active),
     );
     setSaving(false);
 

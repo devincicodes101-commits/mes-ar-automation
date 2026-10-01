@@ -1841,4 +1841,40 @@ check("the email tile counts the uploaded contact list first",
 check("and the badge below it reads the same source",
       UPLOAD_PAGE.includes("contactList.contacts.length} companies with an email address"), true);
 
+/* ------------------ the checks verdict actually reaches the schedule */
+
+/*
+ * The whole failure this closes was a chain with one link missing: the browser
+ * computed a verdict, nothing stored it, and the run had nothing to read. A
+ * guard on each link, because any one of them going quiet restores the bug.
+ */
+const UPLOAD_PAGE_V = code("src/app/upload/page.tsx");
+const DATASET_V = code("src/lib/dataset.ts");
+const UPLOAD_ROUTE_V = code("src/app/api/upload/route.ts");
+const CRON_V = code("src/app/api/cron/route.ts");
+
+check("the page sends the findings with the file",
+      UPLOAD_PAGE_V.includes("checkUpload(results, active),"), true);
+check("storeDataset puts them in the request body",
+      /body: JSON\.stringify\(\{[\s\S]{0,320}findings,/.test(DATASET_V), true);
+const VERDICT_LIB = code("src/lib/upload-verdict.ts");
+check("the route hands them to the library rather than writing itself",
+      UPLOAD_ROUTE_V.includes("await recordVerdict(db, uploadId") &&
+        !UPLOAD_ROUTE_V.includes(".from("), true);
+check("the library files them against the upload",
+      VERDICT_LIB.includes("checks: findings") &&
+        VERDICT_LIB.includes("verdict: worst"), true);
+check("the schedule reads the standing of the newest upload",
+      CRON_V.includes("await uploadStanding(db)"), true);
+check("and refuses the day when the checks failed",
+      CRON_V.includes("refusedByChecks(day, standing)") &&
+        CRON_V.includes('status: "checks-failed"'), true);
+check("an officer can mark a failed upload usable",
+      UPLOAD_ROUTE_V.includes("export async function PATCH") &&
+        UPLOAD_ROUTE_V.includes("await markUsable("), true);
+check("which is a CSD action, not anybody's",
+      /PATCH[\s\S]{0,420}mayUpload\(who\.caller\)/.test(UPLOAD_ROUTE_V), true);
+check("and the override is written to the audit log",
+      VERDICT_LIB.includes('action: "upload.override"'), true);
+
 process.exit(failures === 0 ? 0 : 1);

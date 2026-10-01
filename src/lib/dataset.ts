@@ -543,6 +543,11 @@ export async function storeDataset(
    * uploading an AR report should mean that.
    */
   contacts: readonly { customerCode: string; companyName: string; emails: string[] }[] | null = null,
+  /*
+   * What the upload checks said. Sent so the schedule can read it: the verdict
+   * used to exist only on the screen of whoever uploaded the file.
+   */
+  findings: readonly { severity: string; title: string; detail: string }[] = [],
 ): Promise<{ ok: boolean; error?: string; problems?: { what: string; detail: string }[] }> {
   const r = await fetch("/api/upload", {
     method: "POST",
@@ -553,6 +558,7 @@ export async function storeDataset(
       reportDate: d.asOf,
       fileName,
       contacts,
+      findings,
       /*
        * A month where nobody owes anything, stated rather than inferred.
        *

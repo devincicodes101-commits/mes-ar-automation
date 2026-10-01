@@ -31,6 +31,7 @@ import {
   runNeedsLookingAt,
 } from "../src/lib/schedule.ts";
 import { CYCLE_DAYS } from "../src/lib/cycle.ts";
+import { refusedByChecks, UNKNOWN } from "../src/lib/upload-verdict.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -255,6 +256,53 @@ check("a month of work and quiet days has no failures",
   month.filter(runNeedsLookingAt).length, 0);
 check("and one real error in that month counts exactly one",
   [...month, "error"].filter(runNeedsLookingAt).length, 1);
+
+console.log("\nA report whose checks failed is not acted on\n");
+
+/*
+ * The upload screen's worst answer is "do not use this data". It reached a
+ * person and nothing else: the checks ran in the browser and the result was
+ * never written down, so the nine o'clock run went ahead on the same figures
+ * and sent letters and raised fees from them.
+ */
+const failed = { ...UNKNOWN, verdict: "error" as const, failed: ["Our total does not match MES's own subtotals"] };
+const clean = { ...UNKNOWN, verdict: null };
+const warned = { ...UNKNOWN, verdict: "warning" as const };
+const overridden = {
+  ...failed,
+  overriddenAt: "2026-09-07T01:00:00Z",
+  overriddenBy: "someone",
+  overrideNote: "checked against NetSuite, figures are right",
+};
+
+/* The three days that write to a tenant or charge one. */
+for (const day of [7, 16, 21]) {
+  check(`day ${day}: a failed file is refused`, refusedByChecks(day, failed).act, false);
+  check(`day ${day}: a clean file acts`, refusedByChecks(day, clean).act, true);
+  check(`day ${day}: a warning is not a refusal`, refusedByChecks(day, warned).act, true);
+  check(`day ${day}: an override lets it through`, refusedByChecks(day, overridden).act, true);
+}
+
+/* The three that only read and rebuild. Nothing leaves the building on those,
+   and refusing them would hide the problem rather than show it. */
+for (const day of [1, 4, 15]) {
+  check(`day ${day}: a failed file still runs, because nothing is sent`,
+    refusedByChecks(day, failed).act, true);
+}
+
+check("the refusal names the check that failed",
+  (refusedByChecks(7, failed) as { why: string }).why.includes("does not match MES"), true);
+check("and says how to clear it",
+  (refusedByChecks(7, failed) as { why: string }).why.includes("mark this one usable"), true);
+check("an override is said out loud rather than passing silently",
+  (refusedByChecks(7, overridden) as { warn: string | null }).warn?.includes("usable anyway") ?? false, true);
+check("and repeats the reason given",
+  (refusedByChecks(7, overridden) as { warn: string | null }).warn?.includes("checked against NetSuite") ?? false, true);
+
+/* A database without 0021 applied has no verdict to read. It must not stop
+   MES's collections. */
+check("an unknown verdict acts, so a missing migration is not an outage",
+  refusedByChecks(7, UNKNOWN).act, true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
