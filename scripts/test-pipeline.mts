@@ -50,6 +50,7 @@ import {
   simulateSend,
 } from "../src/lib/outbox.ts";
 import { runPipeline } from "../src/lib/pipeline.ts";
+import { stillOwing, emptyState } from "../src/lib/cycle.ts";
 import {
   DEFAULT_RECIPIENTS,
   simulateReportSend,
@@ -760,6 +761,65 @@ check("the Categories column is optional and already absent here",
   said(noCategories, '"Categories" column'), true);
 check("the real export is unaffected by any of this",
   p.problems.filter((x) => x.severity === "error").length, 0);
+
+/* ======================= who the 7th writes to: past due, not past a bucket */
+
+/*
+ * MES bill on the 15th, payment falls due around the 30th, and the first
+ * reminder goes out on the 7th - about a week late. Asking the aging buckets
+ * who to chase answered "nobody", because their first bucket, "Current", runs
+ * to fifteen days late. The tenant was then not written to until the 7th of
+ * the month after: every reminder a month late.
+ *
+ * Hamad found it with the plainest case there is, and it is the one their
+ * whole cycle is built around.
+ */
+section("A tenant a week late is chased, not filed under Current");
+
+/** One tenant, one charge, that many days past its due date. */
+function lateBy(age: number) {
+  const rows: unknown[][] = [
+    FULL_HEADER,
+    blankRow("DORM-700 KAYA TOAST PTE. LTD."),
+    dmgLine("", "DORM-700 KAYA TOAST PTE. LTD.", "JPD1-786/007001", "  10,000.00 ",
+            "Invoice", "7/15/2026", "7/30/2026", age),
+    totalRow("Total - DORM-700 KAYA TOAST PTE. LTD.", "  10,000.00 "),
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Finance AR Download");
+  const pipe = runPipeline(wb, null);
+  return stillOwing(pipe, emptyState()).length;
+}
+
+check("not due yet: left alone", lateBy(-1), 0);
+check("due today: not late", lateBy(0), 0);
+check("one day past due: chased", lateBy(1), 1);
+check("Hamad's case, billed 15 July and a week past due on the 7th", lateBy(8), 1);
+
+/* The boundary nobody was testing, which is where this went wrong. */
+check("thirteen days late: chased", lateBy(13), 1);
+check("fourteen days late: chased", lateBy(14), 1);
+check("fifteen days late, the last day of Current: chased", lateBy(15), 1);
+check("sixteen days late, where it already worked: still chased", lateBy(16), 1);
+
+/* The aging bands are untouched: they are how a report is presented. */
+check("fifteen days late is still reported as Current", bucketLabelForAge(15), "Current");
+check("sixteen days late is still reported as 30 days", bucketLabelForAge(16), "30 days");
+
+/* A tenant in credit is still not chased. */
+const inCredit = (() => {
+  const rows: unknown[][] = [
+    FULL_HEADER,
+    blankRow("DORM-701 CREDIT PTE. LTD."),
+    dmgLine("", "DORM-701 CREDIT PTE. LTD.", "JP1CN/701", "-S$500.00",
+            "Credit Memo", "7/15/2026", "7/30/2026", 8),
+    totalRow("Total - DORM-701 CREDIT PTE. LTD.", "-S$500.00"),
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Finance AR Download");
+  return stillOwing(runPipeline(wb, null), emptyState()).length;
+})();
+check("an account in credit is never chased", inCredit, 0);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

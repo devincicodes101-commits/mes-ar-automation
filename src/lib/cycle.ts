@@ -1,6 +1,6 @@
 import type { Pipeline } from "./pipeline";
 import type { Account } from "./types";
-import { buildQueue, overdueTotal } from "./data.ts";
+import { buildQueue, overdueTotal, pastDueByAccount } from "./data.ts";
 import { CAN_SEND_FOR_REAL } from "./outbox.ts";
 import { renderLetter } from "./letters.ts";
 
@@ -190,10 +190,77 @@ function promiseStillStands(by: string, asAtIso: string | null): boolean {
   return by >= asAtIso;
 }
 
+/*
+ * How much each account is past due, worked out once per report.
+ *
+ * stillOwing is called many times over a simulated month, and the answer only
+ * depends on the lines, which do not change within a run. Keyed on the array
+ * itself so a new report gets a new answer with nothing to invalidate by hand.
+ */
+const pastDueCache = new WeakMap<object, Map<string, number>>();
+
+export function pastDue(p: Pipeline): Map<string, number> {
+  const held = pastDueCache.get(p.invoices);
+  if (held) return held;
+  const built = pastDueByAccount(p.invoices);
+  pastDueCache.set(p.invoices, built);
+  return built;
+}
+
+/**
+ * What this account is chased for.
+ *
+ * Money past its due date, or the aging buckets where there are no lines to
+ * count. The larger of the two on purpose, and never the smaller: some
+ * callers hold accounts with no invoices behind them - fixtures, and any path
+ * that reads buckets without lines - and for those the map is empty. Taking
+ * the larger means this can only ever add the tenants the buckets were
+ * missing, never drop one the old rule was already chasing.
+ */
+export function chaseable(p: Pipeline, a: Account): number {
+  return Math.max(pastDue(p).get(a.id) ?? 0, overdueTotal(a));
+}
+
+/**
+ * Who the 16th charges the fee to.
+ *
+ * Not the same question as who gets chased, and it used to be answered with
+ * the same list. Chasing starts the day the deadline passes; MES's fee is for
+ * anything more than fourteen days past its due date, which is what the Late
+ * Payment Fees screen already works out in buildLateFeeListing - GIRO
+ * excluded, fees already raised left off.
+ *
+ * Read from that listing rather than derived again here, so the rehearsal and
+ * the screen cannot disagree about who is being charged a hundred dollars.
+ */
+export function feeIsDue(p: Pipeline, s: SimState): Account[] {
+  const owing = stillOwing(p, s);
+  // Defensive: some callers build a Pipeline by hand and leave the listing
+  // half-formed. An absent listing means fall back, not crash.
+  const listed = new Set((p.lateFees?.rows ?? []).map((r) => r.account.id));
+  /*
+   * Where the listing has nothing to say - a fixture, or a report with no
+   * lines behind the buckets - fall back to the old derivation, so nothing
+   * that charged correctly before stops charging now.
+   */
+  const pool =
+    listed.size > 0
+      ? owing.filter((a) => listed.has(a.id))
+      : owing.filter((a) => !p.giroCustomers?.has(a.customerCode));
+  return pool.filter((a) => !s.charged.includes(a.id));
+}
+
 export function stillOwing(p: Pipeline, s: SimState): Account[] {
   const at = asAt(p, s);
-  return buildQueue(p.accounts)
-    .filter((q) => overdueTotal(q.account) > 0)
+  /*
+   * Past its due date, not outside the Current bucket. See pastDueByAccount:
+   * "Current" runs to fifteen days late, so asking the buckets who to chase
+   * skipped everyone in their first fortnight - which is exactly who the 7th
+   * exists to write to.
+   */
+  const due = pastDue(p);
+  return buildQueue(p.accounts, new Map(), due)
+    .filter((q) => Math.max(due.get(q.account.id) ?? 0, overdueTotal(q.account)) > 0)
     .filter((q) => !s.paid.includes(q.account.id))
     .filter((q) => {
       const promise = s.promised[q.account.id];
@@ -535,9 +602,7 @@ export function outputFor(
   }
 
   if (day === 16) {
-    const due = owing.filter(
-      (a) => !s.charged.includes(a.id) && !p.giroCustomers.has(a.customerCode),
-    );
+    const due = feeIsDue(p, s);
     const held = owing.filter((a) => p.giroCustomers.has(a.customerCode));
     return {
       label: `Who is charged the $${p.lateFees.fee} fee`,
@@ -601,9 +666,10 @@ export function runDay(
   }
 
   if (day === 16) {
-    const due = owing.filter(
-      (a) => !s.charged.includes(a.id) && !p.giroCustomers.has(a.customerCode),
-    );
+    // The same list the plan above shows, and the same one the Late Payment
+    // Fees screen builds. Two places deciding who is charged is how they come
+    // to disagree.
+    const due = feeIsDue(p, s);
     next.charged.push(...due.map((a) => a.id));
     add({
       kind: "charged",

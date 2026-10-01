@@ -49,6 +49,7 @@ const REASON_KIND: Record<
   "good" | "warning" | "serious" | "critical" | "neutral"
 > = {
   "repeat-late-fees": "critical",
+  "past-due": "warning",
   "aging-30": "warning",
   "aging-90": "critical",
   "promise-broken": "serious",

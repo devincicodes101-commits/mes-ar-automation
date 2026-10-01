@@ -65,6 +65,51 @@ export function severeTotal(a: Account): number {
   return a.buckets.d90 + a.buckets.d90plus;
 }
 
+/**
+ * Money whose due date has passed, per account.
+ *
+ * ---------------------------------------------------------------------------
+ * Why this is not overdueTotal
+ *
+ * There are two meanings of "late" in this system and they are not the same
+ * number. overdueTotal above adds the four aging buckets, which is how MES
+ * present a balance on a report. Their first bucket, "Current", holds anything
+ * up to fifteen days past its due date - it is a reporting band, not a claim
+ * that the money is not yet owed.
+ *
+ * Chasing runs off the deadline instead. MES bill on the 15th, payment falls
+ * due around the 30th, and the first reminder goes out on the 7th: about a
+ * week late. Asking overdueTotal who to chase answered "nobody", because a
+ * week late is still Current, and the tenant was not written to until the 7th
+ * of the month after - every reminder a month late.
+ *
+ * Hamad found it with the plainest possible case, which is the one MES's whole
+ * cycle is built around: billed 15 July, due 30 July, reminded 7 August.
+ *
+ * Counted from the lines rather than the buckets because the bucket is a band
+ * and the line carries the actual day count. A credit note past its date
+ * subtracts, so an account in credit is still not chased.
+ */
+export function pastDueByAccount(
+  invoices: readonly {
+    customerCode?: string;
+    property?: string;
+    age: number | null;
+    openBalance: number;
+  }[],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const line of invoices) {
+    // Due today is not late. Negative means the date has not arrived.
+    if (line.age === null || line.age <= 0) continue;
+    if (!line.customerCode || !line.property) continue;
+    // The same id the parser and the database both give an account.
+    const id = `${line.customerCode}-${line.property}`.toLowerCase();
+    out.set(id, Math.round(((out.get(id) ?? 0) + line.openBalance) * 100) / 100);
+  }
+  return out;
+}
+
 export function isInCredit(a: Account): boolean {
   return a.total < 0;
 }
@@ -137,6 +182,15 @@ export function buildQueue(
    * behaviour and is what the sample data has.
    */
   raisedByUs: ReadonlyMap<string, number> = new Map(),
+  /**
+   * Money past its due date, per account, from pastDueByAccount.
+   *
+   * Optional, so every existing caller keeps the behaviour it had. Supplied,
+   * a tenant inside their first fortnight of lateness produces a reason and
+   * stays in the queue - without it they produced none and were dropped here,
+   * before stillOwing ever saw them.
+   */
+  pastDue: ReadonlyMap<string, number> = new Map(),
 ): QueueItem[] {
   const items: QueueItem[] = [];
 
@@ -152,10 +206,13 @@ export function buildQueue(
        about their behaviour, not about how far the paperwork has got. */
     const fees = account.lateFeeCount + (raisedByUs.get(account.id) ?? 0);
 
+    const due = pastDue.get(account.id) ?? 0;
+
+    if (due > 0) reasons.push("past-due");
     if (overdue > 0) reasons.push("aging-30");
     if (severeTotal(account) > 0) reasons.push("aging-90");
     if (fees >= 3) reasons.push("repeat-late-fees");
-    if (!account.hasContact && overdue > 0) reasons.push("no-contact");
+    if (!account.hasContact && (overdue > 0 || due > 0)) reasons.push("no-contact");
     if (account.legacyNote) reasons.push("promise-broken");
 
     if (reasons.length === 0) continue;
@@ -569,6 +626,9 @@ export function feesDue(
 /** Written for the officer reading the screen, not for the spec. */
 export const REASON_LABEL: Record<QueueReason, string> = {
   "repeat-late-fees": "Charged late fees repeatedly",
+  // The deadline has passed. True from one day late, which is why it is not
+  // the same reason as the aging bands below.
+  "past-due": "Past the payment deadline",
   // Set whenever any money sits outside the Current bucket, which begins at
   // sixteen days past due. It read "more than 30 days", which put a tenant
   // twenty days late under a label saying thirty.

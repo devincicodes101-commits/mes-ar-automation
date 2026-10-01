@@ -93,6 +93,14 @@ export interface ArData {
  */
 export type QueueReason =
   | "repeat-late-fees"
+  /*
+   * Past the due date, which is what the 7th exists to act on. Separate from
+   * "aging-30": MES's first aging band, "Current", runs to fifteen days late,
+   * so a tenant a week past their deadline has nothing in the 30-day bucket
+   * and used to produce no reason at all - which dropped them out of the
+   * queue entirely before anything else got a look.
+   */
+  | "past-due"
   | "aging-30"
   | "aging-90"
   | "promise-broken"
