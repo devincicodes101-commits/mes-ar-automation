@@ -1877,4 +1877,40 @@ check("which is a CSD action, not anybody's",
 check("and the override is written to the audit log",
       VERDICT_LIB.includes('action: "upload.override"'), true);
 
+/* ------------- the sample warning appears where it is actually true */
+
+const SHELL_W = code("src/components/Shell.tsx");
+
+/*
+ * The banner warns that the figures are the bundled example. On The Schedule
+ * it sat above four tiles read straight from cron_runs, which are real. A
+ * warning that is wrong half the time is one people learn to skim.
+ */
+check("the pages whose figures are not the report are named",
+      SHELL_W.includes("NOT_FROM_THE_REPORT") &&
+        SHELL_W.includes('"/schedule"') && SHELL_W.includes('"/activity"'), true);
+check("and both banners are gated on it",
+      SHELL_W.includes("!figuresAreFromTheReport ? null :"), true);
+
+/* Every screen that reads the shared dataset must still be warned. Read the
+   list itself, not the file: every route appears in Shell's nav as well. */
+const EXEMPT = (/const NOT_FROM_THE_REPORT = \[([^\]]*)\]/.exec(SHELL_W)?.[1] ?? "")
+  .split(",")
+  .map((x) => x.trim().replace(/['"]/g, ""))
+  .filter(Boolean);
+check("the exempt list is the five that show no report figures", EXEMPT.length, 5);
+for (const page of ["calls", "late-fees", "reminders", "reports", "simulation", "no-email", ""]) {
+  check(`/${page} still gets the warning`, EXEMPT.includes(`/${page}`), false);
+}
+
+/* ------------------- the billing month box says what it actually does */
+
+const UPLOAD_PAGE_M = code("src/app/upload/page.tsx");
+check("the period box no longer reads as a rule about the 15th",
+      UPLOAD_PAGE_M.includes("Billing runs from the 15th"), false);
+check("it says it sets no billing date",
+      UPLOAD_PAGE_M.includes("It does not set any"), true);
+check("and warns what a wrong month costs",
+      UPLOAD_PAGE_M.includes("filed under the wrong month"), true);
+
 process.exit(failures === 0 ? 0 : 1);

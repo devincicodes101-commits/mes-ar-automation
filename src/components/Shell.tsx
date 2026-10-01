@@ -235,6 +235,22 @@ function ThemeToggle() {
   );
 }
 
+/**
+ * Screens whose figures do not come from the uploaded report.
+ *
+ * The banners below warn that the numbers on screen are the bundled example
+ * rather than MES's. On these pages that is not true of anything shown: The
+ * Schedule counts what the nine o'clock run did, read straight from cron_runs,
+ * and the Activity Log is the record of what people did. Admin screens show no
+ * figures at all.
+ *
+ * A warning that is wrong half the time is one people learn to skim, and the
+ * one occasion it matters - somebody about to show a client figures that are
+ * not theirs - is exactly when it gets skimmed. So it is shown where it is
+ * true and nowhere else.
+ */
+const NOT_FROM_THE_REPORT = ["/schedule", "/activity", "/users", "/access", "/settings"];
+
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -244,6 +260,7 @@ export function Shell({ children }: { children: ReactNode }) {
   /* Whether the figures on screen came from a real upload or the bundled
      example. See the banner below. */
   const dataset = useDatasetState();
+  const figuresAreFromTheReport = !NOT_FROM_THE_REPORT.includes(pathname);
   const current = navFor(pathname);
 
   // The nav only offers what this role may actually open, so nobody is invited
@@ -469,7 +486,7 @@ export function Shell({ children }: { children: ReactNode }) {
           *
           * On every screen, because the figures are on every screen.
           */}
-        {dataset.origin === "empty" ? (
+        {!figuresAreFromTheReport ? null : dataset.origin === "empty" ? (
           <div
             className="border-b border-line-hair bg-surface-raised px-6 py-3 text-sm text-ink-secondary"
             role="status"

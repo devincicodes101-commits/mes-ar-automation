@@ -120,11 +120,33 @@ export default function UploadPage() {
             className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
-        <p className="mb-2 max-w-md text-[11px] text-ink-muted">
-          Billing runs from the 15th, payment falls due on the 1st, and there
-          are two deadlines after that: 14 days, then 30. Every screen and export is
-          stamped with the period you choose.
-        </p>
+        {/*
+          * Reworded, because the old text read as a rule the system applies.
+          *
+          * It said "Billing runs from the 15th", and a reader reasonably asked
+          * whether picking a month therefore set the billing date to the 15th
+          * of it. It does not: every charge carries its own billing date in
+          * the Date column and the system reads each one. The month is a
+          * label, and this now says which it is.
+          */}
+        <div className="mb-2 max-w-md space-y-1.5">
+          <p className="text-[11px] text-ink-muted">
+            A label for the month this upload belongs to. It does not set any
+            billing date &mdash; every charge carries its own, and the system
+            reads each one from the file.
+          </p>
+          <p className="text-[11px] text-ink-muted">
+            It is what keeps the once-a-month rules honest: one late payment
+            fee per tenant per month, one first reminder per tenant per month,
+            and one set of figures to compare against the next.
+          </p>
+          <p className="text-[11px] text-amber-700 dark:text-amber-500">
+            Pick the month the report is for. Label it wrongly and the figures
+            are filed under the wrong month, so What Changed compares the wrong
+            two and the fee screen looks at the wrong month for what was
+            already charged.
+          </p>
+        </div>
       </Card>
 
       {error ? (
