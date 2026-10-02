@@ -2098,5 +2098,12 @@ check("the call screen reads it",
 check("and shows it on the call itself, not only in the list",
       CALLS_CODE.includes('label="Billed on"') &&
         CALLS_CODE.includes('label="Payment was due"'), true);
+/* It was the tail of a sentence beginning "Spoke to nobody", in the grey of a
+   timestamp, and was asked for twice by somebody looking straight at it. A
+   line of its own, above the timestamp rather than inside it. */
+check("and a logged call carries its bill on a line of its own",
+      /function LoggedBilling/.test(CALLS_CODE) &&
+        CALLS_CODE.includes("<LoggedBilling") &&
+        !/about the \$\{formatDate/.test(CALLS_CODE), true);
 
 process.exit(failures === 0 ? 0 : 1);

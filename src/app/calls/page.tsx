@@ -435,15 +435,20 @@ export default function CallListPage() {
                       }
                     />
                   </div>
-                  <p className="mt-1 text-[11px] text-ink-muted">
-                    Spoke to {c.reached || "nobody"} ·{" "}
-                    {new Date(c.at).toLocaleString("en-SG")} ·{" "}
-                    {CALL_STAGES.find((x) => x.value === stageOfCall(c))?.label}
-                    {billing.get(c.accountId)?.billedOn
-                      ? ` · about the ${formatDate(
-                          billing.get(c.accountId)!.billedOn,
-                        )} bill, due ${formatDate(billing.get(c.accountId)!.dueBy)}`
-                      : ""}
+                  {/*
+                    * The bill gets its own line.
+                    *
+                    * It was the tail of a sentence that began "Spoke to
+                    * nobody", in the same grey as the timestamp, and it was
+                    * asked for twice by somebody looking straight at it. Which
+                    * bill the call was about is the point of the record, not a
+                    * footnote to when it happened.
+                    */}
+                  <LoggedBilling billing={billing.get(c.accountId) ?? NO_BILLING} />
+                  <p className="mt-0.5 text-[11px] text-ink-muted">
+                    {CALL_STAGES.find((x) => x.value === stageOfCall(c))?.label} ·
+                    spoke to {c.reached || "nobody"} ·{" "}
+                    {new Date(c.at).toLocaleString("en-SG")}
                   </p>
                   {c.notes ? (
                     <p className="mt-1 text-xs text-ink-secondary">{c.notes}</p>
@@ -724,5 +729,32 @@ function BillingNote({ billing }: { billing: TenantBilling }) {
         </span>
       ) : null}
     </span>
+  );
+}
+
+/**
+ * Which bill a logged call was about, on a line of its own.
+ *
+ * Deliberately heavier than the timestamp beneath it. Reading a call back
+ * weeks later, "which invoice was this" is the first question and "what time
+ * did she ring" is the last, and the old layout had them the other way round.
+ *
+ * The figures are this tenant's current billing position, not a snapshot taken
+ * when the call was made - the report moves on and nothing here is frozen - so
+ * it says "billed", not "was billed".
+ */
+function LoggedBilling({ billing }: { billing: TenantBilling }) {
+  if (!billing.billedOn) return null;
+  return (
+    <p className="mt-1 text-xs text-ink-secondary">
+      Billed {formatDate(billing.billedOn)}
+      {billing.dueBy ? ` · due ${formatDate(billing.dueBy)}` : ""}
+      {billing.daysPastDue !== null && billing.daysPastDue > 0 ? (
+        <span className="font-medium text-ink"> · {billing.daysPastDue} days overdue</span>
+      ) : null}
+      {billing.runs > 1 ? (
+        <span className="text-ink-muted"> · {billing.runs - 1} earlier runs unpaid</span>
+      ) : null}
+    </p>
   );
 }
