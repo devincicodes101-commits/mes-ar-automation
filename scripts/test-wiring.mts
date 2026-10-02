@@ -1941,4 +1941,25 @@ check("no screen reads the bundled sample directly",
       SAMPLE_READERS.map((f) => path.basename(path.dirname(f))).join(", ") || "none",
       "none");
 
+/* ------------------- a rerun of a day describes one run, not two */
+
+/*
+ * started_at was left to the column default, which only applies on insert. A
+ * day run a second time kept the first run's start and took the second's
+ * finish, so the row claimed a run beginning on 21 September and ending on 1
+ * October: two events reported as one, against a job that takes seconds.
+ */
+const CRON_R = code("src/app/api/cron/route.ts");
+check("the run stamps when it began", CRON_R.includes("started_at: startedAt"), true);
+check("taken once, at the top of the run",
+      /const startedAt = new Date\(\)\.toISOString\(\)/.test(CRON_R), true);
+check("and the row type requires it", CRON_R.includes("started_at: string;"), true);
+
+/* The diary continues the day's numbering rather than restarting. */
+const RUNLOG_R = code("src/lib/run-log.ts");
+check("the diary reads the day's highest line number",
+      RUNLOG_R.includes('.from("run_log")') && RUNLOG_R.includes('.select("seq")'), true);
+check("and offsets what it writes by it",
+      RUNLOG_R.includes("seq: l.seq + offset"), true);
+
 process.exit(failures === 0 ? 0 : 1);

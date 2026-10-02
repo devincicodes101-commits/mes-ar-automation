@@ -101,6 +101,16 @@ interface RunRow {
   missed: string[];
   report_date: string | null;
   error: string | null;
+  /*
+   * Stamped on every run, including a rerun of a day already recorded.
+   *
+   * It was left to the column default, which only applies on insert. A day run
+   * a second time kept the first run's started_at and took the second's
+   * finished_at, so the row described a run that began on 21 September and
+   * ended on 1 October - two events reported as one, and a duration of ten
+   * days against a job that takes seconds.
+   */
+  started_at: string;
   finished_at: string;
 }
 
@@ -115,6 +125,8 @@ export async function GET(request: Request) {
   }
 
   const now = inSingapore();
+  /* When this run began, for the row below. See RunRow.started_at. */
+  const startedAt = new Date().toISOString();
 
   /*
    * Catching up a day that did not run.
@@ -175,7 +187,9 @@ export async function GET(request: Request) {
     missedDays: missed,
   });
 
-  const finish = async (row: Omit<RunRow, "ran_for" | "missed" | "finished_at">) => {
+  const finish = async (
+    row: Omit<RunRow, "ran_for" | "missed" | "started_at" | "finished_at">,
+  ) => {
     log.say("finish", `The run ended as "${row.status}"`, {
       status: row.status,
       error: row.error,
@@ -186,6 +200,7 @@ export async function GET(request: Request) {
       ...row,
       ran_for: today.iso,
       missed,
+      started_at: startedAt,
       finished_at: new Date().toISOString(),
     };
     const written = await db.from("cron_runs").upsert(full, { onConflict: "ran_for" });

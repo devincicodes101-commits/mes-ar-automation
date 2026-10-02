@@ -79,6 +79,32 @@ export function runLog(db: SupabaseClient, ranFor: string): RunLog {
       if (lines.length === 0) return null;
       try {
         /*
+         * Carry on from where the day left off.
+         *
+         * Lines are numbered from 1 in memory, and run_log is unique on
+         * (ran_for, seq). So a day run a second time - a catch-up, or an
+         * officer pressing the button after a failure - tried to write seq 1
+         * again, the whole batch was refused, and because a failed log must
+         * never stop a letter the refusal was swallowed. The result was a
+         * diary that silently recorded nothing about any rerun, which is
+         * precisely the run somebody would be reading it to understand.
+         *
+         * Read the day's highest number and offset by it, so a rerun appends.
+         * That is what append-only was supposed to mean.
+         */
+        let offset = 0;
+        const highest = await db
+          .from("run_log")
+          .select("seq")
+          .eq("ran_for", ranFor)
+          .order("seq", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!highest.error && highest.data) {
+          offset = Number((highest.data as { seq: number }).seq) || 0;
+        }
+
+        /*
          * Chunked, because a day that writes to every tenant can produce
          * several hundred lines and PostgREST has a request size to respect.
          * Five hundred is comfortably inside it and keeps the round trips in
@@ -86,7 +112,9 @@ export function runLog(db: SupabaseClient, ranFor: string): RunLog {
          */
         const CHUNK = 500;
         for (let i = 0; i < lines.length; i += CHUNK) {
-          const batch = lines.slice(i, i + CHUNK).map((l) => ({ ...l, ran_for: ranFor }));
+          const batch = lines
+            .slice(i, i + CHUNK)
+            .map((l) => ({ ...l, seq: l.seq + offset, ran_for: ranFor }));
           const { error } = await db.from("run_log").insert(batch);
           if (error) {
             const missing = /relation .*run_log.* does not exist|schema cache/i.test(error.message);

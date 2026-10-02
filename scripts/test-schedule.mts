@@ -32,6 +32,7 @@ import {
 } from "../src/lib/schedule.ts";
 import { CYCLE_DAYS } from "../src/lib/cycle.ts";
 import { refusedByChecks, UNKNOWN } from "../src/lib/upload-verdict.ts";
+import { runLog } from "../src/lib/run-log.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -303,6 +304,83 @@ check("and repeats the reason given",
    MES's collections. */
 check("an unknown verdict acts, so a missing migration is not an outage",
   refusedByChecks(7, UNKNOWN).act, true);
+
+console.log("\nA day run twice still gets written down\n");
+
+/*
+ * run_log is unique on (ran_for, seq) and every run numbered its lines from 1,
+ * so a day run a second time - a catch-up, or an officer pressing the button
+ * after a failure - collided on seq 1 and the whole batch was refused. Because
+ * a failed log must never stop a letter, the refusal was swallowed: the diary
+ * silently recorded nothing about the rerun, which is exactly the run somebody
+ * would be reading it to understand.
+ */
+
+/** Just enough Supabase to be wrong in the same way Postgres is. */
+function stubDb() {
+  const rows: { ran_for: string; seq: number }[] = [];
+  const api = {
+    rows,
+    from() {
+      return {
+        select() {
+          const q: Record<string, unknown> = {};
+          const chain = {
+            eq(_col: string, v: string) { q.ran_for = v; return chain; },
+            order() { return chain; },
+            limit() { return chain; },
+            async maybeSingle() {
+              const mine = rows.filter((r) => r.ran_for === q.ran_for);
+              if (mine.length === 0) return { data: null, error: null };
+              const top = mine.reduce((a, b) => (b.seq > a.seq ? b : a));
+              return { data: { seq: top.seq }, error: null };
+            },
+          };
+          return chain;
+        },
+        async insert(batch: { ran_for: string; seq: number }[]) {
+          for (const r of batch) {
+            if (rows.some((x) => x.ran_for === r.ran_for && x.seq === r.seq)) {
+              /* The unique constraint, as Postgres reports it. */
+              return { error: { message: 'duplicate key value violates unique constraint "run_log_ran_for_seq_key"' } };
+            }
+          }
+          rows.push(...batch);
+          return { error: null };
+        },
+      };
+    },
+  };
+  return api;
+}
+
+const db = stubDb();
+
+const first = runLog(db as never, "2026-09-07");
+first.say("start", "woke");
+first.say("report", "read the report");
+first.say("finish", "done");
+const firstProblem = await first.flush();
+
+check("the first run writes its lines", db.rows.length, 3);
+check("numbered from one", db.rows.map((r) => r.seq).join(","), "1,2,3");
+check("and reports no problem", firstProblem, null);
+
+const second = runLog(db as never, "2026-09-07");
+second.say("start", "woke again");
+second.say("finish", "refused, the checks failed");
+const secondProblem = await second.flush();
+
+check("the rerun is written down too", db.rows.length, 5);
+check("carrying on from where the day left off", db.rows.map((r) => r.seq).join(","), "1,2,3,4,5");
+check("and it reports no problem either", secondProblem, null);
+
+/* A different day is numbered from one again. */
+const other = runLog(db as never, "2026-09-16");
+other.say("start", "a different day");
+await other.flush();
+check("another day starts at one", db.rows.filter((r) => r.ran_for === "2026-09-16")[0]?.seq, 1);
+check("without disturbing the first day", db.rows.filter((r) => r.ran_for === "2026-09-07").length, 5);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
