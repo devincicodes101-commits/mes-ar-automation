@@ -57,6 +57,9 @@ export const NAV: {
     // real.
     href: "/simulation",
     label: "Dry Run",
+    /* Kept out of the menu at the client's request: a rehearsal, not
+       part of the day. Still at /simulation. */
+    hidden: true,
     group: "Review",
     when: "any time",
     note: "Walk a whole month against a file. Nothing is sent.",
@@ -66,6 +69,10 @@ export const NAV: {
     // provokes: the month on screen looks right, but how would anybody know?
     href: "/checks",
     label: "Checks",
+    /* Kept out of the menu at the client's request. It proves the 338
+       requirement cases in front of somebody, which is a demonstration
+       rather than daily work. Still at /checks. */
+    hidden: true,
     group: "Review",
     when: "any time",
     note: "Every requirement MES wrote down, checked in front of you.",
@@ -101,10 +108,6 @@ export const NAV: {
     // tenants of 190, so it is not a footnote to the send, it is most of it.
     href: "/no-email",
     label: "Send By Hand",
-    /* A tab on Reminder Emails now. Three menu entries for one job - write
-       them, send the ones you can, phone the rest - read to the client as
-       three separate pieces of work. The page still answers on its own URL. */
-    hidden: true,
     group: "The cycle",
     when: "with each send",
     note: "Tenants with no address. The letter is written, you send it.",
@@ -142,6 +145,8 @@ export const NAV: {
   {
     href: "/defaulters",
     label: "Repeat Defaulters",
+    /* Kept out of the menu at the client's request. Still at /defaulters. */
+    hidden: true,
     group: "Review",
     note: "Tenants whose payment fails month after month.",
   },
@@ -152,6 +157,8 @@ export const NAV: {
     // it. Reading them in that order is how somebody decides what to do.
     href: "/chased",
     label: "Chased to the End",
+    /* Kept out of the menu at the client's request. Still at /chased. */
+    hidden: true,
     group: "Review",
     note: "Tenants who completed the whole cycle and still owe.",
   },
@@ -162,6 +169,8 @@ export const NAV: {
     // which of yesterday's names are still worth a call this morning.
     href: "/movement",
     label: "What Changed",
+    /* Kept out of the menu at the client's request. Still at /movement. */
+    hidden: true,
     group: "Review",
     note: "Who paid, who got worse, and who has been stuck for months.",
   },

@@ -1988,11 +1988,32 @@ check("a tenant can be searched for by name, code or address",
 check("the search reaches the sent letters too",
       REM_W.includes("sentShown"), true);
 
-/* The two entries those tabs replaced are out of the menu, not deleted. */
-for (const href of ["/no-email", "/outbox"]) {
+/*
+ * What the client wanted in the menu and what they did not.
+ *
+ * Send By Hand is a tab here and an entry in its own right: they asked for it
+ * back, because a tenant who cannot be emailed is a separate piece of work
+ * somebody has to pick up, not a filter on a list.
+ *
+ * Everything hidden is hidden, never deleted - each page still answers on its
+ * own URL, and restoring one is a line.
+ */
+/* Just this entry: up to the next href, never a fixed window. A window wide
+   enough to be safe is wide enough to read the next entry's hidden flag, which
+   is how the first version of this passed on its neighbour. */
+const navEntry = (href: string) => {
   const at = SHELL_N.indexOf(`href: "${href}"`);
-  check(`${href} is hidden from the menu rather than removed`,
-        at > -1 && SHELL_N.slice(at, at + 400).includes("hidden: true"), true);
+  if (at === -1) return "";
+  const next = SHELL_N.indexOf('href: "', at + 1);
+  return SHELL_N.slice(at, next === -1 ? undefined : next);
+};
+
+for (const href of ["/outbox", "/simulation", "/checks", "/defaulters", "/chased", "/movement"]) {
+  check(`${href} is out of the menu, not removed`,
+        navEntry(href).includes("hidden: true"), true);
+}
+for (const href of ["/no-email", "/promises", "/access", "/activity", "/schedule", "/reports", "/late-fees"]) {
+  check(`${href} stays in the menu`, navEntry(href).includes("hidden: true"), false);
 }
 
 process.exit(failures === 0 ? 0 : 1);
