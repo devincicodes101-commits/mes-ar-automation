@@ -245,3 +245,71 @@ export function cycleStage(
   if (c.ageDays <= FINAL_CREDIT_DAYS) return "past 14 days";
   return "past 30 days";
 }
+
+/* ------------------------------------------------- one tenant's billing ---
+ * The same question as billingCycles, asked the other way round.
+ *
+ * billingCycles answers "who is in this run". Standing in front of a tenant -
+ * about to ring them, or reading back the call afterwards - the question is
+ * "when were they billed, and has that fallen due yet". Raman asked for the
+ * billing date to be visible against a call so the officer can say it out
+ * loud, and so a log read six weeks later says which bill it was about.
+ */
+
+export interface TenantBilling {
+  /** The most recent run this tenant still owes against. */
+  billedOn: string | null;
+  /** When that run fell, or falls, due. */
+  dueBy: string | null;
+  /** How many separate billing runs they still owe against. */
+  runs: number;
+  /**
+   * The oldest due date that has already passed, where one has.
+   *
+   * This is what makes a tenant callable: their reminder date has gone by.
+   * Null means every run of theirs is still inside its credit period.
+   */
+  pastDueSince: string | null;
+  /** How long ago that was, in days. */
+  daysPastDue: number | null;
+}
+
+export const NO_BILLING: TenantBilling = {
+  billedOn: null,
+  dueBy: null,
+  runs: 0,
+  pastDueSince: null,
+  daysPastDue: null,
+};
+
+export function billingForTenant(
+  lines: readonly BillingLine[],
+  asOf: string | null,
+): TenantBilling {
+  const dated = lines.filter((l) => l.date);
+  if (dated.length === 0) return NO_BILLING;
+
+  /* The file's own due date wins where it has one, for the same reason
+     billingCycles prefers it: it is the date the tenant was actually given.
+     The 14 day rule fills in where the line carries none. */
+  const dueFor = (l: BillingLine) => l.dueDate ?? addDays(l.date as string, CREDIT_DAYS);
+
+  const runs = Array.from(new Set(dated.map((l) => l.date as string))).sort();
+  const billedOn = runs[runs.length - 1];
+  const latest = dated.find((l) => l.date === billedOn) as BillingLine;
+
+  const today = asOf ?? new Date().toISOString().slice(0, 10);
+  const passed = dated
+    .map(dueFor)
+    .filter((d) => d <= today)
+    .sort();
+  const pastDueSince = passed.length > 0 ? passed[0] : null;
+
+  return {
+    billedOn,
+    dueBy: dueFor(latest),
+    runs: runs.length,
+    pastDueSince,
+    daysPastDue: pastDueSince ? daysBetween(pastDueSince, today) : null,
+  };
+}

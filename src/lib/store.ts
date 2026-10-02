@@ -29,6 +29,46 @@ export interface CallLog {
   /** Pre-filled context captured with the call, per proposal section 5.1. */
   agingBucket: string;
   deductionFailDate: string | null;
+  /**
+   * Which reminder round the call belongs to.
+   *
+   * MES chase twice a month and the two calls are different conversations:
+   * the one after the 7th asks when payment is coming, the one after the 21st
+   * says what happens if it does not. A log that does not say which round it
+   * came from cannot be read back as either.
+   *
+   * Optional, because calls recorded before this field existed have no answer
+   * and inventing one would be worse than deriving it: see stageOfCall.
+   */
+  stage?: CallStage;
+}
+
+/** Which of the two monthly rounds a call belongs to. */
+export type CallStage = "first-reminder" | "final-notice";
+
+export const CALL_STAGES: { value: CallStage; label: string }[] = [
+  { value: "first-reminder", label: "First reminder" },
+  { value: "final-notice", label: "Final reminder" },
+];
+
+/**
+ * The round a call made now belongs to.
+ *
+ * MES send the first reminder on the 7th and the final notice on the 21st, so
+ * a call placed on or after the 21st is following up the final one. Offered as
+ * a default the officer can change rather than imposed, because a call chasing
+ * the 7th can easily be made late.
+ */
+export function stageForToday(at: Date = new Date()): CallStage {
+  return at.getDate() >= 21 ? "final-notice" : "first-reminder";
+}
+
+/**
+ * The round a logged call belongs to, including ones recorded before the
+ * field existed. Those fall back to the day they were made, by the same rule.
+ */
+export function stageOfCall(c: CallLog): CallStage {
+  return c.stage ?? stageForToday(new Date(c.at));
 }
 
 export type CallOutcome =

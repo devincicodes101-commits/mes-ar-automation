@@ -2056,4 +2056,47 @@ for (const href of ["/no-email", "/promises", "/access", "/activity", "/schedule
   check(`${href} stays in the menu`, navEntry(href).includes("hidden: true"), false);
 }
 
+/* ===================================== a call says which reminder it chased */
+
+/*
+ * Two calls a month, and the log could not tell them apart.
+ *
+ * MES chase on the 7th and again on the 21st, and those are different
+ * conversations: the first asks when payment is coming, the second says what
+ * happens if it does not. Every call landed in one undivided list, so a log
+ * read later could not say which round it belonged to, and the officer could
+ * not see this round's calls without reading last round's too.
+ *
+ * The billing date is the other half. The list said how much was owed and how
+ * overdue it was in the abstract, never which bill, so whoever picked up the
+ * phone had no date to quote.
+ */
+section("A call log says which reminder, and about which bill");
+
+const CALLS_CODE = code(path.join(APP, "calls", "page.tsx"));
+const STORE_CODE = code(path.join(LIB, "store.ts"));
+const CYCLES_LIB = lib("billing-cycles.ts");
+
+check("a call records which reminder it was about",
+      /stage\?: CallStage;/.test(STORE_CODE), true);
+check("and the form actually sets it, rather than leaving it undefined",
+      /stage,\n\s*\}\);/.test(CALLS_CODE) && CALLS_CODE.includes("stageForToday()"), true);
+check("a call logged before the field existed still lands in a round",
+      /export function stageOfCall/.test(STORE_CODE) &&
+        /c\.stage \?\? stageForToday/.test(STORE_CODE), true);
+check("the log can be read one round at a time",
+      CALLS_CODE.includes("stageOfCall(c) === stage"), true);
+
+check("the tenant's billing date is worked out, not guessed",
+      /export function billingForTenant/.test(CYCLES_LIB), true);
+check("it prefers the due date the file states",
+      /l\.dueDate \?\? addDays\(l\.date as string, CREDIT_DAYS\)/.test(CYCLES_LIB), true);
+check("and says how long ago payment fell due",
+      CYCLES_LIB.includes("daysPastDue") && CYCLES_LIB.includes("pastDueSince"), true);
+check("the call screen reads it",
+      CALLS_CODE.includes("billingForTenant("), true);
+check("and shows it on the call itself, not only in the list",
+      CALLS_CODE.includes('label="Billed on"') &&
+        CALLS_CODE.includes('label="Payment was due"'), true);
+
 process.exit(failures === 0 ? 0 : 1);

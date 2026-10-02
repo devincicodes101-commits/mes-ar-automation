@@ -3,17 +3,28 @@
 import { useMemo, useState } from "react";
 import {
   buildQueue,
+  formatDate,
   formatSgd,
+  invoicesForAccount,
   overdueTotal,
   severeTotal,
   worstBucket,
 } from "@/lib/data";
+import {
+  billingForTenant,
+  NO_BILLING,
+  type TenantBilling,
+} from "@/lib/billing-cycles";
 import { Account } from "@/lib/types";
 import {
   CALL_OUTCOMES,
+  CALL_STAGES,
   CallOutcome,
+  CallStage,
   recordCall,
   feeCountsByTenant,
+  stageForToday,
+  stageOfCall,
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
@@ -55,6 +66,13 @@ export default function CallListPage() {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<CallOutcome | "all">("all");
   const [logQuery, setLogQuery] = useState("");
+  /*
+   * Which round of the month the log is being read for. The two calls are
+   * different conversations - the one after the 7th asks when payment is
+   * coming, the one after the 21st says what happens if it does not - and a
+   * single undivided log could not be read as either.
+   */
+  const [stage, setStage] = useState<CallStage | "all">("all");
 
   /* The fees this system has raised count towards the repeat-defaulter rule
      as much as the ones MES have billed. A tenant charged three months running
@@ -72,6 +90,23 @@ export default function CallListPage() {
     [ds, scope, raised],
   );
   const calledIds = new Set(store.calls.map((c) => c.accountId));
+
+  /*
+   * When each tenant was billed, and whether that bill has fallen due.
+   *
+   * Raman asked for the billing date against a call: the officer should be
+   * able to say "your 15 August invoice fell due on the 29th" without opening
+   * the spreadsheet, and a log read six weeks later should say which bill it
+   * was about. Built once for every tenant rather than per row, because both
+   * lists below want it and the queue can be the whole dormitory.
+   */
+  const billing = useMemo(() => {
+    const m = new Map<string, TenantBilling>();
+    for (const a of ds.accounts) {
+      m.set(a.id, billingForTenant(invoicesForAccount(a, ds.invoices), ds.asOf));
+    }
+    return m;
+  }, [ds.accounts, ds.invoices, ds.asOf]);
 
   /**
    * How many times each tenant has already been rung, from the call log.
@@ -128,6 +163,7 @@ export default function CallListPage() {
   const loggedShown = useMemo(() => {
     const q = logQuery.trim().toLowerCase();
     return store.calls
+      .filter((c) => (stage === "all" ? true : stageOfCall(c) === stage))
       .filter((c) => (outcome === "all" ? true : c.outcome === outcome))
       .filter((c) =>
         q === ""
@@ -136,7 +172,7 @@ export default function CallListPage() {
             (c.reached ?? "").toLowerCase().includes(q) ||
             (c.notes ?? "").toLowerCase().includes(q),
       );
-  }, [store.calls, outcome, logQuery]);
+  }, [store.calls, outcome, logQuery, stage]);
 
   return (
     <div className="space-y-5">
@@ -273,6 +309,7 @@ export default function CallListPage() {
                     {item.account.lateFeeCount > 0 ? (
                       <span>{item.account.lateFeeCount} late fees charged</span>
                     ) : null}
+                    <BillingNote billing={billing.get(item.account.id) ?? NO_BILLING} />
                     {/* MES's workflow: "Repeated calls allowed. Call status
                         count." Somebody rung four times without paying is a
                         different conversation from a first call, and without
@@ -315,6 +352,36 @@ export default function CallListPage() {
             hint="Saved with the date and time."
             right={
               <div className="flex flex-wrap items-center gap-2">
+                <div
+                  className="flex rounded border border-line-hair p-0.5"
+                  role="group"
+                  aria-label="Which reminder"
+                >
+                  {(
+                    [
+                      ["all", "Both"],
+                      ...CALL_STAGES.map((x) => [x.value, x.label] as const),
+                    ] as [CallStage | "all", string][]
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setStage(key)}
+                      aria-pressed={stage === key}
+                      className={`rounded px-2.5 py-1 text-xs ${
+                        stage === key
+                          ? "bg-accent-wash font-medium text-ink"
+                          : "text-ink-muted hover:text-ink-secondary"
+                      }`}
+                    >
+                      {label} (
+                      {key === "all"
+                        ? store.calls.length
+                        : store.calls.filter((c) => stageOfCall(c) === key).length}
+                      )
+                    </button>
+                  ))}
+                </div>
                 <select
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value as CallOutcome | "all")}
@@ -370,7 +437,13 @@ export default function CallListPage() {
                   </div>
                   <p className="mt-1 text-[11px] text-ink-muted">
                     Spoke to {c.reached || "nobody"} ·{" "}
-                    {new Date(c.at).toLocaleString("en-SG")}
+                    {new Date(c.at).toLocaleString("en-SG")} ·{" "}
+                    {CALL_STAGES.find((x) => x.value === stageOfCall(c))?.label}
+                    {billing.get(c.accountId)?.billedOn
+                      ? ` · about the ${formatDate(
+                          billing.get(c.accountId)!.billedOn,
+                        )} bill, due ${formatDate(billing.get(c.accountId)!.dueBy)}`
+                      : ""}
                   </p>
                   {c.notes ? (
                     <p className="mt-1 text-xs text-ink-secondary">{c.notes}</p>
@@ -392,7 +465,11 @@ export default function CallListPage() {
       ) : null}
 
       {active ? (
-        <CallForm account={active} onClose={() => setActive(null)} />
+        <CallForm
+          account={active}
+          billing={billing.get(active.id) ?? NO_BILLING}
+          onClose={() => setActive(null)}
+        />
       ) : null}
     </div>
   );
@@ -400,9 +477,11 @@ export default function CallListPage() {
 
 function CallForm({
   account,
+  billing,
   onClose,
 }: {
   account: Account;
+  billing: TenantBilling;
   onClose: () => void;
 }) {
   const { notify } = useToast();
@@ -413,6 +492,7 @@ function CallForm({
   const [next, setNext] = useState("");
   const [notes, setNotes] = useState("");
   const [failDate, setFailDate] = useState("");
+  const [stage, setStage] = useState<CallStage>(stageForToday());
 
   const promised = outcome === "promised-to-pay";
   const bucket = worstBucket(account);
@@ -430,6 +510,7 @@ function CallForm({
       notes,
       agingBucket: bucket,
       deductionFailDate: failDate || null,
+      stage,
     });
     notify(
       `Call with ${account.companyName} saved`,
@@ -456,9 +537,41 @@ function CallForm({
           label="Overdue"
           value={`SGD ${formatSgd(overdueTotal(account))}`}
         />
+        {/* An em dash rather than a blank: the report genuinely carries no
+            billing date for some lines, and an empty box reads as a fault. */}
+        <Fact label="Billed on" value={formatDate(billing.billedOn) || "—"} />
+        <Fact
+          label="Payment was due"
+          value={
+            billing.dueBy
+              ? `${formatDate(billing.dueBy)}${
+                  billing.daysPastDue !== null && billing.daysPastDue > 0
+                    ? ` · ${billing.daysPastDue} days ago`
+                    : ""
+                }`
+              : "—"
+          }
+        />
       </dl>
 
       <form onSubmit={submit} className="space-y-4 pt-4">
+        {/* Defaulted from the date rather than asked cold: on the 22nd this is
+            almost always the final reminder. Still a choice, because a call
+            chasing the 7th can easily be made late. */}
+        <Field label="Which reminder is this call about">
+          <select
+            value={stage}
+            onChange={(e) => setStage(e.target.value as CallStage)}
+            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+          >
+            {CALL_STAGES.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Date their payment bounced">
           <input
             type="date"
@@ -586,5 +699,30 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+/**
+ * When this tenant was billed, and whether that bill has fallen due.
+ *
+ * The call list said how much was owed and how overdue it was in the
+ * abstract. It never said which bill, so the officer picking up the phone had
+ * no date to quote and the tenant could reasonably ask which one. The last
+ * clause is the reason the tenant is on this list at all.
+ */
+function BillingNote({ billing }: { billing: TenantBilling }) {
+  if (!billing.billedOn) return null;
+  return (
+    <span>
+      Billed {formatDate(billing.billedOn)}
+      {billing.runs > 1 ? ` (+${billing.runs - 1} earlier)` : ""}
+      {billing.dueBy ? `, due ${formatDate(billing.dueBy)}` : ""}
+      {billing.daysPastDue !== null && billing.daysPastDue > 0 ? (
+        <span className="font-medium text-ink">
+          {" "}
+          · due {billing.daysPastDue} days ago
+        </span>
+      ) : null}
+    </span>
   );
 }
