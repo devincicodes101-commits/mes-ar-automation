@@ -52,6 +52,8 @@ export default function AgingBoardPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("overdue");
   const [desc, setDesc] = useState(true);
+  /* The aging columns are an analyst's tool. Closed until asked for. */
+  const [full, setFull] = useState(false);
 
   // Scoped, like everything else on this screen. Passing ds.invoices straight
   // in showed a relationship manager every billing run in the file, $2.3m of
@@ -117,8 +119,141 @@ export default function AgingBoardPage() {
     [accounts, ds.invoices],
   );
 
+  /*
+   * The only list most people opening this page want: who owes money that is
+   * late, biggest first. Everyone who has paid, is in credit, or is not late
+   * yet is left out, because none of them is a thing to do today.
+   */
+  const owing = useMemo(
+    () =>
+      accounts
+        .filter((a) => !isInCredit(a) && overdueTotal(a) > 0)
+        .sort((x, y) => overdueTotal(y) - overdueTotal(x)),
+    [accounts],
+  );
+
   return (
     <div className="space-y-6">
+      {/*
+       * ------------------------------------------------------ the plain view
+       *
+       * This screen was four summary tiles, a billing-runs table, two toggles,
+       * five dormitory tabs and a nine-column aging matrix, all at once. Every
+       * part of it had been asked for, and together they answered no question
+       * in particular: a reader had to work out for themselves which number
+       * was the answer and which control to touch first.
+       *
+       * So it now opens on one number and one list - how much is late, and who
+       * owes it - with a search box and a dormitory dropdown. Nothing has been
+       * removed. All of it is one button away below, for the people who came
+       * here to read the aging columns.
+       */}
+      <Card>
+        <div className="border-b border-line-hair px-5 py-4">
+          <h1 className="text-base font-medium text-ink">Tenants who owe money</h1>
+          <p className="mt-1 text-xs text-ink-secondary">
+            From the report for {ds.asOf}. Largest overdue amount first.
+          </p>
+        </div>
+
+        <div className="border-b border-line-hair bg-surface-alt px-5 py-4">
+          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+            Overdue, needs chasing
+          </p>
+          <p className="tabular mt-1 text-3xl font-medium text-ink">
+            <span className="mr-1.5 text-base text-ink-secondary">SGD</span>
+            {formatSgd(k.overdue)}
+          </p>
+          <p className="mt-1 text-xs text-ink-secondary">
+            {k.actionable} {k.actionable === 1 ? "tenant" : "tenants"} out of{" "}
+            {k.accounts}. The rest have paid, are in credit, or are not late yet.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Find a tenant by name or code"
+            aria-label="Find a tenant"
+            className="w-64 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+          />
+          <select
+            value={property}
+            onChange={(e) => setProperty(e.target.value as PropertyCode | "ALL")}
+            aria-label="Dormitory"
+            className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+          >
+            {PROPERTIES.map((pc) => (
+              <option key={pc} value={pc}>
+                {PROPERTY_LABEL[pc]}
+              </option>
+            ))}
+          </select>
+          {query ? (
+            <span className="text-[11px] text-ink-muted">{owing.length} found</span>
+          ) : null}
+        </div>
+
+        {owing.length === 0 ? (
+          <EmptyState
+            title="Nobody here is overdue"
+            body="Either everyone has paid, or the search and dormitory above are hiding them."
+          />
+        ) : (
+          <ScrollPanel max={520}>
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-surface">
+                <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
+                  <th className="px-5 py-2.5">Tenant</th>
+                  <th className="px-5 py-2.5">Dormitory</th>
+                  <th className="px-5 py-2.5 text-right">Overdue</th>
+                  <th className="px-5 py-2.5">How late</th>
+                </tr>
+              </thead>
+              <tbody>
+                {owing.map((a) => (
+                  <tr key={a.id} className="border-b border-line-hair">
+                    <td className="px-5 py-3">
+                      <div className="text-ink">{a.companyName}</div>
+                      <div className="mt-0.5 text-[11px] text-ink-muted">
+                        {a.customerCode}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-ink-secondary">
+                      {a.propertyName}
+                    </td>
+                    <td className="tabular px-5 py-3 text-right text-ink">
+                      {formatSgd(overdueTotal(a))}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-ink-secondary">
+                      {lateness(a)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollPanel>
+        )}
+      </Card>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setFull(!full)}
+          aria-expanded={full}
+          className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:text-ink"
+        >
+          {full ? "Hide the full breakdown" : "Show the full breakdown"}
+        </button>
+        <p className="mt-1.5 text-[11px] text-ink-muted">
+          The aging columns, charge types, terminated accounts and billing runs.
+        </p>
+      </div>
+
+      {full ? (
+        <>
       {/* ---------------------------------------------------------- KPI row */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
@@ -349,8 +484,25 @@ export default function AgingBoardPage() {
           </ScrollPanel>
         )}
       </Card>
+        </>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * How late the worst of a tenant's money is, in words.
+ *
+ * The aging columns say the same thing in five numbers, which is the right
+ * answer for somebody reconciling and the wrong one for somebody deciding who
+ * to ring. "Up to 60 days late" is that fact, already read.
+ */
+function lateness(a: Account): string {
+  if (a.buckets.d90plus > 0) return "More than 90 days late";
+  if (a.buckets.d90 > 0) return "Up to 90 days late";
+  if (a.buckets.d60 > 0) return "Up to 60 days late";
+  if (a.buckets.d30 > 0) return "Up to 30 days late";
+  return "Not late yet";
 }
 
 /**

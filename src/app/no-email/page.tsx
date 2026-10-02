@@ -6,8 +6,14 @@ import { downloadCsv } from "@/lib/export";
 import { Account } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
-import { setManualEmails, useStore } from "@/lib/store";
-import { renderLetter, type LetterId } from "@/lib/letters";
+import {
+  recordEmail,
+  setManualEmails,
+  useStore,
+  type SentEmail,
+} from "@/lib/store";
+import { currentPeriod } from "@/lib/schedule";
+import { letterById, renderLetter, type LetterId } from "@/lib/letters";
 import {
   Card,
   CardHeader,
@@ -47,6 +53,13 @@ export default function NoEmailPage() {
   const [letter, setLetter] = useState<LetterId>("first-reminder");
   const [open, setOpen] = useState<Account | null>(null);
   const [query, setQuery] = useState("");
+  /*
+   * The screen only ever showed tenants still waiting, so somebody working
+   * down the list watched rows disappear as they went with no way to look
+   * back at one - and no way to answer "did I already do this one" after a
+   * tea break. Three views over the same list instead.
+   */
+  const [show, setShow] = useState<"todo" | "sent" | "all">("todo");
 
   const missing = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -62,6 +75,38 @@ export default function NoEmailPage() {
       )
       .sort((x, y) => overdueTotal(y) - overdueTotal(x));
   }, [ds, scope, query]);
+
+  /*
+   * The letters already sent by hand, this billing month.
+   *
+   * A hand send is recorded like any other letter, with one difference that
+   * makes it recognisable: the recipient list is empty, because there was no
+   * address to send to. That is the whole marker - no new table, no new flag.
+   *
+   * Scoped to the current period, the same way the reminder screen decides
+   * whether a tenant has had this month's wording. Last month's hand send is
+   * not this month's.
+   */
+  const handSent = useMemo(() => {
+    const period = currentPeriod();
+    const byAccount = new Map<string, SentEmail>();
+    for (const e of store.emails) {
+      if (e.to.length > 0) continue;
+      if (e.period && e.period !== period) continue;
+      const prev = byAccount.get(e.accountId);
+      if (!prev || e.at > prev.at) byAccount.set(e.accountId, e);
+    }
+    return byAccount;
+  }, [store.emails]);
+
+  /* The rows the table shows, once the three-way filter has had its say. */
+  const rows = useMemo(() => {
+    if (show === "all") return missing;
+    const sent = show === "sent";
+    return missing.filter((a) => handSent.has(a.id) === sent);
+  }, [missing, show, handSent]);
+
+  const doneCount = missing.filter((a) => handSent.has(a.id)).length;
 
   const reachable = useMemo(
     () => scope(ds.accounts).filter((a) => a.hasContact && a.status === "Live").length,
@@ -155,10 +200,55 @@ export default function NoEmailPage() {
           }
         />
 
-        {missing.length === 0 ? (
+        {/*
+          * Which of the three, and how many are in each. The counts are on
+          * the buttons because "Sent by hand" reading 0 answers the question
+          * without anybody having to click it.
+          */}
+        <div
+          className="flex flex-wrap items-center gap-1 border-b border-line-hair px-5 py-2.5"
+          role="group"
+          aria-label="Which tenants to show"
+        >
+          {(
+            [
+              ["todo", "Still to send", missing.length - doneCount],
+              ["sent", "Sent by hand", doneCount],
+              ["all", "All", missing.length],
+            ] as ["todo" | "sent" | "all", string, number][]
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setShow(key)}
+              aria-pressed={show === key}
+              className={`rounded px-2.5 py-1 text-xs ${
+                show === key
+                  ? "bg-accent-wash font-medium text-ink"
+                  : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+              }`}
+            >
+              {label} ({count})
+            </button>
+          ))}
+        </div>
+
+        {rows.length === 0 ? (
           <EmptyState
-            title="Every tenant has an address"
-            body="Nothing needs sending by hand. Reminders go out on their own on the 7th and the 21st."
+            title={
+              missing.length === 0
+                ? "Every tenant has an address"
+                : show === "sent"
+                  ? "None sent by hand yet this month"
+                  : "All of them have been sent"
+            }
+            body={
+              missing.length === 0
+                ? "Nothing needs sending by hand. Reminders go out on their own on the 7th and the 21st."
+                : show === "sent"
+                  ? "Open a letter and mark it sent once you have posted it from Outlook."
+                  : "Every tenant on this list has been marked as sent by hand this month."
+            }
           />
         ) : (
           <ScrollPanel>
@@ -169,11 +259,12 @@ export default function NoEmailPage() {
                   <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Dormitory</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Owed</th>
                   <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Overdue</th>
+                  <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Sent by hand</th>
                   <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">Letter</th>
                 </tr>
               </thead>
               <tbody>
-                {missing.map((a) => (
+                {rows.map((a) => (
                   <tr key={a.id} className="border-b border-line-hair last:border-0">
                     <td className="px-5 py-2.5">
                       <div className="text-ink">{a.companyName}</div>
@@ -186,13 +277,32 @@ export default function NoEmailPage() {
                     <td className="tabular px-3 py-2.5 text-right font-medium text-ink">
                       {formatSgd(overdueTotal(a))}
                     </td>
+                    <td className="px-3 py-2.5 text-[11px]">
+                      {handSent.has(a.id) ? (
+                        <span className="text-ink-secondary">
+                          {handSent.get(a.id)!.templateName.replace(" (by hand)", "")}
+                          <span className="block text-ink-muted">
+                            {handSent.get(a.id)!.at.slice(0, 10)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-ink-muted">Not yet</span>
+                      )}
+                    </td>
                     <td className="px-5 py-2.5 text-right">
+                      {/*
+                        * The wording's name is on the button, not just in the
+                        * dropdown above. The dropdown chose which letter gets
+                        * written and changed nothing you could see until a
+                        * modal opened, which reads exactly like a control that
+                        * does not work.
+                        */}
                       <button
                         type="button"
                         onClick={() => setOpen(a)}
                         className="rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
                       >
-                        Read and copy
+                        Read the {letterById(letter).name.toLowerCase()}
                       </button>
                     </td>
                   </tr>
@@ -220,6 +330,31 @@ export default function NoEmailPage() {
           asOf={ds.asOf}
           canAct={canAct}
           onClose={() => setOpen(null)}
+          alreadySent={handSent.get(open.id)?.at ?? null}
+          onSent={() => {
+            const spec = letterById(letter);
+            const written = renderLetter(letter, {
+              companyName: open.companyName,
+              grandTotal: open.total,
+              sentOn: ds.asOf ?? new Date().toISOString().slice(0, 10),
+            });
+            recordEmail({
+              accountId: open.id,
+              companyName: open.companyName,
+              period: currentPeriod(),
+              templateId: letter,
+              templateName: `${spec.name} (by hand)`,
+              subject: written.subject,
+              body: written.body,
+              /* Empty on purpose: this is the marker for a hand send. */
+              to: [],
+            });
+            notify(
+              `${open.companyName} marked as sent`,
+              `${spec.name} recorded against this month. It moves to the Sent by hand list.`,
+            );
+            setOpen(null);
+          }}
           onSaved={(emails) => {
             setManualEmails(open.id, open.companyName, emails);
             notify(
@@ -247,14 +382,18 @@ function LetterModal({
   letter,
   asOf,
   canAct,
+  alreadySent,
   onClose,
+  onSent,
   onSaved,
 }: {
   account: Account;
   letter: LetterId;
   asOf: string | null;
   canAct: boolean;
+  alreadySent: string | null;
   onClose: () => void;
+  onSent: () => void;
   onSaved: (emails: string[]) => void;
 }) {
   const { notify } = useToast();
@@ -344,6 +483,29 @@ function LetterModal({
           <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded border border-line-hair bg-surface-alt px-3 py-2 text-[12px] leading-relaxed text-ink-secondary">
             {rendered.body}
           </pre>
+        </div>
+
+        {/*
+          * Copying the letter was the end of the road: nothing recorded that
+          * it went, so the tenant stayed on the list looking untouched and
+          * the audit trail had a gap exactly where a chase had happened.
+          */}
+        <div className="border-t border-line-hair pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!canAct || leftovers.length > 0}
+              onClick={onSent}
+              className="rounded border border-line-hair px-3 py-2 text-xs text-ink-secondary hover:border-line-grid disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {alreadySent ? "Mark as sent again" : "I have sent this by hand"}
+            </button>
+            <span className="text-[11px] text-ink-muted">
+              {alreadySent
+                ? `Last marked sent on ${alreadySent.slice(0, 10)}.`
+                : "Records the chase against this tenant and this month."}
+            </span>
+          </div>
         </div>
 
         <div className="border-t border-line-hair pt-3">

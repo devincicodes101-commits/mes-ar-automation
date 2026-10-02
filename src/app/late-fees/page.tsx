@@ -81,6 +81,12 @@ export default function LateFeesPage() {
     return Array.from(seen).sort();
   }, [ds.accounts, scope]);
   const [onlyRms, setOnlyRms] = useState<string[]>([]);
+  /*
+   * The manager chips answer "whose tenants", which is the question MES's Flow
+   * tab asked for. They do not answer "is this one tenant on the list", and on
+   * the 16th that is the question somebody rings up with.
+   */
+  const [query, setQuery] = useState("");
 
   /*
    * The listing as MES attach it, built from the same accounts and the same
@@ -147,6 +153,22 @@ export default function LateFeesPage() {
     () => byManager.filter((l) => onGiro.has(l.account.customerCode.toUpperCase())),
     [byManager, onGiro],
   );
+
+  /*
+   * What the table shows. Deliberately not what gets charged: the search is a
+   * way of looking, and narrowing the view must never narrow the run. Review
+   * and raise still works from `chargeable`, so a half-typed search cannot
+   * quietly drop a tenant out of the month's fees.
+   */
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q === "") return lines;
+    return lines.filter(
+      (l) =>
+        l.account.companyName.toLowerCase().includes(q) ||
+        l.account.customerCode.toLowerCase().includes(q),
+    );
+  }, [lines, query]);
   // Where an upload carried no line detail the selection falls back to the
   // aging buckets, which cannot express "14 days past due". Said out loud
   // rather than left for somebody to discover from a figure that is slightly
@@ -372,6 +394,14 @@ export default function LateFeesPage() {
                   ))}
                 </div>
               ) : null}
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a tenant"
+              aria-label="Find a tenant"
+              className="w-44 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+            />
             <button
               type="button"
               disabled={!can("generate-reports")}
@@ -402,6 +432,11 @@ export default function LateFeesPage() {
             title="No fees would be charged"
             body="No tenant meets the rule above."
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="No tenant matches that search"
+            body="Clear the box to see all of them again. The search changes only what is listed here, never what gets charged."
+          />
         ) : (
           <ScrollPanel max={440}>
             <table className="w-full min-w-[760px] border-collapse text-sm">
@@ -425,7 +460,7 @@ export default function LateFeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {lines.map((l) => (
+                {shown.map((l) => (
                   <tr
                     key={l.account.id}
                     className="border-b border-line-grid hover:bg-surface-alt"

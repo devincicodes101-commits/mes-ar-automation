@@ -45,6 +45,16 @@ export default function CallListPage() {
   const mayLog = can("log-calls");
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [active, setActive] = useState<Account | null>(null);
+  /*
+   * Everyone stays on the call list by design, including tenants already rung,
+   * which is right and made the list unreadable: on the 7th it is every
+   * overdue tenant in one column with no way to see only the ones left. The
+   * filter does not change who is on the list, only who is on screen.
+   */
+  const [who, setWho] = useState<"all" | "todo" | "done">("all");
+  const [query, setQuery] = useState("");
+  const [outcome, setOutcome] = useState<CallOutcome | "all">("all");
+  const [logQuery, setLogQuery] = useState("");
 
   /* The fees this system has raised count towards the repeat-defaulter rule
      as much as the ones MES have billed. A tenant charged three months running
@@ -97,6 +107,37 @@ export default function CallListPage() {
   const notYetCalled = queue.filter((q) => !calledIds.has(q.account.id));
   const done = queue.filter((q) => calledIds.has(q.account.id));
 
+  /* The rows the call list shows, once the filter and the search have run. */
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return todo
+      .filter((item) =>
+        who === "all" ? true : calledIds.has(item.account.id) === (who === "done"),
+      )
+      .filter((item) =>
+        q === ""
+          ? true
+          : item.account.companyName.toLowerCase().includes(q) ||
+            item.account.customerCode.toLowerCase().includes(q),
+      );
+    // calledIds is rebuilt from store.calls on every render, so it is listed
+    // through its source rather than itself.
+  }, [todo, who, query, store.calls]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* The same, for the log of calls already made. */
+  const loggedShown = useMemo(() => {
+    const q = logQuery.trim().toLowerCase();
+    return store.calls
+      .filter((c) => (outcome === "all" ? true : c.outcome === outcome))
+      .filter((c) =>
+        q === ""
+          ? true
+          : c.companyName.toLowerCase().includes(q) ||
+            (c.reached ?? "").toLowerCase().includes(q) ||
+            (c.notes ?? "").toLowerCase().includes(q),
+      );
+  }, [store.calls, outcome, logQuery]);
+
   return (
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -135,14 +176,55 @@ export default function CallListPage() {
           hint="Call from your normal line, then log what was agreed. Anyone already rung stays on the list, and repeat calls are counted."
         />
 
+        {todo.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Which tenants">
+              {(
+                [
+                  ["all", "Everyone", todo.length],
+                  ["todo", "Not called yet", notYetCalled.length],
+                  ["done", "Already called", done.length],
+                ] as ["all" | "todo" | "done", string, number][]
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setWho(key)}
+                  aria-pressed={who === key}
+                  className={`rounded px-2.5 py-1 text-xs ${
+                    who === key
+                      ? "bg-accent-wash font-medium text-ink"
+                      : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a tenant by name or code"
+              aria-label="Find a tenant"
+              className="ml-auto w-56 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+            />
+          </div>
+        ) : null}
+
         {todo.length === 0 ? (
           <EmptyState
             title="Nobody needs chasing"
             body="No tenant is overdue on the current figures."
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="Nothing matches"
+            body="Try another search, or choose Everyone to drop the filter."
+          />
         ) : (
           <ol className="divide-y divide-line-grid">
-            {todo.map((item, idx) => (
+            {shown.map((item, idx) => (
               <li
                 key={item.account.id}
                 className="flex flex-wrap items-start gap-4 px-5 py-3.5 hover:bg-surface-alt"
@@ -231,9 +313,40 @@ export default function CallListPage() {
           <CardHeader
             title="Calls logged"
             hint="Saved with the date and time."
+            right={
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={outcome}
+                  onChange={(e) => setOutcome(e.target.value as CallOutcome | "all")}
+                  aria-label="Outcome"
+                  className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+                >
+                  <option value="all">Every outcome</option>
+                  {CALL_OUTCOMES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="search"
+                  value={logQuery}
+                  onChange={(e) => setLogQuery(e.target.value)}
+                  placeholder="Find a tenant or a note"
+                  aria-label="Find a logged call"
+                  className="w-52 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+                />
+              </div>
+            }
           />
+          {loggedShown.length === 0 ? (
+            <EmptyState
+              title="No calls match"
+              body="Try another search, or choose Every outcome to drop the filter."
+            />
+          ) : (
           <ul className="divide-y divide-line-grid">
-            {store.calls.map((c) => (
+            {loggedShown.map((c) => (
               <li key={c.id} className="flex flex-wrap gap-4 px-5 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -274,6 +387,7 @@ export default function CallListPage() {
               </li>
             ))}
           </ul>
+          )}
         </Card>
       ) : null}
 

@@ -1244,8 +1244,35 @@ check("the two counts are kept apart on screen",
       FEES_PAGE.includes("raised by us") && FEES_PAGE.includes("billed in NetSuite"), true);
 check("a tenant charged this month is left out of the batch",
       FEES_PAGE.includes("!l.raisedThisPeriod"), true);
+/*
+ * The rule: a tenant already charged this month is kept out of the batch and
+ * kept on the screen, with a badge saying why.
+ *
+ * This read `FEES_PAGE.includes("lines.map")`, which is the name of a variable
+ * rather than the rule. Adding a search box to the table renamed it and the
+ * guard failed while the behaviour it exists to protect had not moved. So ask
+ * the question directly instead: find whatever list the table renders, and
+ * require that it is not the batch and does not filter on raisedThisPeriod.
+ * Any future rename passes; actually hiding a charged tenant does not.
+ */
+const feeTableAt = FEES_PAGE.indexOf("No fees would be charged");
+const feeTableSource =
+  /\{(\w+)\.map\(\(l\) => \(/.exec(FEES_PAGE.slice(feeTableAt))?.[1] ?? "";
+const feeSourceDecl =
+  /*
+   * Ends at the dependency array. Ending it at a line reading "  );" overshot
+   * the memo by twenty thousand characters and swallowed a raisedThisPeriod
+   * belonging to something else entirely, so the guard failed while reporting
+   * nothing about the code it was pointed at.
+   */
+  new RegExp(`const ${feeTableSource} = useMemo\\(([\\s\\S]*?)\\]\\);`)
+    .exec(FEES_PAGE)?.[1] ?? "";
+
 check("but is still shown, rather than vanishing from the month",
-      FEES_PAGE.includes("chargeable") && FEES_PAGE.includes("lines.map"), true);
+      FEES_PAGE.includes("chargeable") &&
+        feeTableSource !== "" &&
+        feeTableSource !== "chargeable" &&
+        !feeSourceDecl.includes("raisedThisPeriod"), true);
 
 check("the server builds the fee row itself",
       ACTIVITY_ROUTE.includes('kind === "late-fee"') && ACTIVITY_ROUTE.includes("not a plausible late fee"), true);

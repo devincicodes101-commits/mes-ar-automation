@@ -57,6 +57,8 @@ export default function PromisesPage() {
   const mayRecord = can("record-promises");
   const { notify } = useToast();
   const [adding, setAdding] = useState(false);
+  const [state, setState] = useState<PromiseState | "all">("all");
+  const [query, setQuery] = useState("");
 
   const template = store.templates.find((t) => t.id === "promise-confirmation");
 
@@ -99,6 +101,21 @@ export default function PromisesPage() {
     }
     return g;
   }, [store.promises]);
+
+  /*
+   * One list with a filter over it, rather than three stacked sections.
+   *
+   * Stacked sections meant the answer to "is Tuas Precision on here" depended
+   * on which section they had landed in, so the only reliable way to find a
+   * tenant was to read all three. The state each promise is in is now a badge
+   * on its own row, which is where somebody looking at that row wants it.
+   */
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return ORDER.flatMap((k) => (state === "all" || state === k ? grouped[k] : [])).filter(
+      (p) => (q === "" ? true : p.companyName.toLowerCase().includes(q)),
+    );
+  }, [grouped, state, query]);
 
   const total = store.promises.reduce((s, p) => s + p.amount, 0);
   const brokenValue = grouped.broken.reduce((s, p) => s + p.amount, 0);
@@ -147,23 +164,56 @@ export default function PromisesPage() {
           }
         />
 
+        {store.promises.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Which promises">
+              {(
+                [
+                  ["all", "All", store.promises.length],
+                  ...ORDER.map(
+                    (k) => [k, PROMISE_STATE_LABEL[k], grouped[k].length] as const,
+                  ),
+                ] as [PromiseState | "all", string, number][]
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setState(key)}
+                  aria-pressed={state === key}
+                  className={`rounded px-2.5 py-1 text-xs ${
+                    state === key
+                      ? "bg-accent-wash font-medium text-ink"
+                      : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                  }`}
+                >
+                  {label} ({count})
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a tenant"
+              aria-label="Find a tenant"
+              className="ml-auto w-52 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+            />
+          </div>
+        ) : null}
+
         {store.promises.length === 0 ? (
           <EmptyState
             title="No promises recorded yet"
             body="Log a call on the Call List and choose Agreed to pay."
           />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="Nothing matches"
+            body="Try another search, or choose All to drop the filter."
+          />
         ) : (
-          <div className="divide-y divide-line-grid">
-            {ORDER.filter((k) => grouped[k].length > 0).map((k) => (
-              <div key={k}>
-                <div className="flex items-center gap-2 bg-surface-alt px-5 py-2">
-                  <StatusBadge kind={KIND[k]} label={PROMISE_STATE_LABEL[k]} />
-                  <span className="text-[11px] text-ink-muted">
-                    {grouped[k].length}
-                  </span>
-                </div>
-                <ul className="divide-y divide-line-grid">
-                  {grouped[k].map((p) => (
+          <ul className="divide-y divide-line-grid">
+            {shown.map((p) => (
                     <li
                       key={p.id}
                       className="flex flex-wrap items-center gap-4 px-5 py-3"
@@ -172,10 +222,16 @@ export default function PromisesPage() {
                         <p className="font-medium text-ink">
                           <TenantLink id={p.accountId} name={p.companyName} />
                         </p>
-                        <p className="mt-0.5 text-[11px] text-ink-muted">
-                          Promised on{" "}
-                          {new Date(p.createdAt).toLocaleDateString("en-SG")}{" "}
-                          during a phone call
+                        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
+                          <StatusBadge
+                            kind={KIND[promiseState(p)]}
+                            label={PROMISE_STATE_LABEL[promiseState(p)]}
+                          />
+                          <span>
+                            Promised on{" "}
+                            {new Date(p.createdAt).toLocaleDateString("en-SG")}{" "}
+                            during a phone call
+                          </span>
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -207,11 +263,8 @@ export default function PromisesPage() {
                         )}
                       </div>
                     </li>
-                  ))}
-                </ul>
-              </div>
             ))}
-          </div>
+          </ul>
         )}
 
       </Card>
