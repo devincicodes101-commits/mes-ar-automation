@@ -1962,4 +1962,37 @@ check("the diary reads the day's highest line number",
 check("and offsets what it writes by it",
       RUNLOG_R.includes("seq: l.seq + offset"), true);
 
+/* ------------------- reminders: one screen, one part of the job at a time */
+
+/*
+ * The screen printed the whole month at once - who is due a first reminder,
+ * who cannot be emailed, everything already sent - and "By hand" and "Sent"
+ * were their own menu entries as well. Three places for one job, and the
+ * client read it as the system explaining its workflow rather than showing
+ * today's work.
+ */
+const REM_W = code("src/app/reminders/page.tsx");
+const SHELL_N = code("src/components/Shell.tsx");
+
+check("the reminders screen shows one part at a time",
+      REM_W.includes('useState<"first" | "final" | "byhand" | "sent">'), true);
+check("with a tab for each", 
+      REM_W.includes('"First reminder"') && REM_W.includes('"Final notice"') &&
+        REM_W.includes('"By hand"') && REM_W.includes('"Sent"'), true);
+check("and the tab picks the wording, so there is one way to choose",
+      REM_W.includes('setTemplateId("reminder-7th")') &&
+        REM_W.includes('setTemplateId("final-21st")') &&
+        !REM_W.includes("store.templates.map((t) => ("), true);
+check("a tenant can be searched for by name, code or address",
+      REM_W.includes('type="search"') && REM_W.includes("const matches ="), true);
+check("the search reaches the sent letters too",
+      REM_W.includes("sentShown"), true);
+
+/* The two entries those tabs replaced are out of the menu, not deleted. */
+for (const href of ["/no-email", "/outbox"]) {
+  const at = SHELL_N.indexOf(`href: "${href}"`);
+  check(`${href} is hidden from the menu rather than removed`,
+        at > -1 && SHELL_N.slice(at, at + 400).includes("hidden: true"), true);
+}
+
 process.exit(failures === 0 ? 0 : 1);

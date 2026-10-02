@@ -31,7 +31,6 @@ import {
   CardHeader,
   EmptyState,
   Modal,
-  StatTile,
   StatusBadge,
   Tag,
 } from "@/components/ui";
@@ -261,12 +260,59 @@ export default function RemindersPage() {
     })();
   }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify, period]);
 
+  /*
+   * One view at a time, instead of the whole month stacked down the page.
+   *
+   * This screen printed every stage at once - who is due a first reminder,
+   * who cannot be emailed, and everything already sent - and the client read
+   * that as the system explaining its own workflow at them rather than
+   * showing them today's work. Same content, one part at a time, chosen here.
+   *
+   * "By hand" and "Sent" were also their own entries in the left menu, which
+   * made three places for one job. They are tabs now and those entries are
+   * hidden; the pages still answer on their own URLs.
+   */
+  const [view, setView] = useState<"first" | "final" | "byhand" | "sent">("first");
+
+  /* Finding one tenant, which is how an officer actually uses this: somebody
+     rings up asking whether their reminder went out. */
+  const [find, setFind] = useState("");
+  const matches = (hay: (string | null | undefined)[]) => {
+    const q = find.trim().toLowerCase();
+    if (q === "") return true;
+    return hay.some((h) => (h ?? "").toLowerCase().includes(q));
+  };
+
   const [bulk, setBulk] = useState(false);
   /* Sending now goes over the network, so the button has to be able to say so
      and to refuse a second press while the first batch is still going. */
   const [sending, setSending] = useState(false);
-  const cannotEmail = queue.filter((q) => !q.account.hasContact);
-  const pending = audience.list.filter((q) => !sentIds.has(q.account.id));
+  const cannotEmail = queue
+    .filter((q) => !q.account.hasContact)
+    .filter((q) => matches([q.account.companyName, q.account.customerCode]));
+
+  const pending = audience.list
+    .filter((q) => !sentIds.has(q.account.id))
+    .filter((q) => matches([q.account.companyName, q.account.customerCode, ...q.account.emails]));
+
+  /* Tab counts. Worked out from the same rules the lists use, so a number on a
+     tab and the list behind it can never disagree. */
+  const gotFirstEver = new Set(
+    store.emails.filter((e) => e.templateId === "reminder-7th").map((e) => e.accountId),
+  );
+  const reachable = queue.filter((q) => q.account.hasContact);
+  const pendingFirst = reachable.filter(
+    (q) => !alreadyHadIt(store.emails, "reminder-7th", period).has(q.account.id),
+  ).length;
+  const pendingFinal = reachable.filter(
+    (q) =>
+      gotFirstEver.has(q.account.id) &&
+      !alreadyHadIt(store.emails, "final-21st", period).has(q.account.id),
+  ).length;
+
+  const sentShown = store.emails.filter((e) =>
+    matches([e.companyName, e.subject, e.templateName]),
+  );
 
   return (
     <div className="space-y-5">
@@ -274,30 +320,56 @@ export default function RemindersPage() {
           and the button are here rather than a screen away. */}
       <MailboxStrip />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Ready to send"
-          value={String(pending.length)}
-          note="Goes out on the trigger date"
-          emphasis
-        />
-        <StatTile
-          label="Sent so far"
-          value={String(store.emails.length)}
-          note="All recorded in the activity log"
-        />
-        <StatTile
-          label="No email address"
-          value={String(cannotEmail.length)}
-          note="Phone these instead"
-        />
-        <StatTile
-          label="Wording templates"
-          value={String(store.templates.length)}
-          note="Editable in Settings"
-        />
-      </div>
+      {/* The four tiles that were here said the same four numbers the tabs
+          below now carry, one row apart - ready to send, sent so far, no email
+          address, and a count of wordings nobody acts on. A figure stated
+          twice on one screen is a figure somebody has to reconcile. */}
 
+      {/* One row to pick the part of the job, and one box to find a tenant. */}
+      <Card className="flex flex-wrap items-center gap-3 px-5 py-3">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Which reminders to show">
+          {([
+            ["first", "First reminder", pendingFirst],
+            ["final", "Final notice", pendingFinal],
+            ["byhand", "By hand", cannotEmail.length],
+            ["sent", "Sent", store.emails.length],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => {
+                setView(key);
+                if (key === "first") setTemplateId("reminder-7th");
+                if (key === "final") setTemplateId("final-21st");
+              }}
+              className={
+                view === key
+                  ? "rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
+                  : "rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong"
+              }
+            >
+              {label}
+              <span className="ml-1.5 tabular opacity-70">{count}</span>
+            </button>
+          ))}
+        </div>
+
+        <label className="ml-auto flex items-center gap-2">
+          <span className="sr-only">Find a tenant</span>
+          <input
+            id="reminder-find"
+            type="search"
+            value={find}
+            onChange={(e) => setFind(e.target.value)}
+            placeholder="Find a tenant or email address"
+            className="w-60 rounded border border-line-hair bg-surface px-3 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+          />
+        </label>
+      </Card>
+
+      {view === "first" || view === "final" ? (
       <Card>
         <CardHeader
           title="Choose the wording, then approve the batch"
@@ -308,17 +380,9 @@ export default function RemindersPage() {
           }
           right={
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
-              >
-                {store.templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              {/* The wording follows the tab. A dropdown here as well was a
+                  second way to choose the same thing, which is what made this
+                  screen read as two screens stacked. */}
               {/* MES send these as one batch, not one at a time. Their
                   workflow calls the 7th and the 21st a bulk email. */}
               <button
@@ -394,12 +458,13 @@ export default function RemindersPage() {
           </ul>
         )}
       </Card>
+      ) : null}
 
       {/* A tenant with no address is not simply skipped. They are still owed
           money and still need chasing, so they are named, their balance is
           shown, and they are pointed at the phone. Listing them as bare tags
           made them read as an inconvenience rather than as work. */}
-      {cannotEmail.length > 0 ? (
+      {view === "byhand" ? (
         <Card>
           <CardHeader
             title="No email address, so phone these instead"
@@ -437,11 +502,11 @@ export default function RemindersPage() {
         </Card>
       ) : null}
 
-      {store.emails.length > 0 ? (
+      {view === "sent" ? (
         <Card>
           <CardHeader title="Sent" hint="Every one recorded with a timestamp." />
           <ul className="divide-y divide-line-grid">
-            {store.emails.map((e) => (
+            {sentShown.map((e) => (
               <li key={e.id}>
                 <button
                   type="button"

@@ -101,6 +101,10 @@ export const NAV: {
     // tenants of 190, so it is not a footnote to the send, it is most of it.
     href: "/no-email",
     label: "Send By Hand",
+    /* A tab on Reminder Emails now. Three menu entries for one job - write
+       them, send the ones you can, phone the rest - read to the client as
+       three separate pieces of work. The page still answers on its own URL. */
+    hidden: true,
     group: "The cycle",
     when: "with each send",
     note: "Tenants with no address. The letter is written, you send it.",
@@ -128,6 +132,9 @@ export const NAV: {
   {
     href: "/outbox",
     label: "Sent Mail",
+    /* The "Sent" tab on Reminder Emails. Same list, beside the letters it
+       belongs with rather than a screen away. */
+    hidden: true,
     group: "The cycle",
     when: "audit",
     note: "Every reminder that went out, with the letter exactly as it was sent.",
