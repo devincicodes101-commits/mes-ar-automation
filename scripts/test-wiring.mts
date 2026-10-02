@@ -31,7 +31,20 @@ function check(name: string, actual: unknown, expected: unknown) {
 }
 const section = (t: string) => console.log(`\n${t}\n`);
 
-const read = (p: string) => (existsSync(p) ? readFileSync(p, "utf8") : "");
+/*
+ * Line endings normalised, because several checks here match across one.
+ *
+ * The repository stores LF and Windows checks out CRLF, so a guard written as
+ * `includes("period,\n          subject:")` passed in CI and failed on the
+ * developer's own machine - and `npm run build` gates on these, so the build
+ * could not be run at all there. Three guards were failing that way, all of
+ * them pointed at code that was correct.
+ *
+ * Normalising here rather than in each check: the question these ask is about
+ * what the code says, and on Windows that is the same code.
+ */
+const read = (p: string) =>
+  existsSync(p) ? readFileSync(p, "utf8").replace(/\r\n/g, "\n") : "";
 
 /**
  * The same file with its comments taken out.
