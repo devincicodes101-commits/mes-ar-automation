@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
-import { hydrateActivity } from "@/lib/store";
+import { hydrateActivity, useStore } from "@/lib/store";
 import { runNeedsLookingAt } from "@/lib/schedule";
-import { Card, CardHeader, EmptyState, StatTile, StatusBadge, Tag } from "@/components/ui";
+import { useDataset } from "@/lib/dataset";
+import { formatDate, formatSgd, invoicesForAccount, overdueTotal } from "@/lib/data";
+import { billingForTenant } from "@/lib/billing-cycles";
+import { reminderDatesFor, sane } from "@/lib/reminder-timing";
+import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag } from "@/components/ui";
 
 /**
  * What the schedule has done, and a way to watch it do one.
@@ -171,6 +175,8 @@ export default function SchedulePage() {
           emphasis={failures > 0}
         />
       </div>
+
+      <WhenEachTenantIsChased />
 
       <Card>
         <CardHeader
@@ -383,4 +389,158 @@ function ordinal(d: number): string {
   if (d === 21) return "st";
   if (d === 4 || d === 7 || d === 15 || d === 16) return "th";
   return "th";
+}
+
+/**
+ * Every tenant's own two reminder dates, worked out from their billing date.
+ *
+ * The reminder clock moved off the calendar and onto each tenant's billing
+ * date, and nothing showed the result. The settings screen does the sum for
+ * one made-up tenant billed on the 15th; this does it for the ones actually in
+ * the uploaded report, which is the only way to tell whether the rule behaves
+ * on real data - MES's export carries 28 different billing dates and some of
+ * them are years old.
+ *
+ * Read only, and says so. It reports what the rule would decide; the schedule
+ * still sends on the 7th and the 21st until the sending path is moved over,
+ * and a screen that implied otherwise would be worse than no screen.
+ */
+function WhenEachTenantIsChased() {
+  const store = useStore();
+  const ds = useDataset();
+  const [all, setAll] = useState(false);
+
+  const window = sane({
+    first: store.settings.firstReminderDays,
+    final: store.settings.finalReminderDays,
+  });
+
+  /* The report's own date, not the wall clock: the figures are as at the
+     report, so judging them against today would compare two different days. */
+  const asOf = ds.asOf;
+
+  const rows = useMemo(() => {
+    if (!asOf) return [];
+    return ds.accounts
+      .filter((a) => a.total > 0)
+      .map((a) => {
+        const billing = billingForTenant(invoicesForAccount(a, ds.invoices), asOf);
+        const dates = billing.billedOn ? reminderDatesFor(billing.billedOn, window) : null;
+        return {
+          id: a.id,
+          name: a.companyName,
+          code: a.customerCode,
+          owed: overdueTotal(a) || a.total,
+          billedOn: billing.billedOn,
+          runs: billing.runs,
+          first: dates?.first ?? null,
+          final: dates?.final ?? null,
+          /* What the rule says today, for this tenant. */
+          stage:
+            dates === null
+              ? "no billing date"
+              : asOf >= dates.final
+                ? "final notice due"
+                : asOf >= dates.first
+                  ? "first reminder due"
+                  : "not yet",
+        };
+      })
+      .sort((x, y) => (x.first ?? "9999").localeCompare(y.first ?? "9999"));
+  }, [ds.accounts, ds.invoices, asOf, window]);
+
+  if (rows.length === 0) return null;
+
+  const dueNow = rows.filter((r) => r.stage !== "not yet" && r.stage !== "no billing date");
+  const missing = rows.filter((r) => r.stage === "no billing date").length;
+  const shown = all ? rows : rows.slice(0, 12);
+
+  return (
+    <Card>
+      <CardHeader
+        title="When each tenant would be chased"
+        hint={`Counted from each tenant's own billing date: first reminder after ${window.first} days, final notice after ${window.final}. Dates are judged against the report, ${asOf}.`}
+        right={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge kind="warning" label="Not sending yet" />
+            {rows.length > 12 ? (
+              <button
+                type="button"
+                onClick={() => setAll((v) => !v)}
+                className="rounded border border-line-hair px-2.5 py-1 text-xs text-ink-secondary hover:border-line-grid"
+              >
+                {all ? "Show fewer" : `Show all ${rows.length}`}
+              </button>
+            ) : null}
+          </div>
+        }
+      />
+
+      <div className="border-b border-line-hair bg-surface-alt px-5 py-3 text-[11px] leading-relaxed text-ink-secondary">
+        {dueNow.length} of {rows.length} tenants would be due a letter as at{" "}
+        {formatDate(asOf)}.{" "}
+        {missing > 0
+          ? `${missing} carry no billing date in this file, so the rule cannot place them.`
+          : "Every tenant in this file carries a billing date."}{" "}
+        Change the two numbers on the Settings screen and these dates move with
+        them.
+      </div>
+
+      <ScrollPanel max={420}>
+        <table className="w-full min-w-[720px] border-collapse text-sm">
+          <thead className="sticky top-0 z-10 bg-surface">
+            <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
+              <th className="px-5 py-2.5">Tenant</th>
+              <th className="px-3 py-2.5">Billed</th>
+              <th className="px-3 py-2.5">First reminder</th>
+              <th className="px-3 py-2.5">Final notice</th>
+              <th className="px-3 py-2.5 text-right">Owed</th>
+              <th className="px-5 py-2.5">As at the report</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.id} className="border-b border-line-hair last:border-0">
+                <td className="px-5 py-2.5">
+                  <div className="text-ink">{r.name}</div>
+                  <div className="mono text-[11px] text-ink-muted">{r.code}</div>
+                </td>
+                <td className="px-3 py-2.5 text-xs text-ink-secondary">
+                  {r.billedOn ? formatDate(r.billedOn) : "—"}
+                  {r.runs > 1 ? (
+                    <span className="block text-[11px] text-ink-muted">
+                      newest of {r.runs}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2.5 text-xs text-ink-secondary">
+                  {r.first ? formatDate(r.first) : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-xs text-ink-secondary">
+                  {r.final ? formatDate(r.final) : "—"}
+                </td>
+                <td className="tabular px-3 py-2.5 text-right text-ink">
+                  {formatSgd(r.owed)}
+                </td>
+                <td className="px-5 py-2.5">
+                  <StatusBadge
+                    kind={
+                      r.stage === "final notice due"
+                        ? "serious"
+                        : r.stage === "first reminder due"
+                          ? "warning"
+                          : r.stage === "no billing date"
+                            ? "critical"
+                            : "neutral"
+                    }
+                    label={r.stage}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ScrollPanel>
+    </Card>
+  );
 }
