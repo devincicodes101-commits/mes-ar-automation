@@ -115,8 +115,10 @@ export async function uploadStanding(db: SupabaseClient): Promise<UploadStanding
 export function refusedByChecks(
   day: number,
   standing: UploadStanding,
+  /* As tooOldToAct: the run says whether it writes today, and that wins. */
+  writesToday?: boolean,
 ): { act: false; why: string } | { act: true; warn: string | null } {
-  const acts = day === 7 || day === 16 || day === 21;
+  const acts = writesToday ?? (day === 7 || day === 16 || day === 21);
 
   if (standing.verdict !== "error") return { act: true, warn: null };
 

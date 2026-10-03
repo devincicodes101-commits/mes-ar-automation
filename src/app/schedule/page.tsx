@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
-import { hydrateActivity, useStore } from "@/lib/store";
-import { runNeedsLookingAt } from "@/lib/schedule";
+import { hydrateActivity } from "@/lib/store";
+import { inSingapore, runNeedsLookingAt } from "@/lib/schedule";
 import { useDataset } from "@/lib/dataset";
 import { formatDate, formatSgd, invoicesForAccount, overdueTotal } from "@/lib/data";
 import { billingForTenant } from "@/lib/billing-cycles";
-import { reminderDatesFor, sane } from "@/lib/reminder-timing";
+import { reminderDatesFor } from "@/lib/reminder-timing";
+import { useReminderWindow } from "@/lib/use-reminder-window";
 import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag } from "@/components/ui";
 
 /**
@@ -30,10 +31,13 @@ const CYCLE_DAYS = [1, 4, 7, 15, 16, 21] as const;
 const WHAT_HAPPENS: Record<number, string> = {
   1: "GIRO deductions, and the 14-day deadline passes",
   4: "The report is uploaded and the month is rebuilt",
-  7: "First reminder goes out",
+  /* No longer reminder days: reminders follow each tenant's billing date
+     and can go on any morning. Kept on the list because the run still wakes
+     on them and MES's own cycle diagram names them. */
+  7: "Was the first reminder day; reminders now follow the billing date",
   15: "The 30-day deadline passes",
   16: "The S$100 late fee is raised",
-  21: "Final notice goes out",
+  21: "Was the final notice day; now follows the billing date too",
 };
 
 interface Run {
@@ -181,7 +185,7 @@ export default function SchedulePage() {
       <Card>
         <CardHeader
           title="The six days"
-          hint="Every morning at nine, Singapore time, the schedule asks whether today is one of these. On the other twenty-five it records that it woke and found nothing to do."
+          hint="Every morning at nine, Singapore time, the schedule reads the report and sends any reminder that has fallen due, counted from each tenant's billing date. These six days carry MES's other work, such as the fee on the 16th."
           right={
             history?.lastRun ? (
               <StatusBadge kind="good" label={`last ran for ${history.lastRun}`} />
@@ -401,23 +405,27 @@ function ordinal(d: number): string {
  * on real data - MES's export carries 28 different billing dates and some of
  * them are years old.
  *
- * Read only, and says so. It reports what the rule would decide; the schedule
- * still sends on the 7th and the 21st until the sending path is moved over,
- * and a screen that implied otherwise would be worse than no screen.
+ * Read only. Since 4 October this is what the nine o'clock run acts on: the
+ * same window, read from the same place, judged against the same day. It
+ * shows the rule's timing; whether a letter has already gone for a bill is
+ * the run's to decide, from what was really sent, and is in its diary.
  */
 function WhenEachTenantIsChased() {
-  const store = useStore();
   const ds = useDataset();
   const [all, setAll] = useState(false);
 
-  const window = sane({
-    first: store.settings.firstReminderDays,
-    final: store.settings.finalReminderDays,
-  });
+  /* The window the nine o'clock run uses, read from the same place it reads
+     it. This card once read the browser's copy and could disagree with the
+     run about every date it showed. */
+  const { window } = useReminderWindow();
 
-  /* The report's own date, not the wall clock: the figures are as at the
-     report, so judging them against today would compare two different days. */
-  const asOf = ds.asOf;
+  /*
+   * Today in Singapore, not the report's date. This judged against the report
+   * while it was only a preview; the run judges against the day it runs on,
+   * because twenty-three days after a bill is a fact about the calendar, and a
+   * preview that disagreed with the run about who is due would be no use.
+   */
+  const asOf = ds.asOf ? inSingapore().iso : null;
 
   const rows = useMemo(() => {
     if (!asOf) return [];
@@ -459,10 +467,10 @@ function WhenEachTenantIsChased() {
     <Card>
       <CardHeader
         title="When each tenant would be chased"
-        hint={`Counted from each tenant's own billing date: first reminder after ${window.first} days, final notice after ${window.final}. Dates are judged against the report, ${asOf}.`}
+        hint={`Counted from each tenant's own billing date: first reminder after ${window.first} days, final notice after ${window.final}. Judged against today, ${asOf}, as the 9am run does.`}
         right={
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge kind="warning" label="Not sending yet" />
+            <StatusBadge kind="good" label="What the 9am run follows" />
             {rows.length > 12 ? (
               <button
                 type="button"
@@ -477,8 +485,9 @@ function WhenEachTenantIsChased() {
       />
 
       <div className="border-b border-line-hair bg-surface-alt px-5 py-3 text-[11px] leading-relaxed text-ink-secondary">
-        {dueNow.length} of {rows.length} tenants would be due a letter as at{" "}
-        {formatDate(asOf)}.{" "}
+        {dueNow.length} of {rows.length} tenants are past at least one of their
+        reminder dates today. Whether each has already been sent that letter
+        is in the schedule&rsquo;s diary.{" "}
         {missing > 0
           ? `${missing} carry no billing date in this file, so the rule cannot place them.`
           : "Every tenant in this file carries a billing date."}{" "}
@@ -495,7 +504,7 @@ function WhenEachTenantIsChased() {
               <th className="px-3 py-2.5">First reminder</th>
               <th className="px-3 py-2.5">Final notice</th>
               <th className="px-3 py-2.5 text-right">Owed</th>
-              <th className="px-5 py-2.5">As at the report</th>
+              <th className="px-5 py-2.5">Today</th>
             </tr>
           </thead>
           <tbody>

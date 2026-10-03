@@ -181,3 +181,160 @@ export function reminderDatesFor(
   };
   return { first: at(w.first), final: at(w.final) };
 }
+
+/* ------------------------------------------------ what has already gone ---
+ * Deciding the letters, given what each tenant has really been sent.
+ *
+ * The question used to be "has this tenant had this letter this calendar
+ * month". Once the clock runs from the billing date that is the wrong
+ * question: a tenant billed on the 28th reaches day 23 in the next month, and a
+ * month-shaped memory would forget a letter sent on the 30th the moment the
+ * 1st arrived. So the question is now "has this tenant had this letter since
+ * their current bill was raised", which is the same question asked properly.
+ *
+ * It needs no new column. Every letter already records when it went, and a
+ * letter sent on or after the billing date is about that bill or a later one.
+ * That also makes it blind to how the letter was sent: one the nine o'clock
+ * run wrote and one an officer sent from the Reminders screen count alike.
+ */
+
+export interface SentLetter {
+  tenantId: string;
+  stage: ReminderStage;
+  /** When it really left. ISO, date or timestamp. */
+  sentAt: string;
+}
+
+export interface PlannedLetter {
+  accountId: string;
+  stage: ReminderStage;
+  billedOn: string;
+  dueBy: string | null;
+  /** Said in the run's diary when the letter is not the obvious one. */
+  note: string | null;
+}
+
+export interface HeldLetter {
+  accountId: string;
+  why: string;
+}
+
+const dayOf = (iso: string) => iso.slice(0, 10);
+
+/**
+ * Which of today's due reminders actually go, and why the rest do not.
+ *
+ * Two rules beyond the window, both about order:
+ *
+ *   A final notice never goes to somebody who has not had the first reminder
+ *   for this bill. If the first was missed - a report uploaded late, a run
+ *   that failed - the first goes now and the final waits, rather than a
+ *   tenant's first contact being the letter that cites the regulations.
+ *
+ *   And the final waits the same gap after the first that the window sets
+ *   between them. A first reminder sent late on day 40 is not followed by the
+ *   final on day 41.
+ */
+export function lettersToWrite(
+  due: readonly DueReminder[],
+  sent: readonly SentLetter[],
+  today: string,
+  window: ReminderWindow = DEFAULT_REMINDER_DAYS,
+): { write: PlannedLetter[]; held: HeldLetter[] } {
+  const w = sane(window);
+  const gap = w.final - w.first;
+  const write: PlannedLetter[] = [];
+  const held: HeldLetter[] = [];
+
+  for (const d of due) {
+    const since = sent.filter(
+      (s) => s.tenantId === d.accountId && dayOf(s.sentAt) >= d.billedOn,
+    );
+    const firsts = since
+      .filter((s) => s.stage === "first-reminder")
+      .map((s) => dayOf(s.sentAt))
+      .sort();
+    const hadFinal = since.some((s) => s.stage === "final-notice");
+
+    if (hadFinal) {
+      held.push({
+        accountId: d.accountId,
+        why: `already had the final notice for the bill of ${d.billedOn}`,
+      });
+      continue;
+    }
+
+    if (d.stage === "first-reminder") {
+      if (firsts.length > 0) {
+        held.push({
+          accountId: d.accountId,
+          why: `already had the first reminder for the bill of ${d.billedOn}`,
+        });
+      } else {
+        write.push({ accountId: d.accountId, stage: "first-reminder", billedOn: d.billedOn, dueBy: d.dueBy, note: null });
+      }
+      continue;
+    }
+
+    /* Past the final threshold from here on. */
+    if (firsts.length === 0) {
+      write.push({
+        accountId: d.accountId,
+        stage: "first-reminder",
+        billedOn: d.billedOn,
+        dueBy: d.dueBy,
+        note:
+          `past the final notice point for the bill of ${d.billedOn} but never ` +
+          `sent the first reminder, so the first goes now and the final ` +
+          `follows ${gap} days after it`,
+      });
+      continue;
+    }
+
+    const firstOn = firsts[firsts.length - 1];
+    const waited = dayDiff(firstOn, today);
+    if (waited !== null && waited >= gap) {
+      write.push({ accountId: d.accountId, stage: "final-notice", billedOn: d.billedOn, dueBy: d.dueBy, note: null });
+    } else {
+      held.push({
+        accountId: d.accountId,
+        why: `final notice waits until ${gap} days after the first reminder of ${firstOn}`,
+      });
+    }
+  }
+
+  return { write, held };
+}
+
+/**
+ * Each tenant's own lines, for remindersDueOn.
+ *
+ * Matched on the account id - customer code and dormitory - the same id the
+ * parser, the database and pastDueByAccount all give an account. A tenant who
+ * rents at two dormitories is two accounts with two billing histories, and
+ * matching by company name would hand both the same billing date.
+ *
+ * Company name is the fallback, for lines the parser could not place in a
+ * dormitory. Such a line belongs to every account of that company, which is
+ * the least wrong answer available for it.
+ */
+export function linesByAccount(
+  accounts: readonly Pick<Account, "id" | "companyName">[],
+  invoices: readonly BillingLine[],
+): (a: Pick<Account, "id" | "companyName">) => readonly BillingLine[] {
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").replace(/\.$/, "").trim();
+  const byId = new Map<string, BillingLine[]>();
+  const byName = new Map<string, BillingLine[]>();
+
+  for (const line of invoices) {
+    if (line.customerCode && line.property) {
+      const id = `${line.customerCode}-${line.property}`.toLowerCase();
+      byId.set(id, [...(byId.get(id) ?? []), line]);
+    } else if (line.companyName) {
+      const k = norm(line.companyName);
+      byName.set(k, [...(byName.get(k) ?? []), line]);
+    }
+  }
+
+  return (a) => [...(byId.get(a.id) ?? []), ...(byName.get(norm(a.companyName)) ?? [])];
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useReminderWindow } from "@/lib/use-reminder-window";
+import { useMemo, useState } from "react";
 import {
   buildQueue,
   formatSgd,
@@ -10,7 +11,6 @@ import { Account } from "@/lib/types";
 import {
   Template,
   hydrateActivity,
-  templateDueOn,
   useStore,
 } from "@/lib/store";
 import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
@@ -144,6 +144,8 @@ export default function RemindersPage() {
   const store = useStore();
   const { scope, canAct } = useSession();
   const { notify } = useToast();
+  /* When the 9am run sends each wording, for the text on this screen. */
+  const timing = useReminderWindow();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
@@ -220,45 +222,22 @@ export default function RemindersPage() {
    * backend exists this same decision moves there and the screen only reports
    * what it did. Nothing about the rules changes.
    */
-  const autoRan = useRef(false);
-  useEffect(() => {
-    if (!store.settings.autoSendReminders) return;
-    if (autoRan.current) return;
-
-    const due = templateDueOn(new Date(), store.templates);
-    if (!due) return;
-
-    /* The same month the rest of the screen uses. This one matters most: it
-       is the only path that writes to a tenant without anybody pressing
-       anything, so a month it got wrong would be a second letter nobody
-       asked for and nobody saw being sent. */
-    const alreadySent = alreadyHadIt(store.emails, due.id, period);
-    const batch = buildQueue(scope(ds.accounts)).filter(
-      (q) => q.account.hasContact && !alreadySent.has(q.account.id),
-    );
-    if (batch.length === 0) return;
-
-    autoRan.current = true;
-
-    /*
-     * Sent, then recorded. It was recorded and never sent: this called
-     * recordEmails(), which writes "Sent the first reminder" into the store
-     * and contacts nothing at all. On the 7th that produced a screen saying
-     * the batch had gone out, an activity log agreeing with it, and a mailbox
-     * that had not been touched.
-     */
-    void (async () => {
-      const report = await sendLetters(batch.map((q) => letterFor(q.account, due, ds.asOf)));
-      const said = describe(report, due.name);
-      notify(
-        report.sent > 0 ? `${said.title}, automatically` : said.title,
-        report.sent > 0
-          ? `${said.detail} Today is the ${due.triggerDay}th; turn this off in Settings to approve each one instead.`
-          : said.detail,
-      );
-      await hydrateActivity(true);
-    })();
-  }, [store.settings.autoSendReminders, store.templates, store.emails, ds, scope, notify, period]);
+  /*
+   * Retired on 4 October.
+   *
+   * A sender lived here: on the 7th or the 21st, whenever anybody opened this
+   * screen with automatic sending on, the browser sent the whole batch. It was
+   * written "because there is no scheduler yet", and said that when one
+   * existed the decision would move there. It exists - the nine o'clock run -
+   * and reminders are now counted from each tenant's billing date. Left here,
+   * this would have chased a tenant on the 7th as well as on their own date,
+   * and how often depended on who happened to open which page.
+   *
+   * The screen still sends: an officer can send any group, or any one letter,
+   * by hand. Those go through /api/send with the same template ids, and the
+   * schedule counts them, so it does not send the same letter again for that
+   * bill.
+   */
 
   /*
    * One view at a time, instead of the whole month stacked down the page.
@@ -373,11 +352,7 @@ export default function RemindersPage() {
       <Card>
         <CardHeader
           title="Choose the wording, then approve the batch"
-          hint={
-            store.settings.autoSendReminders
-              ? "Automatic sending is on. The first reminder goes out on the 7th and the final notice on the 21st, without anyone reading them first. You can still send early."
-              : "Nothing is sent automatically. Send the group in one go after reading the list, or open any one of them first."
-          }
+          hint={`The 9am run sends the first reminder ${timing.window.first} days after each tenant's billing date and the final notice ${timing.window.final} days after it. You can send any of these early from here.`}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {/* The wording follows the tab. A dropdown here as well was a
@@ -397,19 +372,11 @@ export default function RemindersPage() {
           }
         />
 
-        {store.settings.autoSendReminders ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-line-hair bg-surface-alt px-5 py-2.5">
-            <StatusBadge kind="critical" label="Sending automatically" />
-            <p className="text-[11px] text-ink-muted">
-              Turned on in Settings.
-            </p>
-          </div>
-        ) : null}
-
         <div className="border-b border-line-hair bg-surface-alt px-5 py-2.5">
           <p className="text-[11px] text-ink-muted">
-            <span className="text-ink-secondary">{template.name}</span> · sent on
-            the {template.trigger} · {pending.length}{" "}
+            <span className="text-ink-secondary">{template.name}</span> · goes{" "}
+            {view === "final" ? timing.window.final : timing.window.first} days
+            after each tenant&rsquo;s billing date · {pending.length}{" "}
             {pending.length === 1 ? "tenant" : "tenants"} in this group
           </p>
         </div>

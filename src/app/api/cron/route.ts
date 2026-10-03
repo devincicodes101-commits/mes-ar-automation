@@ -5,7 +5,15 @@ import { newestReport } from "@/lib/read-report";
 import { refusedByChecks, uploadStanding } from "@/lib/upload-verdict";
 import { buildPipeline } from "@/lib/pipeline";
 import { planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
-import { priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
+import { lettersSince, priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
+import { readReminderWindow } from "@/lib/reminder-window";
+import {
+  lettersToWrite,
+  linesByAccount,
+  remindersDueOn,
+  type HeldLetter,
+  type PlannedLetter,
+} from "@/lib/reminder-timing";
 import { runLog, type RunLog } from "@/lib/run-log";
 import type { Pipeline } from "@/lib/pipeline";
 import { send } from "@/lib/mail";
@@ -231,17 +239,16 @@ export async function GET(request: Request) {
     });
   };
 
-  // A day MES do nothing on. Recorded anyway, so the next run can tell
-  // "nothing was due" from "nothing ran": those need opposite responses.
-  if (day === null) {
-    return finish({
-      cycle_day: null,
-      status: "nothing-due",
-      summary: {},
-      report_date: null,
-      error: null,
-    });
-  }
+  /*
+   * No early exit on the days MES do nothing on.
+   *
+   * There used to be one here: anything but the 1st, 4th, 7th, 15th, 16th or
+   * 21st was recorded as nothing-due without reading anything. Reminders are
+   * now counted from each tenant's billing date, so any day can carry a
+   * letter, and the only way to know is to read the report. A day with
+   * nothing to write is still recorded as nothing-due, further down, once
+   * that has been established rather than assumed.
+   */
 
   const stored = await newestReport(db);
 
@@ -271,7 +278,9 @@ export async function GET(request: Request) {
     }, { level: "warn" });
     return finish({
       cycle_day: day,
-      status: "no-report",
+      /* On a day that is not one of MES's, an empty database is simply a day
+         with nothing to do, as it always was. */
+      status: day === null ? "nothing-due" : "no-report",
       summary: { reason: stored.reason },
       report_date: null,
       error: null,
@@ -279,83 +288,6 @@ export async function GET(request: Request) {
   }
 
   const report = stored.report;
-
-  /*
-   * How far behind the figures are, and whether this day should act on them.
-   *
-   * The Age column is fixed when MES press export; it does not advance as
-   * days pass. So a report pulled on the 4th and still newest on the 21st is
-   * seventeen days stale, and every decision from it is seventeen days out of
-   * date. On the three days that write to a tenant that matters: the 16th
-   * would charge $100 to somebody who paid a fortnight ago.
-   *
-   * Refused rather than done anyway, because a missed fee can be caught up
-   * the moment the report arrives and a wrong charge cannot be taken back
-   * without a phone call and a credit note.
-   */
-  const ageDays = reportAgeDays(report.asOf, today);
-  const freshness = tooOldToAct(day, ageDays);
-  if (!freshness.act) {
-    log.say("report", freshness.why, {
-      reportDate: report.asOf,
-      ageDays,
-      cycleDay: day,
-    }, { level: "error" });
-    return finish({
-      cycle_day: day,
-      status: "report-too-old",
-      summary: { title: "The report is too far behind to act on", reportAgeDays: ageDays },
-      report_date: report.asOf,
-      error: freshness.why,
-    });
-  }
-
-  /*
-   * And whether the file passed its own checks.
-   *
-   * Second gate, same shape as the staleness one above and for the same
-   * reason. That one asks whether the figures are current; this asks whether
-   * they hold together. The upload screen already decides it - the strongest
-   * check adds each customer up and compares against the total MES print for
-   * that customer in the same file - but the answer was only ever shown to
-   * whoever was looking. The run could not read it, so a file marked "do not
-   * use this data" was used at nine the next morning.
-   */
-  const standing = await uploadStanding(db);
-  const checks = refusedByChecks(day, standing);
-  if (!checks.act) {
-    log.say("report", checks.why, {
-      reportDate: report.asOf,
-      verdict: standing.verdict,
-      failed: standing.failed,
-      cycleDay: day,
-    }, { level: "error" });
-    return finish({
-      cycle_day: day,
-      status: "checks-failed",
-      summary: {
-        title: "The checks on this report failed, so nothing was sent",
-        failed: standing.failed,
-      },
-      report_date: report.asOf,
-      error: checks.why,
-    });
-  }
-  /* Carried rather than pushed: the run's notes are gathered further down. */
-  const checksWarning = checks.warn;
-  if (checksWarning) {
-    log.say("report", checksWarning, { verdict: standing.verdict }, { level: "warn" });
-  }
-
-  log.say("report", `Read the report of ${report.asOf}`, {
-    reportDate: report.asOf,
-    tenants: report.accounts.length,
-    invoiceLines: report.invoices.length,
-    ageDays,
-    owing: report.accounts.filter((a) => a.total > 0).length,
-    withAnAddress: report.accounts.filter((a) => a.hasContact).length,
-    label: report.label,
-  });
 
   try {
     const pipeline = buildPipeline(
@@ -388,6 +320,10 @@ export async function GET(request: Request) {
      * the 21st sent the final notice to every owing tenant with an address,
      * reminded or not, and a replayed day sent the lot again.
      *
+     * Still read by calendar month, because the $100 fee is charged once a
+     * month and promises are read from here too. Letters are no longer decided
+     * from this: see lettersSince below.
+     *
      * A failed read is not an empty one. If the record cannot be read the run
      * stops rather than proceeding as though nothing had happened, because
      * "nothing has happened" is the answer that causes a second letter.
@@ -407,33 +343,254 @@ export async function GET(request: Request) {
     }
     log.say("memory", "Read what has already been done this month", {
       period,
-      alreadyReminded: Array.from(memory.prior.reminded),
-      alreadyFinalised: Array.from(memory.prior.finalised),
       alreadyCharged: Array.from(memory.prior.charged),
       promisesStanding: Array.from(memory.prior.promises).map(([id, p]) => ({
         tenantId: id, amount: p.amount, by: p.by,
       })),
     });
 
+    /*
+     * ------------------------------------------------------------------
+     * Which reminders fall due today, counted from each tenant's own
+     * billing date.
+     *
+     * This used to be "is today the 7th or the 21st". MES's reports carry
+     * dozens of billing dates, so a fixed day gave a tenant billed on the
+     * 2nd five days' grace and one billed on the 28th forty. Now each tenant
+     * is chased the same number of days into their own newest bill, and those
+     * two numbers are read from the database - the Settings screen writes
+     * them there - rather than carried in the code.
+     *
+     * Worked out before the gates, not after, because the gates only matter
+     * on a day that writes to somebody, and that is no longer a fact about
+     * the calendar. It is a fact about the tenants.
+     * ------------------------------------------------------------------
+     */
+    const timing = await readReminderWindow(db);
+    const days = timing.window;
+    log.say("plan", `Reminders counted from the billing date: first after ${days.first} days, final after ${days.final}`, {
+      days,
+      source: timing.source,
+      problem: timing.problem,
+    }, { level: timing.problem ? "warn" : "info" });
+
+    const due = remindersDueOn(
+      pipeline.accounts,
+      linesByAccount(pipeline.accounts, report.invoices),
+      today.iso,
+      days,
+    );
+
+    /*
+     * What each of them has really been sent since their bill was raised.
+     * Read no further back than the oldest bill in question, and only when
+     * there is a question: a day with nobody due reads nothing.
+     */
+    const oldestBill = due.reduce<string | null>(
+      (min, d) => (min === null || d.billedOn < min ? d.billedOn : min),
+      null,
+    );
+    const sent = oldestBill
+      ? await lettersSince(db, oldestBill)
+      : { ok: true as const, letters: [] };
+    if (!sent.ok) {
+      log.say("memory", "Could not read which reminders have gone, so the run stopped", {
+        error: sent.error,
+      }, { level: "error" });
+      return finish({
+        cycle_day: day,
+        status: "failed",
+        summary: {},
+        report_date: report.asOf,
+        error: sent.error,
+      });
+    }
+
+    const decided = lettersToWrite(due, sent.letters, today.iso, days);
+
+    /*
+     * The two holds that are about the tenant rather than the timing. No
+     * address beats everything: they go to the call list and Send By Hand.
+     * Then a promise that has not yet passed.
+     */
+    const byIdEarly = new Map(pipeline.accounts.map((a) => [a.id, a]));
+    const letters: PlannedLetter[] = [];
+    const held: HeldLetter[] = [...decided.held];
+    for (const l of decided.write) {
+      const a = byIdEarly.get(l.accountId);
+      const promise = memory.prior.promises.get(l.accountId);
+      if (!a?.hasContact) {
+        held.push({
+          accountId: l.accountId,
+          why: "no email address, so they go to the call list and Send By Hand",
+        });
+      } else if (promise && promise.by >= today.iso) {
+        held.push({
+          accountId: l.accountId,
+          why: `promised $${promise.amount} by ${promise.by}`,
+        });
+      } else {
+        letters.push(l);
+      }
+    }
+
+    log.say("plan", `${letters.length} reminder letters due today, ${held.length} held back`, {
+      due: due.length,
+      first: letters.filter((l) => l.stage === "first-reminder").length,
+      final: letters.filter((l) => l.stage === "final-notice").length,
+      held: held.length,
+    });
+
+    /*
+     * A day that writes to somebody. The 16th charges the fee; any day can
+     * now carry letters.
+     */
+    const writesToday = day === 16 || letters.length > 0;
+
+    /* Nothing to write and not one of MES's days: recorded and done, as
+       before, but with the reasons in the diary rather than unasked. */
+    if (!writesToday && day === null) {
+      for (const h of held) {
+        log.say("plan", `Not written to: ${byIdEarly.get(h.accountId)?.companyName ?? h.accountId} — ${h.why}`, {
+          why: h.why,
+        }, { tenant: h.accountId });
+      }
+      return finish({
+        cycle_day: null,
+        status: "nothing-due",
+        summary: { remindersDue: due.length, heldBack: held.length },
+        report_date: report.asOf,
+        error: null,
+      });
+    }
+
+    /*
+     * How far behind the figures are, and whether this day should act on them.
+     *
+     * The Age column is fixed when MES press export; it does not advance as
+     * days pass. So a report pulled on the 4th and still newest on the 21st is
+     * seventeen days stale, and every decision from it is seventeen days out of
+     * date. On a day that writes to a tenant that matters: the 16th would
+     * charge $100 to somebody who paid a fortnight ago.
+     *
+     * Refused rather than done anyway, because a missed fee can be caught up
+     * the moment the report arrives and a wrong charge cannot be taken back
+     * without a phone call and a credit note. A missed reminder catches itself
+     * up too: the next run finds the tenant still past their date.
+     */
+    const ageDays = reportAgeDays(report.asOf, today);
+    const freshness = tooOldToAct(day ?? 0, ageDays, writesToday);
+    if (!freshness.act) {
+      log.say("report", freshness.why, {
+        reportDate: report.asOf,
+        ageDays,
+        cycleDay: day,
+      }, { level: "error" });
+      return finish({
+        cycle_day: day,
+        status: "report-too-old",
+        summary: { title: "The report is too far behind to act on", reportAgeDays: ageDays },
+        report_date: report.asOf,
+        error: freshness.why,
+      });
+    }
+
+    /*
+     * And whether the file passed its own checks.
+     *
+     * Second gate, same shape as the staleness one above and for the same
+     * reason. That one asks whether the figures are current; this asks whether
+     * they hold together. The upload screen already decides it - the strongest
+     * check adds each customer up and compares against the total MES print for
+     * that customer in the same file - but the answer was only ever shown to
+     * whoever was looking. The run could not read it, so a file marked "do not
+     * use this data" was used at nine the next morning.
+     */
+    const standing = await uploadStanding(db);
+    const checks = refusedByChecks(day ?? 0, standing, writesToday);
+    if (!checks.act) {
+      log.say("report", checks.why, {
+        reportDate: report.asOf,
+        verdict: standing.verdict,
+        failed: standing.failed,
+        cycleDay: day,
+      }, { level: "error" });
+      return finish({
+        cycle_day: day,
+        status: "checks-failed",
+        summary: {
+          title: "The checks on this report failed, so nothing was sent",
+          failed: standing.failed,
+        },
+        report_date: report.asOf,
+        error: checks.why,
+      });
+    }
+    /* Carried rather than pushed: the run's notes are gathered further down. */
+    const checksWarning = checks.warn;
+    if (checksWarning) {
+      log.say("report", checksWarning, { verdict: standing.verdict }, { level: "warn" });
+    }
+
+    log.say("report", `Read the report of ${report.asOf}`, {
+      reportDate: report.asOf,
+      tenants: report.accounts.length,
+      invoiceLines: report.invoices.length,
+      ageDays,
+      owing: report.accounts.filter((a) => a.total > 0).length,
+      withAnAddress: report.accounts.filter((a) => a.hasContact).length,
+      label: report.label,
+    });
+
     const before = stateFrom(memory.prior, today.iso);
 
-    const plan = planFor(pipeline, before, day, null);
-    const after = runDay(pipeline, before, day, null);
+    /*
+     * The cycle still decides the fee, and only the fee.
+     *
+     * runDay on the 7th or the 21st would decide letters by the calendar, and
+     * those are now decided above. Only the days whose work is not a letter
+     * are handed to it: the 16th charges, the 1st, 4th and 15th are read and
+     * described. On every other day there is no cycle work at all.
+     */
+    const cycleWork = day !== null && day !== 7 && day !== 21 ? day : null;
+    const plan = cycleWork !== null ? planFor(pipeline, before, cycleWork, null) : null;
+    const after = cycleWork === 16 ? runDay(pipeline, before, 16, null) : before;
 
-    log.say("plan", plan.title, {
-      willDo: plan.willDo,
-      blockers: plan.blockers,
-      affected: plan.affected,
-      value: plan.value,
-      fromFlowTab: plan.fromFlowTab,
-    });
+    const firstCount = letters.filter((l) => l.stage === "first-reminder").length;
+    const finalCount = letters.length - firstCount;
+    const letterLine =
+      letters.length > 0
+        ? `${firstCount} first reminder${firstCount === 1 ? "" : "s"} and ` +
+          `${finalCount} final notice${finalCount === 1 ? "" : "s"}, counted from each tenant's billing date`
+        : null;
+    const title =
+      [plan?.title ?? null, letterLine].filter(Boolean).join(" · ") ||
+      "No reminders fall due today";
+
+    if (plan) {
+      log.say("plan", plan.title, {
+        willDo: plan.willDo,
+        blockers: plan.blockers,
+        affected: plan.affected,
+        value: plan.value,
+        fromFlowTab: plan.fromFlowTab,
+      });
+    }
 
     const wrote = await persist(
       db, day, today, period, after, pipeline, memory.prior, log, checksWarning,
+      letters, held,
     );
     if (freshness.warn) {
       wrote.notes.unshift(freshness.warn);
       log.say("report", freshness.warn, { ageDays }, { level: "warn" });
+    }
+    if (timing.source === "default") {
+      wrote.notes.push(
+        `Reminder timing used the built-in ${days.first} and ` +
+          `${days.final} days, because the database holds no setting` +
+          (timing.problem ? `: ${timing.problem}` : "."),
+      );
     }
 
     return finish({
@@ -443,11 +600,12 @@ export async function GET(request: Request) {
         // Named, so a run somebody triggered by hand is never mistaken later
         // for one the schedule did on the day.
         ...(caughtUp ? { caughtUpOn: now.iso } : {}),
-        title: plan.title,
-        willDo: plan.willDo,
-        blockers: plan.blockers,
-        affected: plan.affected,
-        value: plan.value,
+        title,
+        willDo: plan?.willDo ?? [],
+        blockers: plan?.blockers ?? [],
+        affected: plan?.affected ?? 0,
+        value: plan?.value ?? 0,
+        reminderWindow: days,
         ...wrote,
         /*
          * No `simulated` flag. It was `!CAN_SEND_FOR_REAL`, a constant that is
@@ -473,6 +631,7 @@ export async function GET(request: Request) {
   }
 }
 
+
 /**
  * Writing down what the day did.
  *
@@ -483,7 +642,7 @@ export async function GET(request: Request) {
  */
 async function persist(
   db: ReturnType<typeof serverSupabase>,
-  day: CycleDay,
+  day: CycleDay | null,
   today: SgDate,
   period: string,
   after: SimState,
@@ -492,6 +651,10 @@ async function persist(
   log: RunLog,
   /** Said by the checks gate, which runs before this list exists. */
   checksWarning: string | null,
+  /** Today's reminders, decided from each tenant's billing date. */
+  letters: PlannedLetter[],
+  /** And the ones due but deliberately not sent, with the reason. */
+  held: HeldLetter[],
 ): Promise<{
   feesRaised: number;
   lettersWritten: number;
@@ -529,10 +692,13 @@ async function persist(
    * all again.
    */
   const charged = after.charged.filter((id) => !prior.charged.has(id));
-  const hadAlready = day === 21 ? prior.finalised : prior.reminded;
-  const written = (day === 21 ? after.finalNotice : after.firstReminder).filter(
-    (id) => !hadAlready.has(id),
-  );
+  /*
+   * Letters are no longer read off the cycle's state. They arrive decided -
+   * by billing date, against what each tenant has really been sent since that
+   * bill - and this only writes them down and sends them.
+   */
+  const written = letters.map((l) => l.accountId);
+  const planned = new Map(letters.map((l) => [l.accountId, l]));
 
   let feesRaised = 0;
   if (charged.length > 0) {
@@ -608,7 +774,9 @@ async function persist(
          * fired, which is the sort of thing a tenant notices and an officer
          * cannot explain.
          */
-        const letter = renderLetter(day === 21 ? "final-notice" : "first-reminder", {
+        const plannedLetter = planned.get(id)!;
+        const isFinal = plannedLetter.stage === "final-notice";
+        const letter = renderLetter(plannedLetter.stage, {
           companyName: account.companyName,
           grandTotal: account.total,
           sentOn: today.iso,
@@ -620,10 +788,17 @@ async function persist(
            * upserts the same row instead of writing a second letter to a
            * tenant who only got one.
            */
-          id: letterId(today.iso, day, id),
+          /*
+           * One row per tenant, per bill, per letter - not per day. A run that
+           * tries again tomorrow, because sending was off or the send failed,
+           * lands on the same row instead of writing a second letter.
+           */
+          id: letterId(`${plannedLetter.billedOn}|${plannedLetter.stage}|${id}`),
           tenant_id: id,
-          template_id: day === 21 ? "final-21st" : "reminder-7th",
-          template_name: day === 21 ? "Final notice" : "First reminder",
+          /* The ids every sender already uses. Named for the 7th and the 21st,
+             which they no longer mean; see lettersSince. */
+          template_id: isFinal ? "final-21st" : "reminder-7th",
+          template_name: isFinal ? "Final notice" : "First reminder",
           /* Which cycle this belongs to, so the screens can tell a letter
              already sent this month from one sent last month. */
           period,
@@ -695,6 +870,8 @@ async function persist(
             subject: row.subject,
             period,
             templateId: row.template_id,
+            billedOn: planned.get(row.tenant_id)?.billedOn ?? null,
+            note: planned.get(row.tenant_id)?.note ?? null,
           }, { tenant: row.tenant_id });
           // was_simulated false only once a letter genuinely left, so the day
           // sending was switched on stays findable in the data afterwards.
@@ -757,30 +934,20 @@ async function persist(
    * never having had the first one.
    */
   const heldBack: { code: string; name: string; why: string }[] = [];
-  if (day === 7 || day === 21) {
-    const had = day === 21 ? prior.finalised : prior.reminded;
-    for (const a of pipeline.accounts) {
-      if (a.total <= 0) continue;
-      if (written.includes(a.id)) continue;
-      const promise = prior.promises.get(a.id);
-      const why = !a.hasContact
-        ? "no email address, so they go to the call list"
-        : promise
-          ? `promised ${pipeline.lateFees.fee === 0 ? "" : ""}$${promise.amount} by ${promise.by}`
-          : had.has(a.id)
-            ? "already had this letter this month"
-            : day === 21 && !prior.reminded.has(a.id)
-              ? "never had the first reminder, so they wait for next month's 7th"
-              : "not due today";
-      heldBack.push({ ...name(a.id), why });
-      log.say("plan", `Not written to: ${a.companyName} — ${why}`, {
-        why,
-        owes: a.total,
-        hasAddress: a.hasContact,
-        promise: promise ?? null,
-        hadThisLetterThisMonth: had.has(a.id),
-      }, { tenant: a.id });
-    }
+  /*
+   * Only the tenants a reminder was due for. Before, the 7th and the 21st
+   * listed every owing tenant not written to, which was a manageable list on
+   * two days a month; on every day of the month it would be the whole book
+   * marked "not due today", every day, and the ones that matter would drown.
+   */
+  for (const h of held) {
+    heldBack.push({ ...name(h.accountId), why: h.why });
+    const a = byId.get(h.accountId);
+    log.say("plan", `Not written to: ${a?.companyName ?? h.accountId} — ${h.why}`, {
+      why: h.why,
+      owes: a?.total ?? null,
+      hasAddress: a?.hasContact ?? null,
+    }, { tenant: h.accountId });
   }
 
   return {
@@ -803,8 +970,7 @@ async function persist(
  * plain hash: this identifies a row, it does not protect anything, so it wants
  * to be reproducible rather than unguessable.
  */
-function letterId(iso: string, day: CycleDay, tenantId: string): string {
-  const seed = `${iso}|${day}|${tenantId}`;
+function letterId(seed: string): string {
   let h1 = 0x811c9dc5;
   let h2 = 0x01000193;
   for (let i = 0; i < seed.length; i += 1) {

@@ -239,8 +239,18 @@ export function reportAgeDays(reportDate: string | null, today: SgDate): number 
 export function tooOldToAct(
   day: number,
   ageDays: number | null,
+  /*
+   * Whether this run writes to anybody, where the caller knows better than
+   * the day number does.
+   *
+   * The 7th, the 16th and the 21st used to be the only days that wrote. Once
+   * reminders are counted from each tenant's billing date a letter can fall
+   * due on any day, so the run says whether it has letters to send and that
+   * answer wins. Left out, the day decides, exactly as before.
+   */
+  writesToday?: boolean,
 ): { act: false; why: string } | { act: true; warn: string | null } {
-  const writes = day === 7 || day === 16 || day === 21;
+  const writes = writesToday ?? (day === 7 || day === 16 || day === 21);
   if (!writes || ageDays === null) return { act: true, warn: null };
 
   if (ageDays > STALE_AFTER_DAYS) {

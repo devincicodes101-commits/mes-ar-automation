@@ -1419,8 +1419,13 @@ check("late fees takes the same month",
       FEES_CODE.includes("const period = currentPeriod()"), true);
 check("neither screen still reads it off the report",
       /ds\.asOf \? `\$\{ds\.asOf\.slice\(0, 7\)\}-01`/.test(REMINDERS_CODE + FEES_CODE), false);
-check("the run that sends without being asked uses it too",
-      REMINDERS_CODE.includes("alreadyHadIt(store.emails, due.id, period)"), true);
+/* There was a sender here that ran in the browser on the 7th and the 21st
+   whenever somebody opened the Reminders screen, and this guard made sure it
+   used the right month. It was retired on 4 October: the nine o'clock run is
+   the scheduler, and reminders follow each tenant's billing date. A browser
+   sender put back would chase tenants on the 7th as well. */
+check("the browser no longer sends without being asked",
+      /templateDueOn\(|autoSendReminders/.test(REMINDERS_CODE), false);
 check("and every letter says which month it is for",
       (REMINDERS_CODE.match(/period: currentPeriod\(\)/g) ?? []).length >= 2, true);
 check("there is one definition of that month, not several",
@@ -1535,15 +1540,31 @@ check("promises reach the run, so a tenant who arranged to pay is left alone",
       lib("prior-contact.ts").includes('.from("promises")'), true);
 check("and are judged against the real date, not the loaded report's",
       lib("cycle.ts").includes("if (s.today) return s.today;"), true);
+/* Whatever day it is handed, the cycle starts from what really happened.
+   Before 4 October this read "runDay(pipeline, before, day": the cycle now
+   only decides the fee and the descriptive days, letters having moved to the
+   billing date, so the day argument is no longer the bare `day`. The rule -
+   start from `before`, never from a blank state - is unchanged. */
 check("and hands it to the day as its starting state",
-      /runDay\(pipeline, before, day/.test(CRON_CODE) &&
-        /planFor\(pipeline, before, day/.test(CRON_CODE), true);
+      /runDay\(pipeline, before,/.test(CRON_CODE) &&
+        /planFor\(pipeline, before,/.test(CRON_CODE), true);
 check("it can no longer start from a blank sheet",
       /emptyState\(\)/.test(CRON_CODE), false);
 check("a failed read stops the run instead of resending",
       CRON_CODE.includes("if (!memory.ok)"), true);
-check("only letters not already sent this month are written",
-      CRON_CODE.includes("!hadAlready.has(id)"), true);
+/* The rule this replaced was "not already sent this calendar month". Once
+   reminders count from the billing date that forgets a letter sent on the
+   30th the moment the 1st arrives. The question is now "not already sent since
+   this tenant's current bill", asked of every letter that really left. */
+check("only letters not already sent for this bill are written",
+      CRON_CODE.includes("await lettersSince(db, oldestBill)") &&
+        CRON_CODE.includes("lettersToWrite(due, sent.letters, today.iso, days)") &&
+        /const written = letters\.map\(/.test(CRON_CODE), true);
+check("and the letters come from the billing date, not the calendar",
+      CRON_CODE.includes("remindersDueOn(") &&
+        !/after\.firstReminder|after\.finalNotice/.test(CRON_CODE), true);
+check("with the timing read from the database, not carried in the code",
+      CRON_CODE.includes("await readReminderWindow(db)"), true);
 check("and only fees not already raised are counted",
       CRON_CODE.includes("!prior.charged.has(id)"), true);
 check("the inert id-based skip is gone",
@@ -1761,8 +1782,11 @@ check("and the fee screen offers it",
 /* MES's Age column is fixed at export. A report pulled on the 4th and still
    newest on the 21st is seventeen days stale, and the 16th would charge $100
    to somebody who paid a fortnight ago. */
+/* Any day can write now, so the run tells the gate whether it does, and
+   letters are part of that answer - not only the 16th's fee. */
 check("a day that writes checks how far behind the report is",
-      CRON_CODE.includes("tooOldToAct(day, ageDays)"), true);
+      /tooOldToAct\(day \?\? 0, ageDays, writesToday\)/.test(CRON_CODE) &&
+        /const writesToday = day === 16 \|\| letters\.length > 0;/.test(CRON_CODE), true);
 check("and stops rather than acting on it",
       CRON_CODE.includes('status: "report-too-old"'), true);
 check("an ageing but usable report is flagged in the run's notes",
@@ -1907,7 +1931,7 @@ check("the library files them against the upload",
 check("the schedule reads the standing of the newest upload",
       CRON_V.includes("await uploadStanding(db)"), true);
 check("and refuses the day when the checks failed",
-      CRON_V.includes("refusedByChecks(day, standing)") &&
+      CRON_V.includes("refusedByChecks(day ?? 0, standing, writesToday)") &&
         CRON_V.includes('status: "checks-failed"'), true);
 check("an officer can mark a failed upload usable",
       UPLOAD_ROUTE_V.includes("export async function PATCH") &&
@@ -2105,5 +2129,41 @@ check("and a logged call carries its bill on a line of its own",
       /function LoggedBilling/.test(CALLS_CODE) &&
         CALLS_CODE.includes("<LoggedBilling") &&
         !/about the \$\{formatDate/.test(CALLS_CODE), true);
+
+/* =============================== the reminder window reaches the 9am run */
+
+/*
+ * The two numbers were first kept in the browser. They moved every date on
+ * screen, on one machine, and changed nothing that was sent: the run is on a
+ * server with no browser and read no setting. They now live in app_settings,
+ * the run reads them there, and every screen that shows a reminder date reads
+ * the same place - so a screen cannot show one window while the run uses
+ * another.
+ */
+section("The reminder window is read where the 9am run reads it");
+
+const SETTINGS_CODE = code(path.join(APP, "settings", "page.tsx"));
+const SCHEDULE_CODE = code(path.join(APP, "schedule", "page.tsx"));
+const WINDOW_ROUTE = code(path.join(APP, "api", "settings", "reminders", "route.ts"));
+
+check("the numbers are no longer kept in the browser",
+      /firstReminderDays|finalReminderDays/.test(code(path.join(LIB, "store.ts"))), false);
+check("the Settings screen saves them to the server",
+      SETTINGS_CODE.includes("useReminderWindow()") && SETTINGS_CODE.includes("held.save("), true);
+check("and saves on a button, not on every keystroke",
+      /onChange=\{\(e\) => set\(e\.target\.value\)\}/.test(SETTINGS_CODE) &&
+        !/onChange=[^\n]*held\.save/.test(SETTINGS_CODE), true);
+check("the Schedule screen reads the same window",
+      SCHEDULE_CODE.includes("useReminderWindow()"), true);
+check("and the Reminders screen too",
+      REMINDERS_CODE.includes("useReminderWindow()"), true);
+check("only somebody who may edit settings can change it",
+      WINDOW_ROUTE.includes('can(who.caller.role, "edit-settings")'), true);
+check("and a final before the first is refused, not silently corrected",
+      WINDOW_ROUTE.includes("if (final < first)"), true);
+check("the switch that controlled nothing has gone",
+      /autoSendReminders/.test(SETTINGS_CODE), false);
+check("the run says when it fell back to the built-in numbers",
+      CRON_CODE.includes('timing.source === "default"'), true);
 
 process.exit(failures === 0 ? 0 : 1);

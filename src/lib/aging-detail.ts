@@ -254,8 +254,9 @@ const COLUMNS = {
   date: {
     names: ["Date"],
     purpose:
-      "The balance cannot be split by billing run, so Outstanding Balances " +
-      "shows one total rather than one per run.",
+      "It is the billing date, and reminders are counted from it: without " +
+      "it no tenant can be placed in the chase at all, and the balance " +
+      "cannot be split by billing run.",
   },
   description: {
     names: ["Description"],
@@ -303,11 +304,22 @@ const COLUMNS = {
 type ColumnKey = keyof typeof COLUMNS;
 
 /** Without one of these the file cannot be read at all. */
-const ESSENTIAL: ColumnKey[] = ["customer", "balance", "dueDate"];
+/*
+ * "Date" joined these on 4 October.
+ *
+ * It was optional while reminders went out on the 7th and the 21st: losing it
+ * cost the per-billing-run breakdown and nothing else. Reminders are now
+ * counted from the billing date, so a file without that column would import
+ * cleanly and quietly drop every tenant out of the chase - no error, nobody
+ * written to, and no way to tell from the screens that anything was wrong.
+ *
+ * A column the whole chase depends on is not optional.
+ */
+const ESSENTIAL: ColumnKey[] = ["customer", "balance", "dueDate", "date"];
 
 /** Missing one of these costs something, and the screen says what. */
 const OPTIONAL: ColumnKey[] = [
-  "txType", "company", "date", "description", "category",
+  "txType", "company", "description", "category",
   "document", "contract", "age", "rep", "industry", "status",
 ];
 

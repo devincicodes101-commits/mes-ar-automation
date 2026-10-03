@@ -40,6 +40,8 @@ import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE,
 import { datasetFromResults } from "../src/lib/dataset.ts";
 import { linkContacts } from "../src/lib/pipeline.ts";
 import {
+  lettersToWrite,
+  linesByAccount,
   remindersDueOn,
   reminderDatesFor,
   sane,
@@ -1737,6 +1739,115 @@ check("a tenant with no billing date at all is skipped rather than guessed",
 const dates = reminderDatesFor("2026-08-15", { first: 23, final: 37 })!;
 check("billing + 23 is the 7th, which is MES's first reminder day", dates.first, "2026-09-07");
 check("and billing + 37 is the 21st, their final notice day", dates.final, "2026-09-21");
+
+/* ================================== a file without Date is refused ====== */
+
+/*
+ * Date was optional while reminders went out on fixed days. Reminders are now
+ * counted from it, so a file without it would have imported cleanly and
+ * dropped every tenant out of the chase with nothing on any screen to say so.
+ */
+section("A report with no billing date is refused, not half imported");
+
+const sheetWith = (withDate: boolean) => {
+  const head = ["Customer", "Transaction Type", "Company Name",
+    ...(withDate ? ["Date"] : []), "Description", "Document Number",
+    "Due Date", "Age", "Open Balance"];
+  const line = ["", "Invoice", "ACME PTE LTD",
+    ...(withDate ? ["2026-08-15"] : []), "Occupancy Fee Charges", "BSD-786/1",
+    "2026-08-30", 40, 500];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.aoa_to_sheet([["MES"], ["Title"], ["As of 17 September 2026"], [],
+      head, ["DORM-1 ACME PTE LTD"], line]),
+    "Sheet1",
+  );
+  return parseAgingDetail(wb);
+};
+
+const withoutDateCol = sheetWith(false);
+check("without a Date column nothing is imported", withoutDateCol.accounts.length, 0);
+check("and the upload says which column, and why it matters",
+      withoutDateCol.problems.some((x) => x.severity === "error" &&
+        /"Date" column is not in this file/.test(x.message) &&
+        /reminders are counted from it/.test(x.message)), true);
+check("the same file with the column imports normally",
+      sheetWith(true).accounts.length > 0, true);
+
+/* ========================= nobody is chased twice, or out of order ======= */
+
+/*
+ * The 9am run now decides letters from the billing date, every day of the
+ * month. The two ways that goes wrong are a tenant written to twice for the
+ * same bill, and a tenant whose first contact is the final notice. Both are
+ * decided by lettersToWrite, and both are tested here against what has really
+ * been sent rather than against the calendar.
+ */
+section("Letters by billing date: never twice for one bill, never out of order");
+
+const W = { first: 23, final: 37 };
+const tenantOwing = { id: "t", companyName: "T", total: 1000 } as never;
+const bill = (iso: string) => () => [{ date: iso, dueDate: null, openBalance: 1000 }] as never;
+const decide = (billed: string, today: string, sentLetters: { stage: "first-reminder" | "final-notice"; sentAt: string }[]) =>
+  lettersToWrite(
+    remindersDueOn([tenantOwing], bill(billed), today, W),
+    sentLetters.map((x) => ({ tenantId: "t", ...x })),
+    today,
+    W,
+  );
+
+/* The plain path. */
+check("day 23 of a bill, nothing sent: the first reminder goes",
+      decide("2026-08-15", "2026-09-07", []).write[0]?.stage, "first-reminder");
+check("the next morning, already sent: nothing goes",
+      decide("2026-08-15", "2026-09-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write.length, 0);
+check("and it says why",
+      decide("2026-08-15", "2026-09-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).held[0]?.why.includes("already had the first reminder"), true);
+check("day 37, the first sent on day 23: the final notice goes",
+      decide("2026-08-15", "2026-09-21", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write[0]?.stage, "final-notice");
+check("after the final, nothing more for that bill",
+      decide("2026-08-15", "2026-10-30", [
+        { stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" },
+        { stage: "final-notice", sentAt: "2026-09-21T01:00:00Z" },
+      ]).write.length, 0);
+
+/* A month-shaped memory would get these wrong. */
+check("last month's reminder does not count for this month's bill",
+      decide("2026-09-15", "2026-10-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write[0]?.stage,
+      "first-reminder");
+check("a letter sent on the 30th still counts on the 1st",
+      decide("2026-09-07", "2026-10-01", [{ stage: "first-reminder", sentAt: "2026-09-30T01:00:00Z" }]).write.length, 0);
+
+/* Order. */
+const lateFirst = decide("2026-08-15", "2026-10-01", []);
+check("past the final point but never reminded: the FIRST goes, not the final",
+      lateFirst.write[0]?.stage, "first-reminder");
+check("and the diary says why it is late",
+      lateFirst.write[0]?.note?.includes("never sent the first reminder") ?? false, true);
+check("the final waits the full gap after a late first, not the next day",
+      decide("2026-08-15", "2026-10-02", [{ stage: "first-reminder", sentAt: "2026-10-01T01:00:00Z" }]).write.length, 0);
+check("and goes once the gap has passed",
+      decide("2026-08-15", "2026-10-15", [{ stage: "first-reminder", sentAt: "2026-10-01T01:00:00Z" }]).write[0]?.stage,
+      "final-notice");
+
+/* How it was sent does not matter: a hand-sent letter from the Reminders
+   screen is a real letter with the same template id, and counts. */
+check("a reminder an officer sent by hand stops the run sending it again",
+      decide("2026-08-15", "2026-09-07", [{ stage: "first-reminder", sentAt: "2026-09-06T10:30:00Z" }]).write.length, 0);
+
+/* Two dormitories, two bills. */
+const byAcct = linesByAccount(
+  [{ id: "dorm-1-bsd", companyName: "Acme" }, { id: "dorm-1-leo", companyName: "Acme" }],
+  [
+    { customerCode: "DORM-1", property: "BSD", companyName: "Acme", date: "2026-08-02" },
+    { customerCode: "DORM-1", property: "LEO", companyName: "Acme", date: "2026-08-28" },
+  ] as never,
+);
+check("a tenant at two dormitories keeps two billing dates, not one",
+      `${(byAcct({ id: "dorm-1-bsd", companyName: "Acme" })[0] as { date: string }).date}|` +
+        `${(byAcct({ id: "dorm-1-leo", companyName: "Acme" })[0] as { date: string }).date}`,
+      "2026-08-02|2026-08-28");
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

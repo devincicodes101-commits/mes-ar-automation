@@ -196,3 +196,48 @@ export function stateFrom(prior: PriorContact, today?: string): SimState {
     charged: Array.from(prior.charged),
   };
 }
+
+/* ---------------------------------------------- letters since a billing date
+ * The reminders each tenant has really received since a given day.
+ *
+ * priorContact above answers "this calendar month", which is right for the
+ * $100 fee - that is charged once a month - and wrong for reminders once they
+ * are counted from the billing date. This reads letters by when they went,
+ * and lettersToWrite decides which bill each one covered.
+ *
+ * `since` is the oldest billing date among today's due reminders, so the read
+ * is no wider than the question. Really sent only, the same rule as above: a
+ * letter written while sending was switched off told the tenant nothing.
+ *
+ * The template ids are the ones every sender already uses. They are named for
+ * the 7th and the 21st and no longer mean those days; renaming them would
+ * break the link to every letter already on record, which is worse than a
+ * misleading name explained here.
+ */
+export async function lettersSince(
+  db: SupabaseClient,
+  since: string,
+): Promise<
+  | { ok: true; letters: { tenantId: string; stage: "first-reminder" | "final-notice"; sentAt: string }[] }
+  | { ok: false; error: string }
+> {
+  const r = await everything<{ tenant_id: string; template_id: string | null; sent_at: string }>(() =>
+    db
+      .from("emails_sent")
+      .select("tenant_id,template_id,sent_at")
+      .in("template_id", ["reminder-7th", "final-21st"])
+      .eq("was_simulated", false)
+      .gte("sent_at", since) as unknown as Pageable,
+  );
+  if (r.error) {
+    return { ok: false, error: (r.error as { message?: string }).message ?? String(r.error) };
+  }
+  return {
+    ok: true,
+    letters: r.rows.map((row) => ({
+      tenantId: row.tenant_id,
+      stage: row.template_id === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
+      sentAt: row.sent_at,
+    })),
+  };
+}

@@ -11,6 +11,7 @@ import { useSession, useToast } from "@/lib/session";
 import { REVENUE_RULES } from "@/lib/revenue-rules";
 import { RECIPIENT_KIND_LABEL } from "@/lib/dispatch";
 import { reminderDatesFor, sane } from "@/lib/reminder-timing";
+import { useReminderWindow } from "@/lib/use-reminder-window";
 import {
   Card,
   CardHeader,
@@ -24,71 +25,53 @@ import { GoogleClient } from "@/components/GoogleClient";
 export default function SettingsPage() {
   const store = useStore();
   const { canAct } = useSession();
-  const { notify } = useToast();
   const [editing, setEditing] = useState<Template | null>(null);
-  const [confirming, setConfirming] = useState(false);
-
-  const auto = store.settings.autoSendReminders;
 
   return (
     <div className="space-y-5">
       {/* ------------------------------------------------ sending behaviour */}
+      {/*
+        * There was a switch here, "Send reminders without asking", and it
+        * never governed the scheduled run. It controlled a sender inside the
+        * Reminders screen that fired on the 7th and the 21st whenever somebody
+        * happened to open that page; the nine o'clock run never read it. So
+        * turning it off stopped nothing that was scheduled, and the card said
+        * "this switch decides which one is running", which was not so.
+        *
+        * That browser sender was retired on 4 October, when reminders moved
+        * to each tenant's billing date: left in place it would have chased
+        * people on the 7th as well as on their own date. With it gone the
+        * switch controlled nothing at all, so it went too. The card now says
+        * what actually decides a send.
+        */}
       <Card>
         <CardHeader
           title="How reminders go out"
           hint="Who presses send."
-          right={
-            <StatusBadge
-              kind={auto ? "critical" : "good"}
-              label={auto ? "Sending automatically" : "Officer approves each one"}
-            />
-          }
+          right={<StatusBadge kind="neutral" label="Sent by the 9am run" />}
         />
 
-        <div className="flex flex-wrap items-start gap-4 px-5 py-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-ink">
-              Send reminders without asking
-            </p>
-            <p className="mt-1 max-w-2xl text-xs text-ink-secondary">
-              On: reminders go out on the 7th and the 21st unattended, which is
-              what MES asked for. Off: the officer reads and approves each
-              batch first, which is the process in the original proposal.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={auto}
-            disabled={!canAct}
-            onClick={() => {
-              if (!auto) {
-                setConfirming(true);
-                return;
-              }
-              updateSettings({ autoSendReminders: false });
-              notify("Automatic sending turned off", "Officers approve each email again.");
-            }}
-            className={`shrink-0 rounded border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-              auto
-                ? "border-line-strong text-ink hover:bg-surface-alt"
-                : "border-accent bg-accent text-accent-ink hover:opacity-90"
-            }`}
-          >
-            {auto ? "Turn off automatic sending" : "Turn on automatic sending"}
-          </button>
+        <div className="space-y-2 px-5 py-4 text-xs leading-relaxed text-ink-secondary">
+          <p>
+            Every morning at nine, Singapore time, the schedule works out which
+            tenants have reached their reminder date - counted from each
+            tenant&rsquo;s own billing date, using the numbers below - and
+            sends them the letter. Nobody needs to open a screen for it to
+            happen.
+          </p>
+          <p>
+            Officers can still send any reminder early, by hand, from the
+            Reminder Emails screen. The schedule sees those letters and does
+            not send the same one again for that bill.
+          </p>
         </div>
 
-        {/* Proposal 4.5 asks for a review step. MES asked for automatic
-            instead, so the screen records which of the two is running rather
-            than leaving somebody to discover it from behaviour. */}
         <div className="flex flex-wrap items-center gap-3 border-t border-line-hair bg-surface-alt px-5 py-3">
           <StatusBadge kind="neutral" label="Changed at MES's request" />
           <p className="text-[11px] text-ink-muted">
             Proposal 4.5 asked for an officer to approve each email. MES asked
-            for automatic sending instead. Both modes work; this switch decides
-            which one is running.
+            for automatic sending instead. Whether letters actually leave is
+            decided on the server by MAIL_MODE, which is off unless set.
           </p>
         </div>
       </Card>
@@ -248,41 +231,6 @@ export default function SettingsPage() {
         <TemplateEditor template={editing} onClose={() => setEditing(null)} />
       ) : null}
 
-      {confirming ? (
-        <Modal title="Turn on automatic sending?" onClose={() => setConfirming(false)}>
-          <p className="text-xs leading-relaxed text-ink-secondary">
-            Reminders will go out on the 7th and the 21st without anyone reading
-            them first. Any tenant with an email address on file and a balance
-            more than 15 days past due will be emailed.
-          </p>
-          <p className="mt-3 text-xs text-ink-secondary">
-            This overrides the review step agreed with MES.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
-            <button
-              type="button"
-              onClick={() => {
-                updateSettings({ autoSendReminders: true });
-                notify(
-                  "Automatic sending turned on",
-                  "Reminders will go out without approval.",
-                );
-                setConfirming(false);
-              }}
-              className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
-            >
-              Turn it on
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      ) : null}
     </div>
   );
 }
@@ -376,82 +324,126 @@ function TemplateEditor({
  * twenty-eight different billing dates, so for most tenants those two days
  * meant nothing in particular.
  *
- * Editable here rather than set in the code because the two numbers were
- * dictated once and recorded twice, and the two records disagree. The screen
- * does the arithmetic out loud so the disagreement is settled by looking at
- * it: against MES billing on the 15th, +23 lands on the 7th and +37 lands on
- * the 21st, which are the two days they send on today.
+ * Saved to the database, and read from there by the nine o'clock run. The
+ * first version of this card kept the numbers in the browser: changing them
+ * moved the dates on screen, on one machine, and changed nothing that was
+ * sent. A Save button rather than saving as you type, because every save is
+ * an audit entry and typing 37 should not record a 3 on the way.
+ *
+ * The worked example does the arithmetic out loud so the 27-or-37 question is
+ * settled by looking: against MES billing on the 15th, +23 lands on the 7th
+ * and +37 on the 21st, the two days they send on today.
  */
 function ReminderTiming() {
-  const store = useStore();
   const { notify } = useToast();
-  const { canAct } = useSession();
-  const window = sane({
-    first: store.settings.firstReminderDays,
-    final: store.settings.finalReminderDays,
-  });
+  const { can } = useSession();
+  const mayEdit = can("edit-settings");
+  const held = useReminderWindow();
 
-  /* A worked example on a date MES actually bill, so the numbers can be
-     checked against the calendar rather than taken on trust. */
-  const example = reminderDatesFor("2026-08-15", window);
+  const [first, setFirst] = useState("");
+  const [final, setFinal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  /* The inputs start from whatever the server holds, once it has answered. */
+  const loaded = held.source !== "loading";
+  const shownFirst = first === "" && loaded ? String(held.window.first) : first;
+  const shownFinal = final === "" && loaded ? String(held.window.final) : final;
+
+  const draft = { first: Number(shownFirst), final: Number(shownFinal) };
+  const valid =
+    Number.isFinite(draft.first) && Number.isFinite(draft.final) &&
+    draft.first >= 0 && draft.final >= 0 && shownFirst !== "" && shownFinal !== "";
+  const backwards = valid && draft.final < draft.first;
+  const changed =
+    valid && (draft.first !== held.window.first || draft.final !== held.window.final);
+
+  /* The example follows what is typed, so the effect is visible before saving. */
+  const example = valid ? reminderDatesFor("2026-08-15", sane(draft)) : null;
   const nice = (iso: string) =>
     new Date(iso).toLocaleDateString("en-SG", { day: "numeric", month: "long" });
 
-  function set(which: "first" | "final", raw: string) {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0) return;
-    updateSettings(
-      which === "first" ? { firstReminderDays: n } : { finalReminderDays: n },
-    );
+  async function save() {
+    setSaving(true);
+    const r = await held.save(draft);
+    setSaving(false);
+    if (!r.ok) {
+      notify("Not saved", r.error);
+      return;
+    }
+    setFirst("");
+    setFinal("");
     notify(
-      "Reminder timing changed",
-      `${which === "first" ? "First reminder" : "Final notice"} now goes ${n} days after the billing date.`,
+      "Reminder timing saved",
+      `First reminder ${draft.first} days after billing, final notice ${draft.final}. The next nine o'clock run uses these.`,
     );
   }
+
+  const field = (
+    label: string,
+    value: string,
+    set: (v: string) => void,
+  ) => (
+    <label className="block">
+      <span className="block text-xs font-medium text-ink-secondary">{label}</span>
+      <span className="mt-1 flex items-center gap-2">
+        <input
+          type="number"
+          min={0}
+          value={value}
+          disabled={!mayEdit || !loaded}
+          onChange={(e) => set(e.target.value)}
+          className="w-20 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-sm text-ink disabled:opacity-50"
+        />
+        <span className="text-xs text-ink-muted">days after billing</span>
+      </span>
+    </label>
+  );
 
   return (
     <Card>
       <CardHeader
         title="When reminders go out"
-        hint="Counted from each tenant's own billing date, not from a fixed day of the month."
-        right={<StatusBadge kind="neutral" label="Billing date is the source of truth" />}
+        hint="Counted from each tenant's own billing date, the Date column of the uploaded report."
+        right={
+          <StatusBadge
+            kind={held.source === "database" ? "good" : "warning"}
+            label={
+              held.source === "loading"
+                ? "Reading"
+                : held.source === "database"
+                  ? "Used by the 9am run"
+                  : "Built-in default"
+            }
+          />
+        }
       />
 
-      <div className="flex flex-wrap gap-6 px-5 py-4">
-        <label className="block">
-          <span className="block text-xs font-medium text-ink-secondary">
-            First reminder
-          </span>
-          <span className="mt-1 flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              value={store.settings.firstReminderDays}
-              disabled={!canAct}
-              onChange={(e) => set("first", e.target.value)}
-              className="w-20 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-sm text-ink disabled:opacity-50"
-            />
-            <span className="text-xs text-ink-muted">days after billing</span>
-          </span>
-        </label>
-
-        <label className="block">
-          <span className="block text-xs font-medium text-ink-secondary">
-            Final notice
-          </span>
-          <span className="mt-1 flex items-center gap-2">
-            <input
-              type="number"
-              min={0}
-              value={store.settings.finalReminderDays}
-              disabled={!canAct}
-              onChange={(e) => set("final", e.target.value)}
-              className="w-20 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-sm text-ink disabled:opacity-50"
-            />
-            <span className="text-xs text-ink-muted">days after billing</span>
-          </span>
-        </label>
+      <div className="flex flex-wrap items-end gap-6 px-5 py-4">
+        {field("First reminder", shownFirst, setFirst)}
+        {field("Final notice", shownFinal, setFinal)}
+        {mayEdit ? (
+          <button
+            type="button"
+            disabled={!changed || backwards || saving}
+            onClick={() => void save()}
+            className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving" : "Save"}
+          </button>
+        ) : (
+          <span className="text-[11px] text-ink-muted">Only an admin can change these.</span>
+        )}
       </div>
+
+      {backwards ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-line-hair px-5 py-3">
+          <StatusBadge kind="critical" label="Cannot save" />
+          <p className="text-[11px] text-ink-muted">
+            The final notice is set before the first reminder. It has to come
+            after it.
+          </p>
+        </div>
+      ) : null}
 
       {example ? (
         <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
@@ -468,13 +460,13 @@ function ReminderTiming() {
         </div>
       ) : null}
 
-      {store.settings.finalReminderDays < store.settings.firstReminderDays ? (
+      {held.source === "default" && loaded ? (
         <div className="flex flex-wrap items-center gap-3 border-t border-line-hair px-5 py-3">
-          <StatusBadge kind="critical" label="Held" />
+          <StatusBadge kind="warning" label="Not stored yet" />
           <p className="text-[11px] text-ink-muted">
-            The final notice is set earlier than the first reminder, so it is
-            being held until the first. Both letters would otherwise land on the
-            same day, in the wrong order.
+            {held.error
+              ? `Could not read the setting: ${held.error}`
+              : "The database holds no setting, so the run uses 23 and 27. If saving fails, 0022_reminder_window.sql has not been applied."}
           </p>
         </div>
       ) : null}
