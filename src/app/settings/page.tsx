@@ -10,6 +10,7 @@ import {
 import { useSession, useToast } from "@/lib/session";
 import { REVENUE_RULES } from "@/lib/revenue-rules";
 import { RECIPIENT_KIND_LABEL } from "@/lib/dispatch";
+import { reminderDatesFor, sane } from "@/lib/reminder-timing";
 import {
   Card,
   CardHeader,
@@ -91,6 +92,9 @@ export default function SettingsPage() {
           </p>
         </div>
       </Card>
+
+      {/* --------------------------------------------- when reminders fall due */}
+      <ReminderTiming />
 
       {/* ------------------------------------------------ classification */}
       <Card>
@@ -361,5 +365,119 @@ function TemplateEditor({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * How many days after a tenant's own billing date each reminder goes.
+ *
+ * Reminders used to go on the 7th and the 21st, which quietly assumed every
+ * tenant was billed on the same day of the month. MES's August export carries
+ * twenty-eight different billing dates, so for most tenants those two days
+ * meant nothing in particular.
+ *
+ * Editable here rather than set in the code because the two numbers were
+ * dictated once and recorded twice, and the two records disagree. The screen
+ * does the arithmetic out loud so the disagreement is settled by looking at
+ * it: against MES billing on the 15th, +23 lands on the 7th and +37 lands on
+ * the 21st, which are the two days they send on today.
+ */
+function ReminderTiming() {
+  const store = useStore();
+  const { notify } = useToast();
+  const { canAct } = useSession();
+  const window = sane({
+    first: store.settings.firstReminderDays,
+    final: store.settings.finalReminderDays,
+  });
+
+  /* A worked example on a date MES actually bill, so the numbers can be
+     checked against the calendar rather than taken on trust. */
+  const example = reminderDatesFor("2026-08-15", window);
+  const nice = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-SG", { day: "numeric", month: "long" });
+
+  function set(which: "first" | "final", raw: string) {
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return;
+    updateSettings(
+      which === "first" ? { firstReminderDays: n } : { finalReminderDays: n },
+    );
+    notify(
+      "Reminder timing changed",
+      `${which === "first" ? "First reminder" : "Final notice"} now goes ${n} days after the billing date.`,
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="When reminders go out"
+        hint="Counted from each tenant's own billing date, not from a fixed day of the month."
+        right={<StatusBadge kind="neutral" label="Billing date is the source of truth" />}
+      />
+
+      <div className="flex flex-wrap gap-6 px-5 py-4">
+        <label className="block">
+          <span className="block text-xs font-medium text-ink-secondary">
+            First reminder
+          </span>
+          <span className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              value={store.settings.firstReminderDays}
+              disabled={!canAct}
+              onChange={(e) => set("first", e.target.value)}
+              className="w-20 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-sm text-ink disabled:opacity-50"
+            />
+            <span className="text-xs text-ink-muted">days after billing</span>
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="block text-xs font-medium text-ink-secondary">
+            Final notice
+          </span>
+          <span className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              value={store.settings.finalReminderDays}
+              disabled={!canAct}
+              onChange={(e) => set("final", e.target.value)}
+              className="w-20 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-sm text-ink disabled:opacity-50"
+            />
+            <span className="text-xs text-ink-muted">days after billing</span>
+          </span>
+        </label>
+      </div>
+
+      {example ? (
+        <div className="border-t border-line-hair bg-surface-alt px-5 py-3">
+          <p className="text-[11px] leading-relaxed text-ink-secondary">
+            A tenant billed on <b className="text-ink">15 August</b> would be
+            sent the first reminder on{" "}
+            <b className="text-ink">{nice(example.first)}</b> and the final
+            notice on <b className="text-ink">{nice(example.final)}</b>.
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+            MES send on the 7th and the 21st today, which from a 15th billing
+            date is 23 and 37 days. 27 days would be the 11th.
+          </p>
+        </div>
+      ) : null}
+
+      {store.settings.finalReminderDays < store.settings.firstReminderDays ? (
+        <div className="flex flex-wrap items-center gap-3 border-t border-line-hair px-5 py-3">
+          <StatusBadge kind="critical" label="Held" />
+          <p className="text-[11px] text-ink-muted">
+            The final notice is set earlier than the first reminder, so it is
+            being held until the first. Both letters would otherwise land on the
+            same day, in the wrong order.
+          </p>
+        </div>
+      ) : null}
+    </Card>
   );
 }

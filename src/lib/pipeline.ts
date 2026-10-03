@@ -83,9 +83,24 @@ export function linkContacts(
   contacts: ParsedContacts | null,
 ): Account[] {
   if (!contacts) return accounts;
-  const byCode = new Map(
-    contacts.contacts.map((c) => [c.customerCode.toUpperCase(), c.emails]),
-  );
+  /*
+   * Gathered, not replaced.
+   *
+   * This was `new Map(contacts.map(...))`, and a Map built from entries keeps
+   * the last value for a repeated key. A contact list that gives one customer
+   * two rows - accounts@ on one, finance@ on the next, which is how MES's own
+   * list is written - therefore kept the second address and silently threw the
+   * first away. Nothing reported it: the tenant had an address, so they were
+   * reachable, and the reminder simply went to one person instead of two.
+   *
+   * Several addresses in a single cell already worked, because emailAddresses
+   * splits them. Several rows did not. Both now mean the same thing.
+   */
+  const byCode = new Map<string, string[]>();
+  for (const c of contacts.contacts) {
+    const key = c.customerCode.toUpperCase();
+    byCode.set(key, [...(byCode.get(key) ?? []), ...c.emails]);
+  }
   for (const a of accounts) {
     const found = byCode.get(a.customerCode.toUpperCase());
     if (!found || found.length === 0) continue;

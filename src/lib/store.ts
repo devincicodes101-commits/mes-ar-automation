@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_RECIPIENTS, type Recipient } from "./dispatch.ts";
 import { LETTER_BODIES } from "./letters.ts";
+import { DEFAULT_REMINDER_DAYS } from "./reminder-timing.ts";
 
 /**
  * Prototype store.
@@ -192,6 +193,23 @@ export interface Settings {
    * imported, and starts with the names their documents use and no addresses.
    */
   recipients: Recipient[];
+  /**
+   * How many days after a tenant's billing date each reminder falls due.
+   *
+   * Reminders used to go out on the 7th and the 21st, which assumed every
+   * tenant was billed on the same day. MES's August export carries 28
+   * different billing dates, so for most tenants those two days meant nothing
+   * in particular. The rule they actually work to is a count from the billing
+   * date, and it lives here rather than in the code because the two numbers
+   * were dictated once, recorded twice, and disagreed.
+   *
+   * Worth knowing what they produce against MES's own 15th-of-the-month
+   * billing: +23 lands on the 7th and +37 lands on the 21st, which are
+   * exactly the two days they send on today. +27 lands on the 11th, which is
+   * not a day they do anything.
+   */
+  firstReminderDays: number;
+  finalReminderDays: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -201,6 +219,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // it off is going back to the originally agreed process, not breaking it.
   autoSendReminders: true,
   recipients: DEFAULT_RECIPIENTS,
+  /* Dictated on 3 October as 23 and 27. Changeable on the Settings screen
+     without a deployment, which is the point: see the note on the field. */
+  firstReminderDays: DEFAULT_REMINDER_DAYS.first,
+  finalReminderDays: DEFAULT_REMINDER_DAYS.final,
 };
 
 /**

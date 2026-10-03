@@ -38,6 +38,12 @@ import { updateColumn, updateNotes } from "../src/lib/update-column.ts";
 import { newId } from "../src/lib/store.ts";
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
+import { linkContacts } from "../src/lib/pipeline.ts";
+import {
+  remindersDueOn,
+  reminderDatesFor,
+  sane,
+} from "../src/lib/reminder-timing.ts";
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
@@ -53,7 +59,6 @@ import {
 import { simulateSend, buildMessage, recipientsFor } from "../src/lib/outbox.ts";
 import { toImportPayload, tenantId, periodOf } from "../src/lib/to-database.ts";
 import { parseContacts } from "../src/lib/parser.ts";
-import { linkContacts } from "../src/lib/pipeline.ts";
 import { simulateReportSend, DEFAULT_RECIPIENTS } from "../src/lib/dispatch.ts";
 import { templateDueOn, DEFAULT_TEMPLATES, promiseState } from "../src/lib/store.ts";
 import { newSession, isExpired, readSession, SEED_USERS, canOpen, can } from "../src/lib/auth.ts";
@@ -1638,6 +1643,100 @@ const both = chasedToTheEnd(
   [{ tenantId: "z", period: "2026-09-01" }],
 );
 check("the same month from both sources counts once", both[0]!.cycles, 1);
+
+/* ================================ every address a customer has is kept ==== */
+
+/*
+ * linkContacts built its lookup with `new Map(contacts.map(...))`, and a Map
+ * built from entries keeps the last value for a repeated key. A contact list
+ * giving one customer two rows - accounts@ on one, finance@ on the next -
+ * therefore kept the second address and threw the first away silently. The
+ * tenant still had an address, so nothing reported them as unreachable; the
+ * reminder simply went to one person instead of two.
+ */
+section("A customer with several addresses is written to at all of them");
+
+const twoRows = linkContacts(
+  [
+    { id: "a", customerCode: "DORM-118", emails: [], hasContact: false },
+    { id: "b", customerCode: "DORM-402", emails: ["already@there.com"], hasContact: true },
+  ] as never,
+  {
+    contacts: [
+      { customerCode: "DORM-118", companyName: "Tuas", emails: ["accounts@tuas.com"] },
+      { customerCode: "DORM-118", companyName: "Tuas", emails: ["finance@tuas.com"] },
+      { customerCode: "dorm-118", companyName: "Tuas", emails: ["ap@tuas.com"] },
+      { customerCode: "DORM-402", companyName: "Seletar", emails: ["already@there.com", "two@seletar.com"] },
+    ],
+    problems: [],
+  } as never,
+) as { customerCode: string; emails: string[] }[];
+
+const tuas = twoRows.find((a) => a.customerCode === "DORM-118")!;
+check("three rows for one customer keep all three addresses", tuas.emails.length, 3);
+check("the first row is not the one that was dropped",
+      tuas.emails.includes("accounts@tuas.com"), true);
+check("and a row whose code is lower case still matches",
+      tuas.emails.includes("ap@tuas.com"), true);
+check("an address already on the account is not duplicated",
+      twoRows.find((a) => a.customerCode === "DORM-402")!.emails.length, 2);
+
+/* ===================== reminders are counted from the billing date ======== */
+
+/*
+ * The 7th and the 21st assumed every tenant was billed on the same day of the
+ * month. MES's August export carries 28 billing dates. These check the count
+ * runs from each tenant's own date, that the two numbers are arguments rather
+ * than constants, and that a window set the wrong way round cannot send the
+ * final notice before the first reminder.
+ */
+section("Reminders are counted from each tenant's own billing date");
+
+const oweing1k = (id: string) =>
+  ({ id, companyName: id, total: 1000 }) as never;
+const billedOnly = (iso: string) =>
+  () => [{ date: iso, dueDate: null, openBalance: 1000 }] as never;
+
+check("a bill younger than the first window is not chased",
+      remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-06", { first: 23, final: 37 }).length,
+      0);
+check("on the day it reaches the window, the first reminder is due",
+      remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-07", { first: 23, final: 37 })[0]?.stage,
+      "first-reminder");
+check("and at the second window it becomes the final notice",
+      remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-21", { first: 23, final: 37 })[0]?.stage,
+      "final-notice");
+check("never both on the same day",
+      remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-21", { first: 23, final: 37 }).length,
+      1);
+
+/* The whole point: two tenants billed on different days are chased on
+   different days, which fixed calendar days could not express. */
+const early = remindersDueOn([oweing1k("x")], billedOnly("2026-08-02"), "2026-08-25", { first: 23, final: 37 });
+const late = remindersDueOn([oweing1k("y")], billedOnly("2026-08-28"), "2026-08-25", { first: 23, final: 37 });
+check("a tenant billed on the 2nd is due while one billed on the 28th is not",
+      `${early.length}${late.length}`, "10");
+
+/* Nothing is hard-coded: the same tenant, the same day, two windows. */
+check("the window is an argument, not a constant",
+      remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-11", { first: 23, final: 27 })[0]?.stage !==
+        remindersDueOn([oweing1k("x")], billedOnly("2026-08-15"), "2026-09-11", { first: 23, final: 37 })[0]?.stage,
+      true);
+
+check("a final set before the first is held at the first, not sent early",
+      sane({ first: 23, final: 5 }).final, 23);
+check("a tenant who owes nothing is never chased, however old the bill",
+      remindersDueOn(
+        [{ id: "z", companyName: "z", total: 0 } as never],
+        billedOnly("2020-01-01"), "2026-09-07", { first: 23, final: 37 },
+      ).length, 0);
+check("a tenant with no billing date at all is skipped rather than guessed",
+      remindersDueOn([oweing1k("x")], () => [] as never, "2026-09-07", { first: 23, final: 37 }).length, 0);
+
+/* The dates MES actually send on, derived rather than assumed. */
+const dates = reminderDatesFor("2026-08-15", { first: 23, final: 37 })!;
+check("billing + 23 is the 7th, which is MES's first reminder day", dates.first, "2026-09-07");
+check("and billing + 37 is the 21st, their final notice day", dates.final, "2026-09-21");
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
