@@ -68,6 +68,23 @@ export function checkUpload(
     });
   }
 
+  /*
+   * A contact list on its own is a normal thing to upload - the Send By Hand
+   * screen asks for exactly that - and was reported as an error, "nothing to
+   * show", above a list that could not be saved. It is saved by itself now,
+   * and the report every screen is using stays as it is.
+   */
+  if (!aging && !summary && contacts && unreadable.length === 0) {
+    out.push({
+      severity: "note",
+      title: "A contact list on its own",
+      detail:
+        "Its addresses can be saved by themselves. The AR report every screen " +
+        "is using stays as it is, and addresses already stored are kept.",
+    });
+    return out;
+  }
+
   if (!aging && !summary) {
     out.push({
       severity: "error",

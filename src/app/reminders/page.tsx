@@ -1,6 +1,7 @@
 "use client";
 
 import { useReminderWindow } from "@/lib/use-reminder-window";
+import { exactOverdue, sumExact } from "@/lib/money";
 import { useMemo, useState } from "react";
 import {
   formatSgd,
@@ -392,7 +393,7 @@ export default function RemindersPage() {
               <StatusBadge
                 kind="warning"
                 label={`SGD ${formatSgd(
-                  cannotEmail.reduce((n, q) => n + q.overdue, 0),
+                  sumExact(cannotEmail.map((q) => q.account), exactOverdue),
                 )} unreachable`}
               />
             }

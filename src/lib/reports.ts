@@ -1,6 +1,7 @@
 import type { Account, BucketKey, Invoice, PropertyCode } from "./types";
 import { BUCKETS } from "./types.ts";
 import { round2 } from "./aging-detail.ts";
+import { sumExact } from "./money.ts";
 
 /**
  * The six reports MES drew as empty tabs.
@@ -577,7 +578,7 @@ export function buildManagerReports(
           ),
           rep,
         })),
-        total: round2(rows.reduce((n, a) => n + a.total, 0)),
+        total: sumExact(rows, (x) => x.total),
       });
     }
 
@@ -590,7 +591,7 @@ export function buildManagerReports(
       entity,
       blocks,
       lineCount: mine.length,
-      total: round2(mine.reduce((n, a) => n + a.total, 0)),
+      total: sumExact(mine, (x) => x.total),
       notes: known
         ? []
         : MANAGER_UNAVAILABLE.map((c) => `${c.label}: ${c.unavailable}`),

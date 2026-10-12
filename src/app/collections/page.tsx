@@ -10,6 +10,7 @@ import {
 } from "@/lib/data";
 import { Account, QueueReason } from "@/lib/types";
 import { feeCountsByTenant, useStore } from "@/lib/store";
+import { exactOverdue, sumExact } from "@/lib/money";
 import { useSession } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
@@ -124,7 +125,7 @@ export default function ActionListPage() {
     );
   }, [ds, property, status, charge, oneFmOnly, scope]);
 
-  const totalOverdue = queue.reduce((s, q) => s + q.overdue, 0);
+  const totalOverdue = sumExact(queue.map((q) => q.account), exactOverdue);
   const noContact = queue.filter((q) => !q.account.hasContact).length;
 
   const filtered =

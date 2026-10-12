@@ -2,6 +2,10 @@ import * as XLSX from "xlsx";
 import type { Account, Invoice, PropertyCode } from "./types";
 import { bucketForAge, bucketLabelForAge } from "./data.ts";
 import { isOneFm, revenueType } from "./revenue-rules.ts";
+/* round2 lives in money.ts and is re-exported here, where most callers
+   have always imported it from. */
+import { round2, round6 } from "./money.ts";
+export { round2 };
 
 /**
  * Custom A/R Aging Detail - With Description.
@@ -1054,6 +1058,20 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
       (i) => i.customerCode === acct.customerCode && i.property === acct.property,
     );
     acct.revenueTypes = Array.from(new Set(mine.map((i) => i.revenueType))).sort();
+    /*
+     * The exact figures, kept before rounding. MES's own totals add the raw
+     * amounts; adding our rounded ones instead drifted by cents. See money.ts.
+     */
+    acct.exact = {
+      total: round6(acct.total),
+      buckets: {
+        current: round6(acct.buckets.current),
+        d30: round6(acct.buckets.d30),
+        d60: round6(acct.buckets.d60),
+        d90: round6(acct.buckets.d90),
+        d90plus: round6(acct.buckets.d90plus),
+      },
+    };
     acct.total = round2(acct.total);
     acct.buckets = {
       current: round2(acct.buckets.current),
@@ -1230,17 +1248,3 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   };
 }
 
-/** Money adds up in binary and drifts. Rounded once, at the boundary. */
-export function round2(n: number): number {
-  // Half away from zero, which is what money does. Math.round breaks ties
-  // towards positive infinity, so it rounded 1.005 up to 1.01 and -1.005 in
-  // to -1.00: a half cent treated one way on an invoice and the other on a
-  // credit note. This file is full of credit notes, and deposits offset
-  // against arrears are all negative.
-  // The epsilon is applied as a ratio, not added. 1.005 is held as
-  // 1.00499999999999989, so scaling gives 100.49999999999999 and adding an
-  // epsilon sized for 1.0 moves nothing at all at that magnitude. Multiplying
-  // scales the nudge with the number.
-  const cents = Math.round(Math.abs(n) * 100 * (1 + Number.EPSILON));
-  return ((n < 0 ? -cents : cents) / 100) || 0;
-}

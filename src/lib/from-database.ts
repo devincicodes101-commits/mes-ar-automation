@@ -15,6 +15,7 @@
 
 import type { Account, PropertyCode } from "./types";
 import type { DetailInvoice } from "./aging-detail.ts";
+import { round2 } from "./money.ts";
 import type { Manager } from "./dataset";
 
 const PROPERTY_NAMES: Record<string, string> = {
@@ -125,14 +126,29 @@ export function accountsFromRows(
       property,
       propertyName: PROPERTY_NAMES[property] ?? property,
       status: s.status === "terminated" ? "Terminated" : "Live",
+      /*
+       * Rounded for showing and deciding; exact kept for adding up. Since
+       * 0023 the database holds MES's amounts as exported, so the two can
+       * differ by a fraction of a cent. Before 0023 they are the same number.
+       */
       buckets: {
-        current: num(s.bucket_current),
-        d30: num(s.bucket_30),
-        d60: num(s.bucket_60),
-        d90: num(s.bucket_90),
-        d90plus: num(s.bucket_90_plus),
+        current: round2(num(s.bucket_current)),
+        d30: round2(num(s.bucket_30)),
+        d60: round2(num(s.bucket_60)),
+        d90: round2(num(s.bucket_90)),
+        d90plus: round2(num(s.bucket_90_plus)),
       },
-      total: num(s.total),
+      total: round2(num(s.total)),
+      exact: {
+        total: num(s.total),
+        buckets: {
+          current: num(s.bucket_current),
+          d30: num(s.bucket_30),
+          d60: num(s.bucket_60),
+          d90: num(s.bucket_90),
+          d90plus: num(s.bucket_90_plus),
+        },
+      },
       legacyNote: s.legacy_note,
       emails: mine,
       hasContact: mine.length > 0,

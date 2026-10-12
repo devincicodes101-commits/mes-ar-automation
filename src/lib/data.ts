@@ -1,4 +1,5 @@
 import raw from "./mock/arData.json" with { type: "json" };
+import { exactOverdue, exactSevere, sumExact } from "./money.ts";
 import type {
   Account,
   ArData,
@@ -124,7 +125,7 @@ export interface Kpis {
 }
 
 export function kpis(accounts: Account[]): Kpis {
-  return accounts.reduce<Kpis>(
+  const counted = accounts.reduce<Kpis>(
     (acc, a) => {
       acc.accounts += 1;
       acc.outstanding += a.total;
@@ -144,23 +145,25 @@ export function kpis(accounts: Account[]): Kpis {
       accounts: 0,
     },
   );
+  /* The money, made the way MES make their own totals: exact, rounded once.
+     The counts above still decide on the rounded figures. */
+  return {
+    ...counted,
+    outstanding: sumExact(accounts, (x) => x.total),
+    overdue: sumExact(accounts, exactOverdue),
+    severe: sumExact(accounts, exactSevere),
+  };
 }
 
 export function bucketTotals(accounts: Account[]): Record<BucketKey, number> {
-  return accounts.reduce(
-    (acc, a) => {
-      acc.current += a.buckets.current;
-      acc.d30 += a.buckets.d30;
-      acc.d60 += a.buckets.d60;
-      acc.d90 += a.buckets.d90;
-      acc.d90plus += a.buckets.d90plus;
-      return acc;
-    },
-    { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 } as Record<
-      BucketKey,
-      number
-    >,
-  );
+  /* Exact, rounded once per column - see money.ts. */
+  return {
+    current: sumExact(accounts, (x) => x.buckets.current),
+    d30: sumExact(accounts, (x) => x.buckets.d30),
+    d60: sumExact(accounts, (x) => x.buckets.d60),
+    d90: sumExact(accounts, (x) => x.buckets.d90),
+    d90plus: sumExact(accounts, (x) => x.buckets.d90plus),
+  };
 }
 
 /**
@@ -439,8 +442,8 @@ export function rmReports(
       key: m.key,
       name: m.name,
       accounts: mine,
-      outstanding: mine.reduce((s, a) => s + a.total, 0),
-      overdue: mine.reduce((s, a) => s + overdueTotal(a), 0),
+      outstanding: sumExact(mine, (x) => x.total),
+      overdue: sumExact(mine, exactOverdue),
     };
   });
 
@@ -453,8 +456,8 @@ export function rmReports(
       key: "unassigned",
       name: "No manager assigned",
       accounts: unassigned,
-      outstanding: unassigned.reduce((s, a) => s + a.total, 0),
-      overdue: unassigned.reduce((s, a) => s + overdueTotal(a), 0),
+      outstanding: sumExact(unassigned, (x) => x.total),
+      overdue: sumExact(unassigned, exactOverdue),
     });
   }
   return rows;

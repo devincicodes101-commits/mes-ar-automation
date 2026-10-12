@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatSgd, overdueTotal } from "@/lib/data";
+import { exactOverdue, sumExact } from "@/lib/money";
 import { downloadCsv } from "@/lib/export";
 import { Account } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
@@ -112,7 +113,7 @@ export default function NoEmailPage() {
     () => scope(ds.accounts).filter((a) => a.hasContact && a.status === "Live").length,
     [ds, scope],
   );
-  const owed = missing.reduce((s, a) => s + overdueTotal(a), 0);
+  const owed = sumExact(missing, exactOverdue);
   const total = missing.length + reachable;
 
   return (

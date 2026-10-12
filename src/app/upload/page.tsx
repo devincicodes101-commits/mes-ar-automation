@@ -10,9 +10,13 @@ import {
   applyDataset,
   datasetFromResults,
   revertToSample,
+  storeContacts,
   storeDataset,
   useDataset,
 } from "@/lib/dataset";
+import { newAddresses, sameFigures } from "@/lib/upload-compare";
+import { sumExact } from "@/lib/money";
+import type { ParsedContacts } from "@/lib/parser";
 import { checkUpload, worst, type Finding } from "@/lib/upload-checks";
 
 type Phase = "idle" | "parsing" | "done";
@@ -303,7 +307,8 @@ function ApplyBar({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const built = datasetFromResults(results, period);
+  /* Memoised so the comparison below runs once per upload, not per render. */
+  const built = useMemo(() => datasetFromResults(results, period), [results, period]);
 
   /**
    * Sends the report to the database.
@@ -375,14 +380,42 @@ function ApplyBar({
    * because MES rename their exports between months and the same figures read
    * twice are the same dataset whatever the file was called.
    */
-  const alreadyApplied =
-    built !== null &&
-    active.source === "uploaded" &&
-    active.asOf === built.asOf &&
-    active.accounts.length === built.accounts.length &&
-    active.invoices.length === built.invoices.length;
+  /*
+   * Compared on substance since 13 October.
+   *
+   * This used to be the report date and the two row counts and nothing else,
+   * so the same AR file uploaded with a NEW contact list was "already in use,
+   * nothing to apply" and its addresses were never saved - twice in testing,
+   * with no error, which looked like a save that had silently failed. A
+   * corrected export for the same day, with one amount changed, would have
+   * been turned away the same way.
+   *
+   * Now: same date, same balances account by account, same lines, and no
+   * address in this upload that is not already stored. Anything else is a
+   * change and gets the normal "Use this data" button. Judging an unchanged
+   * file as changed costs nothing - storing the same report date again
+   * replaces it - so the comparison errs that way.
+   */
+  const contactFile = results.find((r) => r.kind === "contact-list");
+  const addsAddresses = useMemo(
+    () => (built && contactFile ? newAddresses(built.accounts, active.accounts) : 0),
+    [built, contactFile, active.accounts],
+  );
+  const alreadyApplied = useMemo(
+    () =>
+      built !== null &&
+      active.source === "uploaded" &&
+      addsAddresses === 0 &&
+      sameFigures(built, active),
+    [built, active, addsAddresses],
+  );
 
   if (!built) {
+    /* A contact list with no report: saved on its own, not turned away. */
+    const list = results.find((r) => r.kind === "contact-list") as ParsedContacts | undefined;
+    if (list && !results.some((r) => r.kind !== "contact-list")) {
+      return <ContactsOnly list={list} fileName={fileName} canAct={canAct} />;
+    }
     return (
       <Card className="px-5 py-3.5">
         <div className="flex items-start gap-3">
@@ -421,7 +454,9 @@ function ApplyBar({
           </p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
             {built.accounts.length} tenants, {built.invoices.length} invoices,
-            as at {built.asOf}. Nothing to apply.
+            as at {built.asOf}. Same balances, same lines
+            {contactFile ? ", and every address in the contact list is already stored" : ""}.
+            Nothing to apply.
           </p>
         </div>
         <button
@@ -626,7 +661,7 @@ function ParseReport({
 
   const accountCount = balances ? balances.accounts.length : fallback.accounts;
   const total = balances
-    ? balances.accounts.reduce((s, a) => s + a.total, 0)
+    ? sumExact(balances.accounts, (x) => x.total)
     : fallback.total;
   const inCredit = balances
     ? balances.accounts.filter((a) => a.total < 0).length
@@ -1094,5 +1129,106 @@ function Findings({ findings }: { findings: Finding[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A contact list uploaded without an AR report.
+ *
+ * Used to land on "Nothing usable - neither file could be read as an AR
+ * report", with no way to save it, while the Send By Hand screen told the
+ * officer to upload exactly this. Now it says what the list holds, how it
+ * lines up with the report every screen is using - a code written differently
+ * in the two files reaches nobody, and that is worth seeing before saving, not
+ * after - and saves it on its own.
+ */
+function ContactsOnly({
+  list,
+  fileName,
+  canAct,
+}: {
+  list: ParsedContacts;
+  fileName: string | null;
+  canAct: boolean;
+}) {
+  const active = useDataset();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const companies = new Map(list.contacts.map((c) => [c.customerCode.toUpperCase(), c.companyName]));
+  const addresses = list.contacts.reduce((n, c) => n + c.emails.length, 0);
+  const inReport = new Set(active.accounts.map((a) => a.customerCode.toUpperCase()));
+  const strangers = Array.from(companies).filter(([code]) => !inReport.has(code));
+  const owingWithout = active.accounts.filter(
+    (a) => a.total > 0 && !a.hasContact && !companies.has(a.customerCode.toUpperCase()),
+  ).length;
+  const compared = active.source === "uploaded";
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    const r = await storeContacts(list.contacts, fileName);
+    setSaving(false);
+    if (!r.ok) {
+      setError(r.error);
+      return;
+    }
+    setSaved(
+      `Saved ${r.addresses} address${r.addresses === 1 ? "" : "es"} for ${r.companies} ` +
+        `compan${r.companies === 1 ? "y" : "ies"}. Addresses already stored were kept; none were removed.`,
+    );
+  }
+
+  return (
+    <Card className="px-5 py-3.5">
+      <div className="flex flex-wrap items-center gap-3">
+        <StatusBadge kind="good" label="Contact list" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-medium text-ink">
+            {companies.size} companies, {addresses} email addresses. Save them on their own?
+          </p>
+          <p className="mt-0.5 text-[11px] text-ink-muted">
+            The AR report every screen is using stays as it is. Addresses are
+            added to the ones already stored; none are removed.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canAct || saving || saved !== null}
+          onClick={() => void save()}
+          className="shrink-0 rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? "Saving..." : saved ? "Saved" : "Save these addresses"}
+        </button>
+      </div>
+
+      {compared ? (
+        <div className="mt-3 space-y-1 border-t border-line-hair pt-3 text-[11px] leading-relaxed text-ink-secondary">
+          <p>
+            <b className="text-ink">{companies.size - strangers.length}</b> of these companies
+            match a customer in the report in use ({active.asOf}).
+            {owingWithout > 0 ? (
+              <> {owingWithout} customers who owe money still have no address after this list.</>
+            ) : null}
+          </p>
+          {strangers.length > 0 ? (
+            <p>
+              <b className="text-ink">{strangers.length}</b> code{strangers.length === 1 ? " is" : "s are"} not
+              in that report, so their addresses would reach nobody yet. Check they are written the
+              same way in both files: {strangers.slice(0, 8).map(([c]) => c).join(", ")}
+              {strangers.length > 8 ? ` and ${strangers.length - 8} more` : ""}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="mt-2 text-xs text-[var(--critical)]">
+          <b>Not saved</b>: {error}
+        </p>
+      ) : null}
+      {saved ? <p className="mt-2 text-xs text-ink-muted">{saved}</p> : null}
+    </Card>
   );
 }

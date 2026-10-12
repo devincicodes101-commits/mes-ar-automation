@@ -2177,4 +2177,35 @@ check("the switch that controlled nothing has gone",
 check("the run says when it fell back to the built-in numbers",
       CRON_CODE.includes('timing.source === "default"'), true);
 
+/* ==================== uploads that change something are saved ========== */
+
+/*
+ * The Upload screen judged "already in use, nothing to apply" from the report
+ * date and two row counts, so the same AR file with a new contact list was
+ * never saved - twice in testing, silently. And a contact list on its own had
+ * no way into the database at all, though Send By Hand asks for exactly that.
+ */
+section("Uploads that change something reach the database");
+
+const UPLOAD_SCREEN = code(path.join(APP, "upload", "page.tsx"));
+const CONTACTS_ROUTE = code(path.join(APP, "api", "contacts", "route.ts"));
+
+check("the screen compares the figures, not just the counts",
+      UPLOAD_SCREEN.includes("sameFigures(built, active)") &&
+        !/active\.accounts\.length === built\.accounts\.length &&\s*active\.invoices\.length === built\.invoices\.length;/.test(UPLOAD_SCREEN), true);
+check("and a new address in the contact list counts as a change",
+      UPLOAD_SCREEN.includes("newAddresses(built.accounts, active.accounts)") &&
+        UPLOAD_SCREEN.includes("addsAddresses === 0"), true);
+check("a contact list on its own gets a way to be saved",
+      UPLOAD_SCREEN.includes("<ContactsOnly") && UPLOAD_SCREEN.includes("storeContacts(list.contacts, fileName)"), true);
+check("which posts to its own route",
+      read("src/lib/dataset.ts").includes('fetch("/api/contacts"'), true);
+check("the route needs the upload permission",
+      CONTACTS_ROUTE.includes("mayUpload(who.caller)"), true);
+check("and stores addresses the same way the AR import does",
+      CONTACTS_ROUTE.includes("contactRows(contacts)") &&
+        CONTACTS_ROUTE.includes('onConflict: "customer_code,email"'), true);
+check("without becoming 'the newest upload' the 9am run reads",
+      /from\("uploads"\)/.test(CONTACTS_ROUTE), false);
+
 process.exit(failures === 0 ? 0 : 1);

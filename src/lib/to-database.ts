@@ -12,6 +12,7 @@
 
 import type { Account, PropertyCode } from "./types";
 import type { DetailInvoice } from "./aging-detail";
+import { exactOf, round6 } from "./money.ts";
 
 /**
  * Which version of the classification rules read a report.
@@ -112,6 +113,29 @@ export interface DbContact {
   customer_code: string;
   company_name: string;
   email: string;
+}
+
+/**
+ * One row per address, not per company. A company with three addresses is
+ * three rows, because the database keys on the pair and because a reminder
+ * goes to all of them rather than to the first.
+ *
+ * Shared by the AR import and the contact-list-only save, so an address is
+ * stored the same way whichever route it arrives by.
+ */
+export function contactRows(
+  contacts: readonly { customerCode: string; companyName: string; emails: readonly string[] }[],
+): DbContact[] {
+  return contacts.flatMap((c) =>
+    c.emails
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 0)
+      .map((email) => ({
+        customer_code: c.customerCode,
+        company_name: c.companyName,
+        email,
+      })),
+  );
 }
 
 export interface ImportPayload {
@@ -269,12 +293,15 @@ export function toImportPayload(
       report_date: reportDate ?? "",
       period,
       status: a.status === "Terminated" ? "terminated" : "live",
-      bucket_current: a.buckets.current,
-      bucket_30: a.buckets.d30,
-      bucket_60: a.buckets.d60,
-      bucket_90: a.buckets.d90,
-      bucket_90_plus: a.buckets.d90plus,
-      total: a.total,
+      /* The exact figures, so the database holds what MES exported. A
+         database without 0023 rounds them to the cent on the way in, which is
+         exactly what it stored before. */
+      bucket_current: round6(exactOf(a).buckets.current),
+      bucket_30: round6(exactOf(a).buckets.d30),
+      bucket_60: round6(exactOf(a).buckets.d60),
+      bucket_90: round6(exactOf(a).buckets.d90),
+      bucket_90_plus: round6(exactOf(a).buckets.d90plus),
+      total: round6(exactOf(a).total),
       is_onefm: a.isOneFm,
       late_fee_count: a.lateFeeCount,
       legacy_note: a.legacyNote ?? null,
@@ -303,7 +330,10 @@ export function toImportPayload(
       description: i.description ? i.description.slice(0, 400) : null,
       revenue_type: i.revenueType,
       is_onefm: i.isOneFm,
-      open_balance: i.openBalance,
+      /* As exported - 6.752 stays 6.752 - so a total made from lines matches
+         the account's total and MES's own. Rounded to the cent here, Late Fees
+         read SORAM as 118,264.15 against 118,264.19 everywhere else. */
+      open_balance: round6(i.openBalance),
     });
   }
 
@@ -334,18 +364,7 @@ export function toImportPayload(
        * is three rows, because the database keys on the pair and because a
        * reminder goes to all of them rather than to the first.
        */
-      p_contacts: contacts
-        ? contacts.flatMap((c) =>
-            c.emails
-              .map((e) => e.trim().toLowerCase())
-              .filter((e) => e.length > 0)
-              .map((email) => ({
-                customer_code: c.customerCode,
-                company_name: c.companyName,
-                email,
-              })),
-          )
-        : null,
+      p_contacts: contacts ? contactRows(contacts) : null,
     },
     problems: [],
   };

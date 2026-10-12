@@ -72,11 +72,19 @@ check("and that existing addresses are kept",
 
 section("A contact list with no AR report");
 
+/* Since 13 October a contact list on its own is saved by itself. It used to be
+   an error - "No AR report in this upload" - above a list that could not be
+   saved, while the Send By Hand screen told officers to upload exactly this. */
 const noAr = checkUpload([cl], null);
-check("this is an error, not a warning", worst(noAr), "error");
-check("and it says why", has(noAr, "No AR report in this upload"), true);
-check("it stops there rather than piling on",
-  noAr.filter((f) => f.severity === "error").length, 1);
+check("it is not an error", worst(noAr) === "error", false);
+check("it says the list can be saved on its own", has(noAr, "A contact list on its own"), true);
+check("and that the report in use stays as it is",
+  noAr.some((f) => /stays as it is/.test(f.detail)), true);
+check("nothing else piles on", noAr.filter((f) => f.severity === "error").length, 0);
+
+/* A file nobody can read is still an error, contact list or not. */
+const junk = checkUpload([cl, { kind: "unreadable", problems: [] } as unknown as ParseResult], null);
+check("an unreadable file alongside it is still an error", worst(junk), "error");
 
 /* ================================================= going backwards in time */
 

@@ -526,6 +526,34 @@ export async function hydrateFromServer(): Promise<void> {
  * back is what the database actually holds, so a column that failed to store
  * shows up immediately as a figure that changed, rather than months later.
  */
+/**
+ * Saves a contact list on its own, without an AR report.
+ *
+ * Addresses used to reach the database only inside an AR import, so a contact
+ * list uploaded by itself - which is exactly what the Send By Hand screen tells
+ * an officer to do with the filled-in exception list - was read, shown, and
+ * stored nowhere. Addresses are added, never removed, the same as when they
+ * arrive with a report.
+ */
+export async function storeContacts(
+  contacts: readonly { customerCode: string; companyName: string; emails: string[] }[],
+  fileName: string | null,
+): Promise<{ ok: true; addresses: number; companies: number } | { ok: false; error: string }> {
+  try {
+    const r = await fetch("/api/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify({ contacts, fileName }),
+    });
+    const body = (await r.json()) as { ok?: boolean; error?: string; addresses?: number; companies?: number };
+    if (!r.ok || !body.ok) return { ok: false, error: body.error ?? `The server answered ${r.status}.` };
+    await hydrateFromServer();
+    return { ok: true, addresses: body.addresses ?? 0, companies: body.companies ?? 0 };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 export async function storeDataset(
   d: Dataset,
   fileName: string | null,

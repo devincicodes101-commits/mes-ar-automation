@@ -1,6 +1,7 @@
 import type { Pipeline } from "./pipeline";
 import type { Account } from "./types";
 import { buildQueue, overdueTotal, pastDueByAccount } from "./data.ts";
+import { exactOverdue, sumExact } from "./money.ts";
 import { CAN_SEND_FOR_REAL } from "./outbox.ts";
 import { renderLetter } from "./letters.ts";
 
@@ -346,9 +347,9 @@ export function planFor(
   const owing = stillOwing(p, s);
   const reachable = owing.filter((a) => a.hasContact);
   const unreachable = owing.filter((a) => !a.hasContact);
-  const unreachableValue = unreachable.reduce((t, a) => t + overdueTotal(a), 0);
+  const unreachableValue = sumExact(unreachable, exactOverdue);
   const value = (list: Account[]) =>
-    list.reduce((t, a) => t + overdueTotal(a), 0);
+    sumExact(list, exactOverdue);
 
   const sendNote = (): string[] => {
     const out: string[] = [];
@@ -659,7 +660,7 @@ export function runDay(
       kind: "sent",
       text: `First reminder written for ${fresh.length} tenants`,
       accounts: fresh.map((a) => a.companyName),
-      value: fresh.reduce((t, a) => t + overdueTotal(a), 0),
+      value: sumExact(fresh, exactOverdue),
     });
     add({ kind: "called", text: `${owing.length} tenants added to the call list` });
     for (const b of plan.blockers) add({ kind: "blocked", text: b });
@@ -698,7 +699,7 @@ export function runDay(
       kind: "sent",
       text: `Final notice written for ${fresh.length} tenants`,
       accounts: fresh.map((a) => a.companyName),
-      value: fresh.reduce((t, a) => t + overdueTotal(a), 0),
+      value: sumExact(fresh, exactOverdue),
     });
     add({ kind: "called", text: `${owing.length} tenants rung again` });
     for (const b of plan.blockers) add({ kind: "blocked", text: b });
@@ -767,7 +768,7 @@ export function snapshot(p: Pipeline, s: SimState) {
     tenants: p.accounts.length,
     lines: p.invoices.length,
     owing: owing.length,
-    owed: owing.reduce((t, a) => t + overdueTotal(a), 0),
+    owed: sumExact(owing, exactOverdue),
     reachable: owing.filter((a) => a.hasContact).length,
     reminded: s.firstReminder.length,
     finalised: s.finalNotice.length,

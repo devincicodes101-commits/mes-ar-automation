@@ -33,6 +33,15 @@ export interface Account {
   status: AccountStatus;
   buckets: Buckets;
   total: number;
+  /**
+   * The same figures before rounding to the cent, where known.
+   *
+   * MES's exports carry amounts to three and four decimals, and MES's own
+   * totals add those up exactly. `total` and `buckets` are rounded - they are
+   * what a row shows and what decisions read - so totals across accounts are
+   * made from these instead, rounded once. See money.ts.
+   */
+  exact?: { total: number; buckets: Buckets };
   /** Free-text promise typed into the old spreadsheet's Update column. */
   legacyNote: string | null;
   emails: string[];

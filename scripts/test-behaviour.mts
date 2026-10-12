@@ -36,8 +36,11 @@ import {
 } from "../src/lib/cycle.ts";
 import { updateColumn, updateNotes } from "../src/lib/update-column.ts";
 import { newId } from "../src/lib/store.ts";
-import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
+import { bucketForAge, bucketLabelForAge, bucketTotals, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, kpis, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
+import { newAddresses, sameFigures } from "../src/lib/upload-compare.ts";
+import { contactRows } from "../src/lib/to-database.ts";
+import { accountsFromRows } from "../src/lib/from-database.ts";
 import { checkUpload } from "../src/lib/upload-checks.ts";
 import { linkContacts } from "../src/lib/pipeline.ts";
 import {
@@ -1973,6 +1976,95 @@ const settled = feesDue(
   ] as never,
 );
 check("charges and credits that cancel leave no fee", settled.length, 0);
+
+/* ======================== an upload is compared on substance, not counts == */
+
+/*
+ * The Upload screen said "already in use, nothing to apply" whenever the
+ * report date and the two row counts matched. The same AR file with a new
+ * contact list matched, so its addresses were never saved - twice in testing,
+ * with no error shown. A corrected export with one amount changed would have
+ * matched too.
+ */
+section("An upload that changes something is never 'already in use'");
+
+const accRow = (id: string, total: number, emails: string[] = []) => ({
+  id, customerCode: id.toUpperCase(), companyName: id, property: "JPD1", propertyName: "", status: "Live",
+  buckets: { current: total, d30: 0, d60: 0, d90: 0, d90plus: 0 }, total, legacyNote: null,
+  emails, hasContact: emails.length > 0, industry: null, entity: null, invoiceCount: 1,
+  isOneFm: false, revenueTypes: [], lateFeeCount: 0,
+}) as never;
+const lineRow = (code: string, amount: number) =>
+  ({ customerCode: code, documentNumber: `${code}-1`, date: "2026-09-15", dueDate: "2026-09-30", openBalance: amount }) as never;
+const inUseNow = { asOf: "2026-10-09", accounts: [accRow("a", 100, ["old@x.sg"]), accRow("b", 50)], invoices: [lineRow("A", 100), lineRow("B", 50)] };
+
+check("the same file again is already in use",
+      sameFigures({ ...inUseNow }, inUseNow) && newAddresses(inUseNow.accounts, inUseNow.accounts) === 0, true);
+check("the same file with a new address in its contact list is a change",
+      newAddresses([accRow("a", 100, ["old@x.sg", "new@x.sg"]), accRow("b", 50)], inUseNow.accounts), 1);
+check("a contact list that only repeats stored addresses is not",
+      newAddresses([accRow("a", 100, ["OLD@x.sg"])], inUseNow.accounts), 0);
+check("a corrected amount on the same day is a change",
+      sameFigures({ ...inUseNow, accounts: [accRow("a", 100.5, ["old@x.sg"]), accRow("b", 50)], invoices: [lineRow("A", 100.5), lineRow("B", 50)] }, inUseNow), false);
+check("a line moved between customers is a change, though the totals agree",
+      sameFigures({ ...inUseNow, invoices: [lineRow("A", 50), lineRow("B", 100)] }, inUseNow), false);
+
+/* ========================== a contact list on its own reaches the database == */
+
+section("A contact list on its own is stored the same way as with a report");
+
+const contactRowsOut = contactRows([
+  { customerCode: "LIVON - 625", companyName: "ALYZA", emails: [" AP@X.SG ", "fin@x.sg", ""] },
+  { customerCode: "DORM-1", companyName: "ACME", emails: [] },
+]);
+check("one row per address, lower-cased and trimmed, blanks dropped",
+      contactRowsOut.map((r) => r.email).join(","), "ap@x.sg,fin@x.sg");
+check("the code is kept exactly as written",
+      contactRowsOut.every((r) => r.customer_code === "LIVON - 625"), true);
+check("and the AR import uses the very same mapping",
+      readFileSync(path.join(ROOT, "src/lib/to-database.ts"), "utf8").includes("p_contacts: contacts ? contactRows(contacts) : null"), true);
+
+/* ===================== totals are MES's exact amounts, rounded once ======== */
+
+/*
+ * MES's exports carry amounts to threeCustomers and four decimals and MES add them up
+ * exactly. Adding up our cent-rounded customer totals instead put the
+ * September total at 2,718,954.93 against MES's 2,718,955.01, and each screen
+ * drifted by a different amount.
+ */
+section("Totals add MES's exact amounts and round once");
+
+const withExactAmt = (id: string, exactTotal: number) => ({
+  ...(accRow(id, round2(exactTotal)) as object),
+  exact: { total: exactTotal, buckets: { current: 0, d30: exactTotal, d60: 0, d90: 0, d90plus: 0 } },
+  buckets: { current: 0, d30: round2(exactTotal), d60: 0, d90: 0, d90plus: 0 },
+}) as never;
+const threeCustomers = [withExactAmt("x", 10.004), withExactAmt("y", 10.004), withExactAmt("z", 10.004)];
+check("each row still shows its own rounded figure", (threeCustomers[0] as { total: number }).total, 10);
+check("but the total adds the exact amounts: 30.012 -> 30.01, not 30.00",
+      kpis(threeCustomers).outstanding, 30.01);
+check("overdue the same way", kpis(threeCustomers).overdue, 30.01);
+check("and the aging column totals too", bucketTotals(threeCustomers).d30, 30.01);
+check("decisions still read the rounded figure",
+      kpis([withExactAmt("q", 0.004)]).actionable, 0);
+
+const fromDbRow = accountsFromRows([{
+  tenant_id: "t-jpd1", report_date: "2026-10-09", period: "2026-10-01", status: "live",
+  bucket_current: "6.752", bucket_30: "0", bucket_60: "0", bucket_90: "0", bucket_90_plus: "0",
+  total: "6.752", is_onefm: false, late_fee_count: 0, legacy_note: null,
+  tenants: { customer_code: "T", company_name: "T", property_code: "JPD1", industry: null, entity: null, rm_key: null },
+} as never]);
+check("an exact amount read back from the database shows rounded", fromDbRow[0]!.total, 6.75);
+check("and keeps the exact amount for adding up", fromDbRow[0]!.exact?.total, 6.752);
+
+const toDbPayload = toImportPayload(
+  [{ ...(accRow("t", 6.75) as object), id: "t-jpd1", customerCode: "T", exact: { total: 6.752, buckets: { current: 6.752, d30: 0, d60: 0, d90: 0, d90plus: 0 } } } as never],
+  [{ ...(lineRow("T", 6.752) as object), property: "JPD1", companyName: "T", transactionType: "Invoice", description: "x",
+     linkedContract: null, age: 9, bucket: "Current", revenueType: "Other Charges", isOneFm: false } as never],
+  "2026-10-09", "f.xlsx",
+);
+check("the database is sent the exact customer total", toDbPayload.payload?.p_snapshots[0]?.total, 6.752);
+check("and each line exactly as exported", toDbPayload.payload?.p_invoices[0]?.open_balance, 6.752);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
