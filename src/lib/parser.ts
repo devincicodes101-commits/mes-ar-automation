@@ -177,9 +177,11 @@ function excelDate(v: unknown): string | null {
 
 /** Splits "DORM-1584 CROISSANT PTE. LTD." into its two halves. */
 function splitCustomer(cell: unknown): { code: string; name: string } | null {
-  const m = /^(DORM-\d+)\s+(.+)$/i.exec(clean(cell));
+  /* Any prefix, not only DORM: the September report has LIVON-, SOPHIA-,
+     LT- and MINI- customers too, and a contact list for them must match. */
+  const m = /^([A-Z][A-Z0-9]*\s*-\s*\d+)\s+(.+)$/i.exec(clean(cell));
   if (!m) return null;
-  return { code: m[1].toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
+  return { code: m[1].replace(/\s+/g, "").toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
 }
 
 function rowsOf(wb: XLSX.WorkBook, sheetName: string): unknown[][] {

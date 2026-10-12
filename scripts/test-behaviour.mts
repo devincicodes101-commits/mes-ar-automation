@@ -38,6 +38,7 @@ import { updateColumn, updateNotes } from "../src/lib/update-column.ts";
 import { newId } from "../src/lib/store.ts";
 import { bucketForAge, bucketLabelForAge, buildQueue, feesDue, DEFAULT_FEE_RULE, isInCredit, overdueTotal } from "../src/lib/data.ts";
 import { datasetFromResults } from "../src/lib/dataset.ts";
+import { checkUpload } from "../src/lib/upload-checks.ts";
 import { linkContacts } from "../src/lib/pipeline.ts";
 import {
   lettersToWrite,
@@ -1848,6 +1849,71 @@ check("a tenant at two dormitories keeps two billing dates, not one",
       `${(byAcct({ id: "dorm-1-bsd", companyName: "Acme" })[0] as { date: string }).date}|` +
         `${(byAcct({ id: "dorm-1-leo", companyName: "Acme" })[0] as { date: string }).date}`,
       "2026-08-02|2026-08-28");
+
+/* ============================ MES's September aging detail layout ===== */
+
+/*
+ * The first real export after testing read as nobody at all: 0 customers
+ * from a 2.7 million file, every check failed. Four differences from the
+ * earlier exports, all reproduced here with made-up names:
+ *
+ *   - Customer appears twice, A and B. A is repeated on every line; only B
+ *     marks where a customer starts and ends.
+ *   - The title block, "As of ..." included, moved to column B.
+ *   - Codes other than DORM-: LIVON-, SOPHIA-, LT-, MINI-.
+ *   - The same prefix written two ways: LIVON-415 and "LIVON - 625".
+ *   - Amounts with three or four decimals, which MES total raw.
+ */
+section("MES's September layout: two Customer columns, other prefixes, raw decimals");
+
+const septLayout = () => {
+  const head = ["Customer", "Customer", "Transaction Type", "Company Name", "Date",
+    "Description", "Document Number", "Linked Contract", "Contract Item Start Date",
+    "P.O. No.", "Due Date", "Age", "Bucket", " Open Balance ", "Primary Sales Rep"];
+  const blk = (who: string, lines: [string, number][]) => {
+    const out: unknown[][] = [[who, who, "", "", "", "", "", "", "", "", "", "", "Current", "", ""]];
+    for (const [type, amt] of lines)
+      out.push([who, "", type, who.replace(/^\S+(\s*-\s*\d+)?\s+/, ""), "2026-09-15",
+        "Occupancy Fee Charges", "JPD1-786/1", "", "", "", "2026-09-30", 9, "Current", amt, "REP"]);
+    const total = lines.reduce((n, [, a]) => n + a, 0);
+    out.push([`Total - ${who}`, `Total - ${who}`, "", "", "", "", "", "", "", "", "", "", "Current", total, ""]);
+    return out;
+  };
+  const rows: unknown[][] = [
+    ["", "Mini Environment Service Pte Ltd"],
+    ["", "Consol : Mini Environment Service Pte Ltd : MES & JPD Housing Pte Ltd"],
+    ["", "Custom A/R Aging Detail - With Description"],
+    ["", "As of 9 October 2026"],
+    [],
+    ["FORMULA", "", "", "", "", "", "", "", "", "", "", "", "FORMULA"],
+    head,
+    ...blk("DORM-1 ACME PTE. LTD.", [["Invoice", 100], ["Invoice", 6.752]]),
+    ...blk("LIVON-415 NG A", [["Invoice", 200]]),
+    ...blk("LIVON - 625 B C", [["Invoice", 15.1926], ["Credit Memo", -5]]),
+    ...blk("SOPHIA-640 D E", [["Invoice", 343.51]]),
+  ];
+  const grand = 100 + 6.752 + 200 + 15.1926 - 5 + 343.51;
+  rows.push(["Total", "Total", "", "", "", "", "", "", "", "", "", "", "Current", grand, ""]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Custom A_R Aging Detail - With ");
+  return parseAgingDetail(wb);
+};
+const sept = septLayout();
+const codes = sept.accounts.map((a) => a.customerCode).sort().join(",");
+
+check("every customer is found, not none", sept.accounts.length, 4);
+check("the block-marking Customer column is the one used, so no line is refused",
+      sept.problems.some((x) => /heading row also carries a charge/.test(x.message)), false);
+check("the report is dated from the As of line in column B", sept.asOf, "2026-10-09");
+check("codes other than DORM- are customers too", codes.includes("SOPHIA-640"), true);
+check("a code written with spaces is read, and stored without them",
+      codes.includes("LIVON-625") && !codes.includes(" "), true);
+check("every line in the file is imported",
+      sept.invoices.length, 6);
+check("and the money adds up to the file's own grand total, to the cent",
+      round2(sept.invoices.reduce((n, l) => n + (l.openBalance ?? 0), 0)), round2(660.4546));
+check("three- and four-decimal amounts do not fail the subtotal check",
+      checkUpload([sept as never], null).some((f) => f.severity === "error"), false);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -91,7 +91,19 @@ export function checkUpload(
 
   if (aging) {
     const total = aging.accounts.reduce((n, a) => n + a.total, 0);
-    const theirs = aging.subtotals.reduce((n, s) => n + s.total, 0);
+    /*
+     * Each of MES's subtotals rounded to the cent before adding, as ours are.
+     *
+     * MES total the raw amounts, and their September export carries 283 lines
+     * with three or four decimals - 6.752, 15.1926. Our customer totals are
+     * rounded to the cent; theirs were added raw, so 258 customers each a
+     * fraction of a cent apart summed to an 8 cent "mismatch" and the file was
+     * marked do-not-use. Customer by customer the two agreed exactly. Rounding
+     * both the same way keeps the check strict - a mis-read row still moves a
+     * customer's total by its whole amount - and stops it failing on
+     * arithmetic.
+     */
+    const theirs = aging.subtotals.reduce((n, s) => n + Math.round(s.total * 100) / 100, 0);
     if (aging.subtotals.length > 0 && Math.abs(total - theirs) > 0.02) {
       out.push({
         severity: "error",

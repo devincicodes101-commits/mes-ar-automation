@@ -148,10 +148,31 @@ function money(v: unknown): number | null {
   return Number.isFinite(n) ? sign * n : null;
 }
 
+/*
+ * Any prefix, not only DORM.
+ *
+ * MES's September Custom A/R Aging Detail carries LIVON-, SOPHIA-, LT- and
+ * MINI- customers beside the DORM- ones: other properties under the same
+ * entity. The pattern only knew DORM, so those customers were not refused or
+ * reported - their headings simply did not look like headings, and every
+ * charge under them was dropped with nothing on screen to say so.
+ */
+/*
+ * And spaces around the hyphen. The same export writes LIVON-415 on one
+ * customer and "LIVON - 625" on the next. Five customers and 14,977.69 were
+ * skipped as rows outside any block until this allowed it. The code is
+ * stored without the spaces (see tidyCode), so both spellings are one
+ * customer to the rest of the system and to the contact list.
+ */
+const CUSTOMER_CODE = "[A-Z][A-Z0-9]*\\s*-\\s*\\d+";
+
+/** "LIVON - 625" and "livon-625" are both LIVON-625. */
+const tidyCode = (raw: string) => raw.replace(/\s+/g, "").toUpperCase();
+
 function splitCustomer(cell: unknown): { code: string; name: string } | null {
-  const m = /^(DORM-\d+)\s+(.+)$/i.exec(clean(cell));
+  const m = new RegExp(`^(${CUSTOMER_CODE})\\s+(.+)$`, "i").exec(clean(cell));
   if (!m) return null;
-  return { code: m[1].toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
+  return { code: tidyCode(m[1]), name: clean(m[2]).replace(/\.$/, "") };
 }
 
 /**
@@ -507,7 +528,13 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   /* --------------------------------------------------- the header block */
   let headerAt = -1;
   for (let i = 0; i < Math.min(rows.length, 25); i += 1) {
-    const first = clean(rows[i]?.[0]);
+    /*
+     * The first filled cell, not column A. The September export moved the
+     * title block one column right - "As of 15 September 2026" sits in B -
+     * and reading only A left the report undated, which fails every check
+     * that follows. A blank A is not a different file.
+     */
+    const first = clean((rows[i] ?? []).find((c) => clean(c) !== "") ?? "");
     /*
      * The whole row, not just the first cell. MES's two exports already put
      * the header in different places - row 1 in the Finance AR Download, row
@@ -583,6 +610,40 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   const COL = Object.fromEntries(
     (Object.keys(COLUMNS) as ColumnKey[]).map((k) => [k, whereIs(COLUMNS[k], cols)]),
   ) as Record<ColumnKey, number>;
+
+  /*
+   * Two columns called Customer, and only one of them marks the blocks.
+   *
+   * The September export has Customer in A and again in B. A is filled on
+   * every line - the customer repeated down the page - and B only on the
+   * heading and Total rows. The block structure lives in B. Taking the first
+   * Customer column read every charge line as a heading carrying a charge,
+   * refused all of them, and imported nobody from a 2.7 million file.
+   *
+   * So where there is more than one, take the one that is empty on charge
+   * lines, which is what a block marker is. Measured rather than assumed to be
+   * the last one, because the next export may order them the other way. With
+   * a single Customer column this changes nothing.
+   */
+  const customerCols = (rows[headerAt] ?? [])
+    .map((c, i) => (norm(c) === "CUSTOMER" ? i : -1))
+    .filter((i) => i >= 0);
+  if (customerCols.length > 1 && COL.txType >= 0) {
+    let best = COL.customer;
+    let fewest = Number.POSITIVE_INFINITY;
+    for (const c of customerCols) {
+      let filledOnCharges = 0;
+      for (let r = headerAt + 1; r < rows.length; r += 1) {
+        const row = rows[r] ?? [];
+        if (clean(row[COL.txType]) !== "" && clean(row[c]) !== "") filledOnCharges += 1;
+      }
+      if (filledOnCharges < fewest) {
+        fewest = filledOnCharges;
+        best = c;
+      }
+    }
+    COL.customer = best;
+  }
 
   /** A cell, or "" where the column is not in this file. */
   const at = (row: unknown[], i: number) => (i < 0 ? "" : row[i]);
@@ -662,10 +723,10 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     const first = clean(at(row, COL.customer));
 
     // "Total - DORM-10 A STAR TECHNICAL SERVICES PTE. LTD."
-    const totalMatch = /^total\s*-\s*(DORM-\d+)\s+(.+)$/i.exec(first);
+    const totalMatch = new RegExp(`^total\\s*-\\s*(${CUSTOMER_CODE})\\s+(.+)$`, "i").exec(first);
     if (totalMatch) {
       const total = money(row[COL.balance]);
-      const totalCode = totalMatch[1].toUpperCase();
+      const totalCode = tidyCode(totalMatch[1]);
       const totalName = clean(totalMatch[2]).replace(/\.$/, "");
       subtotals.push({ customerCode: totalCode, companyName: totalName, total: total ?? 0 });
       // Only where no heading was seen, so a block that opened properly keeps
