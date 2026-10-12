@@ -1906,14 +1906,42 @@ check("the block-marking Customer column is the one used, so no line is refused"
       sept.problems.some((x) => /heading row also carries a charge/.test(x.message)), false);
 check("the report is dated from the As of line in column B", sept.asOf, "2026-10-09");
 check("codes other than DORM- are customers too", codes.includes("SOPHIA-640"), true);
-check("a code written with spaces is read, and stored without them",
-      codes.includes("LIVON-625") && !codes.includes(" "), true);
+check("a code written with spaces is read, as written",
+      codes.includes("LIVON - 625"), true);
 check("every line in the file is imported",
       sept.invoices.length, 6);
 check("and the money adds up to the file's own grand total, to the cent",
       round2(sept.invoices.reduce((n, l) => n + (l.openBalance ?? 0), 0)), round2(660.4546));
 check("three- and four-decimal amounts do not fail the subtotal check",
       checkUpload([sept as never], null).some((f) => f.severity === "error"), false);
+
+/* Two people, one number, written with and without spaces. MES's September
+   export has exactly this: "LIVON - 625" ALYZA OSAMI FEBRIANA and "LIVON-625"
+   CHERKASOV IVAN. Merging them sent one a letter for the other's debt. */
+section("Two customers whose codes differ only in spacing stay two customers");
+
+const twoPeople = (() => {
+  const head = ["Customer", "Customer", "Transaction Type", "Company Name", "Date",
+    "Description", "Document Number", "Due Date", "Age", " Open Balance "];
+  const blk = (who: string, name: string, amt: number) => [
+    [who, who, "", "", "", "", "", "", "", ""],
+    [who, "", "Invoice", name, "2026-09-15", "Rent", "JPD1-786/1", "2026-09-30", 9, amt],
+    [`Total - ${who}`, `Total - ${who}`, "", "", "", "", "", "", "", amt],
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["", "As of 9 October 2026"], [], head,
+    ...blk("LIVON - 625 ALYZA A", "ALYZA A", 3622.52),
+    ...blk("LIVON-625 CHERKASOV B", "CHERKASOV B", 67.74),
+  ]), "Sheet1");
+  return parseAgingDetail(wb);
+})();
+
+check("they are two accounts, not one", twoPeople.accounts.length, 2);
+check("each keeps its own balance",
+      twoPeople.accounts.map((a) => a.total).sort((x, y) => x - y).join("|"), "67.74|3622.52");
+check("and its own name",
+      twoPeople.accounts.some((a) => a.companyName === "ALYZA A" && a.total === 3622.52), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

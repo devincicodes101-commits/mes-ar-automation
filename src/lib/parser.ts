@@ -181,7 +181,7 @@ function splitCustomer(cell: unknown): { code: string; name: string } | null {
      LT- and MINI- customers too, and a contact list for them must match. */
   const m = /^([A-Z][A-Z0-9]*\s*-\s*\d+)\s+(.+)$/i.exec(clean(cell));
   if (!m) return null;
-  return { code: m[1].replace(/\s+/g, "").toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
+  return { code: m[1].replace(/\s+/g, " ").trim().toUpperCase(), name: clean(m[2]).replace(/\.$/, "") };
 }
 
 function rowsOf(wb: XLSX.WorkBook, sheetName: string): unknown[][] {

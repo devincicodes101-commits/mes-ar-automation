@@ -160,14 +160,27 @@ function money(v: unknown): number | null {
 /*
  * And spaces around the hyphen. The same export writes LIVON-415 on one
  * customer and "LIVON - 625" on the next. Five customers and 14,977.69 were
- * skipped as rows outside any block until this allowed it. The code is
- * stored without the spaces (see tidyCode), so both spellings are one
- * customer to the rest of the system and to the contact list.
+ * skipped as rows outside any block until this allowed it.
  */
 const CUSTOMER_CODE = "[A-Z][A-Z0-9]*\\s*-\\s*\\d+";
 
-/** "LIVON - 625" and "livon-625" are both LIVON-625. */
-const tidyCode = (raw: string) => raw.replace(/\s+/g, "").toUpperCase();
+/*
+ * The code exactly as MES wrote it, spaces included - only runs of spaces
+ * collapsed and the case made upper.
+ *
+ * This first removed the spaces, on the theory that "LIVON - 625" and
+ * "LIVON-625" were one customer written two ways. In MES's September export
+ * they are two people: ALYZA OSAMI FEBRIANA under "LIVON - 625" and CHERKASOV
+ * IVAN under "LIVON-625". Removing the spaces merged them into one account,
+ * named after Cherkasov, owing both balances - which is a letter to the wrong
+ * person for somebody else's debt. The subtotal check could not see it,
+ * because no money went missing; it was simply under the wrong name.
+ *
+ * Kept as written, they stay two customers. The contact list is read the
+ * same way, so an address for "LIVON - 625" reaches that customer and no
+ * other.
+ */
+const tidyCode = (raw: string) => raw.replace(/\s+/g, " ").trim().toUpperCase();
 
 function splitCustomer(cell: unknown): { code: string; name: string } | null {
   const m = new RegExp(`^(${CUSTOMER_CODE})\\s+(.+)$`, "i").exec(clean(cell));
@@ -742,6 +755,25 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     const heading = splitCustomer(first);
     if (heading) {
       current = heading;
+      /*
+       * The same code opening a second block under a different name. MES's
+       * September export did this once with codes that differed only in
+       * spacing; the same thing with identical codes would merge two people
+       * into one account and nothing else would notice, because the money
+       * still adds up. Said out loud rather than guessed at.
+       */
+      const named = blockNames.get(heading.code);
+      if (named !== undefined && named !== heading.name) {
+        problems.push({
+          sheet: clean(sheetName),
+          row: i + 1,
+          severity: "warning",
+          message:
+            `${heading.code} appears twice under different names: "${named}" ` +
+            `and "${heading.name}". They are treated as one customer and the ` +
+            "name on letters will be the last one. Check this code with MES.",
+        });
+      }
       blockNames.set(heading.code, heading.name);
       /*
        * A heading names the block and nothing else. Where one also carries a
