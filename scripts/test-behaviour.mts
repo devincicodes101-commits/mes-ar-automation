@@ -1956,5 +1956,23 @@ const withCredit = billingForTenant([
 check("the newest bill is the newest charge, not the credit note", withCredit.billedOn, "2025-05-15");
 check("and credits are not counted as bills", withCredit.runs, 2);
 
+/* DORM-1595 TESHA ENGINEERING, September export: owes 0.00, but charges and
+   credits that cancel left 0.0000000000009 overdue, and the Late Fees screen
+   offered a $100 fee against them. */
+section("A customer who has paid in full is never offered a late fee");
+
+const settled = feesDue(
+  [{ id: "t", customerCode: "T", companyName: "T", total: 0, status: "Live",
+     buckets: { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 } } as never],
+  DEFAULT_FEE_RULE,
+  [
+    /* 0.1 + 0.2 - 0.3 is 0.00000000000000006 in binary, not 0. */
+    { companyName: "T", customerCode: "T", age: 40, openBalance: 0.1 },
+    { companyName: "T", customerCode: "T", age: 40, openBalance: 0.2 },
+    { companyName: "T", customerCode: "T", age: 40, openBalance: -0.3 },
+  ] as never,
+);
+check("charges and credits that cancel leave no fee", settled.length, 0);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

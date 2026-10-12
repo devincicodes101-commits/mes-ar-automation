@@ -601,9 +601,20 @@ export function feesDue(
       if (dated.length === 0) {
         return { account: a, overdue: overdueTotal(a), approximate: true };
       }
-      const overdue = dated
-        .filter((i) => (i.age as number) >= rule.minimumAgeDays)
-        .reduce((n, i) => n + i.openBalance, 0);
+      /*
+       * Rounded to the cent before anything is decided on it.
+       *
+       * Charges and credits that cancel exactly do not cancel in binary: in
+       * MES's September export DORM-1595 TESHA ENGINEERING owes 0.00 and their
+       * overdue lines summed to 0.0000000000009, which is "more than nothing"
+       * and put a $100 fee on screen, ready to raise, against a customer who
+       * has paid in full. The 9am run already skipped them; this screen did not.
+       */
+      const overdue = Math.round(
+        dated
+          .filter((i) => (i.age as number) >= rule.minimumAgeDays)
+          .reduce((n, i) => n + i.openBalance, 0) * 100,
+      ) / 100;
       return { account: a, overdue, approximate: false };
     })
     .filter((r) => r.overdue > rule.minimumBalance)
