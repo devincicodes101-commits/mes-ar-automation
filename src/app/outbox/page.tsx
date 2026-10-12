@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useStore } from "@/lib/store";
+import { deliveredOnly, useStore } from "@/lib/store";
 import { useSession } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { formatSgd, isInCredit } from "@/lib/data";
@@ -80,7 +80,7 @@ export default function OutboxPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Emails sent"
-          value={String(store.emails.length)}
+          value={String(deliveredOnly(store.emails).length)}
           note="This period"
           emphasis
         />

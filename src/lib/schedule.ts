@@ -298,3 +298,113 @@ export const RUN_WENT_FINE = ["ok", "nothing-due"];
 export function runNeedsLookingAt(status: string): boolean {
   return !RUN_WENT_FINE.includes(status);
 }
+
+/** The part of a recorded run's summary that says what happened to its letters. */
+export interface RunLetterSummary {
+  lettersWritten?: number;
+  lettersSent?: number;
+  lettersBlocked?: number;
+  lettersFailed?: number;
+  blockedBecause?: string | null;
+  failedBecause?: string | null;
+  notes?: string[];
+  wrote?: { name: string }[];
+}
+
+export interface LetterDelivery {
+  written: number;
+  sent: number;
+  /** Held back by the mail gate on purpose - test mode, or sending off. */
+  blocked: number;
+  /** Tried and went wrong - most often the Google connection. */
+  failed: number;
+  blockedBecause: string | null;
+  failedBecause: string | null;
+}
+
+/**
+ * What became of a run's letters, and why any did not go.
+ *
+ * The schedule screen listed who a run "wrote to" beside a Letters column of
+ * 0, and said nothing else. From 4 to 13 October every morning's letters
+ * failed because the Google connection had lapsed; the screen read as though
+ * all was well, and "Runs that failed" said 0. The reason was recorded every
+ * time, in the run's notes, which no screen showed.
+ *
+ * Runs recorded before the counts and reasons were stored separately carry
+ * them only in `notes`, so they are read from there: the gate's line
+ * ("N letters were written but not sent. <why>") and the per-tenant failure
+ * lines ("<company>: <why>").
+ *
+ * Null when the run wrote no letters.
+ */
+export function letterDelivery(s: RunLetterSummary | null | undefined): LetterDelivery | null {
+  if (!s) return null;
+  const written = s.lettersWritten ?? s.wrote?.length ?? 0;
+  if (written === 0) return null;
+
+  const sent = s.lettersSent ?? 0;
+  const blocked = s.lettersBlocked ?? 0;
+  const failed = s.lettersFailed ?? Math.max(0, written - sent - blocked);
+  const notes = s.notes ?? [];
+
+  let blockedBecause = s.blockedBecause ?? null;
+  if (blockedBecause === null && blocked > 0) {
+    for (const n of notes) {
+      const m = /^\d+ letters were written but not sent\. (.+)$/.exec(n);
+      if (m) {
+        blockedBecause = m[1]!;
+        break;
+      }
+    }
+  }
+
+  let failedBecause = s.failedBecause ?? null;
+  if (failedBecause === null && failed > 0) {
+    const names = (s.wrote ?? []).map((w) => `${w.name}: `);
+    for (const n of notes) {
+      const who = names.find((p) => n.startsWith(p));
+      if (who) {
+        failedBecause = n.slice(who.length);
+        break;
+      }
+    }
+  }
+
+  return {
+    written,
+    sent,
+    blocked,
+    failed,
+    blockedBecause: blockedBecause === null ? null : plainBlockedReason(blockedBecause),
+    failedBecause,
+  };
+}
+
+/**
+ * The gate's reason, said once for the whole run.
+ *
+ * The gate explains each letter on its own and names that tenant's addresses,
+ * which is right for one letter and wrong for 238: the first tenant's address
+ * would stand for everybody's. Said in general terms where the reason is the
+ * same for all of them.
+ */
+export function plainBlockedReason(reason: string): string {
+  if (/not on the test list/i.test(reason)) {
+    return "Test mode: only addresses on the test list can be written to.";
+  }
+  if (/sending is off/i.test(reason)) {
+    return "Sending is switched off.";
+  }
+  return reason;
+}
+
+/**
+ * A run somebody should look at: one that failed outright, or one whose
+ * letters failed to send. Letters held back by test mode are not on the list:
+ * that is the gate doing what it was set to do.
+ */
+export function runNeedsAttention(run: { status: string; summary: RunLetterSummary | null }): boolean {
+  if (runNeedsLookingAt(run.status)) return true;
+  return (letterDelivery(run.summary)?.failed ?? 0) > 0;
+}

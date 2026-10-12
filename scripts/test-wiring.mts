@@ -2208,4 +2208,32 @@ check("and stores addresses the same way the AR import does",
 check("without becoming 'the newest upload' the 9am run reads",
       /from\("uploads"\)/.test(CONTACTS_ROUTE), false);
 
+/*
+ * Every letter the 9am run writes is recorded, sent or not. The screens
+ * counted that record as "emails sent", and the schedule screen said who it
+ * "wrote to" beside a Letters column of 0 with no reason. From 4 to 13 October
+ * every letter failed because Google was disconnected, and nothing said so.
+ */
+section("A letter that did not leave is never counted as sent");
+
+const REPORTS_SCREEN = code(path.join(APP, "reports", "page.tsx"));
+const SCHEDULE_SCREEN = code(path.join(APP, "schedule", "page.tsx"));
+const REMINDERS_SCREEN = code(path.join(APP, "reminders", "page.tsx"));
+
+check("Reports counts delivered letters only",
+      REPORTS_SCREEN.includes("const delivered = deliveredOnly(store.emails)") &&
+        REPORTS_SCREEN.includes("value={String(delivered.length)}"), true);
+check("and the NetSuite file carries delivered letters only",
+      REPORTS_SCREEN.includes("...deliveredOnly(store.emails).map((e) => ({") &&
+        !REPORTS_SCREEN.includes("...store.emails.map((e) => ({"), true);
+check("the Sent tab counts delivered letters only",
+      REMINDERS_SCREEN.includes('["sent", "Sent", deliveredOnly(store.emails).length]'), true);
+check("the run records failed letters apart from blocked ones",
+      CRON.includes("lettersFailed += 1;") && CRON.includes("if (!failedBecause) failedBecause = outcome.reason ?? null;"), true);
+check("each schedule line says what became of its letters",
+      SCHEDULE_SCREEN.includes("<Delivery summary={r.summary} />") &&
+        SCHEDULE_SCREEN.includes("const d = letterDelivery(summary);"), true);
+check("and a run whose letters failed counts as needing a look",
+      SCHEDULE_SCREEN.includes("runs.filter(runNeedsAttention).length"), true);
+
 process.exit(failures === 0 ? 0 : 1);

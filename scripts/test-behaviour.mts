@@ -51,6 +51,8 @@ import {
   sane,
 } from "../src/lib/reminder-timing.ts";
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
+import { deliveredOnly } from "../src/lib/store.ts";
+import { letterDelivery, runNeedsAttention } from "../src/lib/schedule.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -2065,6 +2067,51 @@ const toDbPayload = toImportPayload(
 );
 check("the database is sent the exact customer total", toDbPayload.payload?.p_snapshots[0]?.total, 6.752);
 check("and each line exactly as exported", toDbPayload.payload?.p_invoices[0]?.open_balance, 6.752);
+
+/* ============== a letter that did not leave says why, and is not "sent" == */
+
+/*
+ * The 12 October run, exactly as stored: four letters written, none sent,
+ * because the Google connection had lapsed. The schedule screen showed the
+ * four names beside "Letters 0" and said nothing else; "Runs that failed"
+ * said 0. Runs from before the counts were stored apart keep their reasons
+ * only in their notes, and must still explain themselves.
+ */
+section("A run's letters say whether they went, and why not");
+
+const GOOGLE = "Google will no longer send as devincicodes101@gmail.com. The connection was revoked or has expired. Reconnect the account under Settings.";
+const oct12 = {
+  lettersWritten: 4, lettersSent: 0, lettersBlocked: 0,
+  wrote: [{ name: "FOXTROT TEST PTE. LTD" }, { name: "DELTA TEST PTE. LTD" }, { name: "CHARLIE TEST PTE. LTD" }, { name: "BRAVO TEST PTE. LTD" }],
+  notes: ["FOXTROT TEST PTE. LTD: " + GOOGLE, "DELTA TEST PTE. LTD: " + GOOGLE],
+};
+const d12 = letterDelivery(oct12);
+check("an old run's four letters read as four failed", d12?.failed, 4);
+check("with the reason read back out of its notes", d12?.failedBecause, GOOGLE);
+check("and the run needs looking at, though its status is ok",
+      runNeedsAttention({ status: "ok", summary: oct12 }), true);
+
+const testMode = {
+  lettersWritten: 242, lettersSent: 0, lettersBlocked: 238, lettersFailed: 4,
+  blockedBecause: "acct@soram.sg is not on the test list, so this was not sent. While MAIL_MODE is allowed, only MAIL_ALLOWLIST addresses can be written to.",
+  failedBecause: GOOGLE,
+};
+const dt = letterDelivery(testMode);
+check("held back and failed are counted apart", `${dt?.blocked}/${dt?.failed}`, "238/4");
+check("the test-mode reason is said once for everybody, not with one tenant's address",
+      dt?.blockedBecause, "Test mode: only addresses on the test list can be written to.");
+check("a run whose letters were only held back by test mode is fine",
+      runNeedsAttention({ status: "ok", summary: { lettersWritten: 3, lettersSent: 0, lettersBlocked: 3 } }), false);
+check("an old run's held-back reason is read from its notes",
+      letterDelivery({ lettersWritten: 2, lettersSent: 0, lettersBlocked: 2,
+        notes: ["2 letters were written but not sent. Sending is off. Set MAIL_MODE to allowed or everyone to turn it on."] })?.blockedBecause,
+      "Sending is switched off.");
+check("a run that sent everything it wrote has nothing to explain",
+      letterDelivery({ lettersWritten: 7, lettersSent: 7, lettersBlocked: 0 })?.failed, 0);
+check("a run that wrote nothing has no letter line", letterDelivery({ lettersWritten: 0 }), null);
+
+check("only letters that really left count as sent",
+      deliveredOnly([{ simulated: true }, { simulated: false }, {}]).length, 2);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

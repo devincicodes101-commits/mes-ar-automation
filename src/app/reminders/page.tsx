@@ -10,6 +10,7 @@ import {
 import { Account, type QueueItem } from "@/lib/types";
 import {
   Template,
+  deliveredOnly,
   hydrateActivity,
   useStore,
 } from "@/lib/store";
@@ -260,7 +261,9 @@ export default function RemindersPage() {
             ["first", "First reminder", pendingFirst],
             ["final", "Final notice", pendingFinal],
             ["byhand", "By hand", cannotEmail.length],
-            ["sent", "Sent", store.emails.length],
+            /* Delivered only. The list below still shows the rest, marked
+               "not delivered", so a letter that did not go is findable. */
+            ["sent", "Sent", deliveredOnly(store.emails).length],
           ] as const).map(([key, label, count]) => (
             <button
               key={key}
@@ -424,7 +427,14 @@ export default function RemindersPage() {
 
       {view === "sent" ? (
         <Card>
-          <CardHeader title="Sent" hint="Every one recorded with a timestamp." />
+          <CardHeader
+            title="Sent"
+            hint={
+              store.emails.length > deliveredOnly(store.emails).length
+                ? `${deliveredOnly(store.emails).length} delivered. The other ${store.emails.length - deliveredOnly(store.emails).length} were written but not delivered, and are marked so below.`
+                : "Every one recorded with a timestamp."
+            }
+          />
           <ul className="divide-y divide-line-grid">
             {sentShown.map((e) => (
               <li key={e.id}>

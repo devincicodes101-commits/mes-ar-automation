@@ -16,7 +16,7 @@ import {
   overdueTotal,
   rmReports,
 } from "@/lib/data";
-import { recordExport, useStore } from "@/lib/store";
+import { deliveredOnly, recordExport, useStore } from "@/lib/store";
 import {
   MANAGER_COLUMNS,
   REVENUE_TABS,
@@ -196,8 +196,13 @@ export default function ReportsPage() {
 
   const recipients = store.settings.recipients;
 
+  /* Only letters that really left. A letter the run wrote while sending was
+     off is not contact with the customer, and NetSuite must not be told it
+     was. See deliveredOnly. */
+  const delivered = deliveredOnly(store.emails);
+  const notDelivered = store.emails.length - delivered.length;
   const activityRows =
-    store.emails.length + store.calls.length + store.promises.length;
+    delivered.length + store.calls.length + store.promises.length;
 
   return (
     <div className="space-y-5">
@@ -250,7 +255,15 @@ export default function ReportsPage() {
           />
         ) : (
           <dl className="grid gap-px bg-line-grid sm:grid-cols-3">
-            <Cell label="Emails sent" value={String(store.emails.length)} />
+            <Cell
+              label="Emails sent"
+              value={String(delivered.length)}
+              note={
+                notDelivered > 0
+                  ? `${notDelivered} more written but not delivered, so left out`
+                  : undefined
+              }
+            />
             <Cell label="Calls logged" value={String(store.calls.length)} />
             <Cell
               label="Promises recorded"
@@ -828,13 +841,14 @@ function buildReport(
   };
 }
 
-function Cell({ label, value }: { label: string; value: string }) {
+function Cell({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="bg-surface px-5 py-4">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </dt>
       <dd className="mt-1.5 text-xl font-semibold text-ink">{value}</dd>
+      {note ? <dd className="mt-1 text-[11px] text-ink-muted">{note}</dd> : null}
     </div>
   );
 }
@@ -938,7 +952,7 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
   const { notify } = useToast();
 
   const rows = [
-    ...store.emails.map((e) => ({
+    ...deliveredOnly(store.emails).map((e) => ({
       date: e.at,
       company: e.companyName,
       type: "Email",

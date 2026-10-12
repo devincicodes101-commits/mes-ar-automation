@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
 import { hydrateActivity } from "@/lib/store";
-import { inSingapore, runNeedsLookingAt } from "@/lib/schedule";
+import { inSingapore, letterDelivery, runNeedsAttention, runNeedsLookingAt, type RunLetterSummary } from "@/lib/schedule";
 import { useDataset } from "@/lib/dataset";
 import { formatDate, formatSgd, invoicesForAccount, overdueTotal } from "@/lib/data";
 import { billingForTenant } from "@/lib/billing-cycles";
@@ -44,11 +44,9 @@ interface Run {
   ran_for: string;
   cycle_day: number | null;
   status: string;
-  summary: {
+  summary: (RunLetterSummary & {
     title?: string;
     feesRaised?: number;
-    lettersSent?: number;
-    lettersBlocked?: number;
     affected?: number;
     value?: number;
     /* Who was written to, charged, and left alone. A count is not something
@@ -56,7 +54,7 @@ interface Run {
     wrote?: { code: string; name: string }[];
     chargedTo?: { code: string; name: string }[];
     heldBack?: { code: string; name: string; why: string }[];
-  } | null;
+  }) | null;
   missed: string[] | null;
   report_date: string | null;
   error: string | null;
@@ -159,8 +157,9 @@ export default function SchedulePage() {
   }
   const totalFees = runs.reduce((n, r) => n + (r.summary?.feesRaised ?? 0), 0);
   const totalLetters = runs.reduce((n, r) => n + (r.summary?.lettersSent ?? 0), 0);
-  // A quiet day is not a failure. See runNeedsLookingAt.
-  const failures = runs.filter((r) => runNeedsLookingAt(r.status)).length;
+  // A quiet day is not a failure, and neither is a letter test mode held
+  // back. A letter that failed to send is. See runNeedsAttention.
+  const failures = runs.filter(runNeedsAttention).length;
 
   return (
     <div className="space-y-5">
@@ -173,9 +172,9 @@ export default function SchedulePage() {
         <StatTile label="Fees raised" value={String(totalFees)} note="By the schedule, on the 16th" />
         <StatTile label="Letters sent" value={String(totalLetters)} note="Reminders, from each tenant's billing date" />
         <StatTile
-          label="Runs that failed"
+          label="Runs that need looking at"
           value={String(failures)}
-          note={failures === 0 ? "None so far" : "These need looking at"}
+          note={failures === 0 ? "None so far" : "Failed, or letters did not send"}
           emphasis={failures > 0}
         />
       </div>
@@ -322,6 +321,7 @@ export default function SchedulePage() {
                       {runNeedsLookingAt(r.status) ? (
                         <StatusBadge kind="critical" label={r.error ?? r.status} />
                       ) : null}
+                      <Delivery summary={r.summary} />
 
                       {/* Named, because a number is not checkable. Somebody
                           holding an inbox open wants to know whether these
@@ -367,6 +367,50 @@ export default function SchedulePage() {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+/**
+ * What became of the run's letters, said beside the names.
+ *
+ * "Written to" followed by four names, beside a Letters column of 0, read as
+ * four letters sent. Nine mornings in October it meant four letters that
+ * failed because the Google connection had lapsed, and nothing on the screen
+ * said so. Only shown when not every letter went: a run that sent all it
+ * wrote needs no explaining.
+ */
+function Delivery({ summary }: { summary: Run["summary"] }) {
+  const d = letterDelivery(summary);
+  if (!d || d.sent === d.written) return null;
+  return (
+    <div className="mt-1.5 space-y-0.5 text-[11px] leading-relaxed">
+      <div className="text-ink-secondary">
+        <span className="tabular">{d.written}</span> written ·{" "}
+        <span className="tabular">{d.sent}</span> sent
+        {d.blocked > 0 ? (
+          <>
+            {" "}· <span className="tabular">{d.blocked}</span> held back
+          </>
+        ) : null}
+        {d.failed > 0 ? (
+          <>
+            {" "}· <span className="tabular font-medium text-status-critical">{d.failed} failed</span>
+          </>
+        ) : null}
+      </div>
+      {d.blocked > 0 && d.blockedBecause ? (
+        <div className="text-ink-muted">
+          <span className="text-ink-secondary">Held back: </span>
+          {d.blockedBecause}
+        </div>
+      ) : null}
+      {d.failed > 0 && d.failedBecause ? (
+        <div className="text-status-critical">
+          <span className="font-medium">Not sent: </span>
+          {d.failedBecause}
+        </div>
+      ) : null}
     </div>
   );
 }

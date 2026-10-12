@@ -150,6 +150,19 @@ export interface SentEmail {
   at: string;
 }
 
+/**
+ * The letters that really left.
+ *
+ * Every letter the 9am run writes is recorded, sent or not, so the record is
+ * complete. Counting that record as "emails sent" was not: on 13 October the
+ * run wrote 242 letters with Google disconnected and test mode on, none left,
+ * and Reports would have said 261 emails sent - and put all 242 in the file
+ * MES load into NetSuite as contact made with the customer.
+ */
+export function deliveredOnly<T extends Pick<SentEmail, "simulated">>(emails: readonly T[]): T[] {
+  return emails.filter((e) => !e.simulated);
+}
+
 export interface AuditEntry {
   id: string;
   at: string;

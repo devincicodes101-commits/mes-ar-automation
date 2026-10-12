@@ -660,6 +660,19 @@ async function persist(
   lettersWritten: number;
   lettersSent: number;
   lettersBlocked: number;
+  /*
+   * Failed is not blocked. Blocked is the mail gate doing its job - test mode
+   * holding back an address that is not ours - and trying again changes
+   * nothing. Failed is the send itself going wrong, most often the Google
+   * connection having lapsed, and nobody knew: the record said "0 letters",
+   * the tile said "0 runs failed", and the reason sat in `notes`, which no
+   * screen showed. Nine mornings in October went that way.
+   */
+  lettersFailed: number;
+  /* The gate's words and the first failure's words, one each. A run that
+     failed 242 times for one reason wants that reason once. */
+  blockedBecause: string | null;
+  failedBecause: string | null;
   notes: string[];
   /*
    * Who, not how many.
@@ -744,7 +757,9 @@ async function persist(
   let lettersWritten = 0;
   let lettersSent = 0;
   let lettersBlocked = 0;
+  let lettersFailed = 0;
   let blockedBecause: string | null = null;
+  let failedBecause: string | null = null;
 
   if (written.length > 0) {
     /*
@@ -895,6 +910,8 @@ async function persist(
              those need three different responses. */
           if (!blockedBecause) blockedBecause = outcome.reason ?? null;
         } else {
+          lettersFailed += 1;
+          if (!failedBecause) failedBecause = outcome.reason ?? null;
           notes.push(`${account.companyName}: ${outcome.reason}`);
           log.say("letter", `Failed to send to ${account.companyName}`, {
             to: row.recipients,
@@ -955,6 +972,9 @@ async function persist(
     lettersWritten,
     lettersSent,
     lettersBlocked,
+    lettersFailed,
+    blockedBecause,
+    failedBecause,
     notes,
     wrote: written.map(name),
     chargedTo: charged.map(name),
