@@ -286,7 +286,17 @@ export function billingForTenant(
   lines: readonly BillingLine[],
   asOf: string | null,
 ): TenantBilling {
-  const dated = lines.filter((l) => l.date);
+  /*
+   * Bills only: lines that add to what is owed.
+   *
+   * Every dated line used to count, so a credit note or a payment became the
+   * customer's "newest bill" and restarted their reminder clock. In MES's
+   * September export ALYZA OSAMI FEBRIANA's newest dated line is a credit memo
+   * of -3,550.00 on 16 July 2025; her newest bill is 15 May 2025, and it is
+   * the bill that the reminder is about. A credit makes a customer owe less;
+   * it never makes their debt younger.
+   */
+  const dated = lines.filter((l) => l.date && (l.openBalance ?? 0) > 0);
   if (dated.length === 0) return NO_BILLING;
 
   /* The file's own due date wins where it has one, for the same reason

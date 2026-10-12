@@ -20,7 +20,7 @@ import {
   round2,
   withoutCode,
 } from "../src/lib/aging-detail.ts";
-import { billingCycles, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
+import { billingCycles, billingForTenant, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
 import {
   brokenPromises,
   dueTheLetter,
@@ -1942,6 +1942,19 @@ check("each keeps its own balance",
       twoPeople.accounts.map((a) => a.total).sort((x, y) => x - y).join("|"), "67.74|3622.52");
 check("and its own name",
       twoPeople.accounts.some((a) => a.companyName === "ALYZA A" && a.total === 3622.52), true);
+
+/* A credit note is not a bill. ALYZA OSAMI FEBRIANA in MES's September
+   export: newest bill 15 May 2025, then a -3,550 credit memo on 16 July. */
+section("A credit note or payment does not restart the reminder clock");
+
+const withCredit = billingForTenant([
+  { date: "2025-04-15", dueDate: "2025-04-30", openBalance: 3550 },
+  { date: "2025-05-15", dueDate: "2025-05-30", openBalance: 2248.33 },
+  { date: "2025-07-16", dueDate: "2025-07-16", openBalance: -3550 },
+  { date: "2025-08-01", dueDate: null, openBalance: -40 },
+] as never, "2026-10-09");
+check("the newest bill is the newest charge, not the credit note", withCredit.billedOn, "2025-05-15");
+check("and credits are not counted as bills", withCredit.runs, 2);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
