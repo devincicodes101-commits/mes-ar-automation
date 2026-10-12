@@ -208,7 +208,7 @@ export default function CallListPage() {
 
       <Card>
         <CardHeader
-          title="Who to phone on the 7th and the 21st"
+          title="Who to phone"
           hint="Call from your normal line, then log what was agreed. Anyone already rung stays on the list, and repeat calls are counted."
         />
 
@@ -725,7 +725,10 @@ function BillingNote({ billing }: { billing: TenantBilling }) {
       {billing.daysPastDue !== null && billing.daysPastDue > 0 ? (
         <span className="font-medium text-ink">
           {" "}
-          · due {billing.daysPastDue} days ago
+          {/* The oldest unpaid bill's age, which is not the newest bill's: next
+              to "due 30 Sept 2026" a bare "due 896 days ago" read as the same
+              bill and made no sense. */}
+          · {billing.runs > 1 ? "oldest unpaid bill due" : "due"} {billing.daysPastDue} days ago
         </span>
       ) : null}
     </span>

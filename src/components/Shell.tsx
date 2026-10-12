@@ -99,8 +99,8 @@ export const NAV: {
     href: "/reminders",
     label: "Reminder Emails",
     group: "The cycle",
-    when: "7th & 21st",
-    note: "Write and send the 7th reminder and the 21st final notice.",
+    when: "by billing date",
+    note: "The first reminder and the final notice, counted from each tenant's billing date.",
   },
   {
     // Directly under the reminders, because it is the other half of the same

@@ -133,7 +133,7 @@ export default function NoEmailPage() {
         <StatTile
           label="We can email"
           value={String(reachable)}
-          note="These go out on the 7th and the 21st"
+          note="Sent by the 9am run when their reminder is due"
         />
         <StatTile
           label="Share of tenants"
@@ -187,8 +187,8 @@ export default function NoEmailPage() {
                 onChange={(e) => setLetter(e.target.value as LetterId)}
                 className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
               >
-                <option value="first-reminder">First reminder, the 7th</option>
-                <option value="final-notice">Final notice, the 21st</option>
+                <option value="first-reminder">First reminder</option>
+                <option value="final-notice">Final notice</option>
               </select>
               <input
                 value={query}
@@ -244,7 +244,7 @@ export default function NoEmailPage() {
             }
             body={
               missing.length === 0
-                ? "Nothing needs sending by hand. Reminders go out on their own on the 7th and the 21st."
+                ? "Nothing needs sending by hand. Reminders go out on their own, counted from each tenant's billing date."
                 : show === "sent"
                   ? "Open a letter and mark it sent once you have posted it from Outlook."
                   : "Every tenant on this list has been marked as sent by hand this month."

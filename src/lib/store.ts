@@ -100,6 +100,17 @@ export interface PromiseRecord {
 
 export interface SentEmail {
   id: string;
+  /**
+   * True where the letter was written but never left - sending switched off,
+   * an address outside the test list, a send that failed.
+   *
+   * The 9am run counts a tenant as written to only when a letter really went;
+   * the screens could not tell the two apart, so a blocked letter looked sent
+   * and the Reminder Emails screen dropped a tenant the run would still write
+   * to. Optional: letters recorded in the browser before this existed are
+   * treated as sent, which is what they were assumed to be.
+   */
+  simulated?: boolean;
   accountId: string;
   companyName: string;
   /**
@@ -310,7 +321,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: "reminder-7th",
     name: "First reminder",
-    trigger: "7th of the month",
+    trigger: "23 days after billing",
     triggerDay: 7,
     subject: "Outstanding rental payment, {{company}}",
     // MES's wording, from letters.ts. Kept in one place because it used to be
@@ -321,7 +332,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: "final-21st",
     name: "Final notice",
-    trigger: "21st of the month",
+    trigger: "27 days after billing",
     triggerDay: 21,
     subject: "Final reminder, outstanding rental payment for {{company}}",
     body: LETTER_BODIES["final-notice"],

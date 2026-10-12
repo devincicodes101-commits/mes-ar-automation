@@ -264,7 +264,7 @@ export function MailAccounts() {
       });
       const body = (await r.json()) as { ok?: boolean; error?: string };
       notify(body.ok ? "The schedule will send from this account" : "Could not change it",
-             body.ok ? `The 7th and the 21st will come from ${email}.` : body.error ?? "");
+             body.ok ? `The 9am run's reminders will come from ${email}.` : body.error ?? "");
       await load();
     } finally {
       setBusy(null);

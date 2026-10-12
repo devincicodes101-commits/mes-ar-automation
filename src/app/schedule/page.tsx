@@ -171,7 +171,7 @@ export default function SchedulePage() {
           note="Every wake-up, whether it acted or not"
         />
         <StatTile label="Fees raised" value={String(totalFees)} note="By the schedule, on the 16th" />
-        <StatTile label="Letters sent" value={String(totalLetters)} note="On the 7th and the 21st" />
+        <StatTile label="Letters sent" value={String(totalLetters)} note="Reminders, from each tenant's billing date" />
         <StatTile
           label="Runs that failed"
           value={String(failures)}

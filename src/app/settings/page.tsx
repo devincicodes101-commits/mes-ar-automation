@@ -24,6 +24,7 @@ import { GoogleClient } from "@/components/GoogleClient";
 
 export default function SettingsPage() {
   const store = useStore();
+  const { window: reminderDays } = useReminderWindow();
   const { canAct } = useSession();
   const [editing, setEditing] = useState<Template | null>(null);
 
@@ -208,7 +209,16 @@ export default function SettingsPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{t.name}</span>
-                  <Tag>{t.trigger}</Tag>
+                  {/* The two reminders go out by billing date now, so their tag
+                      says when in those terms. A saved template can still carry
+                      "7th of the month" from before; that text is no longer true. */}
+                  <Tag>
+                    {t.id === "reminder-7th"
+                      ? `${reminderDays.first} days after billing`
+                      : t.id === "final-21st"
+                        ? `${reminderDays.final} days after billing`
+                        : t.trigger}
+                  </Tag>
                 </div>
                 <p className="mt-1 truncate text-xs text-ink-secondary">
                   {t.subject}

@@ -1387,9 +1387,13 @@ console.log("\nWho has already had this month's reminder");
  */
 const REMINDERS_PAGE = read("src/app/reminders/page.tsx");
 
-check("the screen asks per month, not ever",
-      REMINDERS_PAGE.includes("function alreadyHadIt(") &&
-        !/filter\(\(e\) => e\.templateId === templateId\)/.test(REMINDERS_PAGE), true);
+/* Since 13 October the screen no longer asks "per month" at all: it asks what
+   the 9am run asks - has this tenant really had this letter since their
+   current bill - using the same functions, so the two cannot disagree. On
+   MES's September file the monthly screen said 150 while the run wrote 242. */
+check("the screen asks per bill, exactly as the run does",
+      REMINDERS_PAGE.includes("remindersDueOn(owing, linesByAccount(owing, ds.invoices), todayIso, timing.window)") &&
+        REMINDERS_PAGE.includes("lettersToWrite(due, sent, todayIso, timing.window)"), true);
 /*
  * And the month comes from the calendar, which is a correction of the first
  * answer here rather than a new rule.
@@ -1413,8 +1417,10 @@ check("the screen asks per month, not ever",
 const FEES_CODE = code(path.join(APP, "late-fees", "page.tsx"));
 const REMINDERS_CODE = code(path.join(APP, "reminders", "page.tsx"));
 
+/* The screen no longer needs a month to choose who is due; each letter it
+   writes still records which month it belongs to, from the calendar. */
 check("reminders takes the month from the calendar",
-      REMINDERS_CODE.includes("const period = currentPeriod()"), true);
+      REMINDERS_CODE.includes("period: currentPeriod()"), true);
 check("late fees takes the same month",
       FEES_CODE.includes("const period = currentPeriod()"), true);
 check("neither screen still reads it off the report",
@@ -1442,8 +1448,11 @@ check("and the activity log reads it back",
 
 /* Letters stored before the column existed fall back to the month they were
    sent in, which is the only answer available for them. */
-check("older letters fall back to when they were sent",
-      REMINDERS_PAGE.includes("e.period ?? `${e.at.slice(0, 7)}-01`"), true);
+/* A letter that was written but never left told the tenant nothing. The run
+   ignores it; the screen now does too, and says so in the Sent list. */
+check("a letter that never left does not count as sent",
+      REMINDERS_CODE.includes("!e.simulated") &&
+        read("src/lib/activity-db.ts").includes("simulated: r.was_simulated"), true);
 
 /* ---------------------------- the schedule has a face, and one lock ------ */
 
@@ -1597,8 +1606,10 @@ check("no day still filters on finalNotice by hand",
       /reachable\.filter\(\(a\) => !s\.finalNotice\.includes/.test(CYCLE_CODE), false);
 check("the tenants held back are named, not silently dropped",
       CYCLE_CODE.includes("heldBackFromFinal"), true);
+/* "No final notice without a first reminder" now lives in lettersToWrite,
+   shared with the run and covered by the behaviour suite. */
 check("the screen keeps the rule it already had",
-      code(path.join(APP, "reminders", "page.tsx")).includes("gotFirst.has(q.account.id)"), true);
+      code(path.join(APP, "reminders", "page.tsx")).includes("lettersToWrite("), true);
 
 /* ------------------------- the summary stops claiming it was a dry run --- */
 

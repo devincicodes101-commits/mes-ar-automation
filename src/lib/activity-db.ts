@@ -229,6 +229,7 @@ export function emailsFromRows(rows: readonly EmailRow[]): SentEmail[] {
     body: r.body === null ? undefined : r.body,
     to: r.recipients ?? [],
     at: r.sent_at,
+    simulated: r.was_simulated,
     /* The month the letter was about, which is not the month it was sent.
        Undefined for letters stored before the column existed. */
     period: r.period ?? undefined,

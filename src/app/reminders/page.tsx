@@ -3,21 +3,20 @@
 import { useReminderWindow } from "@/lib/use-reminder-window";
 import { useMemo, useState } from "react";
 import {
-  buildQueue,
   formatSgd,
   overdueTotal,
 } from "@/lib/data";
-import { Account } from "@/lib/types";
+import { Account, type QueueItem } from "@/lib/types";
 import {
   Template,
   hydrateActivity,
   useStore,
 } from "@/lib/store";
 import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
-import type { SentEmail } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
-import { currentPeriod } from "@/lib/schedule";
+import { currentPeriod, inSingapore } from "@/lib/schedule";
+import { linesByAccount, lettersToWrite, remindersDueOn, type SentLetter } from "@/lib/reminder-timing";
 import { LetterView } from "@/components/LetterView";
 import {
   DEADLINE_DAYS,
@@ -92,39 +91,6 @@ function merge(
  * is three chances for the automatic run on the 7th to say something slightly
  * different from the one an officer reads on screen before approving it.
  */
-/**
- * Who has already had this wording for the month on screen.
- *
- * The question used to have no month in it — "has this tenant ever had this
- * template" — so a tenant chased in September was crossed off in October, in
- * November, and for good. Month one worked, the list emptied out after that,
- * and the screen said "everyone who can be emailed has had this one", which
- * reads as success.
- *
- * The scheduled run never shared the fault, which made it worse rather than
- * better: it builds a letter id from the date, so a new month is a new id and
- * it sends. On the 7th of December the cron would write to a tenant the screen
- * showed as done, and the officer reading the screen would not know.
- *
- * Letters stored before the period column existed count for whatever month
- * they were sent in. That is the best available answer for them and the reason
- * the column is written from now on rather than derived.
- */
-function alreadyHadIt(
-  emails: readonly SentEmail[],
-  templateId: string,
-  period: string | null,
-): Set<string> {
-  const out = new Set<string>();
-  for (const e of emails) {
-    if (e.templateId !== templateId) continue;
-    const forMonth = e.period ?? `${e.at.slice(0, 7)}-01`;
-    if (period && forMonth !== period) continue;
-    out.add(e.accountId);
-  }
-  return out;
-}
-
 function letterFor(account: Account, template: Template, asOf: string): Outgoing {
   return {
     tenantId: account.id,
@@ -156,55 +122,46 @@ export default function RemindersPage() {
   const template =
     store.templates.find((t) => t.id === templateId) ?? store.templates[0];
 
-  const queue = useMemo(() => buildQueue(scope(ds.accounts)), [ds, scope]);
-  /* The cycle a letter belongs to, taken from the calendar. Each tenant gets
-     one reminder and one final notice per month, and "per month" means the
-     month we are in — which is how the schedule has always counted it, and
-     how MES's own rule is written. Reading it off the uploaded report instead
-     meant that loading next month's sheet early wiped this screen's memory of
-     the letters it had already sent, and offered to send them again. */
-  const period = currentPeriod();
-  const sentIds = alreadyHadIt(store.emails, templateId, period);
-
-  /**
-   * Each wording goes to a different set of tenants. Without this the list was
-   * identical for every template and the dropdown looked broken.
+  /*
+   * Who is due which letter today - decided exactly as the 9am run decides it.
    *
-   * MES SOP 2.1 asks for reminders grouped by portfolio, which is what this
-   * is: the audience follows the tenant's profile.
+   * This screen used to list everyone more than 15 days past due, which was
+   * the right group while letters went out on the 7th and the 21st. The run
+   * now counts from each tenant's own billing date, so on MES's September file
+   * the screen said 150 first reminders while the run wrote 242: two rules for
+   * one question. Same functions, same window, same "really sent since this
+   * bill" memory, same promise hold as src/app/api/cron/route.ts.
    */
-  const audience = useMemo(() => {
-    const gotFirst = new Set(
-      store.emails
-        .filter((e) => e.templateId === "reminder-7th")
-        .map((e) => e.accountId),
+  const todayIso = inSingapore().iso;
+  const plan = useMemo(() => {
+    const owing = scope(ds.accounts).filter((a) => a.total > 0);
+    const due = remindersDueOn(owing, linesByAccount(owing, ds.invoices), todayIso, timing.window);
+    const sent: SentLetter[] = store.emails
+      .filter((e) => !e.simulated && (e.templateId === "reminder-7th" || e.templateId === "final-21st"))
+      .map((e) => ({
+        tenantId: e.accountId,
+        stage: e.templateId === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
+        sentAt: e.at,
+      }));
+    const decided = lettersToWrite(due, sent, todayIso, timing.window);
+    const promised = new Set(
+      store.promises.filter((pr) => pr.promisedFor >= todayIso).map((pr) => pr.accountId),
     );
-
-    switch (templateId) {
-      case "final-21st":
-        return {
-          list: queue.filter(
-            (q) => q.account.hasContact && gotFirst.has(q.account.id),
-          ),
-          empty:
-            "The final notice goes to tenants who already had a first reminder. Send some, and they appear here.",
-        };
-
-      case "onefm":
-        return {
-          list: queue.filter((q) => q.account.isOneFm && q.account.hasContact),
-          empty:
-            "Tenants with 1FM charges have no email address on file. Phone them instead.",
-        };
-
-      default:
-        return {
-          list: queue.filter((q) => q.account.hasContact),
-          empty:
-            "Everyone who can be emailed has had this one.",
-        };
+    const byId = new Map(owing.map((a) => [a.id, a]));
+    const item = (a: Account): QueueItem => ({ account: a, reasons: [], priority: 0, overdue: overdueTotal(a) });
+    const first: QueueItem[] = [];
+    const final: QueueItem[] = [];
+    const noEmail: QueueItem[] = [];
+    for (const l of decided.write) {
+      const a = byId.get(l.accountId);
+      if (!a || promised.has(a.id)) continue;
+      if (!a.hasContact) noEmail.push(item(a));
+      else (l.stage === "final-notice" ? final : first).push(item(a));
     }
-  }, [templateId, queue, store.emails]);
+    const byOverdue = (x: QueueItem, y: QueueItem) => y.overdue - x.overdue;
+    return { first: first.sort(byOverdue), final: final.sort(byOverdue), noEmail: noEmail.sort(byOverdue) };
+  }, [ds, scope, store.emails, store.promises, timing.window, todayIso]);
+
 
   /**
    * Automatic sending, which MES asked for and confirmed through DeVinci.
@@ -266,28 +223,19 @@ export default function RemindersPage() {
   /* Sending now goes over the network, so the button has to be able to say so
      and to refuse a second press while the first batch is still going. */
   const [sending, setSending] = useState(false);
-  const cannotEmail = queue
-    .filter((q) => !q.account.hasContact)
-    .filter((q) => matches([q.account.companyName, q.account.customerCode]));
-
-  const pending = audience.list
-    .filter((q) => !sentIds.has(q.account.id))
-    .filter((q) => matches([q.account.companyName, q.account.customerCode, ...q.account.emails]));
-
-  /* Tab counts. Worked out from the same rules the lists use, so a number on a
-     tab and the list behind it can never disagree. */
-  const gotFirstEver = new Set(
-    store.emails.filter((e) => e.templateId === "reminder-7th").map((e) => e.accountId),
+  const cannotEmail = plan.noEmail.filter((q) =>
+    matches([q.account.companyName, q.account.customerCode]),
   );
-  const reachable = queue.filter((q) => q.account.hasContact);
-  const pendingFirst = reachable.filter(
-    (q) => !alreadyHadIt(store.emails, "reminder-7th", period).has(q.account.id),
-  ).length;
-  const pendingFinal = reachable.filter(
-    (q) =>
-      gotFirstEver.has(q.account.id) &&
-      !alreadyHadIt(store.emails, "final-21st", period).has(q.account.id),
-  ).length;
+
+  const pending = (view === "final" ? plan.final : plan.first).filter((q) =>
+    matches([q.account.companyName, q.account.customerCode, ...q.account.emails]),
+  );
+
+  /* Tab counts, from the same plan the lists use, so a number on a tab and
+     the list behind it can never disagree - and neither can disagree with
+     what the 9am run will write. */
+  const pendingFirst = plan.first.length;
+  const pendingFinal = plan.final.length;
 
   const sentShown = store.emails.filter((e) =>
     matches([e.companyName, e.subject, e.templateName]),
@@ -384,7 +332,11 @@ export default function RemindersPage() {
         {pending.length === 0 ? (
           <EmptyState
             title={`No tenants for the ${template.name.toLowerCase()}`}
-            body={audience.empty}
+            body={
+              view === "final"
+                ? "Nobody is due a final notice today. It goes once a tenant's bill is past the final-notice date and their first reminder went out long enough ago."
+                : "Nobody is due a first reminder today, counted from each tenant's billing date."
+            }
           />
         ) : (
           <ul className="divide-y divide-line-grid">
@@ -488,11 +440,14 @@ export default function RemindersPage() {
                       {e.subject}
                     </p>
                     <p className="mt-0.5 text-[11px] text-accent">
-                      Read the letter that went out
+                      {e.simulated ? "Read the letter (written, not delivered)" : "Read the letter that went out"}
                     </p>
                   </div>
                   <div className="shrink-0 text-right text-[11px] text-ink-muted">
-                    <StatusBadge kind="good" label={e.templateName} />
+                    <StatusBadge
+                      kind={e.simulated ? "warning" : "good"}
+                      label={e.simulated ? `${e.templateName} · not delivered` : e.templateName}
+                    />
                     <div className="mt-1">
                       {new Date(e.at).toLocaleString("en-SG")}
                     </div>
