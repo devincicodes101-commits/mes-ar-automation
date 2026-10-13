@@ -306,6 +306,52 @@ export function lettersToWrite(
   return { write, held };
 }
 
+/** Where one tenant stands with their letters for their current bill. */
+export type LetterPosition =
+  | { kind: "not-yet" }
+  | { kind: "first-due" }
+  | { kind: "first-sent"; firstSentOn: string; finalDueOn: string }
+  | { kind: "final-due"; firstSentOn: string }
+  | { kind: "final-sent"; finalSentOn: string };
+
+/**
+ * Where a tenant stands, from the dates and from what has really been sent.
+ *
+ * The schedule screen's "When each tenant would be chased" read the dates
+ * alone, so on 14 October it said "final notice due" against all 255 tenants
+ * while the 9am run, which knew none had had a first reminder, wrote 242 first
+ * reminders - and once a first reminder went, the card would have gone on
+ * saying "final notice due" regardless. The same rules as lettersToWrite, so
+ * the card says what the run will do: the first reminder before the final
+ * notice, and the final waiting the window's gap after the first really went.
+ */
+export function letterPosition(
+  billedOn: string,
+  sent: readonly SentLetter[],
+  today: string,
+  window: ReminderWindow = DEFAULT_REMINDER_DAYS,
+): LetterPosition {
+  const w = sane(window);
+  const dates = reminderDatesFor(billedOn, w);
+  if (!dates) return { kind: "not-yet" };
+
+  const since = sent.filter((s) => dayOf(s.sentAt) >= billedOn);
+  const finals = since.filter((s) => s.stage === "final-notice").map((s) => dayOf(s.sentAt)).sort();
+  if (finals.length > 0) return { kind: "final-sent", finalSentOn: finals[finals.length - 1]! };
+
+  const firsts = since.filter((s) => s.stage === "first-reminder").map((s) => dayOf(s.sentAt)).sort();
+  if (firsts.length > 0) {
+    const firstSentOn = firsts[firsts.length - 1]!;
+    const afterFirst = reminderDatesFor(firstSentOn, { first: w.final - w.first, final: w.final - w.first })!.first;
+    const finalDueOn = afterFirst > dates.final ? afterFirst : dates.final;
+    return today >= finalDueOn
+      ? { kind: "final-due", firstSentOn }
+      : { kind: "first-sent", firstSentOn, finalDueOn };
+  }
+
+  return today >= dates.first ? { kind: "first-due" } : { kind: "not-yet" };
+}
+
 /**
  * Each tenant's own lines, for remindersDueOn.
  *

@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
-import { hydrateActivity } from "@/lib/store";
+import { hydrateActivity, useStore } from "@/lib/store";
 import { inSingapore, letterDelivery, runNeedsAttention, runNeedsLookingAt, type RunLetterSummary } from "@/lib/schedule";
 import { useDataset } from "@/lib/dataset";
 import { formatDate, formatSgd, invoicesForAccount, overdueTotal } from "@/lib/data";
 import { billingForTenant } from "@/lib/billing-cycles";
-import { reminderDatesFor } from "@/lib/reminder-timing";
+import { letterPosition, reminderDatesFor, type LetterPosition, type SentLetter } from "@/lib/reminder-timing";
 import { useReminderWindow } from "@/lib/use-reminder-window";
 import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag } from "@/components/ui";
 
@@ -467,6 +467,7 @@ function ordinal(d: number): string {
  */
 function WhenEachTenantIsChased() {
   const ds = useDataset();
+  const store = useStore();
   const [all, setAll] = useState(false);
 
   /* The window the nine o'clock run uses, read from the same place it reads
@@ -481,6 +482,34 @@ function WhenEachTenantIsChased() {
    * preview that disagreed with the run about who is due would be no use.
    */
   const asOf = ds.asOf ? inSingapore().iso : null;
+
+  /*
+   * The letters that really left, by tenant - the same record the 9am run and
+   * Reminder Emails read. A letter written while sending was off or blocked
+   * is not here, so it does not count as sent.
+   */
+  const sentBy = useMemo(() => {
+    const m = new Map<string, SentLetter[]>();
+    for (const e of store.emails) {
+      if (e.simulated || (e.templateId !== "reminder-7th" && e.templateId !== "final-21st")) continue;
+      const letter: SentLetter = {
+        tenantId: e.accountId,
+        stage: e.templateId === "final-21st" ? "final-notice" : "first-reminder",
+        sentAt: e.at,
+      };
+      m.set(e.accountId, [...(m.get(e.accountId) ?? []), letter]);
+    }
+    return m;
+  }, [store.emails]);
+
+  /* A promise to pay that has not fallen due holds the letters, as in the run. */
+  const promisedFor = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const pr of store.promises) {
+      if (asOf && pr.promisedFor >= asOf) m.set(pr.accountId, pr.promisedFor);
+    }
+    return m;
+  }, [store.promises, asOf]);
 
   const rows = useMemo(() => {
     if (!asOf) return [];
@@ -498,24 +527,22 @@ function WhenEachTenantIsChased() {
           runs: billing.runs,
           first: dates?.first ?? null,
           final: dates?.final ?? null,
-          /* What the rule says today, for this tenant. */
-          stage:
-            dates === null
-              ? "no billing date"
-              : asOf >= dates.final
-                ? "final notice due"
-                : asOf >= dates.first
-                  ? "first reminder due"
-                  : "not yet",
+          /* Where they stand: the dates, and what has really been sent. */
+          position: billing.billedOn
+            ? letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)
+            : null,
+          promised: promisedFor.get(a.id) ?? null,
         };
       })
       .sort((x, y) => (x.first ?? "9999").localeCompare(y.first ?? "9999"));
-  }, [ds.accounts, ds.invoices, asOf, window]);
+  }, [ds.accounts, ds.invoices, asOf, window, sentBy, promisedFor]);
 
   if (rows.length === 0) return null;
 
-  const dueNow = rows.filter((r) => r.stage !== "not yet" && r.stage !== "no billing date");
-  const missing = rows.filter((r) => r.stage === "no billing date").length;
+  const count = (kind: LetterPosition["kind"]) =>
+    rows.filter((r) => !r.promised && r.position?.kind === kind).length;
+  const missing = rows.filter((r) => r.position === null).length;
+  const promisedCount = rows.filter((r) => r.promised).length;
   const shown = all ? rows : rows.slice(0, 12);
 
   return (
@@ -540,9 +567,12 @@ function WhenEachTenantIsChased() {
       />
 
       <div className="border-b border-line-hair bg-surface-alt px-5 py-3 text-[11px] leading-relaxed text-ink-secondary">
-        {dueNow.length} of {rows.length} tenants are past at least one of their
-        reminder dates today. Whether each has already been sent that letter
-        is in the schedule&rsquo;s diary.{" "}
+        Of {rows.length} tenants who owe: {count("first-due")} due their first
+        reminder, {count("first-sent")} sent it and waiting for the final
+        notice, {count("final-due")} due the final notice, {count("final-sent")}{" "}
+        sent the final notice, {count("not-yet")} not yet due
+        {promisedCount > 0 ? `, ${promisedCount} holding a promise to pay` : ""}.
+        Only letters that really left count as sent.{" "}
         {missing > 0
           ? `${missing} carry no billing date in this file, so the rule cannot place them.`
           : "Every tenant in this file carries a billing date."}{" "}
@@ -587,18 +617,7 @@ function WhenEachTenantIsChased() {
                   {formatSgd(r.owed)}
                 </td>
                 <td className="px-5 py-2.5">
-                  <StatusBadge
-                    kind={
-                      r.stage === "final notice due"
-                        ? "serious"
-                        : r.stage === "first reminder due"
-                          ? "warning"
-                          : r.stage === "no billing date"
-                            ? "critical"
-                            : "neutral"
-                    }
-                    label={r.stage}
-                  />
+                  <Standing position={r.position} promised={r.promised} />
                 </td>
               </tr>
             ))}
@@ -607,4 +626,51 @@ function WhenEachTenantIsChased() {
       </ScrollPanel>
     </Card>
   );
+}
+
+/**
+ * One tenant's standing, said the way the 9am run will act on it.
+ *
+ * "Final notice due" against every tenant, when none had had a first
+ * reminder, contradicted the run on the same screen. Now it says which letter
+ * is next and which have really gone, with the date.
+ */
+function Standing({
+  position,
+  promised,
+}: {
+  position: LetterPosition | null;
+  promised: string | null;
+}) {
+  if (promised) {
+    return <StatusBadge kind="neutral" label={`promised to pay by ${formatDate(promised)}`} />;
+  }
+  if (!position) return <StatusBadge kind="critical" label="no billing date" />;
+
+  switch (position.kind) {
+    case "not-yet":
+      return <StatusBadge kind="neutral" label="not yet" />;
+    case "first-due":
+      return <StatusBadge kind="warning" label="first reminder due" />;
+    case "first-sent":
+      return (
+        <div>
+          <StatusBadge kind="good" label={`first reminder sent ${formatDate(position.firstSentOn)}`} />
+          <div className="mt-1 text-[11px] text-ink-muted">
+            final notice due {formatDate(position.finalDueOn)}
+          </div>
+        </div>
+      );
+    case "final-due":
+      return (
+        <div>
+          <StatusBadge kind="serious" label="final notice due" />
+          <div className="mt-1 text-[11px] text-ink-muted">
+            first reminder sent {formatDate(position.firstSentOn)}
+          </div>
+        </div>
+      );
+    case "final-sent":
+      return <StatusBadge kind="good" label={`final notice sent ${formatDate(position.finalSentOn)}`} />;
+  }
 }

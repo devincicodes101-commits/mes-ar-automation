@@ -2270,4 +2270,12 @@ check("with the reminder window the letters use",
 check("and a call is done for its own round only",
       CALLS_SCREEN.includes("calledThisRound(q, roundCalls)"), true);
 
+section("The schedule card says what was really sent");
+
+check("each tenant's standing comes from letterPosition, with delivered letters only",
+      SCHEDULE_SCREEN.includes("letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)") &&
+        SCHEDULE_SCREEN.includes("if (e.simulated ||"), true);
+check("and the dates-only badge is gone",
+      SCHEDULE_SCREEN.includes('label={r.stage}'), false);
+
 process.exit(failures === 0 ? 0 : 1);

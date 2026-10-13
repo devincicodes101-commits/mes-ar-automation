@@ -54,6 +54,7 @@ import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { deliveredOnly } from "../src/lib/store.ts";
 import { letterDelivery, runNeedsAttention } from "../src/lib/schedule.ts";
 import { callListOn, calledThisRound } from "../src/lib/call-list.ts";
+import { letterPosition } from "../src/lib/reminder-timing.ts";
 import { invoicesForAccount } from "../src/lib/data.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
@@ -2194,6 +2195,38 @@ check("a line under the tenant's code is theirs, whatever name it carries",
 check("a line with no code still falls back to the name",
       invoicesForAccount({ id: "x", companyName: "Sample Co" } as never,
         [{ companyName: "SAMPLE CO", openBalance: 5 }] as never).length, 1);
+
+/* ================== the schedule card says which letters really went == */
+
+/*
+ * "When each tenant would be chased" read the dates alone: on 14 October it
+ * said "final notice due" for all 255 while the run wrote first reminders,
+ * and a letter really sent never changed it.
+ */
+section("Each tenant's standing follows the letters really sent");
+
+const LW = { first: 23, final: 27 };
+const BILL = "2026-09-15"; // first reminder 8 Oct, final 12 Oct
+check("before the first reminder date: not yet", letterPosition(BILL, [], "2026-10-07", LW).kind, "not-yet");
+check("past both dates but never written to: the first reminder is due, not the final",
+      letterPosition(BILL, [], "2026-10-14", LW).kind, "first-due");
+const firstOn14 = letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" }], "2026-10-14", LW);
+check("the day the first reminder goes, it says so, with the date",
+      firstOn14.kind === "first-sent" ? firstOn14.firstSentOn : firstOn14.kind, "2026-10-14");
+check("and the final notice waits four days after it, not the billing date's 12 October",
+      firstOn14.kind === "first-sent" ? firstOn14.finalDueOn : firstOn14.kind, "2026-10-18");
+check("four days on, the final notice is due",
+      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" }], "2026-10-18", LW).kind,
+      "final-due");
+check("once it goes, it says final notice sent",
+      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" },
+        { tenantId: "t", stage: "final-notice", sentAt: "2026-10-18T01:08:00Z" }], "2026-10-20", LW).kind, "final-sent");
+check("a letter about an older bill does not count for this one",
+      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-08-10T01:08:00Z" }], "2026-10-14", LW).kind,
+      "first-due");
+check("sent on time, the final keeps the billing date's own day",
+      (() => { const x = letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-08T01:08:00Z" }], "2026-10-09", LW);
+        return x.kind === "first-sent" ? x.finalDueOn : x.kind; })(), "2026-10-12");
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
