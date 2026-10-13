@@ -695,7 +695,7 @@ check("a letter is recorded as a dry run before anything is attempted",
 check("and only becomes a real send once one has left",
       /if \(outcome\.sent\)[\s\S]{0,900}was_simulated: false/.test(CRON), true);
 check("the schedule sends as nobody, so it uses the nominated account",
-      /send\(db, null,/.test(CRON), true);
+      /senderFor\(db, null\)/.test(CRON), true);
 
 /* ------------------------------------------------------ the mailbox ----- */
 
@@ -2235,5 +2235,28 @@ check("each schedule line says what became of its letters",
         SCHEDULE_SCREEN.includes("const d = letterDelivery(summary);"), true);
 check("and a run whose letters failed counts as needing a look",
       SCHEDULE_SCREEN.includes("runs.filter(runNeedsAttention).length"), true);
+
+/*
+ * 13 October: the 9am run wrote 242 letters, then looked the mailbox up
+ * afresh for every one - test mode was about to hold back 238 of them anyway
+ * - and Vercel ended it at 60 seconds. No record, no diary, nothing sent, and
+ * the schedule screen showed no run for the day.
+ */
+section("The 9am run finishes, and is recorded, however many letters it has");
+
+const MAIL_INDEX = code(path.join(HERE, "..", "src", "lib", "mail", "index.ts"));
+const senderBody = MAIL_INDEX.slice(MAIL_INDEX.indexOf("export async function senderFor("));
+check("the run sends through one sender, not send() per letter",
+      CRON.includes("const sendOne = await senderFor(db, null);") && !CRON.includes("await send(db, null, {"), true);
+check("which asks the gate before touching the database or Google",
+      senderBody.indexOf("mayLeave(letter, gate)") > -1 &&
+        senderBody.indexOf("mayLeave(letter, gate)") < senderBody.indexOf("connector(db, asUser, env)"), true);
+check("and looks the mailbox up once, not once per letter",
+      senderBody.includes("chosen ??= await connector(db, asUser, env);"), true);
+check("the run stops sending in time to write down what it did",
+      CRON.includes("const SEND_BUDGET_MS = 40_000;") && CRON.includes("if (Date.now() > sendBy) {") &&
+        CRON.includes("Date.parse(startedAt) + SEND_BUDGET_MS"), true);
+check("and says how many it never reached",
+      CRON.includes("lettersDeferred = rows.length - at;") && CRON.includes("    lettersDeferred,"), true);
 
 process.exit(failures === 0 ? 0 : 1);

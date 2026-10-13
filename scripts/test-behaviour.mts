@@ -2110,6 +2110,12 @@ check("a run that sent everything it wrote has nothing to explain",
       letterDelivery({ lettersWritten: 7, lettersSent: 7, lettersBlocked: 0 })?.failed, 0);
 check("a run that wrote nothing has no letter line", letterDelivery({ lettersWritten: 0 }), null);
 
+const outOfTime = letterDelivery({ lettersWritten: 242, lettersSent: 0, lettersBlocked: 200, lettersFailed: 2, lettersDeferred: 40 });
+check("letters the run never reached are counted apart from failed ones",
+      `${outOfTime?.failed}/${outOfTime?.deferred}`, "2/40");
+check("and a run that ran out of time needs looking at",
+      runNeedsAttention({ status: "ok", summary: { lettersWritten: 10, lettersSent: 0, lettersBlocked: 6, lettersFailed: 0, lettersDeferred: 4 } }), true);
+
 check("only letters that really left count as sent",
       deliveredOnly([{ simulated: true }, { simulated: false }, {}]).length, 2);
 

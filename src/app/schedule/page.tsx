@@ -398,7 +398,18 @@ function Delivery({ summary }: { summary: Run["summary"] }) {
             {" "}· <span className="tabular font-medium text-status-critical">{d.failed} failed</span>
           </>
         ) : null}
+        {d.deferred > 0 ? (
+          <>
+            {" "}· <span className="tabular font-medium text-status-critical">{d.deferred} not tried</span>
+          </>
+        ) : null}
       </div>
+      {d.deferred > 0 ? (
+        <div className="text-status-critical">
+          <span className="font-medium">Not tried: </span>
+          the run&rsquo;s time ran out. They are tried again at the next run.
+        </div>
+      ) : null}
       {d.blocked > 0 && d.blockedBecause ? (
         <div className="text-ink-muted">
           <span className="text-ink-secondary">Held back: </span>

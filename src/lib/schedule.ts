@@ -305,6 +305,7 @@ export interface RunLetterSummary {
   lettersSent?: number;
   lettersBlocked?: number;
   lettersFailed?: number;
+  lettersDeferred?: number;
   blockedBecause?: string | null;
   failedBecause?: string | null;
   notes?: string[];
@@ -318,6 +319,8 @@ export interface LetterDelivery {
   blocked: number;
   /** Tried and went wrong - most often the Google connection. */
   failed: number;
+  /** Not tried: the run's time ran out first. Tried again at the next run. */
+  deferred: number;
   blockedBecause: string | null;
   failedBecause: string | null;
 }
@@ -345,7 +348,8 @@ export function letterDelivery(s: RunLetterSummary | null | undefined): LetterDe
 
   const sent = s.lettersSent ?? 0;
   const blocked = s.lettersBlocked ?? 0;
-  const failed = s.lettersFailed ?? Math.max(0, written - sent - blocked);
+  const deferred = s.lettersDeferred ?? 0;
+  const failed = s.lettersFailed ?? Math.max(0, written - sent - blocked - deferred);
   const notes = s.notes ?? [];
 
   let blockedBecause = s.blockedBecause ?? null;
@@ -376,6 +380,7 @@ export function letterDelivery(s: RunLetterSummary | null | undefined): LetterDe
     sent,
     blocked,
     failed,
+    deferred,
     blockedBecause: blockedBecause === null ? null : plainBlockedReason(blockedBecause),
     failedBecause,
   };
@@ -400,11 +405,13 @@ export function plainBlockedReason(reason: string): string {
 }
 
 /**
- * A run somebody should look at: one that failed outright, or one whose
- * letters failed to send. Letters held back by test mode are not on the list:
- * that is the gate doing what it was set to do.
+ * A run somebody should look at: one that failed outright, one whose
+ * letters failed to send, or one that ran out of time before trying them
+ * all. Letters held back by test mode are not on the list: that is the gate
+ * doing what it was set to do.
  */
 export function runNeedsAttention(run: { status: string; summary: RunLetterSummary | null }): boolean {
   if (runNeedsLookingAt(run.status)) return true;
-  return (letterDelivery(run.summary)?.failed ?? 0) > 0;
+  const d = letterDelivery(run.summary);
+  return (d?.failed ?? 0) > 0 || (d?.deferred ?? 0) > 0;
 }

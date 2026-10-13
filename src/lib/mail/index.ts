@@ -8,6 +8,7 @@ import { clientFor } from "./google-oauth.ts";
 import { note, withToken } from "./accounts.ts";
 import {
   allowlistFromEnv,
+  mayLeave,
   modeFromEnv,
   type Letter,
   type MailConnector,
@@ -97,6 +98,44 @@ export async function connector(
     userId: null,
     from: shared.user,
     connector: gmailConnector(shared),
+  };
+}
+
+/**
+ * A sender for a run of letters: the gate first, the mailbox found once.
+ *
+ * send() looks the mailbox up afresh for every letter - the stored Google
+ * client, then the nominated account - which is right for one letter and was
+ * fatal for 242. On 13 October the 9am run wrote 242 first reminders, spent
+ * its 60 seconds looking up the same mailbox for letters test mode was about
+ * to hold back anyway, and was stopped by Vercel before it could record what
+ * it had done. Nobody received anything and the schedule screen showed no run.
+ *
+ * So the gate is asked first, and costs nothing: a letter that may not leave
+ * never touches the database or Google. The mailbox is looked up at the first
+ * letter that may, and kept.
+ */
+export async function senderFor(
+  db: SupabaseClient | null,
+  asUser: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<(letter: Letter) => Promise<SendResult>> {
+  const gate = { mode: modeFromEnv(env), allowlist: allowlistFromEnv(env) };
+  let chosen: Chosen | null = null;
+
+  return async (letter) => {
+    const allowed = mayLeave(letter, gate);
+    if (!allowed.ok) return { sent: false, reason: allowed.reason, blocked: true };
+
+    chosen ??= await connector(db, asUser, env);
+    if (!chosen.ok) return { sent: false, reason: chosen.error, blocked: true };
+
+    const outcome = await chosen.connector.send(letter);
+    if (db && chosen.userId) {
+      if (outcome.sent) await note(db, chosen.userId, null);
+      else if (!outcome.blocked) await note(db, chosen.userId, outcome.reason);
+    }
+    return { ...outcome, from: chosen.from };
   };
 }
 

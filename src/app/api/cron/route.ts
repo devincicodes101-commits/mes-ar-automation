@@ -16,7 +16,7 @@ import {
 } from "@/lib/reminder-timing";
 import { runLog, type RunLog } from "@/lib/run-log";
 import type { Pipeline } from "@/lib/pipeline";
-import { send } from "@/lib/mail";
+import { senderFor } from "@/lib/mail";
 import { renderLetter } from "@/lib/letters";
 import {
   askedFor,
@@ -78,6 +78,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The 21st touches every overdue tenant and writes a letter for each.
 export const maxDuration = 60;
+
+/*
+ * How long the run may spend sending before it stops and writes down what it
+ * did. Vercel ends the function at maxDuration without warning, and a run
+ * ended there leaves no record at all - on 13 October that is exactly what
+ * happened, and the schedule screen showed nothing for the day. The rest of
+ * the minute is for recording. Letters not reached are not lost: they were
+ * not really sent, so the next run writes them again.
+ */
+const SEND_BUDGET_MS = 40_000;
 
 /**
  * Vercel sends this on every scheduled invocation.
@@ -579,7 +589,7 @@ export async function GET(request: Request) {
 
     const wrote = await persist(
       db, day, today, period, after, pipeline, memory.prior, log, checksWarning,
-      letters, held,
+      letters, held, Date.parse(startedAt) + SEND_BUDGET_MS,
     );
     if (freshness.warn) {
       wrote.notes.unshift(freshness.warn);
@@ -655,6 +665,8 @@ async function persist(
   letters: PlannedLetter[],
   /** And the ones due but deliberately not sent, with the reason. */
   held: HeldLetter[],
+  /** When to stop sending, so the run is recorded before Vercel ends it. */
+  sendBy: number,
 ): Promise<{
   feesRaised: number;
   lettersWritten: number;
@@ -669,6 +681,9 @@ async function persist(
    * screen showed. Nine mornings in October went that way.
    */
   lettersFailed: number;
+  /* Not tried because the run's time ran out. Written down, and written again
+     at the next run, because nothing was really sent. */
+  lettersDeferred: number;
   /* The gate's words and the first failure's words, one each. A run that
      failed 242 times for one reason wants that reason once. */
   blockedBecause: string | null;
@@ -758,6 +773,7 @@ async function persist(
   let lettersSent = 0;
   let lettersBlocked = 0;
   let lettersFailed = 0;
+  let lettersDeferred = 0;
   let blockedBecause: string | null = null;
   let failedBecause: string | null = null;
 
@@ -859,7 +875,21 @@ async function persist(
        * priorContact(), and `written` above, which is what is left after the
        * answer is taken away.
        */
-      for (const row of rows) {
+      const sendOne = await senderFor(db, null);
+      for (let at = 0; at < rows.length; at += 1) {
+        if (Date.now() > sendBy) {
+          lettersDeferred = rows.length - at;
+          notes.push(
+            `Time ran out after ${at} of ${rows.length} letters. The other ` +
+              `${lettersDeferred} were written down and are tried again at the next run.`,
+          );
+          log.say("letter", `Stopped sending: ${lettersDeferred} letters left for the next run`, {
+            tried: at,
+            left: lettersDeferred,
+          }, { level: "warn" });
+          break;
+        }
+        const row = rows[at]!;
         const account = byId.get(row.tenant_id);
         if (!account) continue;
 
@@ -869,7 +899,7 @@ async function persist(
          * read, so the send goes out as whichever connected account was chosen
          * deliberately for it.
          */
-        const outcome = await send(db, null, {
+        const outcome = await sendOne({
           to: row.recipients,
           subject: row.subject,
           body: row.body,
@@ -973,6 +1003,7 @@ async function persist(
     lettersSent,
     lettersBlocked,
     lettersFailed,
+    lettersDeferred,
     blockedBecause,
     failedBecause,
     notes,
