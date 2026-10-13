@@ -10,7 +10,7 @@ import {
   overdueTotal,
   revenueBreakdown,
 } from "@/lib/data";
-import { Account, BUCKETS, BucketKey, PropertyCode } from "@/lib/types";
+import { Account, BUCKETS, BucketKey, type Invoice, PropertyCode } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { setManualEmails, useStore } from "@/lib/store";
@@ -451,6 +451,7 @@ export default function AgingBoardPage() {
                   <AccountRow
                     key={a.id}
                     account={a}
+                    invoices={myInvoices}
                     canAct={canAct}
                     open={expanded === a.id}
                     onToggle={() =>
@@ -709,17 +710,21 @@ function ChargeTypeTable({
 
 function AccountRow({
   account,
+  invoices: allInvoices,
   canAct,
   open,
   onToggle,
 }: {
   account: Account;
+  /* The uploaded report's lines. Left out, this read the built-in sample
+     data, so an expanded row showed nothing - or a sample company's bills. */
+  invoices: Invoice[];
   canAct: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
   const credit = isInCredit(account);
-  const invoices = open ? invoicesForAccount(account) : [];
+  const invoices = open ? invoicesForAccount(account, allInvoices) : [];
 
   return (
     <>

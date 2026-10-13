@@ -54,6 +54,7 @@ import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { deliveredOnly } from "../src/lib/store.ts";
 import { letterDelivery, runNeedsAttention } from "../src/lib/schedule.ts";
 import { callListOn, calledThisRound } from "../src/lib/call-list.ts";
+import { invoicesForAccount } from "../src/lib/data.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -2171,6 +2172,28 @@ check("and comes once it has been",
 check("a call counts for its own round and bill only",
       calledThisRound({ account: { id: "a-jpd1" } as never, round: "final-notice", billedOn: "2026-09-15" },
         [{ accountId: "a-jpd1", at: "2026-10-09T03:00:00Z", round: "first-reminder" }]), false);
+
+/* ============== a tenant's lines are found by code, not by company name == */
+
+/*
+ * The heading names the customer; each line carries NetSuite's Company Name,
+ * which differs for 54 September customers. Matching on the name lost every
+ * bill for them: "54 carry no billing date" on the Schedule, no billing date
+ * on their Call List row, and estimated late fees.
+ */
+section("A tenant's lines are found by customer code and dormitory");
+
+const renamed = { id: "dorm-9-jpd1", companyName: "NEW NAME PTE. LTD." } as never;
+const theirs = [
+  { customerCode: "DORM-9", property: "JPD1", companyName: "OLD NAME PTE LTD", date: "2026-09-15", openBalance: 10 },
+  { customerCode: "DORM-9", property: "BSD", companyName: "NEW NAME PTE. LTD.", date: "2026-09-15", openBalance: 20 },
+  { customerCode: "DORM-8", property: "JPD1", companyName: "NEW NAME PTE. LTD.", date: "2026-09-15", openBalance: 30 },
+] as never;
+check("a line under the tenant's code is theirs, whatever name it carries",
+      invoicesForAccount(renamed, theirs).map((l: { openBalance: number }) => l.openBalance).join(","), "10");
+check("a line with no code still falls back to the name",
+      invoicesForAccount({ id: "x", companyName: "Sample Co" } as never,
+        [{ companyName: "SAMPLE CO", openBalance: 5 }] as never).length, 1);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

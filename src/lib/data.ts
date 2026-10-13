@@ -36,12 +36,34 @@ const norm = (s: string) => s.trim().replace(/\.$/, "").toUpperCase();
  * active dataset holds, so an uploaded file is used rather than the sample.
  * The default keeps older call sites working.
  */
+/**
+ * An account's lines: by customer code and dormitory, as the 9am run joins them.
+ *
+ * This matched on company name, and the name on a line is not the name on the
+ * account. The account takes its name from the customer's heading row; each
+ * line carries NetSuite's Company Name column, which in MES's September export
+ * differs from the heading for 54 customers - a trailing full stop, a renamed
+ * company, sometimes another customer entirely. Those 54 had no lines on any
+ * screen that asked this function: no billing date on the Schedule ("54 carry
+ * no billing date in this file"), none on their Call List row or their own
+ * page, and a late fee worked out from the buckets instead of their lines -
+ * while the 9am run and Reminder Emails, which join on the code, saw every
+ * bill. The run's join is the right one: a code is what NetSuite keys on.
+ *
+ * A line with no code (the sample data, and older summary uploads) still
+ * falls back to the name, which is the only thing it has.
+ */
 export function invoicesForAccount(
   account: Account,
   invoices: Invoice[] = data.invoices as Invoice[],
 ): Invoice[] {
   const key = norm(account.companyName);
-  return invoices.filter((i) => norm(i.companyName) === key);
+  return invoices.filter((i) => {
+    const line = i as Invoice & { customerCode?: string; property?: string };
+    return line.customerCode && line.property
+      ? `${line.customerCode}-${line.property}`.toLowerCase() === account.id
+      : norm(i.companyName) === key;
+  });
 }
 
 /** Balance sitting at 30 days or worse. This is what MES actually chases. */
