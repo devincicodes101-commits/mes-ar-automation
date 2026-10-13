@@ -9,6 +9,7 @@ import {
   kpis,
   overdueTotal,
   revenueBreakdown,
+  worstBucket,
 } from "@/lib/data";
 import { Account, BUCKETS, BucketKey, type Invoice, PropertyCode } from "@/lib/types";
 import { useSession, useToast } from "@/lib/session";
@@ -492,18 +493,16 @@ export default function AgingBoardPage() {
 }
 
 /**
- * How late the worst of a tenant's money is, in words.
+ * How late the worst of a tenant's money is, in MES's own group names.
  *
- * The aging columns say the same thing in five numbers, which is the right
- * answer for somebody reconciling and the wrong one for somebody deciding who
- * to ring. "Up to 60 days late" is that fact, already read.
+ * This said "Up to 30 days late", "Up to 60 days late" and so on, which was
+ * written for the Age column - days past the due date. Since 14 October the
+ * groups count from the billing date, and the "30 days" group holds bills 31
+ * to 60 days old: "up to 30 days late" no longer said what it held. MES asked
+ * for their own names, the ones on their formula and in the age columns.
  */
 function lateness(a: Account): string {
-  if (a.buckets.d90plus > 0) return "More than 90 days late";
-  if (a.buckets.d90 > 0) return "Up to 90 days late";
-  if (a.buckets.d60 > 0) return "Up to 60 days late";
-  if (a.buckets.d30 > 0) return "Up to 30 days late";
-  return "Not late yet";
+  return worstBucket(a);
 }
 
 /**

@@ -2287,4 +2287,10 @@ check("nothing runs until a date is chosen, and only a day already begun",
 check("the run is described as daily reminders plus the 16th",
       SCHEDULE_SCREEN.includes("Every morning: reminder emails") && SCHEDULE_SCREEN.includes("The 16th: late payment fees"), true);
 
+section("How late uses MES's own group names");
+
+const DASHBOARD = code(path.join(APP, "page.tsx"));
+check("Outstanding Balances says 30 days / 60 days / 90 days / More than 90 days",
+      DASHBOARD.includes("return worstBucket(a);") && !DASHBOARD.includes('return "Up to 30 days late"'), true);
+
 process.exit(failures === 0 ? 0 : 1);
