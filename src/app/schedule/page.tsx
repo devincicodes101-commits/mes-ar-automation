@@ -26,20 +26,6 @@ import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag }
  * and sending whatever the mail gate currently allows.
  */
 
-const CYCLE_DAYS = [1, 4, 7, 15, 16, 21] as const;
-
-const WHAT_HAPPENS: Record<number, string> = {
-  1: "GIRO deductions, and the 14-day deadline passes",
-  4: "The report is uploaded and the month is rebuilt",
-  /* No longer reminder days: reminders follow each tenant's billing date
-     and can go on any morning. Kept on the list because the run still wakes
-     on them and MES's own cycle diagram names them. */
-  7: "Was the first reminder day; reminders now follow the billing date",
-  15: "The 30-day deadline passes",
-  16: "The S$100 late fee is raised",
-  21: "Was the final notice day; now follows the billing date too",
-};
-
 interface Run {
   ran_for: string;
   cycle_day: number | null;
@@ -124,19 +110,15 @@ export default function SchedulePage() {
 
       if (!r.ok || !body.ok) {
         notify("The schedule did not run", body.error ?? `The server answered ${r.status}.`);
-      } else if (body.cycleDay === null || body.cycleDay === undefined) {
-        notify(
-          `${body.ranFor} is not one of the six days`,
-          "The schedule woke, found nothing to do, and recorded that.",
-        );
       } else {
         const s = body.summary ?? {};
         notify(
-          `Ran the ${body.cycleDay}${ordinal(body.cycleDay)} for ${body.ranFor}`,
+          `Ran the 9am job for ${body.ranFor}`,
           [
+            s.title ?? null,
             s.feesRaised ? `${s.feesRaised} fees raised` : null,
-            s.lettersSent ? `${s.lettersSent} letters sent` : null,
-          ].filter(Boolean).join(" · ") || (s.title ?? "Recorded."),
+            `${s.lettersSent ?? 0} letters sent`,
+          ].filter(Boolean).join(" · "),
         );
       }
     } catch (e) {
@@ -149,12 +131,10 @@ export default function SchedulePage() {
   }
 
   const runs = history?.runs ?? [];
-  /* Which of the six have ever fired, so the grid says what has happened
-     rather than only what is supposed to. */
-  const daysRun = new Map<number, string>();
-  for (const r of runs) {
-    if (r.cycle_day && !daysRun.has(r.cycle_day)) daysRun.set(r.cycle_day, r.ran_for);
-  }
+  /* The newest 16th the run has done, for the late-fee row below. Runs come
+     newest first. */
+  const lastFeeDay = runs.find((r) => r.cycle_day === 16)?.ran_for ?? null;
+  const { window: reminderWindow } = useReminderWindow();
   const totalFees = runs.reduce((n, r) => n + (r.summary?.feesRaised ?? 0), 0);
   const totalLetters = runs.reduce((n, r) => n + (r.summary?.lettersSent ?? 0), 0);
   // A quiet day is not a failure, and neither is a letter test mode held
@@ -181,32 +161,55 @@ export default function SchedulePage() {
 
       <WhenEachTenantIsChased />
 
+      {/*
+        * What the run does, as it does it now.
+        *
+        * This was "The six days" - the 1st, 4th, 7th, 15th, 16th and 21st,
+        * MES's original calendar. Reminders left that calendar on 4 October
+        * and follow each tenant's billing date on any morning, so four of the
+        * six said "was the reminder day" or described work the run does not
+        * do. What is left is two things: the reminders, every morning, and
+        * the late fee, on the 16th.
+        */}
       <Card>
         <CardHeader
-          title="The six days"
-          hint="Every morning at nine, Singapore time, the schedule reads the report and sends any reminder that has fallen due, counted from each tenant's billing date. These six days carry MES's other work, such as the fee on the 16th."
-          right={
-            history?.lastRun ? (
-              <StatusBadge kind="good" label={`last ran for ${history.lastRun}`} />
-            ) : (
-              <StatusBadge kind="warning" label="never run" />
-            )
-          }
+          title="What the 9am run does"
+          hint="Every morning at nine, Singapore time, the schedule reads the newest uploaded report and does the work below on its own."
         />
-        <div className="grid gap-px bg-line-hair sm:grid-cols-2 xl:grid-cols-3">
-          {CYCLE_DAYS.map((d) => (
-            <div key={d} className="bg-surface px-5 py-3">
-              <div className="flex items-baseline gap-3">
-                <span className="tabular text-lg font-semibold text-ink">{d}</span>
-                <span className="flex-1 text-xs text-ink-secondary">{WHAT_HAPPENS[d]}</span>
-                {daysRun.has(d) ? (
-                  <StatusBadge kind="good" label={`ran ${daysRun.get(d)}`} />
-                ) : (
-                  <span className="text-[11px] text-ink-muted">not yet</span>
-                )}
+        <div className="grid gap-px bg-line-hair sm:grid-cols-2">
+          <div className="bg-surface px-5 py-3.5">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-ink">Every morning: reminder emails</div>
+                <p className="mt-0.5 text-xs text-ink-secondary">
+                  Counted from each tenant&rsquo;s billing date: the first reminder{" "}
+                  {reminderWindow.first} days after, the final notice{" "}
+                  {reminderWindow.final} days after.
+                </p>
               </div>
+              {history?.lastRun ? (
+                <StatusBadge kind="good" label={`last ran for ${history.lastRun}`} />
+              ) : (
+                <StatusBadge kind="warning" label="never run" />
+              )}
             </div>
-          ))}
+          </div>
+          <div className="bg-surface px-5 py-3.5">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-ink">The 16th: late payment fees</div>
+                <p className="mt-0.5 text-xs text-ink-secondary">
+                  The S$100 fee on anything unpaid 14 days past its due date.
+                  Tenants on GIRO are held back.
+                </p>
+              </div>
+              {lastFeeDay ? (
+                <StatusBadge kind="good" label={`last ran ${lastFeeDay}`} />
+              ) : (
+                <span className="text-[11px] text-ink-muted">not yet</span>
+              )}
+            </div>
+          </div>
         </div>
       </Card>
 
@@ -215,58 +218,39 @@ export default function SchedulePage() {
           <div className="flex flex-wrap items-end gap-4">
             <label className="block">
               <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
-                Run a day now
+                Run a missed morning
               </span>
+              {/*
+                * A date, and nothing chosen for you.
+                *
+                * There were shortcut buttons for "the 1st", "the 4th" and "the
+                * 7th", which read as filters and belonged to the old calendar,
+                * and an empty date ran today - which is how a 2am press on 13
+                * October replaced that day's record. Now nothing runs until a
+                * day is picked, and only a day that has already begun.
+                */}
               <input
                 id="schedule-run-date"
                 type="date"
                 value={when}
+                max={history.today || undefined}
                 onChange={(e) => setWhen(e.target.value)}
                 className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
               />
             </label>
-
-            {/*
-              * The six days of this month, as buttons.
-              *
-              * A date field defaults to empty and the button beside it then
-              * reads "Run today", so pressing it runs a day nobody asked for
-              * — and on twenty-five days of the month that is a quiet day,
-              * which does nothing and looks like the schedule is broken. It
-              * happened twice in one sitting during testing.
-              *
-              * Only days that have already passed: a day can be caught up,
-              * not run early, and offering one the route will refuse is worse
-              * than not offering it.
-              */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {cycleDatesSoFar(history?.today ?? "").map((d) => (
-                <button
-                  key={d.iso}
-                  type="button"
-                  onClick={() => setWhen(d.iso)}
-                  className={`rounded border px-2.5 py-1.5 text-xs ${
-                    when === d.iso
-                      ? "border-accent bg-accent text-accent-ink"
-                      : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               onClick={runDay}
-              disabled={running}
+              disabled={running || !when}
               className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {running ? "Running..." : when ? `Run ${when}` : "Run today"}
+              {running ? "Running..." : when ? `Run ${when}` : "Choose a date"}
             </button>
-            <p className="max-w-[46ch] text-[11px] leading-relaxed text-ink-muted">
-              This is the real schedule, not a rehearsal. It raises fees and sends
-              whatever the mail settings currently allow. Running a day twice cannot
-              charge a tenant twice.
+            <p className="max-w-[52ch] text-[11px] leading-relaxed text-ink-muted">
+              Only for a morning the 9am run missed. This is the real run, not a
+              rehearsal: it sends whatever the mail settings allow and, on the
+              16th, raises the late fees. It replaces that day&rsquo;s line
+              below. Running a day twice cannot charge a tenant twice.
             </p>
           </div>
         </Card>
@@ -307,10 +291,10 @@ export default function SchedulePage() {
                   <tr key={r.ran_for} className="border-b border-line-hair last:border-0">
                     <td className="tabular px-5 py-3 text-ink">{r.ran_for}</td>
                     <td className="px-3 py-3">
-                      {r.cycle_day ? (
-                        <span className="tabular font-medium text-ink">{r.cycle_day}</span>
+                      {r.cycle_day === 16 ? (
+                        <span className="text-xs font-medium text-ink">16th · fees</span>
                       ) : (
-                        <span className="text-xs text-ink-muted">quiet day</span>
+                        <span className="text-xs text-ink-muted">daily</span>
                       )}
                     </td>
                     <td className="px-3 py-3 text-ink-secondary">
@@ -426,29 +410,6 @@ function Delivery({ summary }: { summary: Run["summary"] }) {
   );
 }
 
-/**
- * This month's cycle days that have already happened.
- *
- * Named by day rather than by date — "the 7th", not "2026-09-07" — because
- * that is how MES talk about them, and the full date is in the button beside
- * these anyway.
- */
-function cycleDatesSoFar(todayIso: string): { iso: string; label: string }[] {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(todayIso);
-  if (!m) return [];
-  const [, year, month, dayOfMonth] = m;
-  return CYCLE_DAYS.filter((d) => d <= Number(dayOfMonth)).map((d) => ({
-    iso: `${year}-${month}-${String(d).padStart(2, "0")}`,
-    label: `the ${d}${ordinal(d)}`,
-  }));
-}
-
-function ordinal(d: number): string {
-  if (d === 1) return "st";
-  if (d === 21) return "st";
-  if (d === 4 || d === 7 || d === 15 || d === 16) return "th";
-  return "th";
-}
 
 /**
  * Every tenant's own two reminder dates, worked out from their billing date.

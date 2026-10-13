@@ -2278,4 +2278,13 @@ check("each tenant's standing comes from letterPosition, with delivered letters 
 check("and the dates-only badge is gone",
       SCHEDULE_SCREEN.includes('label={r.stage}'), false);
 
+section("The Schedule screen describes the run as it works now");
+
+check("no 1st / 4th / 7th shortcut buttons from the old calendar",
+      SCHEDULE_SCREEN.includes("cycleDatesSoFar") || SCHEDULE_SCREEN.includes("The six days"), false);
+check("nothing runs until a date is chosen, and only a day already begun",
+      SCHEDULE_SCREEN.includes("disabled={running || !when}") && SCHEDULE_SCREEN.includes("max={history.today || undefined}"), true);
+check("the run is described as daily reminders plus the 16th",
+      SCHEDULE_SCREEN.includes("Every morning: reminder emails") && SCHEDULE_SCREEN.includes("The 16th: late payment fees"), true);
+
 process.exit(failures === 0 ? 0 : 1);
