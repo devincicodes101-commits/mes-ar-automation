@@ -672,6 +672,8 @@ export const REASON_LABEL: Record<QueueReason, string> = {
   // The deadline has passed. True from one day late, which is why it is not
   // the same reason as the aging bands below.
   "past-due": "Past the payment deadline",
+  "first-reminder-passed": "First reminder date passed",
+  "final-notice-passed": "Final notice date passed",
   // Set whenever any money sits outside the Current bucket, which begins at
   // sixteen days past due. It read "more than 30 days", which put a tenant
   // twenty days late under a label saying thirty.

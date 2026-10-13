@@ -110,6 +110,9 @@ export type QueueReason =
    * queue entirely before anything else got a look.
    */
   | "past-due"
+  /* The Call List's own two: the call follows the letter. See call-list.ts. */
+  | "first-reminder-passed"
+  | "final-notice-passed"
   | "aging-30"
   | "aging-90"
   | "promise-broken"

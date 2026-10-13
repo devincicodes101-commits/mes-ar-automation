@@ -53,6 +53,7 @@ import {
 import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { deliveredOnly } from "../src/lib/store.ts";
 import { letterDelivery, runNeedsAttention } from "../src/lib/schedule.ts";
+import { callListOn, calledThisRound } from "../src/lib/call-list.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
@@ -2118,6 +2119,58 @@ check("and a run that ran out of time needs looking at",
 
 check("only letters that really left count as sent",
       deliveredOnly([{ simulated: true }, { simulated: false }, {}]).length, 2);
+
+/* =========================== the call follows the letter (14 October) == */
+
+/*
+ * The Call List asked "who has money over 30 days old" while the letters
+ * asked "who is past their reminder date", so on the September file 161 were
+ * to be rung and 255 written to. Now both count from the billing date.
+ */
+section("The Call List follows the reminder dates");
+
+const callAcct = (id: string, total: number, hasContact = true, extra: object = {}) => ({
+  id: `${id}-jpd1`, customerCode: id.toUpperCase(), companyName: id, property: "JPD1", propertyName: "", status: "Live",
+  buckets: { current: total, d30: 0, d60: 0, d90: 0, d90plus: 0 }, total, legacyNote: null,
+  emails: hasContact ? [`${id}@x.sg`] : [], hasContact, industry: null, entity: null, invoiceCount: 1,
+  isOneFm: false, revenueTypes: [], lateFeeCount: 0, ...extra,
+}) as never;
+const billedLine = (id: string, date: string) =>
+  ({ customerCode: id.toUpperCase(), property: "JPD1", companyName: id, date, dueDate: date, openBalance: 100, age: 0, bucket: "" }) as never;
+const people = [callAcct("a", 100), callAcct("b", 100), callAcct("c", 0), callAcct("d", 100, false), callAcct("e", 100)];
+const theirLines = [billedLine("a", "2026-09-15"), billedLine("b", "2026-09-30"), billedLine("c", "2026-09-15"),
+  billedLine("d", "2026-09-15"), billedLine("e", "2026-09-15")];
+const lf = linesByAccount(people as never, theirLines);
+const CW = { first: 23, final: 27 };
+const ids = (q: { account: { id: string } }[]) => q.map((x) => x.account.id.replace("-jpd1", "")).sort().join(",");
+
+check("on the first reminder date, everyone who owes and was billed 23 days ago is to be rung",
+      ids(callListOn(people, lf, "2026-10-08", CW)), "a,d,e");
+check("billed later, not yet; owing nothing, never", ids(callListOn(people, lf, "2026-10-08", CW)).includes("b") ||
+      ids(callListOn(people, lf, "2026-10-08", CW)).includes("c"), false);
+check("a promise to pay that has not fallen due keeps them off",
+      ids(callListOn(people, lf, "2026-10-08", CW, new Map(), new Set(["e-jpd1"]))), "a,d");
+
+const later = callListOn(people, lf, "2026-10-14", CW);
+check("past the final date but never written to: still the first call, not the second",
+      later.find((x) => x.account.id === "a-jpd1")?.round, "first-reminder");
+const afterFinal = callListOn(people, lf, "2026-10-14", CW, new Map(), new Set(),
+  [{ tenantId: "a-jpd1", stage: "final-notice", sentAt: "2026-10-12T01:08:00Z" }]);
+check("once the final notice has really gone, it is the second call",
+      afterFinal.find((x) => x.account.id === "a-jpd1")?.round, "final-notice");
+check("a final notice about an older bill does not count",
+      callListOn(people, lf, "2026-10-14", CW, new Map(), new Set(),
+        [{ tenantId: "a-jpd1", stage: "final-notice", sentAt: "2026-09-01T01:08:00Z" }]).find((x) => x.account.id === "a-jpd1")?.round,
+      "first-reminder");
+check("no address: the second call waits for the first call to be logged",
+      later.find((x) => x.account.id === "d-jpd1")?.round, "first-reminder");
+check("and comes once it has been",
+      callListOn(people, lf, "2026-10-14", CW, new Map(), new Set(), [],
+        [{ accountId: "d-jpd1", at: "2026-10-09T03:00:00Z", round: "first-reminder" }]).find((x) => x.account.id === "d-jpd1")?.round,
+      "final-notice");
+check("a call counts for its own round and bill only",
+      calledThisRound({ account: { id: "a-jpd1" } as never, round: "final-notice", billedOn: "2026-09-15" },
+        [{ accountId: "a-jpd1", at: "2026-10-09T03:00:00Z", round: "first-reminder" }]), false);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

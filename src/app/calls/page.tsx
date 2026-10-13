@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  buildQueue,
   formatDate,
   formatSgd,
   invoicesForAccount,
@@ -16,6 +15,10 @@ import {
   type TenantBilling,
 } from "@/lib/billing-cycles";
 import { Account } from "@/lib/types";
+import { callListOn, calledThisRound, type CallRound } from "@/lib/call-list";
+import { linesByAccount } from "@/lib/reminder-timing";
+import { inSingapore } from "@/lib/schedule";
+import { useReminderWindow } from "@/lib/use-reminder-window";
 import {
   CALL_OUTCOMES,
   CALL_STAGES,
@@ -23,7 +26,6 @@ import {
   CallStage,
   recordCall,
   feeCountsByTenant,
-  stageForToday,
   stageOfCall,
   useStore,
 } from "@/lib/store";
@@ -55,7 +57,7 @@ export default function CallListPage() {
   const { scope, can } = useSession();
   const mayLog = can("log-calls");
   const ds = withManualEmails(useDataset(), store.manualEmails);
-  const [active, setActive] = useState<Account | null>(null);
+  const [active, setActive] = useState<{ account: Account; round: CallRound } | null>(null);
   /*
    * Everyone stays on the call list by design, including tenants already rung,
    * which is right and made the list unreadable: on the 7th it is every
@@ -85,11 +87,38 @@ export default function CallListPage() {
     () => feeCountsByTenant(store.fees, stillOwing),
     [store.fees, stillOwing],
   );
-  const queue = useMemo(
-    () => buildQueue(scope(ds.accounts), raised),
-    [ds, scope, raised],
+  /*
+   * Who to ring: anyone who still owes and is past their first reminder date,
+   * counted from their billing date exactly as the letters are. The call
+   * follows the letter. See call-list.ts.
+   */
+  const { window } = useReminderWindow();
+  const todayIso = inSingapore().iso;
+  const promised = useMemo(
+    () => new Set(store.promises.filter((pr) => pr.promisedFor >= todayIso).map((pr) => pr.accountId)),
+    [store.promises, todayIso],
   );
-  const calledIds = new Set(store.calls.map((c) => c.accountId));
+  /* Called this round: a call logged for the same round, about this bill. */
+  const roundCalls = useMemo(
+    () => store.calls.map((c) => ({ accountId: c.accountId, at: c.at, round: stageOfCall(c) })),
+    [store.calls],
+  );
+  const queue = useMemo(() => {
+    const accounts = scope(ds.accounts);
+    /* Letters that really left, so a second call never comes before the
+       final notice it follows. */
+    const sent = store.emails
+      .filter((e) => !e.simulated && (e.templateId === "reminder-7th" || e.templateId === "final-21st"))
+      .map((e) => ({
+        tenantId: e.accountId,
+        stage: e.templateId === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
+        sentAt: e.at,
+      }));
+    return callListOn(accounts, linesByAccount(accounts, ds.invoices), todayIso, window, raised, promised, sent, roundCalls);
+  }, [ds, scope, raised, todayIso, window, promised, store.emails, roundCalls]);
+  const calledIds = new Set(
+    queue.filter((q) => calledThisRound(q, roundCalls)).map((q) => q.account.id),
+  );
 
   /*
    * When each tenant was billed, and whether that bill has fallen due.
@@ -132,12 +161,12 @@ export default function CallListPage() {
    */
   const todo = useMemo(() => {
     return [...queue].sort((a, b) => {
-      const ca = callCounts.get(a.account.id) ?? 0;
-      const cb = callCounts.get(b.account.id) ?? 0;
+      const ca = calledThisRound(a, roundCalls) ? 1 : 0;
+      const cb = calledThisRound(b, roundCalls) ? 1 : 0;
       if (ca !== cb) return ca - cb;
       return b.priority - a.priority;
     });
-  }, [queue, callCounts]);
+  }, [queue, roundCalls]);
 
   const notYetCalled = queue.filter((q) => !calledIds.has(q.account.id));
   const done = queue.filter((q) => calledIds.has(q.account.id));
@@ -184,9 +213,9 @@ export default function CallListPage() {
           emphasis
         />
         <StatTile
-          label="Called today"
+          label="Already called"
           value={String(done.length)}
-          note="Logged and saved"
+          note="This round, logged and saved"
         />
         <StatTile
           label="Agreed to pay"
@@ -209,7 +238,7 @@ export default function CallListPage() {
       <Card>
         <CardHeader
           title="Who to phone"
-          hint="Call from your normal line, then log what was agreed. Anyone already rung stays on the list, and repeat calls are counted."
+          hint={`Everyone who still owes and is past their first reminder date (${window.first} days after billing) is due a call. Past the final notice date (${window.final} days), a second call. Call from your normal line, then log what was agreed.`}
         />
 
         {todo.length > 0 ? (
@@ -251,7 +280,7 @@ export default function CallListPage() {
         {todo.length === 0 ? (
           <EmptyState
             title="Nobody needs chasing"
-            body="No tenant is overdue on the current figures."
+            body="Nobody who owes money is past their first reminder date yet."
           />
         ) : shown.length === 0 ? (
           <EmptyState
@@ -283,6 +312,20 @@ export default function CallListPage() {
                     {item.account.status === "Terminated" ? (
                       <Tag>Moved out</Tag>
                     ) : null}
+                  </div>
+
+                  {/* Which call this is, and the letter it follows. */}
+                  <div className="mt-1 text-[11px]">
+                    <span className="font-medium text-ink">
+                      {item.round === "final-notice" ? "2nd call" : "1st call"}
+                    </span>
+                    <span className="text-ink-muted">
+                      {" "}·{" "}
+                      {item.round === "final-notice"
+                        ? `final notice was due ${formatDate(item.finalOn)}`
+                        : `first reminder was due ${formatDate(item.firstOn)}`}
+                      {" "}· billed {formatDate(item.billedOn)}
+                    </span>
                   </div>
 
                   <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-ink-secondary">
@@ -329,7 +372,7 @@ export default function CallListPage() {
                 {mayLog ? (
                   <button
                     type="button"
-                    onClick={() => setActive(item.account)}
+                    onClick={() => setActive({ account: item.account, round: item.round })}
                     className="shrink-0 rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90"
                   >
                     Log this call
@@ -471,8 +514,9 @@ export default function CallListPage() {
 
       {active ? (
         <CallForm
-          account={active}
-          billing={billing.get(active.id) ?? NO_BILLING}
+          account={active.account}
+          round={active.round}
+          billing={billing.get(active.account.id) ?? NO_BILLING}
           onClose={() => setActive(null)}
         />
       ) : null}
@@ -482,10 +526,13 @@ export default function CallListPage() {
 
 function CallForm({
   account,
+  round,
   billing,
   onClose,
 }: {
   account: Account;
+  /** Which call this is, from the list. The officer can still change it. */
+  round: CallRound;
   billing: TenantBilling;
   onClose: () => void;
 }) {
@@ -497,7 +544,7 @@ function CallForm({
   const [next, setNext] = useState("");
   const [notes, setNotes] = useState("");
   const [failDate, setFailDate] = useState("");
-  const [stage, setStage] = useState<CallStage>(stageForToday());
+  const [stage, setStage] = useState<CallStage>(round);
 
   const promised = outcome === "promised-to-pay";
   const bucket = worstBucket(account);

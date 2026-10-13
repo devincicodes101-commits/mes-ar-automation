@@ -2115,7 +2115,7 @@ const CYCLES_LIB = lib("billing-cycles.ts");
 check("a call records which reminder it was about",
       /stage\?: CallStage;/.test(STORE_CODE), true);
 check("and the form actually sets it, rather than leaving it undefined",
-      /stage,\n\s*\}\);/.test(CALLS_CODE) && CALLS_CODE.includes("stageForToday()"), true);
+      /stage,\n\s*\}\);/.test(CALLS_CODE) && CALLS_CODE.includes("useState<CallStage>(round)"), true);
 check("a call logged before the field existed still lands in a round",
       /export function stageOfCall/.test(STORE_CODE) &&
         /c\.stage \?\? stageForToday/.test(STORE_CODE), true);
@@ -2258,5 +2258,16 @@ check("the run stops sending in time to write down what it did",
         CRON.includes("Date.parse(startedAt) + SEND_BUDGET_MS"), true);
 check("and says how many it never reached",
       CRON.includes("lettersDeferred = rows.length - at;") && CRON.includes("    lettersDeferred,"), true);
+
+section("The Call List counts from the billing date, like the letters");
+
+const CALLS_SCREEN = code(path.join(APP, "calls", "page.tsx"));
+check("the Call List is built by callListOn, not from the aging buckets",
+      CALLS_SCREEN.includes("callListOn(accounts, linesByAccount(accounts, ds.invoices), todayIso, window") &&
+        !CALLS_SCREEN.includes("buildQueue("), true);
+check("with the reminder window the letters use",
+      CALLS_SCREEN.includes("const { window } = useReminderWindow();"), true);
+check("and a call is done for its own round only",
+      CALLS_SCREEN.includes("calledThisRound(q, roundCalls)"), true);
 
 process.exit(failures === 0 ? 0 : 1);
