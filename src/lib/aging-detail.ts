@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import type { Account, Invoice, PropertyCode } from "./types";
-import { bucketForAge, bucketLabelForAge } from "./data.ts";
+import { bucketForAge, bucketForBillingAge, bucketLabel, bucketLabelForAge } from "./data.ts";
+import type { BucketKey } from "./types.ts";
 import { isOneFm, revenueType } from "./revenue-rules.ts";
 /* round2 lives in money.ts and is re-exported here, where most callers
    have always imported it from. */
@@ -1004,6 +1005,36 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     });
   }
 
+  /* ----------------------------------------- ages, from the dates themselves */
+
+  /*
+   * MES, 14 October: ignore the Age and Aging columns and count from the
+   * billing date. Their screenshot had lines aged -1 in Current: the columns
+   * are typed or formula-filled and can disagree with the dates beside them.
+   *
+   * Once the report is dated, every line is measured from its own dates:
+   *
+   *   the age group     report date minus the billing date. This is what
+   *                     Outstanding Balances, the overdue figures and the Call
+   *                     List are built from.
+   *   days past due     report date minus the due date. Kept for the late fee
+   *                     rule (14 days past due), which has not changed.
+   *
+   * The Age column is read only where a line carries no date to count from.
+   */
+  const groupOf = new Map<DetailInvoice, BucketKey>();
+  for (const inv of invoices) {
+    if (asOf && inv.dueDate) inv.age = diffDays(inv.dueDate, asOf);
+    const key =
+      asOf && inv.date
+        ? bucketForBillingAge(diffDays(inv.date, asOf))
+        : inv.age !== null
+          ? bucketForAge(inv.age)
+          : null;
+    if (key) groupOf.set(inv, key);
+    inv.bucket = key ? bucketLabel(key) : "";
+  }
+
   /* ------------------------------------------------ roll up into accounts */
 
   // An account is company + dormitory. The same company renting at two
@@ -1050,7 +1081,8 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
     acct.invoiceCount += 1;
     if (inv.isOneFm) acct.isOneFm = true;
     if (inv.revenueType === "Late Payment Fee") acct.lateFeeCount += 1;
-    if (inv.age !== null) acct.buckets[bucketForAge(inv.age)] += inv.openBalance;
+    const group = groupOf.get(inv);
+    if (group) acct.buckets[group] += inv.openBalance;
   }
 
   for (const acct of Array.from(byAccount.values())) {

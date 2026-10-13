@@ -300,6 +300,35 @@ export function bucketLabelForAge(age: number): string {
   return BUCKET_LABEL[bucketForAge(age)];
 }
 
+/**
+ * Which age group a line belongs in, counted from its billing date.
+ *
+ * MES, 14 October: "We can ignore these 2 columns. Pls take reference from
+ * Billing date." The two columns are Age and Aging, and their own screenshot
+ * showed why: ages of -1 sitting in Current. So the groups are counted from
+ * the billing date to the report date, and the Age column is not read.
+ *
+ * The boundaries are MES's own formula moved onto the billing date. Their
+ * formula counted from the due date with 15 days' grace - Current up to 15
+ * days past due - and the due date is the billing date plus 15 days on 4,933
+ * of the 5,214 September lines. So Current is up to 30 days after billing,
+ * and each group after it another 30. On those 4,933 lines nothing moves.
+ * The 281 lines with a different credit period now age from when they were
+ * billed, which is what MES asked for. Not yet confirmed by MES.
+ */
+export function bucketForBillingAge(daysSinceBilled: number): BucketKey {
+  if (daysSinceBilled <= 30) return "current";
+  if (daysSinceBilled <= 60) return "d30";
+  if (daysSinceBilled <= 90) return "d60";
+  if (daysSinceBilled <= 120) return "d90";
+  return "d90plus";
+}
+
+/** The label MES print for an age group. */
+export function bucketLabel(key: BucketKey): string {
+  return BUCKET_LABEL[key];
+}
+
 const BUCKET_LABEL: Record<BucketKey, string> = {
   current: "Current",
   d30: "30 days",

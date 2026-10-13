@@ -21,7 +21,7 @@ import {
   propertyFromDocument,
   round2,
 } from "../src/lib/aging-detail.ts";
-import { bucketForAge, bucketLabelForAge } from "../src/lib/data.ts";
+import { bucketForAge, bucketForBillingAge, bucketLabel, bucketLabelForAge } from "../src/lib/data.ts";
 import { isOneFm, revenueType, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   MANAGER_COLUMNS,
@@ -186,10 +186,59 @@ check("106 days is more than 90", bucketForAge(106), "d90plus");
 check("the label matches MES's wording", bucketLabelForAge(106), "More than 90 days");
 check("the boundary is 15, not 30", bucketForAge(30), "d30");
 
+/*
+ * MES, 14 October: "We can ignore these 2 columns. Pls take reference from
+ * Billing date." Age and Aging are no longer what places a line: its billing
+ * date is, counted to the report date. The formula above is kept for lines
+ * that carry no date.
+ */
+section("Age groups are counted from the billing date");
+
+const days = (a: string, b: string) =>
+  Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400000);
 const misbucketed = p.invoices.filter(
-  (i) => i.age !== null && i.bucket !== bucketLabelForAge(i.age),
+  (i) => i.date !== null && i.bucket !== bucketLabel(bucketForBillingAge(days(i.date, p.asOf!))),
 );
-check("every line's bucket follows from its age", misbucketed.length, 0);
+check("every dated line's group follows from its billing date", misbucketed.length, 0);
+check("billed 30 days before the report is still Current", bucketForBillingAge(30), "current");
+check("31 days is 30 days", bucketForBillingAge(31), "d30");
+check("60 days is still 30 days", bucketForBillingAge(60), "d30");
+check("61 days is 60 days", bucketForBillingAge(61), "d60");
+check("91 days is 90 days", bucketForBillingAge(91), "d90");
+check("121 days is more than 90", bucketForBillingAge(121), "d90plus");
+const pastDueWrong = p.invoices.filter(
+  (i) => i.dueDate !== null && i.age !== days(i.dueDate, p.asOf!),
+);
+check("days past due are counted from the due date, not read from Age", pastDueWrong.length, 0);
+
+/*
+ * The line in MES's screenshot: Age -1, Aging "Current" - and billed long
+ * enough ago that it is not. The Age column must not decide.
+ */
+const shot = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(shot, XLSX.utils.aoa_to_sheet([
+  ["Custom A/R Aging Detail"],
+  ["As of 15 Sep 2026"],
+  ["Customer", "Customer", "Transaction Type", "Company Name", "Date", "Description", "Document Number",
+   "Linked Contract", "Contract Item Start Date", "P.O. No.", "Due Date", "Age", "Bucket", "Open Balance"],
+  // MES's layout: a heading row naming the customer twice, then lines with
+  // the second Customer column blank. Dates are Excel day numbers:
+  // 46223 = 20 July 2026, 46238 = 4 August 2026.
+  // The first line dates the report (due 31 Aug + 15 days = 15 Sep); the
+  // second is the screenshot's: Age -1, Aging "Current".
+  ["DORM-1 TEST PTE. LTD.", "DORM-1 TEST PTE. LTD."],
+  ["DORM-1 TEST PTE. LTD.", "", "Invoice", "TEST PTE. LTD.", 46250, "Occupancy Fee",
+   "J1-786/2", "", "", "", 46265, 15, "Current", 100],
+  ["DORM-1 TEST PTE. LTD.", "", "Invoice", "TEST PTE. LTD.", 46223, "Occupancy Fee",
+   "J1-786/1", "", "", "", 46238, -1, "Current", 500],
+  ["Total - DORM-1 TEST PTE. LTD.", "", "", "", "", "", "", "", "", "", "", "", "", 600],
+]), "Sheet1");
+const shotParsed = parseAgingDetail(shot);
+check("the report is dated 15 September", shotParsed.asOf, "2026-09-15");
+check("a line aged -1 but billed 57 days before the report is not Current",
+      shotParsed.accounts[0]?.buckets.d30, 500);
+check("and is 42 days past due, whatever its Age cell says",
+      shotParsed.invoices.find((i) => i.documentNumber === "J1-786/1")?.age, 42);
 
 /* ======================================================== 1FM detection */
 
