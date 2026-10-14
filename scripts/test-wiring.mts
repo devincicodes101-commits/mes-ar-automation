@@ -2339,8 +2339,20 @@ check("which is bounded, so a fault cannot chain for ever",
       CRON.includes("if (part >= MAX_PARTS) {"), true);
 check("a follow-up records over the day and carries the earlier parts' letters",
       CRON.includes("sentEarlier: (prev.sentEarlier ?? 0) + (prev.lettersSent ?? 0),"), true);
+/*
+ * Read as data, not matched as text. Vercel's build machine hands "npm run
+ * build" its own rewrite of vercel.json, and a guard that matched the file's
+ * exact spacing failed two deployments on 14-15 October while passing
+ * everywhere else.
+ */
+let crons: { path?: string; schedule?: string }[] = [];
+try {
+  crons = (JSON.parse(VERCEL_JSON || "{}") as { crons?: typeof crons }).crons ?? [];
+} catch {
+  crons = [];
+}
 check("and a second daily cron is the safety net, within the free plan's once a day",
-      VERCEL_JSON.includes('"path": "/api/cron/continue"') && !VERCEL_JSON.includes("?") &&
+      crons.some((c) => c.path === "/api/cron/continue") && crons.every((c) => !(c.path ?? "").includes("?")) &&
         read("src/app/api/cron/continue/route.ts").includes('url.searchParams.set("continue", "1");'), true);
 check("Send all on Reminder Emails sends in the same paced batches",
       REMINDERS_SCREEN.includes("const report = await sendLettersPaced(") &&
