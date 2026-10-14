@@ -2293,4 +2293,16 @@ const DASHBOARD = code(path.join(APP, "page.tsx"));
 check("Outstanding Balances says 30 days / 60 days / 90 days / More than 90 days",
       DASHBOARD.includes("return worstBucket(a);") && !DASHBOARD.includes('return "Up to 30 days late"'), true);
 
+section("Email addresses reach only the roles allowed to read them");
+
+const SCOPE_SERVER = read("src/lib/scope-server.ts");
+check("the report is handed over with addresses withheld by role",
+      DATASET_ROUTE.includes("hideAddresses(narrowReport(result.report, who.caller), who.caller)"), true);
+check("and so are the recipients of letters sent",
+      ACTIVITY_ROUTE.includes("hideRecipients(emailsFromRows("), true);
+check("by the same permission the screens and Access Control use",
+      SCOPE_SERVER.includes('return can(caller.role, "view-tenant-emails");'), true);
+check("and the database says the same since 0024",
+      existsSync(path.join(HERE, "..", "supabase", "migrations", "0024_addresses_csd_only.sql")), true);
+
 process.exit(failures === 0 ? 0 : 1);

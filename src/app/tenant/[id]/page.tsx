@@ -106,7 +106,15 @@ export default function TenantPage() {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {account.emails.length > 0 ? (
+            {/* A role that may not read addresses is sent "address hidden"
+                in their place (see hideAddresses), so say how many there
+                are rather than repeating the placeholder. */}
+            {account.emails.length > 0 && account.emails.every((e) => e === "address hidden") ? (
+              <p className="text-xs text-ink-muted">
+                {account.emails.length} email address{account.emails.length === 1 ? "" : "es"} on
+                file, not shown for your role
+              </p>
+            ) : account.emails.length > 0 ? (
               <p className="text-xs text-ink-secondary">{account.emails.join(", ")}</p>
             ) : (
               <StatusBadge kind="critical" label="No email address" />

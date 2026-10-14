@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { identify } from "@/lib/api-auth";
 import { serverSupabase } from "@/lib/supabase-server";
 import { newestReport } from "@/lib/read-report";
-import { narrowReport } from "@/lib/scope-server";
+import { hideAddresses, narrowReport } from "@/lib/scope-server";
 
 /**
  * The most recent report, as the app expects it.
@@ -72,6 +72,8 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    dataset: narrowReport(result.report, who.caller),
+    /* Narrowed to the caller's own book, then their addresses withheld if
+       their role may not read them. See hideAddresses. */
+    dataset: hideAddresses(narrowReport(result.report, who.caller), who.caller),
   });
 }

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { identify } from "@/lib/api-auth";
 import { can, type Capability } from "@/lib/auth";
 import { serverSupabase } from "@/lib/supabase-server";
-import { ownsTenant, visibleTenantIds } from "@/lib/scope-server";
+import { hideRecipients, ownsTenant, visibleTenantIds } from "@/lib/scope-server";
 import {
   callToRow,
   promiseToRow,
@@ -174,7 +174,8 @@ export async function GET(request: Request) {
     ok: true,
     calls: read.calls,
     promises: promisesFromRows((promises.data ?? []) as unknown as PromiseRow[]),
-    emails: emailsFromRows((emails.data ?? []) as unknown as EmailRow[]),
+    /* Who each letter went to is an address too. See hideRecipients. */
+    emails: hideRecipients(emailsFromRows((emails.data ?? []) as unknown as EmailRow[]), who.caller),
     /*
      * Said out loud rather than left as a shorter list. A call whose outcome
      * this build cannot read is a real call, and a screen that silently showed

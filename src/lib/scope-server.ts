@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Caller } from "./api-auth.ts";
+import { can } from "./auth.ts";
 import type { Account } from "./types.ts";
 
 /**
@@ -146,4 +147,47 @@ export async function ownsTenant(
     return { ok: false, error: "That tenant is not on your list." };
   }
   return { ok: true };
+}
+
+/* --------------------------------------------- tenant email addresses ---- */
+
+/** What an address is replaced with for a role that may not read it. */
+export const HIDDEN_ADDRESS = "address hidden";
+
+/**
+ * Whether this caller may read tenants' email addresses.
+ *
+ * Addresses are personal data under the PDPA. The permission table gives them
+ * to CSD, admin and super admin - who send the letters - and not to a
+ * relationship manager or to Management. Checked 14 October: the screens
+ * respected that, but /api/dataset and /api/activity hold the service role
+ * key, which bypasses every database policy, and sent every address to every
+ * signed-in role anyway. Hidden on screen is not the same as not sent.
+ */
+export function mayReadAddresses(caller: Caller): boolean {
+  return can(caller.role, "view-tenant-emails");
+}
+
+/**
+ * The report with every address replaced, for a caller who may not read them.
+ *
+ * Replaced rather than removed, so "has an address" still reads true: an RM's
+ * Call List still knows which of their tenants can be written to, without
+ * holding the address itself.
+ */
+export function hideAddresses<T extends { accounts: Account[] }>(report: T, caller: Caller): T {
+  if (mayReadAddresses(caller)) return report;
+  return {
+    ...report,
+    accounts: report.accounts.map((a) => ({
+      ...a,
+      emails: a.emails.map(() => HIDDEN_ADDRESS),
+    })),
+  };
+}
+
+/** The same, for the recipients of letters already sent. */
+export function hideRecipients<T extends { to: string[] }>(letters: T[], caller: Caller): T[] {
+  if (mayReadAddresses(caller)) return letters;
+  return letters.map((l) => ({ ...l, to: l.to.map(() => HIDDEN_ADDRESS) }));
 }

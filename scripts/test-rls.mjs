@@ -33,8 +33,8 @@ const admin = createClient(url, service, {
 const PW = "Test-" + Math.random().toString(36).slice(2, 10) + "!A9";
 const USERS = [
   { email: "rls-csd@example.test", role: "csd", rm: null, label: "CSD Officer" },
-  { email: "rls-rm1@example.test", role: "rm", rm: "rm1", label: "RM Voldemort" },
-  { email: "rls-rm2@example.test", role: "rm", rm: "rm2", label: "RM Lockhart" },
+  { email: "rls-rm1@example.test", role: "rm", rm: "zz-rls-rm1", label: "RM Voldemort" },
+  { email: "rls-rm2@example.test", role: "rm", rm: "zz-rls-rm2", label: "RM Lockhart" },
   { email: "rls-mgmt@example.test", role: "management", rm: null, label: "Management" },
 ];
 
@@ -45,6 +45,23 @@ function check(name, actual, expected) {
   console.log(
     `  ${ok ? "PASS" : "FAIL"}  ${name.padEnd(48)} got ${String(actual).padEnd(6)} expected ${expected}`,
   );
+}
+
+/*
+ * The two managers, before anything points at them.
+ *
+ * tenants.rm_key references managers(key) since 0019, so the fixture tenant
+ * "owned by rm1" could not be written: the upsert failed without a word, the
+ * fixture never existed, rm1 owned nothing, and every manager check below
+ * passed by proving a manager sees nothing of a tenant that was not there.
+ * Fenced behind zz-rls- keys like everything else this test creates.
+ */
+for (const key of ["zz-rls-rm1", "zz-rls-rm2"]) {
+  const { error } = await admin.from("managers").upsert({ key, name: `RLS test ${key}` });
+  if (error) {
+    console.error(`could not create manager ${key}: ${error.message}`);
+    process.exit(1);
+  }
 }
 
 console.log("creating test users\n");
@@ -84,16 +101,36 @@ for (const u of USERS) {
 const FIXTURE = "zz-rls-tenant";
 const FIXTURE_CODE = "ZZ-RLS-1";
 
-await admin.from("tenants").upsert({
+const { error: fixtureError } = await admin.from("tenants").upsert({
   id: FIXTURE,
   customer_code: FIXTURE_CODE,
   company_name: "ZZ RLS FIXTURE PTE LTD",
   property_code: "BSD",
   // Owned by rm1, so the manager scoping has something real to be scoped to.
-  rm_key: "rm1",
+  rm_key: "zz-rls-rm1",
   first_seen: "1999-01-01",
   last_seen: "1999-01-01",
 });
+/* Said out loud, because a fixture that silently fails to exist makes every
+   check below meaningless. That is how this test passed for weeks. */
+if (fixtureError) {
+  console.error(`could not create the fixture tenant: ${fixtureError.message}`);
+  process.exit(1);
+}
+
+/* A letter sent to the fixture, so who may read sent letters - and their
+   recipients - is checked against something real. */
+const { error: letterError } = await admin.from("emails_sent").insert({
+  tenant_id: FIXTURE,
+  template_name: "First reminder",
+  subject: "RLS test letter",
+  recipients: ["zz-rls@example.com"],
+  was_simulated: true,
+});
+if (letterError) {
+  console.error(`could not create the fixture letter: ${letterError.message}`);
+  process.exit(1);
+}
 
 await admin.from("contacts").upsert(
   {
@@ -140,12 +177,12 @@ const { count: totalAccounts } = await admin
 const { count: rm1Accounts } = await admin
   .from("tenants")
   .select("*", { count: "exact" })
-  .eq("rm_key", "rm1")
+  .eq("rm_key", "zz-rls-rm1")
   .limit(1);
 const { count: rm2Accounts } = await admin
   .from("tenants")
   .select("*", { count: "exact" })
-  .eq("rm_key", "rm2")
+  .eq("rm_key", "zz-rls-rm2")
   .limit(1);
 
 console.log(
@@ -171,7 +208,7 @@ for (const u of created) {
   // How many tenants can they see?
   const { count } = await db.from("tenants").select("*", { count: "exact" }).limit(1);
   const expectedAccounts =
-    u.role === "rm" ? (u.rm === "rm1" ? rm1Accounts : rm2Accounts) : totalAccounts;
+    u.role === "rm" ? (u.rm === "zz-rls-rm1" ? rm1Accounts : rm2Accounts) : totalAccounts;
   check("tenants visible", count ?? 0, expectedAccounts);
 
   // The same scoping has to hold on the snapshots and on the view, or a
@@ -189,7 +226,9 @@ for (const u of created) {
     .limit(1);
   check("current_accounts scoped the same way", viewRows ?? 0, expectedAccounts);
 
-  // Can they read tenant email addresses? Personal data, CSD and mgmt only.
+  // Can they read tenant email addresses? Personal data under the PDPA:
+  // CSD, admin and super admin only, as the application's permission table
+  // says. Management could read them until 0024.
   const { count: contacts } = await db
     .from("contacts")
     .select("*", { count: "exact" })
@@ -197,8 +236,16 @@ for (const u of created) {
   check(
     "tenant email addresses readable",
     (contacts ?? 0) > 0,
-    u.role !== "rm",
+    u.role === "csd",
   );
+
+  // And the letters sent, which carry the same addresses as recipients.
+  const { count: letters } = await db
+    .from("emails_sent")
+    .select("*", { count: "exact" })
+    .eq("tenant_id", FIXTURE)
+    .limit(1);
+  check("sent letters (and their recipients) readable", (letters ?? 0) > 0, u.role === "csd");
 
   // Can they write? Only CSD may.
   const { error: writeErr } = await db
@@ -251,7 +298,9 @@ await admin.from("contacts").delete().eq("customer_code", FIXTURE_CODE);
 // removed last because everything else points at it.
 if (fixtureUpload?.id) await admin.from("uploads").delete().eq("id", fixtureUpload.id);
 await admin.from("account_snapshots").delete().eq("tenant_id", FIXTURE);
+await admin.from("emails_sent").delete().eq("tenant_id", FIXTURE);
 await admin.from("tenants").delete().eq("id", FIXTURE);
+await admin.from("managers").delete().in("key", ["zz-rls-rm1", "zz-rls-rm2"]);
 await admin.from("audit_log").delete().eq("action", "RLS test");
 await admin.from("audit_log").delete().eq("action", "tampered");
 for (const u of created) await admin.auth.admin.deleteUser(u.id);
