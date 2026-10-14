@@ -79,12 +79,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The 21st touches every overdue tenant and writes a letter for each.
 /*
- * The most the free plan allows. It was 60, which is a fifth of it: with
- * letters now sent a few at a time and a pause between batches, the extra four
- * minutes are the difference between one run sending about twenty letters and
- * one run sending over a hundred. See SEND_BUDGET_MS.
+ * Sixty seconds, the most any Vercel plan allows without Fluid compute. A
+ * longer run would not send faster anyway: letters are capped per minute (see
+ * pacing.ts), so the morning's pace is the same whether it is one long run or
+ * several short ones, and short ones work on every plan. A run left with
+ * letters hands over to the next part. See continueInAnotherRun.
+ *
+ * Tried at 300 on 15 October; Vercel refused the deployment.
  */
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /*
  * How long the run may spend sending before it stops and writes down what it
@@ -98,14 +101,16 @@ export const maxDuration = 300;
  * follow-up the moment it has recorded itself (see continueInAnotherRun), and
  * the follow-up carries on from where it stopped.
  */
-const SEND_BUDGET_MS = 270_000;
+const SEND_BUDGET_MS = 45_000;
 
 /*
- * How many runs one morning may take. Each sends roughly 115 letters at the
- * default pace, so eight is room for about 900 - several times MES's busiest
- * morning. The limit is there so a fault can never become an endless chain.
+ * How many runs one morning may take. Each part spends about ten seconds
+ * reading the report and deciding, then sends for the rest of its 45 - some
+ * fifteen to twenty letters at the default pace - so thirty parts is room for
+ * about 500, twice MES's busiest morning. The limit is there so a fault can
+ * never become an endless chain.
  */
-const MAX_PARTS = 8;
+const MAX_PARTS = 30;
 
 /**
  * Vercel sends this on every scheduled invocation.
@@ -978,9 +983,11 @@ async function persist(
           }, { tenant: row.tenant_id });
           // was_simulated false only once a letter genuinely left, so the day
           // sending was switched on stays findable in the data afterwards.
+          /* sent_at is when it really left, not when it was written down: the
+             next part of the morning reads it to keep the per-minute ceiling. */
           await db
             .from("emails_sent")
-            .update({ was_simulated: false, sent_from: outcome.from ?? null })
+            .update({ was_simulated: false, sent_from: outcome.from ?? null, sent_at: new Date().toISOString() })
             .eq("id", row.id);
         } else if (outcome.blocked) {
           lettersBlocked += 1;
@@ -1011,7 +1018,15 @@ async function persist(
       for (const row of staying) await handle(row);
 
       const pacing = pacingFromEnv();
-      const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy });
+      /* What really left in the last minute - the previous part of the
+         morning, or a "Send all" - so the ceiling holds across the hand-over. */
+      const lastMinute = await db
+        .from("emails_sent")
+        .select("sent_at")
+        .eq("was_simulated", false)
+        .gte("sent_at", new Date(Date.now() - 60_000).toISOString());
+      const sentJustBefore = (lastMinute.data ?? []).map((r) => Date.parse(r.sent_at as string));
+      const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy, sentJustBefore });
       if (paced.deferred > 0) {
         lettersDeferred = paced.deferred;
         notes.push(

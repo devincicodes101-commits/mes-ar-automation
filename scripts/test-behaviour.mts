@@ -2253,21 +2253,44 @@ const m242 = await morning(242, 270_000);
 check("a five-minute run sends over a hundred", m242.r.attempted >= 100, true);
 check("and leaves the rest for a follow-up rather than dropping them",
       m242.r.attempted + m242.r.deferred, 242);
-check("never more than 25 in any minute, under Microsoft's 30", m242.busiest <= 25, true);
+check("never more than 28 in any minute, under Microsoft's 30", m242.busiest <= 28, true);
 check("no letter is started after the run's sending deadline", Math.max(...m242.at) < 270_000, true);
 check("so the last one finishes well inside the five-minute limit", m242.end < 300_000, true);
-const m12 = await morning(12, 270_000);
-check("12 letters: three batches of 5, 5 and 2", m12.r.attempted, 12);
+const m25 = await morning(25, 270_000);
+check("25 letters: batches of 10, 10 and 5", m25.r.attempted, 25);
 check("with a 3-5 second pause between batches, not after the last",
-      m12.pauses.filter((p) => p >= 3000 && p <= 5000).length, 2);
-check("a batch of one pace per send is still five per batch",
-      (await morning(5, 270_000)).pauses.length, 0);
+      m25.pauses.filter((p) => p >= 3000 && p <= 5000).length, 2);
+check("a single batch needs no pause",
+      (await morning(10, 270_000)).pauses.length, 0);
+const part = await morning(242, 35_000);
+check("a 60-second part (35 seconds of sending) still sends a useful share", part.r.attempted >= 15, true);
+check("and hands the rest on", part.r.attempted + part.r.deferred, 242);
+/* A morning in short parts, each starting its own count: the minute that
+   spans a hand-over must still hold the ceiling. 0.3 seconds an email is the
+   worst case - without the carried count it reached 46. */
+{
+  let t = 0, left = 242, parts = 0;
+  const all: number[] = [];
+  while (left > 0 && parts < 30) {
+    parts += 1;
+    const start = t;
+    t += 10_000;
+    const r = await sendPaced(Array.from({ length: left }, (_, i) => i), async () => { all.push(t); t += 300; },
+      { deadline: start + 45_000, now: () => t, sleep: async (ms) => { t += ms; }, random: () => 0.5,
+        sentJustBefore: all.filter((x) => t - x < 60_000) });
+    left -= r.attempted;
+    t += 3_000;
+  }
+  const busiest = Math.max(...all.map((s0) => all.filter((x) => x >= s0 && x < s0 + 60_000).length));
+  check("across the hand-overs of a morning in parts, still never more than 28 a minute", busiest <= 28, true);
+  check("and every letter is sent the same morning", left, 0);
+}
 check("nothing is started after the deadline",
       (await morning(50, 10_000)).r.attempted < 10, true);
 check("the pace can be set on Vercel without a code change",
       JSON.stringify(pacingFromEnv({ MAIL_BATCH_SIZE: "10", MAIL_BATCH_DELAY_MIN_MS: "2000",
         MAIL_BATCH_DELAY_MAX_MS: "1000", MAIL_MAX_PER_MINUTE: "abc" } as never)),
-      JSON.stringify({ batchSize: 10, minDelayMs: 2000, maxDelayMs: 2000, maxPerMinute: 25 }));
+      JSON.stringify({ batchSize: 10, minDelayMs: 2000, maxDelayMs: 2000, maxPerMinute: 28 }));
 
 const twoParts = letterDelivery({ lettersWritten: 127, lettersSent: 120, lettersBlocked: 0, lettersFailed: 0,
   lettersDeferred: 7, part: 2, sentEarlier: 115 });

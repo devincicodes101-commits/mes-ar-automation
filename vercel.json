@@ -6,7 +6,7 @@
       "schedule": "0 1 * * *"
     },
     {
-      "path": "/api/cron?continue=1",
+      "path": "/api/cron/continue",
       "schedule": "0 3 * * *"
     }
   ]

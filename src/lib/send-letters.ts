@@ -95,7 +95,10 @@ export async function sendLettersPaced(
   letters: Outgoing[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<SendReport> {
-  const size = DEFAULT_PACING.batchSize;
+  /* Five per request: each request is one call to a route with sixty
+     seconds, and five letters fit easily inside it whatever the provider's
+     speed. The per-minute ceiling below still holds the overall pace. */
+  const size = Math.min(DEFAULT_PACING.batchSize, 5);
   if (letters.length <= size) return sendLetters(letters);
 
   const batches: Outgoing[][] = [];

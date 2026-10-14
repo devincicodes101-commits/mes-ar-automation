@@ -27,11 +27,22 @@ export interface Pacing {
   maxPerMinute: number;
 }
 
+/*
+ * Ten at a time, a 3-5 second pause, never more than 28 a minute.
+ *
+ * The per-minute ceiling is what decides the pace; the batch size only decides
+ * how bunched the letters are inside each minute. 28 sits just under
+ * Microsoft 365's hard limit of 30 a minute from one mailbox, where MES's
+ * sending is moving - above it Microsoft refuses the letters outright - and
+ * well inside Gmail's and Google Workspace's daily allowances (about 500 and
+ * 2,000 recipients). Raised from 5 and 25 on 15 October, when MES asked for
+ * bigger batches.
+ */
 export const DEFAULT_PACING: Pacing = {
-  batchSize: 5,
+  batchSize: 10,
   minDelayMs: 3000,
   maxDelayMs: 5000,
-  maxPerMinute: 25,
+  maxPerMinute: 28,
 };
 
 const whole = (v: string | undefined, fallback: number, min: number) => {
@@ -77,6 +88,14 @@ export async function sendPaced<T>(
     random?: () => number;
     /** Told after each batch, for a progress line. */
     onBatch?: (attempted: number, total: number) => void;
+    /**
+     * When letters were really sent just before this call (epoch ms), so the
+     * per-minute ceiling holds across a hand-over. A morning is several short
+     * runs, each starting its count from zero; without this, a minute that
+     * spans two of them could carry nearly twice the ceiling - 46 in a
+     * simulation at 0.8 seconds an email.
+     */
+    sentJustBefore?: readonly number[];
   },
 ): Promise<PacedResult> {
   const p = opts.pacing ?? DEFAULT_PACING;
@@ -85,7 +104,9 @@ export async function sendPaced<T>(
   const random = opts.random ?? Math.random;
 
   /* When each of the most recent sends began, for the per-minute ceiling. */
-  const recent: number[] = [];
+  const recent: number[] = [...(opts.sentJustBefore ?? [])]
+    .filter((t) => now() - t < 60_000)
+    .sort((a, b) => a - b);
   let i = 0;
 
   while (i < items.length) {

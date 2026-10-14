@@ -2254,8 +2254,8 @@ check("which asks the gate before touching the database or Google",
 check("and looks the mailbox up once, not once per letter",
       senderBody.includes("chosen ??= await connector(db, asUser, env);"), true);
 check("the run stops sending in time to write down what it did",
-      CRON.includes("const SEND_BUDGET_MS = 270_000;") &&
-        CRON.includes("const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy });") &&
+      CRON.includes("const SEND_BUDGET_MS = 45_000;") &&
+        CRON.includes("const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy, sentJustBefore });") &&
         CRON.includes("Date.parse(startedAt) + SEND_BUDGET_MS"), true);
 check("and says how many it never reached",
       CRON.includes("lettersDeferred = paced.deferred;") && CRON.includes("    lettersDeferred,"), true);
@@ -2323,11 +2323,14 @@ section("Letters go out in batches, paced, and a long morning carries on");
 
 const VERCEL_JSON = read("vercel.json");
 const SEND_LETTERS = read("src/lib/send-letters.ts");
-check("the run may use the free plan's full five minutes",
-      CRON.includes("export const maxDuration = 300;"), true);
+check("each part of the run stays inside the 60 seconds every plan allows",
+      CRON.includes("export const maxDuration = 60;"), true);
 check("only letters that will really leave are paced; held-back ones are recorded at once",
       CRON.includes("for (const row of staying) await handle(row);") &&
         CRON.includes("mayLeave(letterOf(row, byId.get(row.tenant_id)!.companyName), gate).ok"), true);
+check("each part counts what the last minute really sent, so the ceiling holds across hand-overs",
+      CRON.includes("const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy, sentJustBefore });") &&
+        CRON.includes("sent_at: new Date().toISOString() })"), true);
 check("with the pace read from the environment",
       CRON.includes("const pacing = pacingFromEnv();"), true);
 check("a run left with letters starts a follow-up rather than waiting for tomorrow",
@@ -2337,7 +2340,8 @@ check("which is bounded, so a fault cannot chain for ever",
 check("a follow-up records over the day and carries the earlier parts' letters",
       CRON.includes("sentEarlier: (prev.sentEarlier ?? 0) + (prev.lettersSent ?? 0),"), true);
 check("and a second daily cron is the safety net, within the free plan's once a day",
-      VERCEL_JSON.includes('"path": "/api/cron?continue=1"'), true);
+      VERCEL_JSON.includes('"path": "/api/cron/continue"') && !VERCEL_JSON.includes("?") &&
+        read("src/app/api/cron/continue/route.ts").includes('url.searchParams.set("continue", "1");'), true);
 check("Send all on Reminder Emails sends in the same paced batches",
       REMINDERS_SCREEN.includes("const report = await sendLettersPaced(") &&
         SEND_LETTERS.includes("export async function sendLettersPaced("), true);
