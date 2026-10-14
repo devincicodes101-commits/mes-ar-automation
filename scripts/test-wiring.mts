@@ -2305,4 +2305,17 @@ check("by the same permission the screens and Access Control use",
 check("and the database says the same since 0024",
       existsSync(path.join(HERE, "..", "supabase", "migrations", "0024_addresses_csd_only.sql")), true);
 
+section("Every tenant is listed, not only those who owe");
+
+check("Outstanding Balances opens on All tenants, with Everyone who owes and Overdue only",
+      DASHBOARD.includes('useState<"all" | "owing" | "overdue">("all")') &&
+        DASHBOARD.includes('["all", "All tenants", plain.length]') &&
+        DASHBOARD.includes('["overdue", "Overdue only", overdueOnly.length]'), true);
+check("and the plain list no longer drops moved-out tenants through the Live tab",
+      /const plain = useMemo\(\(\) => \{[\s\S]{0,200}scope\(ds\.accounts\)\s*\.filter\(\(a\) => \(property/.test(DASHBOARD) &&
+        !/const plain[\s\S]{0,400}a\.status === status/.test(DASHBOARD), true);
+check("the Schedule card lists every tenant, marking those not chased",
+      SCHEDULE_SCREEN.includes("a.total > 0 && billing.billedOn") &&
+        SCHEDULE_SCREEN.includes('label="in credit, not chased"') && SCHEDULE_SCREEN.includes('label="nothing owed"'), true);
+
 process.exit(failures === 0 ? 0 : 1);

@@ -474,24 +474,31 @@ function WhenEachTenantIsChased() {
 
   const rows = useMemo(() => {
     if (!asOf) return [];
+    /*
+     * Every tenant, not only those who owe. MES asked to see all of them:
+     * a tenant in credit or owing nothing is not chased, and the card says so
+     * against their name rather than leaving them off the list.
+     */
     return ds.accounts
-      .filter((a) => a.total > 0)
       .map((a) => {
         const billing = billingForTenant(invoicesForAccount(a, ds.invoices), asOf);
-        const dates = billing.billedOn ? reminderDatesFor(billing.billedOn, window) : null;
+        /* No reminder dates for a tenant who is not chased. */
+        const dates = a.total > 0 && billing.billedOn ? reminderDatesFor(billing.billedOn, window) : null;
         return {
           id: a.id,
           name: a.companyName,
           code: a.customerCode,
           owed: overdueTotal(a) || a.total,
+          total: a.total,
           billedOn: billing.billedOn,
           runs: billing.runs,
           first: dates?.first ?? null,
           final: dates?.final ?? null,
           /* Where they stand: the dates, and what has really been sent. */
-          position: billing.billedOn
-            ? letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)
-            : null,
+          position:
+            a.total > 0 && billing.billedOn
+              ? letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)
+              : null,
           promised: promisedFor.get(a.id) ?? null,
         };
       })
@@ -501,8 +508,11 @@ function WhenEachTenantIsChased() {
   if (rows.length === 0) return null;
 
   const count = (kind: LetterPosition["kind"]) =>
-    rows.filter((r) => !r.promised && r.position?.kind === kind).length;
-  const missing = rows.filter((r) => r.position === null).length;
+    rows.filter((r) => r.total > 0 && !r.promised && r.position?.kind === kind).length;
+  const missing = rows.filter((r) => r.total > 0 && r.position === null).length;
+  const owingCount = rows.filter((r) => r.total > 0).length;
+  const inCredit = rows.filter((r) => r.total < 0).length;
+  const nothingOwed = rows.filter((r) => r.total === 0).length;
   const promisedCount = rows.filter((r) => r.promised).length;
   const shown = all ? rows : rows.slice(0, 12);
 
@@ -528,15 +538,18 @@ function WhenEachTenantIsChased() {
       />
 
       <div className="border-b border-line-hair bg-surface-alt px-5 py-3 text-[11px] leading-relaxed text-ink-secondary">
-        Of {rows.length} tenants who owe: {count("first-due")} due their first
+        All {rows.length} tenants. Of the {owingCount} who owe: {count("first-due")} due their first
         reminder, {count("first-sent")} sent it and waiting for the final
         notice, {count("final-due")} due the final notice, {count("final-sent")}{" "}
         sent the final notice, {count("not-yet")} not yet due
         {promisedCount > 0 ? `, ${promisedCount} holding a promise to pay` : ""}.
+        {inCredit + nothingOwed > 0
+          ? ` The other ${inCredit + nothingOwed} are not chased: ${inCredit} in credit, ${nothingOwed} owing nothing.`
+          : ""}{" "}
         Only letters that really left count as sent.{" "}
         {missing > 0
           ? `${missing} carry no billing date in this file, so the rule cannot place them.`
-          : "Every tenant in this file carries a billing date."}{" "}
+          : "Every tenant who owes carries a billing date."}{" "}
         Change the two numbers on the Settings screen and these dates move with
         them.
       </div>
@@ -578,7 +591,7 @@ function WhenEachTenantIsChased() {
                   {formatSgd(r.owed)}
                 </td>
                 <td className="px-5 py-2.5">
-                  <Standing position={r.position} promised={r.promised} />
+                  <Standing position={r.position} promised={r.promised} total={r.total} />
                 </td>
               </tr>
             ))}
@@ -599,10 +612,15 @@ function WhenEachTenantIsChased() {
 function Standing({
   position,
   promised,
+  total,
 }: {
   position: LetterPosition | null;
   promised: string | null;
+  /** What the tenant owes. In credit or owing nothing, they are not chased. */
+  total: number;
 }) {
+  if (total < 0) return <StatusBadge kind="good" label="in credit, not chased" />;
+  if (total === 0) return <StatusBadge kind="neutral" label="nothing owed" />;
   if (promised) {
     return <StatusBadge kind="neutral" label={`promised to pay by ${formatDate(promised)}`} />;
   }

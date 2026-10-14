@@ -55,6 +55,13 @@ export default function AgingBoardPage() {
   const [desc, setDesc] = useState(true);
   /* The aging columns are an analyst's tool. Closed until asked for. */
   const [full, setFull] = useState(false);
+  /*
+   * Which tenants the plain list shows. It showed only the overdue - 160 of
+   * MES's 263 in September - and MES asked to see every tenant: the ones not
+   * late yet, the ones in credit and the ones who owe nothing are still
+   * tenants, and a list that leaves them out reads as though they are missing.
+   */
+  const [show, setShow] = useState<"all" | "owing" | "overdue">("all");
 
   // Scoped, like everything else on this screen. Passing ds.invoices straight
   // in showed a relationship manager every billing run in the file, $2.3m of
@@ -125,13 +132,35 @@ export default function AgingBoardPage() {
    * late, biggest first. Everyone who has paid, is in credit, or is not late
    * yet is left out, because none of them is a thing to do today.
    */
-  const owing = useMemo(
-    () =>
-      accounts
-        .filter((a) => !isInCredit(a) && overdueTotal(a) > 0)
-        .sort((x, y) => overdueTotal(y) - overdueTotal(x)),
-    [accounts],
-  );
+  /*
+   * The plain list's tenants: the dormitory and the search applied, and not
+   * the Live / Terminated tabs of the full breakdown below, which used to
+   * leave moved-out tenants off this list without saying so.
+   */
+  const plain = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return scope(ds.accounts)
+      .filter((a) => (property === "ALL" ? true : a.property === property))
+      .filter((a) =>
+        q === ""
+          ? true
+          : a.companyName.toLowerCase().includes(q) ||
+            a.customerCode.toLowerCase().includes(q),
+      );
+  }, [ds, property, query, scope]);
+  const overdueOnly = plain.filter((a) => !isInCredit(a) && overdueTotal(a) > 0);
+  const whoOwe = plain.filter((a) => a.total > 0);
+
+  /* Late money first, then what is owed but not late, then nothing owed,
+     then credit - so the list still opens on who to chase. */
+  const owing = useMemo(() => {
+    const list = show === "overdue" ? overdueOnly : show === "owing" ? whoOwe : plain;
+    return [...list].sort(
+      (x, y) =>
+        Math.max(overdueTotal(y), 0) - Math.max(overdueTotal(x), 0) || y.total - x.total,
+    );
+    // overdueOnly and whoOwe are derived from plain on every render.
+  }, [plain, show]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
@@ -151,9 +180,10 @@ export default function AgingBoardPage() {
        */}
       <Card>
         <div className="border-b border-line-hair px-5 py-4">
-          <h1 className="text-base font-medium text-ink">Tenants who owe money</h1>
+          <h1 className="text-base font-medium text-ink">Tenants</h1>
           <p className="mt-1 text-xs text-ink-secondary">
-            From the report for {ds.asOf}. Largest overdue amount first.
+            From the report for {ds.asOf}. Largest overdue amount first, then
+            what is owed but not late yet, then nothing owed, then credit.
           </p>
         </div>
 
@@ -192,15 +222,35 @@ export default function AgingBoardPage() {
               </option>
             ))}
           </select>
-          {query ? (
-            <span className="text-[11px] text-ink-muted">{owing.length} found</span>
-          ) : null}
+          <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Which tenants">
+            {(
+              [
+                ["all", "All tenants", plain.length],
+                ["owing", "Everyone who owes", whoOwe.length],
+                ["overdue", "Overdue only", overdueOnly.length],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setShow(key)}
+                aria-pressed={show === key}
+                className={`rounded px-2.5 py-1 text-xs ${
+                  show === key
+                    ? "bg-accent-wash font-medium text-ink"
+                    : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                }`}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
         </div>
 
         {owing.length === 0 ? (
           <EmptyState
-            title="Nobody here is overdue"
-            body="Either everyone has paid, or the search and dormitory above are hiding them."
+            title={show === "overdue" ? "Nobody here is overdue" : "No tenants match"}
+            body="Try another search or dormitory, or choose All tenants."
           />
         ) : (
           <ScrollPanel max={520}>
@@ -209,6 +259,7 @@ export default function AgingBoardPage() {
                 <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
                   <th className="px-5 py-2.5">Tenant</th>
                   <th className="px-5 py-2.5">Dormitory</th>
+                  <th className="px-5 py-2.5 text-right">Owed</th>
                   <th className="px-5 py-2.5 text-right">Overdue</th>
                   <th className="px-5 py-2.5">How late</th>
                 </tr>
@@ -220,16 +271,20 @@ export default function AgingBoardPage() {
                       <div className="text-ink">{a.companyName}</div>
                       <div className="mt-0.5 text-[11px] text-ink-muted">
                         {a.customerCode}
+                        {a.status === "Terminated" ? " · moved out" : ""}
                       </div>
                     </td>
                     <td className="px-5 py-3 text-xs text-ink-secondary">
                       {a.propertyName}
                     </td>
+                    <td className="tabular px-5 py-3 text-right text-ink-secondary">
+                      {formatSgd(a.total)}
+                    </td>
                     <td className="tabular px-5 py-3 text-right text-ink">
-                      {formatSgd(overdueTotal(a))}
+                      {overdueTotal(a) > 0 ? formatSgd(overdueTotal(a)) : "—"}
                     </td>
                     <td className="px-5 py-3 text-xs text-ink-secondary">
-                      {lateness(a)}
+                      {isInCredit(a) ? "In credit" : a.total === 0 ? "Nothing owed" : lateness(a)}
                     </td>
                   </tr>
                 ))}
