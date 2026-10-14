@@ -222,7 +222,14 @@ export default function AgingBoardPage() {
               </option>
             ))}
           </select>
-          <div className="ml-auto flex flex-wrap gap-1" role="group" aria-label="Which tenants">
+          {/* Said out loud, because all three views open on the same overdue
+              tenants at the top - the difference is at the bottom - and a
+              filter whose effect is out of sight reads as broken. */}
+          <span className="ml-auto text-[11px] text-ink-muted" aria-live="polite">
+            Showing {owing.length} {owing.length === 1 ? "tenant" : "tenants"}
+            {show !== "overdue" ? " · overdue first, the rest further down" : ""}
+          </span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Which tenants">
             {(
               [
                 ["all", "All tenants", plain.length],
