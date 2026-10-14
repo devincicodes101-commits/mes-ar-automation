@@ -16,7 +16,8 @@ import {
 } from "@/lib/reminder-timing";
 import { runLog, type RunLog } from "@/lib/run-log";
 import type { Pipeline } from "@/lib/pipeline";
-import { senderFor } from "@/lib/mail";
+import { allowlistFromEnv, mayLeave, modeFromEnv, senderFor } from "@/lib/mail";
+import { pacingFromEnv, sendPaced } from "@/lib/mail/pacing";
 import { renderLetter } from "@/lib/letters";
 import {
   askedFor,
@@ -77,17 +78,34 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The 21st touches every overdue tenant and writes a letter for each.
-export const maxDuration = 60;
+/*
+ * The most the free plan allows. It was 60, which is a fifth of it: with
+ * letters now sent a few at a time and a pause between batches, the extra four
+ * minutes are the difference between one run sending about twenty letters and
+ * one run sending over a hundred. See SEND_BUDGET_MS.
+ */
+export const maxDuration = 300;
 
 /*
  * How long the run may spend sending before it stops and writes down what it
  * did. Vercel ends the function at maxDuration without warning, and a run
  * ended there leaves no record at all - on 13 October that is exactly what
  * happened, and the schedule screen showed nothing for the day. The rest of
- * the minute is for recording. Letters not reached are not lost: they were
- * not really sent, so the next run writes them again.
+ * the five minutes is for recording.
+ *
+ * Letters not reached are not lost. They were not really sent, so the next run
+ * writes them again - and the next run is not tomorrow's: this one starts a
+ * follow-up the moment it has recorded itself (see continueInAnotherRun), and
+ * the follow-up carries on from where it stopped.
  */
-const SEND_BUDGET_MS = 40_000;
+const SEND_BUDGET_MS = 270_000;
+
+/*
+ * How many runs one morning may take. Each sends roughly 115 letters at the
+ * default pace, so eight is room for about 900 - several times MES's busiest
+ * morning. The limit is there so a fault can never become an endless chain.
+ */
+const MAX_PARTS = 8;
 
 /**
  * Vercel sends this on every scheduled invocation.
@@ -159,6 +177,14 @@ export async function GET(request: Request) {
    * run, not who may run one.
    */
   const requested = new URL(request.url).searchParams.get("for");
+  /*
+   * A follow-up to a run that ran out of time before every letter was sent.
+   * Started by that run itself, or by the second daily cron as a safety net
+   * (vercel.json). It does the day again - every step of which is safe to
+   * repeat - and the letters already really sent are skipped by the same
+   * memory that stops a letter going twice on any day.
+   */
+  const resuming = new URL(request.url).searchParams.get("continue") === "1";
   const chosen = requested ? askedFor(requested, now) : { date: now };
 
   if ("error" in chosen) {
@@ -205,6 +231,7 @@ export async function GET(request: Request) {
     missedDays: missed,
   });
 
+  let partOfMorning = 1;
   const finish = async (
     row: Omit<RunRow, "ran_for" | "missed" | "started_at" | "finished_at">,
   ) => {
@@ -214,8 +241,27 @@ export async function GET(request: Request) {
       summary: row.summary,
     }, { level: row.status === "failed" ? "error" : "info" });
 
+    /*
+     * A follow-up records over the same day's line, so it carries forward
+     * what the earlier parts of the morning sent - otherwise the screen would
+     * show only the last part's letters, and the tile above it would lose the
+     * rest of the morning.
+     */
+    let summary = row.summary;
+    if (resuming && summary && typeof summary === "object") {
+      const before = await db.from("cron_runs").select("summary").eq("ran_for", today.iso).maybeSingle();
+      const prev = (before.data?.summary ?? {}) as { part?: number; lettersSent?: number; sentEarlier?: number };
+      summary = {
+        ...summary,
+        part: (prev.part ?? 1) + 1,
+        sentEarlier: (prev.sentEarlier ?? 0) + (prev.lettersSent ?? 0),
+      };
+    }
+    partOfMorning = (summary as { part?: number } | null)?.part ?? 1;
+
     const full: RunRow = {
       ...row,
+      summary,
       ran_for: today.iso,
       missed,
       started_at: startedAt,
@@ -603,7 +649,7 @@ export async function GET(request: Request) {
       );
     }
 
-    return finish({
+    const done = await finish({
       cycle_day: day,
       status: "ok",
       summary: {
@@ -630,6 +676,12 @@ export async function GET(request: Request) {
       report_date: report.asOf,
       error: null,
     });
+
+    /* Letters left over: carry on in a fresh run, rather than tomorrow. */
+    if ((wrote.lettersDeferred ?? 0) > 0) {
+      await continueInAnotherRun(request, requested, partOfMorning, log);
+    }
+    return done;
   } catch (e) {
     return finish({
       cycle_day: day,
@@ -876,22 +928,28 @@ async function persist(
        * answer is taken away.
        */
       const sendOne = await senderFor(db, null);
-      for (let at = 0; at < rows.length; at += 1) {
-        if (Date.now() > sendBy) {
-          lettersDeferred = rows.length - at;
-          notes.push(
-            `Time ran out after ${at} of ${rows.length} letters. The other ` +
-              `${lettersDeferred} were written down and are tried again at the next run.`,
-          );
-          log.say("letter", `Stopped sending: ${lettersDeferred} letters left for the next run`, {
-            tried: at,
-            left: lettersDeferred,
-          }, { level: "warn" });
-          break;
-        }
-        const row = rows[at]!;
-        const account = byId.get(row.tenant_id);
-        if (!account) continue;
+
+      /*
+       * Paced: a few letters, a short random pause, a few more - and never
+       * more in a minute than the provider allows. See pacing.ts. Only the
+       * letters that will really reach the provider are paced; a letter the
+       * gate holds back (test mode, sending off) never leaves this server, so
+       * there is nothing to space out and it is recorded straight away.
+       */
+      const gate = { mode: modeFromEnv(), allowlist: allowlistFromEnv() };
+      const letterOf = (row: (typeof rows)[number], companyName: string) => ({
+        to: row.recipients,
+        subject: row.subject,
+        body: row.body,
+        tenantId: row.tenant_id,
+        companyName,
+      });
+      const known = rows.filter((row) => byId.has(row.tenant_id));
+      const leaving = known.filter((row) => mayLeave(letterOf(row, byId.get(row.tenant_id)!.companyName), gate).ok);
+      const staying = known.filter((row) => !leaving.includes(row));
+
+      const handle = async (row: (typeof rows)[number]) => {
+        const account = byId.get(row.tenant_id)!;
 
         /*
          * Null for the user, because the schedule is nobody. That is what the
@@ -948,6 +1006,23 @@ async function persist(
             reason: outcome.reason,
           }, { level: "error", tenant: row.tenant_id });
         }
+      };
+
+      for (const row of staying) await handle(row);
+
+      const pacing = pacingFromEnv();
+      const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy });
+      if (paced.deferred > 0) {
+        lettersDeferred = paced.deferred;
+        notes.push(
+          `Time ran out after ${paced.attempted} of ${leaving.length} letters. The other ` +
+            `${lettersDeferred} are carried on by a follow-up run straight away.`,
+        );
+        log.say("letter", `Stopped sending: ${lettersDeferred} letters left for a follow-up run`, {
+          sent: paced.attempted,
+          left: lettersDeferred,
+          pacing,
+        }, { level: "warn" });
       }
 
       /*
@@ -1035,4 +1110,42 @@ function letterId(seed: string): string {
   const d = hex(Math.imul(h1 + h2, 0x27d4eb2f) >>> 0);
   // Version 8, the one reserved for ids built to order rather than generated.
   return `${a}-${b.slice(0, 4)}-8${b.slice(5, 8)}-a${c.slice(1, 4)}-${c.slice(4)}${d}`;
+}
+
+/**
+ * Starts the next part of the morning, when this one ran out of time.
+ *
+ * The free plan runs a cron once a day and a function for five minutes, and a
+ * busy morning needs longer than that at a pace providers will accept. So a
+ * run that is left with letters calls the same address again, with the same
+ * secret, and the new run carries on. It waits only long enough for the new
+ * run to have started - that run does not belong to this one and is not
+ * cancelled when this one stops waiting.
+ *
+ * If it fails to start, nothing is lost: the second daily cron (vercel.json)
+ * comes round as a safety net, and failing that tomorrow's run sends whatever
+ * is still due. Each of those skips the letters already really sent.
+ */
+async function continueInAnotherRun(
+  request: Request,
+  requested: string | null,
+  part: number,
+  log: RunLog,
+): Promise<void> {
+  if (part >= MAX_PARTS) {
+    log.say("letter", `Not continuing: this was part ${part} of at most ${MAX_PARTS}`, {}, { level: "warn" });
+    return;
+  }
+  const url = new URL(request.url);
+  url.search = "";
+  url.searchParams.set("continue", "1");
+  if (requested) url.searchParams.set("for", requested);
+  try {
+    await fetch(url, {
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    /* Timing out here is expected: the follow-up is still running. */
+  }
 }

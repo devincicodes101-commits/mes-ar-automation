@@ -14,7 +14,7 @@ import {
   hydrateActivity,
   useStore,
 } from "@/lib/store";
-import { sendLetters, describe, type Outgoing } from "@/lib/send-letters";
+import { sendLetters, sendLettersPaced, describe, type Outgoing } from "@/lib/send-letters";
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { currentPeriod, inSingapore } from "@/lib/schedule";
@@ -225,6 +225,8 @@ export default function RemindersPage() {
   /* Sending now goes over the network, so the button has to be able to say so
      and to refuse a second press while the first batch is still going. */
   const [sending, setSending] = useState(false);
+  /* How far a paced "Send all" has got, for the button. */
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const cannotEmail = plan.noEmail.filter((q) =>
     matches([q.account.companyName, q.account.customerCode]),
   );
@@ -545,10 +547,16 @@ export default function RemindersPage() {
               disabled={sending}
               onClick={async () => {
                 setSending(true);
-                const report = await sendLetters(
+                setProgress(null);
+                /* In batches with a pause between, the same pace as the 9am
+                   run, so a long list cannot outrun the route or the inbox
+                   providers. See sendLettersPaced. */
+                const report = await sendLettersPaced(
                   pending.map((q) => letterFor(q.account, template, ds.asOf)),
+                  (done, total) => setProgress({ done, total }),
                 );
                 setSending(false);
+                setProgress(null);
                 const said = describe(report, template.name);
                 notify(said.title, said.detail);
                 await hydrateActivity(true);
@@ -558,7 +566,11 @@ export default function RemindersPage() {
               }}
               className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
             >
-              {sending ? "Sending..." : `Send all ${pending.length}`}
+              {sending
+                ? progress
+                  ? `Sending... ${progress.done} of ${progress.total}`
+                  : "Sending..."
+                : `Send all ${pending.length}`}
             </button>
             <button
               type="button"

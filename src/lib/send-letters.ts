@@ -28,6 +28,7 @@
  * browser wrote would be the optimistic one.
  */
 import type { SentEmail } from "./store.ts";
+import { DEFAULT_PACING, sendPaced } from "./mail/pacing.ts";
 
 export interface Outgoing {
   tenantId: string;
@@ -77,6 +78,65 @@ async function authHeader(): Promise<Record<string, string>> {
  * that nothing went out, and an exception thrown into a click handler is how
  * that message gets lost.
  */
+/**
+ * Sends many, a few at a time, with a pause between.
+ *
+ * "Send all" posted every letter in one request, and the route has sixty
+ * seconds: with 242 real letters at a second or two each it would have
+ * stopped partway with nothing on screen to say how far it got. So the
+ * letters go in batches - the same size and pace the 9am run uses, see
+ * pacing.ts - each its own request, and the screen is told after each batch.
+ *
+ * A request that fails outright stops the rest: whatever made the server
+ * refuse one batch would refuse the next, and every unsent letter is counted
+ * as failed so the total still adds up.
+ */
+export async function sendLettersPaced(
+  letters: Outgoing[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<SendReport> {
+  const size = DEFAULT_PACING.batchSize;
+  if (letters.length <= size) return sendLetters(letters);
+
+  const batches: Outgoing[][] = [];
+  for (let i = 0; i < letters.length; i += size) batches.push(letters.slice(i, i + size));
+
+  const total: SendReport = { ok: true, sent: 0, blocked: 0, failed: 0, error: null, results: [] };
+  let stopped = false;
+  let done = 0;
+  await sendPaced(
+    batches,
+    async (batch) => {
+      if (stopped) {
+        total.failed += batch.length;
+        return;
+      }
+      const r = await sendLetters(batch);
+      total.sent += r.sent;
+      total.blocked += r.blocked;
+      total.failed += r.failed;
+      total.results.push(...r.results);
+      if (!r.ok) {
+        total.ok = false;
+        total.error = r.error;
+        stopped = true;
+      }
+      done += batch.length;
+      onProgress?.(done, letters.length);
+    },
+    {
+      /* One request is one batch, so the per-minute ceiling is in batches. */
+      pacing: {
+        ...DEFAULT_PACING,
+        batchSize: 1,
+        maxPerMinute: Math.max(1, Math.floor(DEFAULT_PACING.maxPerMinute / size)),
+      },
+      deadline: Number.POSITIVE_INFINITY,
+    },
+  );
+  return total;
+}
+
 export async function sendLetters(letters: Outgoing[]): Promise<SendReport> {
   const none: SendReport = { ok: false, sent: 0, blocked: 0, failed: 0, error: null, results: [] };
   if (letters.length === 0) return { ...none, ok: true };

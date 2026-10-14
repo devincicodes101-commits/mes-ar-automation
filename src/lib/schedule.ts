@@ -306,6 +306,10 @@ export interface RunLetterSummary {
   lettersBlocked?: number;
   lettersFailed?: number;
   lettersDeferred?: number;
+  /** A morning in several parts: which part recorded this, and what the
+      earlier parts sent. See continueInAnotherRun in the cron route. */
+  part?: number;
+  sentEarlier?: number;
   blockedBecause?: string | null;
   failedBecause?: string | null;
   notes?: string[];
@@ -321,6 +325,9 @@ export interface LetterDelivery {
   failed: number;
   /** Not tried: the run's time ran out first. Tried again at the next run. */
   deferred: number;
+  /** Sent by earlier parts of the same morning, and how many parts so far. */
+  sentEarlier: number;
+  parts: number;
   blockedBecause: string | null;
   failedBecause: string | null;
 }
@@ -344,7 +351,7 @@ export interface LetterDelivery {
 export function letterDelivery(s: RunLetterSummary | null | undefined): LetterDelivery | null {
   if (!s) return null;
   const written = s.lettersWritten ?? s.wrote?.length ?? 0;
-  if (written === 0) return null;
+  if (written === 0 && !(s.sentEarlier ?? 0)) return null;
 
   const sent = s.lettersSent ?? 0;
   const blocked = s.lettersBlocked ?? 0;
@@ -381,6 +388,8 @@ export function letterDelivery(s: RunLetterSummary | null | undefined): LetterDe
     blocked,
     failed,
     deferred,
+    sentEarlier: s.sentEarlier ?? 0,
+    parts: s.part ?? 1,
     blockedBecause: blockedBecause === null ? null : plainBlockedReason(blockedBecause),
     failedBecause,
   };

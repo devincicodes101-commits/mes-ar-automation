@@ -136,7 +136,12 @@ export default function SchedulePage() {
   const lastFeeDay = runs.find((r) => r.cycle_day === 16)?.ran_for ?? null;
   const { window: reminderWindow } = useReminderWindow();
   const totalFees = runs.reduce((n, r) => n + (r.summary?.feesRaised ?? 0), 0);
-  const totalLetters = runs.reduce((n, r) => n + (r.summary?.lettersSent ?? 0), 0);
+  /* A morning in several parts records once, carrying the earlier parts'
+     letters in sentEarlier - so both are counted. */
+  const totalLetters = runs.reduce(
+    (n, r) => n + (r.summary?.lettersSent ?? 0) + (r.summary?.sentEarlier ?? 0),
+    0,
+  );
   // A quiet day is not a failure, and neither is a letter test mode held
   // back. A letter that failed to send is. See runNeedsAttention.
   const failures = runs.filter(runNeedsAttention).length;
@@ -366,10 +371,16 @@ export default function SchedulePage() {
  */
 function Delivery({ summary }: { summary: Run["summary"] }) {
   const d = letterDelivery(summary);
-  if (!d || d.sent === d.written) return null;
+  if (!d || (d.sent === d.written && d.parts === 1)) return null;
   return (
     <div className="mt-1.5 space-y-0.5 text-[11px] leading-relaxed">
       <div className="text-ink-secondary">
+        {d.parts > 1 ? (
+          <span className="font-medium text-ink-secondary">
+            In {d.parts} parts: <span className="tabular">{d.sentEarlier}</span> sent
+            by the earlier parts, then{" "}
+          </span>
+        ) : null}
         <span className="tabular">{d.written}</span> written ·{" "}
         <span className="tabular">{d.sent}</span> sent
         {d.blocked > 0 ? (
@@ -391,7 +402,8 @@ function Delivery({ summary }: { summary: Run["summary"] }) {
       {d.deferred > 0 ? (
         <div className="text-status-critical">
           <span className="font-medium">Not tried: </span>
-          the run&rsquo;s time ran out. They are tried again at the next run.
+          the run&rsquo;s time ran out. A follow-up run carries on with them
+          straight away.
         </div>
       ) : null}
       {d.blocked > 0 && d.blockedBecause ? (
