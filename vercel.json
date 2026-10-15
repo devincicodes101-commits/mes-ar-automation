@@ -7,7 +7,15 @@
     },
     {
       "path": "/api/cron/continue",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/continue",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/continue",
+      "schedule": "0 4 * * *"
     }
   ]
 }

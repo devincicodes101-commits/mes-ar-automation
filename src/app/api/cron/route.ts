@@ -79,15 +79,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // The 21st touches every overdue tenant and writes a letter for each.
 /*
- * Sixty seconds, the most any Vercel plan allows without Fluid compute. A
- * longer run would not send faster anyway: letters are capped per minute (see
- * pacing.ts), so the morning's pace is the same whether it is one long run or
- * several short ones, and short ones work on every plan. A run left with
- * letters hands over to the next part. See continueInAnotherRun.
+ * Five minutes, the most the free plan allows (with Fluid compute, on by
+ * default). At the per-minute cap this sends about 130 letters a run, so the
+ * few scheduled runs a morning (see vercel.json) cover several hundred
+ * tenants between them.
  *
- * Tried at 300 on 15 October; Vercel refused the deployment.
+ * A run does not call itself to continue any more. Vercel blocks a function
+ * that invokes itself about five times in a row with HTTP 508 "Loop
+ * Detected", and on 15 October that stalled a 208-letter morning at 81. The
+ * morning is carried instead by separate scheduled crons at 9, 10, 11 and 12,
+ * each its own daily job that reads what is still due and sends the next
+ * batch. None of them calls itself, so the 508 cannot happen.
  */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /*
  * How long the run may spend sending before it stops and writes down what it
@@ -96,21 +100,11 @@ export const maxDuration = 60;
  * happened, and the schedule screen showed nothing for the day. The rest of
  * the five minutes is for recording.
  *
- * Letters not reached are not lost. They were not really sent, so the next run
- * writes them again - and the next run is not tomorrow's: this one starts a
- * follow-up the moment it has recorded itself (see continueInAnotherRun), and
- * the follow-up carries on from where it stopped.
+ * Letters not reached are not lost. They were not really sent, so the next
+ * scheduled run - the 10, 11 or 12 o'clock cron, or tomorrow's 9 - reads them
+ * as still due and sends them. Each skips the letters already really sent.
  */
-const SEND_BUDGET_MS = 45_000;
-
-/*
- * How many runs one morning may take. Each part spends about ten seconds
- * reading the report and deciding, then sends for the rest of its 45 - some
- * fifteen to twenty letters at the default pace - so thirty parts is room for
- * about 500, twice MES's busiest morning. The limit is there so a fault can
- * never become an endless chain.
- */
-const MAX_PARTS = 30;
+const SEND_BUDGET_MS = 285_000;
 
 /**
  * Vercel sends this on every scheduled invocation.
@@ -236,7 +230,6 @@ export async function GET(request: Request) {
     missedDays: missed,
   });
 
-  let partOfMorning = 1;
   const finish = async (
     row: Omit<RunRow, "ran_for" | "missed" | "started_at" | "finished_at">,
   ) => {
@@ -266,8 +259,6 @@ export async function GET(request: Request) {
         ...(prev.handOvers ? { handOvers: prev.handOvers } : {}),
       };
     }
-    partOfMorning = (summary as { part?: number } | null)?.part ?? 1;
-
     const full: RunRow = {
       ...row,
       summary,
@@ -686,10 +677,10 @@ export async function GET(request: Request) {
       error: null,
     });
 
-    /* Letters left over: carry on in a fresh run, rather than tomorrow. */
-    if ((wrote.lettersDeferred ?? 0) > 0) {
-      await continueInAnotherRun(request, requested, partOfMorning, log, db, today.iso);
-    }
+    /* Letters left over - the run reached its time budget - wait for the next
+       scheduled cron (10, 11 or 12 o'clock), which reads them as still due and
+       sends the next batch. No run calls itself: that is what tripped Vercel's
+       508 on 15 October. */
     return done;
   } catch (e) {
     return finish({
@@ -1131,80 +1122,3 @@ function letterId(seed: string): string {
   return `${a}-${b.slice(0, 4)}-8${b.slice(5, 8)}-a${c.slice(1, 4)}-${c.slice(4)}${d}`;
 }
 
-/**
- * Starts the next part of the morning, when this one ran out of time.
- *
- * The free plan runs a cron once a day and a function for a short time, and a
- * busy morning needs longer than that at a pace providers will accept. So a
- * run that is left with letters calls the run again, with the same secret,
- * and the new run carries on. It waits only long enough for the new run to
- * have started - that run does not belong to this one and is not cancelled
- * when this one stops waiting.
- *
- * Called at the project's production address, not at the address this run
- * was reached on. On 15 October both runs handed over and neither follow-up
- * ever started: a run is reached on its deployment's own address, which
- * Vercel puts behind a login by default (Deployment Protection), so the call
- * met Vercel's sign-in page and never reached this code.
- * VERCEL_PROJECT_PRODUCTION_URL is the public production domain, which that
- * protection does not cover. If protection is ever extended to production,
- * VERCEL_AUTOMATION_BYPASS_SECRET (Vercel's "Protection Bypass for
- * Automation") is sent as well.
- *
- * What came back is written onto the day's line, so a hand-over that fails
- * again says why instead of leaving it to be guessed.
- *
- * If it fails to start, nothing is lost: the second daily cron (vercel.json)
- * comes round as a safety net, and failing that tomorrow's run sends whatever
- * is still due. Each of those skips the letters already really sent.
- */
-async function continueInAnotherRun(
-  request: Request,
-  requested: string | null,
-  part: number,
-  log: RunLog,
-  db: ReturnType<typeof serverSupabase>,
-  ranFor: string,
-): Promise<void> {
-  if (part >= MAX_PARTS) {
-    log.say("letter", `Not continuing: this was part ${part} of at most ${MAX_PARTS}`, {}, { level: "warn" });
-    return;
-  }
-
-  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
-  const url = production ? new URL(`https://${production.replace(/^https?:\/\//, "")}/api/cron`) : new URL(request.url);
-  url.search = "";
-  url.searchParams.set("continue", "1");
-  if (requested) url.searchParams.set("for", requested);
-
-  const headers: Record<string, string> = { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` };
-  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
-  if (bypass) headers["x-vercel-protection-bypass"] = bypass;
-
-  let outcome: string;
-  try {
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
-    /* An answer inside five seconds means the follow-up did not run a part:
-       a part takes longer than that. 401 here is the protection page. */
-    outcome = `answered ${res.status} straight away, so the follow-up did not start`;
-  } catch (e) {
-    outcome =
-      (e as Error).name === "TimeoutError"
-        ? "started (still working after 5 seconds, as a part should be)"
-        : `could not be called: ${(e as Error).message}`;
-  }
-
-  /* Onto the day's line, beside this part's own summary. The follow-up
-     records over the line about a minute later and keeps it. */
-  const row = await db.from("cron_runs").select("summary").eq("ran_for", ranFor).maybeSingle();
-  if (row.data?.summary && typeof row.data.summary === "object") {
-    const handOvers = [
-      ...(((row.data.summary as { handOvers?: unknown[] }).handOvers ?? []) as unknown[]),
-      { fromPart: part, to: url.host, outcome, at: new Date().toISOString() },
-    ];
-    await db
-      .from("cron_runs")
-      .update({ summary: { ...(row.data.summary as object), handOvers } })
-      .eq("ran_for", ranFor);
-  }
-}

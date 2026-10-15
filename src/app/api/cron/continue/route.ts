@@ -2,10 +2,11 @@ import { GET as run } from "../route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
- * The second daily cron: carry on with whatever the morning's run left.
+ * The later daily crons (10, 11, 12 o'clock) : carry on with whatever the
+ * 9 o'clock run, and the hours since, have not yet sent.
  *
  * Its own address rather than /api/cron?continue=1, because a cron path in
  * vercel.json is safest without a query string. It is the same run in every

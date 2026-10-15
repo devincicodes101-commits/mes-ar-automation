@@ -2254,7 +2254,7 @@ check("which asks the gate before touching the database or Google",
 check("and looks the mailbox up once, not once per letter",
       senderBody.includes("chosen ??= await connector(db, asUser, env);"), true);
 check("the run stops sending in time to write down what it did",
-      CRON.includes("const SEND_BUDGET_MS = 45_000;") &&
+      CRON.includes("const SEND_BUDGET_MS = 285_000;") &&
         CRON.includes("const paced = await sendPaced(leaving, handle, { pacing, deadline: sendBy, sentJustBefore });") &&
         CRON.includes("Date.parse(startedAt) + SEND_BUDGET_MS"), true);
 check("and says how many it never reached",
@@ -2323,8 +2323,9 @@ section("Letters go out in batches, paced, and a long morning carries on");
 
 const VERCEL_JSON = read("vercel.json");
 const SEND_LETTERS = read("src/lib/send-letters.ts");
-check("each part of the run stays inside the 60 seconds every plan allows",
-      CRON.includes("export const maxDuration = 60;"), true);
+check("each run uses the free plan's five-minute maximum",
+      CRON.includes("export const maxDuration = 300;") &&
+        read("src/app/api/cron/continue/route.ts").includes("export const maxDuration = 300;"), true);
 check("only letters that will really leave are paced; held-back ones are recorded at once",
       CRON.includes("for (const row of staying) await handle(row);") &&
         CRON.includes("mayLeave(letterOf(row, byId.get(row.tenant_id)!.companyName), gate).ok"), true);
@@ -2333,15 +2334,10 @@ check("each part counts what the last minute really sent, so the ceiling holds a
         CRON.includes("sent_at: new Date().toISOString() })"), true);
 check("with the pace read from the environment",
       CRON.includes("const pacing = pacingFromEnv();"), true);
-check("a run left with letters starts a follow-up rather than waiting for tomorrow",
-      /if \(\(wrote\.lettersDeferred \?\? 0\) > 0\) \{\s*await continueInAnotherRun\(/.test(CRON), true);
-check("the hand-over calls the public production address, not the protected deployment one",
-      CRON.includes("process.env.VERCEL_PROJECT_PRODUCTION_URL") &&
-        CRON.includes('headers["x-vercel-protection-bypass"] = bypass;'), true);
-check("and writes down what came back, so a failed hand-over says why",
-      CRON.includes("{ fromPart: part, to: url.host, outcome, at: new Date().toISOString() }"), true);
-check("which is bounded, so a fault cannot chain for ever",
-      CRON.includes("if (part >= MAX_PARTS) {"), true);
+check("no run calls itself: that is what tripped Vercel's 508 loop detection",
+      !CRON.includes("continueInAnotherRun") && !CRON.includes("VERCEL_PROJECT_PRODUCTION_URL"), true);
+check("a run left with letters just records them; a later scheduled cron sends the rest",
+      CRON.includes("lettersDeferred = paced.deferred;") && !CRON.includes("await continueInAnotherRun("), true);
 check("a follow-up records over the day and carries the earlier parts' letters",
       CRON.includes("sentEarlier: (prev.sentEarlier ?? 0) + (prev.lettersSent ?? 0),"), true);
 /*
@@ -2356,8 +2352,15 @@ try {
 } catch {
   crons = [];
 }
-check("and a second daily cron is the safety net, within the free plan's once a day",
-      crons.some((c) => c.path === "/api/cron/continue") && crons.every((c) => !(c.path ?? "").includes("?")) &&
+/* The morning is several separate daily crons, not one run calling itself.
+   Each is once a day (free-plan rule) and none calls itself, so the 508
+   cannot happen. UTC 1,2,3,4 is 9,10,11,12 Singapore. */
+check("the morning is carried by four daily crons, each once a day, none calling itself",
+      crons.filter((c) => c.path === "/api/cron").length === 1 &&
+        crons.filter((c) => c.path === "/api/cron/continue").length === 3 &&
+        crons.every((c) => !(c.path ?? "").includes("?")) &&
+        crons.every((c) => /^0 \d+ \* \* \*$/.test(c.schedule ?? "")) &&
+        new Set(crons.map((c) => c.schedule)).size === crons.length &&
         read("src/app/api/cron/continue/route.ts").includes('url.searchParams.set("continue", "1");'), true);
 check("Send all on Reminder Emails sends in the same paced batches",
       REMINDERS_SCREEN.includes("const report = await sendLettersPaced(") &&
