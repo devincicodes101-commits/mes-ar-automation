@@ -2335,6 +2335,11 @@ check("with the pace read from the environment",
       CRON.includes("const pacing = pacingFromEnv();"), true);
 check("a run left with letters starts a follow-up rather than waiting for tomorrow",
       /if \(\(wrote\.lettersDeferred \?\? 0\) > 0\) \{\s*await continueInAnotherRun\(/.test(CRON), true);
+check("the hand-over calls the public production address, not the protected deployment one",
+      CRON.includes("process.env.VERCEL_PROJECT_PRODUCTION_URL") &&
+        CRON.includes('headers["x-vercel-protection-bypass"] = bypass;'), true);
+check("and writes down what came back, so a failed hand-over says why",
+      CRON.includes("{ fromPart: part, to: url.host, outcome, at: new Date().toISOString() }"), true);
 check("which is bounded, so a fault cannot chain for ever",
       CRON.includes("if (part >= MAX_PARTS) {"), true);
 check("a follow-up records over the day and carries the earlier parts' letters",

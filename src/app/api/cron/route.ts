@@ -255,11 +255,15 @@ export async function GET(request: Request) {
     let summary = row.summary;
     if (resuming && summary && typeof summary === "object") {
       const before = await db.from("cron_runs").select("summary").eq("ran_for", today.iso).maybeSingle();
-      const prev = (before.data?.summary ?? {}) as { part?: number; lettersSent?: number; sentEarlier?: number };
+      const prev = (before.data?.summary ?? {}) as {
+        part?: number; lettersSent?: number; sentEarlier?: number; handOvers?: unknown[];
+      };
       summary = {
         ...summary,
         part: (prev.part ?? 1) + 1,
         sentEarlier: (prev.sentEarlier ?? 0) + (prev.lettersSent ?? 0),
+        /* Kept, so the morning's hand-overs can all be read off the line. */
+        ...(prev.handOvers ? { handOvers: prev.handOvers } : {}),
       };
     }
     partOfMorning = (summary as { part?: number } | null)?.part ?? 1;
@@ -684,7 +688,7 @@ export async function GET(request: Request) {
 
     /* Letters left over: carry on in a fresh run, rather than tomorrow. */
     if ((wrote.lettersDeferred ?? 0) > 0) {
-      await continueInAnotherRun(request, requested, partOfMorning, log);
+      await continueInAnotherRun(request, requested, partOfMorning, log, db, today.iso);
     }
     return done;
   } catch (e) {
@@ -1130,12 +1134,25 @@ function letterId(seed: string): string {
 /**
  * Starts the next part of the morning, when this one ran out of time.
  *
- * The free plan runs a cron once a day and a function for five minutes, and a
+ * The free plan runs a cron once a day and a function for a short time, and a
  * busy morning needs longer than that at a pace providers will accept. So a
- * run that is left with letters calls the same address again, with the same
- * secret, and the new run carries on. It waits only long enough for the new
- * run to have started - that run does not belong to this one and is not
- * cancelled when this one stops waiting.
+ * run that is left with letters calls the run again, with the same secret,
+ * and the new run carries on. It waits only long enough for the new run to
+ * have started - that run does not belong to this one and is not cancelled
+ * when this one stops waiting.
+ *
+ * Called at the project's production address, not at the address this run
+ * was reached on. On 15 October both runs handed over and neither follow-up
+ * ever started: a run is reached on its deployment's own address, which
+ * Vercel puts behind a login by default (Deployment Protection), so the call
+ * met Vercel's sign-in page and never reached this code.
+ * VERCEL_PROJECT_PRODUCTION_URL is the public production domain, which that
+ * protection does not cover. If protection is ever extended to production,
+ * VERCEL_AUTOMATION_BYPASS_SECRET (Vercel's "Protection Bypass for
+ * Automation") is sent as well.
+ *
+ * What came back is written onto the day's line, so a hand-over that fails
+ * again says why instead of leaving it to be guessed.
  *
  * If it fails to start, nothing is lost: the second daily cron (vercel.json)
  * comes round as a safety net, and failing that tomorrow's run sends whatever
@@ -1146,21 +1163,48 @@ async function continueInAnotherRun(
   requested: string | null,
   part: number,
   log: RunLog,
+  db: ReturnType<typeof serverSupabase>,
+  ranFor: string,
 ): Promise<void> {
   if (part >= MAX_PARTS) {
     log.say("letter", `Not continuing: this was part ${part} of at most ${MAX_PARTS}`, {}, { level: "warn" });
     return;
   }
-  const url = new URL(request.url);
+
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const url = production ? new URL(`https://${production.replace(/^https?:\/\//, "")}/api/cron`) : new URL(request.url);
   url.search = "";
   url.searchParams.set("continue", "1");
   if (requested) url.searchParams.set("for", requested);
+
+  const headers: Record<string, string> = { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` };
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+  if (bypass) headers["x-vercel-protection-bypass"] = bypass;
+
+  let outcome: string;
   try {
-    await fetch(url, {
-      headers: { authorization: `Bearer ${process.env.CRON_SECRET ?? ""}` },
-      signal: AbortSignal.timeout(5000),
-    });
-  } catch {
-    /* Timing out here is expected: the follow-up is still running. */
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
+    /* An answer inside five seconds means the follow-up did not run a part:
+       a part takes longer than that. 401 here is the protection page. */
+    outcome = `answered ${res.status} straight away, so the follow-up did not start`;
+  } catch (e) {
+    outcome =
+      (e as Error).name === "TimeoutError"
+        ? "started (still working after 5 seconds, as a part should be)"
+        : `could not be called: ${(e as Error).message}`;
+  }
+
+  /* Onto the day's line, beside this part's own summary. The follow-up
+     records over the line about a minute later and keeps it. */
+  const row = await db.from("cron_runs").select("summary").eq("ran_for", ranFor).maybeSingle();
+  if (row.data?.summary && typeof row.data.summary === "object") {
+    const handOvers = [
+      ...(((row.data.summary as { handOvers?: unknown[] }).handOvers ?? []) as unknown[]),
+      { fromPart: part, to: url.host, outcome, at: new Date().toISOString() },
+    ];
+    await db
+      .from("cron_runs")
+      .update({ summary: { ...(row.data.summary as object), handOvers } })
+      .eq("ran_for", ranFor);
   }
 }
