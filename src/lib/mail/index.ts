@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { gmailConfigFromEnv, gmailConnector } from "./gmail.ts";
 import { gmailOAuthConnector } from "./gmail-oauth.ts";
+import { outlookConfigFromEnv, outlookConnector } from "./outlook.ts";
 import { clientFor } from "./google-oauth.ts";
 import { note, withToken } from "./accounts.ts";
 import {
@@ -51,6 +52,25 @@ export async function connector(
   asUser: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Chosen> {
+  /*
+   * MAIL_PROVIDER=outlook sends everything through the one Outlook mailbox in
+   * the environment, ahead of any connected Google account. Everything past
+   * this point - the gate, the pacing, the cron - is the same either way.
+   */
+  if ((env.MAIL_PROVIDER ?? "").trim().toLowerCase() === "outlook") {
+    const outlook = outlookConfigFromEnv(env);
+    if ("error" in outlook) {
+      return { ok: false, error: `MAIL_PROVIDER is outlook, but ${outlook.error}` };
+    }
+    return {
+      ok: true,
+      via: "shared",
+      userId: null,
+      from: outlook.user,
+      connector: outlookConnector(outlook),
+    };
+  }
+
   const google = await clientFor(db, env);
 
   if (db && !("error" in google)) {

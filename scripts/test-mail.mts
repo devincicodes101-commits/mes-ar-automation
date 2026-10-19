@@ -14,6 +14,12 @@
  */
 import { allowlistFromEnv, mayLeave, modeFromEnv, type Letter } from "../src/lib/mail/connector.ts";
 import { gmailConfigFromEnv } from "../src/lib/mail/gmail-config.ts";
+import {
+  outlookConfigFromEnv,
+  outlookHostFor,
+  outlookTransportOptions,
+  plainOutlookError,
+} from "../src/lib/mail/outlook-config.ts";
 
 let failures = 0;
 function check(name: string, actual: unknown, expected: unknown) {
@@ -173,6 +179,30 @@ const wrong = gmailConfigFromEnv({
 } as NodeJS.ProcessEnv);
 check("and the refusal says it looks like the account password",
       "error" in wrong && /account password/.test(wrong.error), true);
+
+/* -------------------------------------------------------- Outlook ------- */
+
+console.log("\nOutlook sign in\n");
+
+const oc = (env: Record<string, string>) => {
+  const r = outlookConfigFromEnv(env as NodeJS.ProcessEnv);
+  return "error" in r ? "refused" : r.host;
+};
+check("a missing mailbox is refused", oc({ OUTLOOK_PASSWORD: "x" }), "refused");
+check("a missing password is refused", oc({ OUTLOOK_USER: "a@b.com" }), "refused");
+check("something that is not an address is refused", oc({ OUTLOOK_USER: "ar", OUTLOOK_PASSWORD: "x" }), "refused");
+check("a company mailbox uses the Microsoft 365 server",
+      oc({ OUTLOOK_USER: "ar@mesgroup.com", OUTLOOK_PASSWORD: "x" }), "smtp.office365.com");
+check("a personal Outlook address uses the personal server",
+      outlookHostFor("me@outlook.com"), "smtp-mail.outlook.com");
+check("so does Hotmail", outlookHostFor("me@hotmail.com"), "smtp-mail.outlook.com");
+check("the server can be overridden",
+      oc({ OUTLOOK_USER: "a@b.com", OUTLOOK_PASSWORD: "x", OUTLOOK_HOST: "smtp.example.com" }), "smtp.example.com");
+const opts = outlookTransportOptions({ user: "a@b.com", password: "p", host: "h", fromName: "n" });
+check("it signs in on port 587 with STARTTLS required", opts.port === 587 && opts.requireTLS && !opts.secure, true);
+check("a switched-off mailbox is explained",
+      /Authenticated SMTP/.test(plainOutlookError("550 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled")), true);
+check("a wrong password is explained", /address and password/.test(plainOutlookError("535 5.7.3 Authentication unsuccessful")), true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
