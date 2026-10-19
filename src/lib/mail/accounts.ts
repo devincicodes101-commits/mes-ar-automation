@@ -13,8 +13,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * send path uses and is only ever called on the server.
  */
 
+export type MailProvider = "google" | "microsoft";
+
 export interface MailAccountRow {
   user_id: string;
+  /** Absent until 0025_mail_provider.sql is applied; absent means Google. */
+  provider?: MailProvider;
   email: string;
   display_name: string | null;
   refresh_token: string;
@@ -29,6 +33,7 @@ export interface MailAccountRow {
 /** What a screen is allowed to know: everything except the credential. */
 export interface ConnectedAccount {
   userId: string;
+  provider: MailProvider;
   email: string;
   displayName: string | null;
   isDefault: boolean;
@@ -39,6 +44,7 @@ export interface ConnectedAccount {
 }
 
 const SAFE = "user_id,email,display_name,is_default,connected_at,last_used_at,last_error";
+const SAFE_WITH_PROVIDER = `${SAFE},provider`;
 
 /**
  * Every connected account, for the settings screen.
@@ -52,11 +58,22 @@ export async function listFor(
   db: SupabaseClient,
   me: string,
 ): Promise<{ ok: true; accounts: ConnectedAccount[] } | { ok: false; error: string }> {
-  const { data, error } = await db
-    .from("mail_accounts")
-    .select(SAFE)
-    .order("is_default", { ascending: false })
-    .order("connected_at", { ascending: true });
+  const ordered = (cols: string) =>
+    db
+      .from("mail_accounts")
+      .select(cols)
+      .order("is_default", { ascending: false })
+      .order("connected_at", { ascending: true });
+
+  let { data, error } = await ordered(SAFE_WITH_PROVIDER);
+  /*
+   * Before 0025 there is no provider column, and asking for it fails. Every
+   * account is Google then, so ask again without it rather than showing
+   * nothing connected.
+   */
+  if (error && /provider/i.test(error.message)) {
+    ({ data, error } = await ordered(SAFE));
+  }
 
   if (error) {
     const missing = /relation .*mail_accounts.* does not exist|schema cache/i.test(error.message);
@@ -70,8 +87,9 @@ export async function listFor(
 
   return {
     ok: true,
-    accounts: (data ?? []).map((r) => ({
+    accounts: ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
       userId: r.user_id as string,
+      provider: (r.provider === "microsoft" ? "microsoft" : "google") as MailProvider,
       email: r.email as string,
       displayName: (r.display_name as string | null) ?? null,
       isDefault: Boolean(r.is_default),
@@ -93,9 +111,16 @@ export async function listFor(
 export async function save(
   db: SupabaseClient,
   userId: string,
-  c: { email: string; displayName: string | null; refreshToken: string; scope: string | null },
+  c: {
+    email: string;
+    displayName: string | null;
+    refreshToken: string;
+    scope: string | null;
+    provider?: MailProvider;
+  },
 ): Promise<{ ok: true; isDefault: boolean } | { ok: false; error: string }> {
-  const existing = await db.from("mail_accounts").select("user_id,is_default");
+  // "*" so it can be seen whether the provider column exists yet (0025).
+  const existing = await db.from("mail_accounts").select("*");
   if (existing.error) {
     const missing = /does not exist|schema cache/i.test(existing.error.message);
     return {
@@ -107,6 +132,7 @@ export async function save(
   }
 
   const rows = existing.data ?? [];
+  const hasProviderColumn = rows.length > 0 && "provider" in rows[0];
   const wasDefault = rows.find((r) => r.user_id === userId)?.is_default === true;
   const anyDefault = rows.some((r) => r.is_default);
   const isDefault = wasDefault || !anyDefault;
@@ -119,6 +145,15 @@ export async function save(
       refresh_token: c.refreshToken,
       scope: c.scope,
       is_default: isDefault,
+      /*
+       * Written for Microsoft, and for Google wherever the column exists, so
+       * reconnecting as Google replaces a Microsoft row rather than keeping its
+       * label. Left off only where 0025 has not been applied, which is all
+       * Google there.
+       */
+      ...(c.provider === "microsoft" || hasProviderColumn
+        ? { provider: c.provider ?? "google" }
+        : {}),
       connected_at: new Date().toISOString(),
       // A fresh connection clears whatever went wrong with the old one.
       last_error: null,
@@ -127,26 +162,49 @@ export async function save(
     { onConflict: "user_id" },
   );
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (/provider/i.test(error.message)) {
+      return {
+        ok: false,
+        error: "This database does not have 0025_mail_provider.sql applied yet.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
   return { ok: true, isDefault };
+}
+
+/** Keeps the newest refresh token, where the provider hands back a new one. */
+export async function updateRefreshToken(
+  db: SupabaseClient,
+  userId: string,
+  refreshToken: string,
+): Promise<void> {
+  await db.from("mail_accounts").update({ refresh_token: refreshToken }).eq("user_id", userId);
 }
 
 export async function disconnect(
   db: SupabaseClient,
   userId: string,
-): Promise<{ ok: true; token: string | null } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; token: string | null; provider: MailProvider } | { ok: false; error: string }
+> {
   // Read the token first so Google can be told to forget it too. Deleting our
   // row alone would leave the app still listed in their Google account.
   const found = await db
     .from("mail_accounts")
-    .select("refresh_token")
+    .select("*")
     .eq("user_id", userId)
     .maybeSingle();
 
   const { error } = await db.from("mail_accounts").delete().eq("user_id", userId);
   if (error) return { ok: false, error: error.message };
 
-  return { ok: true, token: (found.data?.refresh_token as string | null) ?? null };
+  return {
+    ok: true,
+    token: (found.data?.refresh_token as string | null) ?? null,
+    provider: found.data?.provider === "microsoft" ? "microsoft" : "google",
+  };
 }
 
 /** Nominates which connected account the schedule sends from. */
@@ -217,7 +275,7 @@ export async function withToken(
       ok: false,
       noneConnected: true,
       error:
-        "No Google account is connected, so there is no mailbox to send from. " +
+        "No mailbox is connected, so there is nothing to send from. " +
         "Connect one under Settings.",
     };
   }

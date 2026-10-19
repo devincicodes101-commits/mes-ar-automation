@@ -20,6 +20,16 @@ import {
   outlookTransportOptions,
   plainOutlookError,
 } from "../src/lib/mail/outlook-config.ts";
+import {
+  consentUrl as msConsentUrl,
+  graphMessage,
+  MAX_ATTACHMENT_BYTES,
+  microsoftConfig,
+  MICROSOFT_SCOPES,
+  plainGraphError,
+  plainMicrosoftDenial,
+  plainMicrosoftError,
+} from "../src/lib/mail/microsoft-config.ts";
 
 let failures = 0;
 function check(name: string, actual: unknown, expected: unknown) {
@@ -203,6 +213,55 @@ check("it signs in on port 587 with STARTTLS required", opts.port === 587 && opt
 check("a switched-off mailbox is explained",
       /Authenticated SMTP/.test(plainOutlookError("550 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled")), true);
 check("a wrong password is explained", /address and password/.test(plainOutlookError("535 5.7.3 Authentication unsuccessful")), true);
+
+/* ------------------------------------------- Connect Outlook (Microsoft) -- */
+
+console.log("\nConnect Outlook: sign in with Microsoft\n");
+
+const ENV_OK = { MICROSOFT_CLIENT_ID: "id", MICROSOFT_CLIENT_SECRET: "sec", APP_URL: "https://x.test/" };
+const mc = (env: Record<string, string>) => microsoftConfig(env as NodeJS.ProcessEnv);
+
+check("without an id and secret it says what is missing",
+      "error" in mc({ APP_URL: "https://x.test" }) &&
+        /MICROSOFT_CLIENT_ID/.test((mc({ APP_URL: "https://x.test" }) as { error: string }).error), true);
+check("without APP_URL it refuses", "error" in mc({ MICROSOFT_CLIENT_ID: "id", MICROSOFT_CLIENT_SECRET: "s" }), true);
+const okc = mc(ENV_OK) as Exclude<ReturnType<typeof microsoftConfig>, { error: string }>;
+check("the redirect address is the Microsoft callback, without a double slash",
+      okc.redirectUri, "https://x.test/api/mail/microsoft/callback");
+check("work, school and personal accounts may sign in by default", okc.tenant, "common");
+check("the tenant can be restricted",
+      (mc({ ...ENV_OK, MICROSOFT_TENANT: "organizations" }) as { tenant: string }).tenant, "organizations");
+
+const url = new URL(msConsentUrl(okc, "STATE"));
+check("the sign in goes to Microsoft", url.hostname, "login.microsoftonline.com");
+check("it asks for a lasting token so the 9am run can send",
+      url.searchParams.get("scope")?.includes("offline_access"), true);
+check("and permission to send mail", url.searchParams.get("scope")?.includes("Mail.Send"), true);
+check("and not to read anybody's mail", /Mail\.Read/.test(MICROSOFT_SCOPES), false);
+check("the account is chosen, not assumed", url.searchParams.get("prompt"), "select_account");
+check("the signed state travels with it", url.searchParams.get("state"), "STATE");
+
+check("an administrator-approval refusal is explained",
+      /administrator/.test(plainMicrosoftDenial("access_denied", "AADSTS65001: The user or administrator has not consented")), true);
+check("pressing Cancel is just not approved",
+      plainMicrosoftDenial("access_denied", null), "The connection was not approved.");
+check("a wrong or expired secret is explained", /secret/.test(plainMicrosoftError("invalid_client", "AADSTS7000215: Invalid client secret")), true);
+check("a revoked connection says reconnect", /Reconnect/.test(plainMicrosoftError("invalid_grant", "AADSTS70008")), true);
+check("a throttled mailbox says it will go on the next run", /next run/.test(plainGraphError(429, "ApplicationThrottled", "")), true);
+check("a refused token on send says reconnect", /Reconnect/.test(plainGraphError(401, undefined, "")), true);
+
+const msg = graphMessage({ to: ["a@b.com", "c@d.com"], subject: "S", body: "B" });
+check("the message is plain text", msg.message.body.contentType, "Text");
+check("every recipient is addressed", msg.message.toRecipients.length, 2);
+check("it is kept in the mailbox's Sent Items", msg.saveToSentItems, true);
+check("no attachment key when there is none", "attachments" in msg.message, false);
+const withFile = graphMessage({ to: ["a@b.com"], subject: "S", body: "B",
+  attachment: { filename: "r.xlsx", content: Buffer.from("hello") } }) as
+  { message: { attachments: { name: string; contentBytes: string }[] } };
+check("an attachment is named and base64 encoded",
+      withFile.message.attachments[0].name === "r.xlsx" &&
+        withFile.message.attachments[0].contentBytes === Buffer.from("hello").toString("base64"), true);
+check("the attachment ceiling leaves room under Graph's request limit", MAX_ATTACHMENT_BYTES < 3_000_000, true);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -77,7 +77,8 @@ export async function DELETE(request: Request) {
 
   const gone = await disconnect(db, target);
   if (!gone.ok) return NextResponse.json({ ok: false, error: gone.error }, { status: 502 });
-  if (gone.token) await revoke(gone.token);
+  // Microsoft has no equivalent call; removing our row is what stops sending.
+  if (gone.token && gone.provider === "google") await revoke(gone.token);
 
   return NextResponse.json({ ok: true });
 }

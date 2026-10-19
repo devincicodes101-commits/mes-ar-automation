@@ -22,8 +22,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession, useToast } from "@/lib/session";
 import { Card, CardHeader, Spinner, StatusBadge, Tag } from "@/components/ui";
 
+type Provider = "google" | "microsoft";
+
 interface Account {
   userId: string;
+  provider: Provider;
   email: string;
   displayName: string | null;
   isDefault: boolean;
@@ -40,6 +43,7 @@ interface Status {
   from: string | null;
   allowlist: string[];
   googleReady: boolean;
+  microsoftReady: boolean;
   explanation: string;
   problem: string | null;
 }
@@ -124,19 +128,22 @@ function useMailbox() {
     } else if (outcome === "cancelled") {
       notify("Not connected", q.get("detail") ?? "The connection was not approved.");
     } else {
-      notify("Could not connect", q.get("detail") ?? "Google refused the connection.");
+      notify("Could not connect", q.get("detail") ?? "The connection was refused.");
     }
 
     window.history.replaceState({}, "", window.location.pathname);
   }, [notify]);
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (provider: Provider = "google") => {
     setBusy("connect");
     try {
-      const r = await fetch("/api/mail/connect", { headers: await authHeader() });
+      const r = await fetch(`/api/mail/connect?provider=${provider}`, { headers: await authHeader() });
       const body = (await r.json()) as { ok?: boolean; url?: string; error?: string };
       if (!body.ok || !body.url) {
-        notify("Cannot connect", body.error ?? "Google sign in is not set up.");
+        notify(
+          "Cannot connect",
+          body.error ?? `${provider === "microsoft" ? "Microsoft" : "Google"} sign in is not set up.`,
+        );
         return;
       }
       window.location.href = body.url;
@@ -190,7 +197,7 @@ export function MailboxStrip() {
             ? mine.lastError
             : connected
               ? `Letters would go out from ${status.from ?? "the connected account"}.`
-              : "Connect your Google account and letters will go out as you, with replies coming back to you."}
+              : "Connect your Google or Outlook account and letters will go out as you, with replies coming back to you."}
         </p>
       </div>
 
@@ -213,11 +220,20 @@ export function MailboxStrip() {
         <button
           type="button"
           disabled={busy === "connect"}
-          onClick={() => void connect()}
+          onClick={() => void connect("google")}
           className="inline-flex items-center gap-2 rounded bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
-          {mine ? "Reconnect Google" : "Sign in with Google"}
+          {mine?.provider === "google" ? "Reconnect Google" : "Sign in with Google"}
+        </button>
+        <button
+          type="button"
+          disabled={busy === "connect"}
+          onClick={() => void connect("microsoft")}
+          className="inline-flex items-center gap-2 rounded bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-40"
+        >
+          {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
+          {mine?.provider === "microsoft" ? "Reconnect Outlook" : "Sign in with Microsoft"}
         </button>
         <a
           href="/settings"
@@ -309,7 +325,7 @@ export function MailAccounts() {
     <Card>
       <CardHeader
         title="Which mailbox letters come from"
-        hint="Each person connects their own Google account. Replies come back to them."
+        hint="Each person connects their own Google or Outlook account. Replies come back to them."
         right={mode ? <StatusBadge kind={mode.kind} label={mode.label} /> : null}
       />
 
@@ -333,11 +349,12 @@ export function MailAccounts() {
         </div>
       ) : null}
 
-      {!status?.googleReady ? (
+      {!status?.googleReady && !status?.microsoftReady ? (
         <div className="border-b border-line-hair bg-amber-50 px-5 py-3 text-sm text-amber-900">
-          Google sign in is not set up yet, so nobody can connect an account.
-          An OAuth client has to be created in Google Cloud and its id and secret
-          put in the environment.
+          Sign in is not set up yet, so nobody can connect an account. For Outlook,
+          the app has to be registered with Microsoft once and its id and secret
+          put in the environment. For Google, an OAuth client has to be created in
+          Google Cloud the same way.
         </div>
       ) : null}
 
@@ -348,6 +365,7 @@ export function MailAccounts() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-ink">{a.email}</span>
                 {a.isDefault ? <Tag>the schedule sends from this</Tag> : null}
+                <Tag>{a.provider === "microsoft" ? "Outlook" : "Google"}</Tag>
                 {a.isMine ? <Tag>you</Tag> : null}
               </div>
               <p className="mt-1 text-xs text-ink-muted">
@@ -389,7 +407,7 @@ export function MailAccounts() {
 
         {accounts.length === 0 ? (
           <li className="px-5 py-8 text-center">
-            <p className="text-sm text-ink">No Google account is connected.</p>
+            <p className="text-sm text-ink">No Google or Outlook account is connected.</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-ink-muted">
               Until one is, the schedule has no mailbox to send the 7th and the
               21st from.
@@ -402,11 +420,20 @@ export function MailAccounts() {
         <button
           type="button"
           disabled={busy === "connect"}
-          onClick={() => void connect()}
+          onClick={() => void connect("google")}
           className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
-          {accounts.some((a) => a.isMine) ? "Reconnect my Google account" : "Sign in with Google"}
+          {accounts.some((a) => a.isMine && a.provider === "google") ? "Reconnect my Google account" : "Sign in with Google"}
+        </button>
+        <button
+          type="button"
+          disabled={busy === "connect"}
+          onClick={() => void connect("microsoft")}
+          className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
+          {accounts.some((a) => a.isMine && a.provider === "microsoft") ? "Reconnect my Outlook account" : "Sign in with Microsoft"}
         </button>
 
         <div className="flex flex-1 flex-wrap items-center gap-2">
@@ -449,6 +476,18 @@ function GoogleMark() {
       <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.4l-7-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.8-3.9-12.5-9.2l-7.2 5.6C7.9 41 15.4 46 24 46z" />
       <path fill="#FBBC05" d="M11.5 28.2c-.5-1.3-.7-2.7-.7-4.2s.3-2.9.7-4.2l-7.2-5.6C2.8 17.1 2 20.4 2 24s.8 6.9 2.3 9.8l7.2-5.6z" />
       <path fill="#EA4335" d="M24 10.4c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 3.9 30 2 24 2 15.4 2 7.9 7 4.3 14.2l7.2 5.6c1.7-5.3 6.7-9.4 12.5-9.4z" />
+    </svg>
+  );
+}
+
+/** Microsoft's four squares, drawn rather than fetched. */
+function MicrosoftMark() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 23 23" aria-hidden="true">
+      <path fill="#F25022" d="M1 1h10v10H1z" />
+      <path fill="#7FBA00" d="M12 1h10v10H12z" />
+      <path fill="#00A4EF" d="M1 12h10v10H1z" />
+      <path fill="#FFB900" d="M12 12h10v10H12z" />
     </svg>
   );
 }

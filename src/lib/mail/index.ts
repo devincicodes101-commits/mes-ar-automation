@@ -5,8 +5,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { gmailConfigFromEnv, gmailConnector } from "./gmail.ts";
 import { gmailOAuthConnector } from "./gmail-oauth.ts";
 import { outlookConfigFromEnv, outlookConnector } from "./outlook.ts";
+import { outlookGraphConnector } from "./outlook-graph.ts";
+import { microsoftConfig } from "./microsoft-config.ts";
 import { clientFor } from "./google-oauth.ts";
-import { note, withToken } from "./accounts.ts";
+import { note, updateRefreshToken, withToken } from "./accounts.ts";
 import {
   allowlistFromEnv,
   mayLeave,
@@ -72,10 +74,31 @@ export async function connector(
   }
 
   const google = await clientFor(db, env);
+  const microsoft = microsoftConfig(env);
 
-  if (db && !("error" in google)) {
+  if (db && (!("error" in google) || !("error" in microsoft))) {
     const found = await withToken(db, asUser);
     if (found.ok) {
+      if (found.account.provider === "microsoft") {
+        if ("error" in microsoft) return { ok: false, error: microsoft.error };
+        const userId = found.account.user_id;
+        return {
+          ok: true,
+          via: "connected",
+          userId,
+          from: found.account.email,
+          connector: outlookGraphConnector(
+            microsoft,
+            {
+              email: found.account.email,
+              displayName: found.account.display_name,
+              refreshToken: found.account.refresh_token,
+            },
+            (token) => updateRefreshToken(db, userId, token),
+          ),
+        };
+      }
+      if ("error" in google) return { ok: false, error: google.error };
       return {
         ok: true,
         via: "connected",
@@ -107,7 +130,7 @@ export async function connector(
       error:
         "error" in google
           ? `No mailbox is available. ${google.error} ${shared.error}`.trim()
-          : "No Google account is connected and no shared mailbox is configured. " +
+          : "No mailbox is connected and no shared mailbox is configured. " +
             "Connect an account under Settings.",
     };
   }
@@ -177,6 +200,7 @@ export async function sendingStatus(
   from: string | null;
   allowlist: string[];
   googleReady: boolean;
+  microsoftReady: boolean;
   explanation: string;
   problem: string | null;
 }> {
@@ -205,6 +229,7 @@ export async function sendingStatus(
     from: chosen.ok ? chosen.from : null,
     allowlist,
     googleReady: !("error" in google),
+    microsoftReady: !("error" in microsoftConfig(env)),
     explanation,
     problem,
   };

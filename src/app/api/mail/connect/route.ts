@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { identify } from "@/lib/api-auth";
 import { clientFor, consentUrl } from "@/lib/mail/google-oauth";
+import { consentUrl as microsoftConsentUrl, microsoftConfig } from "@/lib/mail/microsoft-config";
 import { serverSupabase } from "@/lib/supabase-server";
 import { signState } from "@/lib/mail/state";
 
@@ -34,11 +35,21 @@ export async function GET(request: Request) {
     // trying rather than refusing outright.
   }
 
+  const state = signState({ userId: who.caller.userId, at: Date.now() });
+
+  // ?provider=microsoft goes to Microsoft; anything else is Google, as before.
+  if (new URL(request.url).searchParams.get("provider") === "microsoft") {
+    const ms = microsoftConfig();
+    if ("error" in ms) {
+      return NextResponse.json({ ok: false, error: ms.error }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, url: microsoftConsentUrl(ms, state) });
+  }
+
   const config = await clientFor(db);
   if ("error" in config) {
     return NextResponse.json({ ok: false, error: config.error }, { status: 500 });
   }
 
-  const state = signState({ userId: who.caller.userId, at: Date.now() });
   return NextResponse.json({ ok: true, url: consentUrl(config, state) });
 }
