@@ -6,8 +6,11 @@ import {
   FeeBasis,
   FeeRule,
   feesDue,
+  formatDate,
   formatSgd,
+  invoicesForAccount,
 } from "@/lib/data";
+import { billingForTenant, NO_BILLING, type TenantBilling } from "@/lib/billing-cycles";
 import { hydrateActivity, recordExport, settledFees, useStore } from "@/lib/store";
 import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
@@ -134,6 +137,21 @@ export default function LateFeesPage() {
    * exclusion nobody can check.
    */
   const onGiro = useMemo(() => giroEnrolled(ds.invoices), [ds.invoices]);
+
+  /*
+   * Each tenant's billing date, shown beside their fee. Raman, 18 October:
+   * the fee stays on the fixed 16th, but the officer should be able to see
+   * when a charge was billed - a charge billed off the normal cycle ("adhoc")
+   * is worth a second look before the $100 is raised. "newest of N" flags a
+   * tenant with more than one billing run.
+   */
+  const billing = useMemo(() => {
+    const m = new Map<string, TenantBilling>();
+    for (const a of scope(ds.accounts)) {
+      m.set(a.id, billingForTenant(invoicesForAccount(a, ds.invoices), ds.asOf));
+    }
+    return m;
+  }, [ds.accounts, ds.invoices, ds.asOf, scope]);
   const byManager = useMemo(
     () =>
       onlyRms.length === 0
@@ -477,6 +495,7 @@ export default function LateFeesPage() {
                           <Tag>Moved out</Tag>
                         ) : null}
                       </div>
+                      <BilledOn billing={billing.get(l.account.id) ?? NO_BILLING} />
                     </td>
                     <td className="tabular px-3 py-3 text-right text-ink-secondary">
                       {formatSgd(l.overdue)}
@@ -621,6 +640,7 @@ export default function LateFeesPage() {
                       <span className="ml-2 text-[11px] text-ink-muted">
                         {l.account.customerCode}
                       </span>
+                      <BilledOn billing={billing.get(l.account.id) ?? NO_BILLING} />
                     </td>
                     <td className="tabular px-3 py-2.5 text-right text-ink-secondary">
                       {formatSgd(l.overdue)}
@@ -729,6 +749,23 @@ export default function LateFeesPage() {
           </ul>
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * A tenant's billing date, for the late-fee tables. Shows the newest billing
+ * run, and flags when there is more than one so an off-cycle ("adhoc") charge
+ * is visible before the fee is raised.
+ */
+function BilledOn({ billing }: { billing: TenantBilling }) {
+  if (!billing.billedOn) {
+    return <div className="mt-0.5 text-[11px] text-ink-muted">No billing date in this file</div>;
+  }
+  return (
+    <div className="mt-0.5 text-[11px] text-ink-muted">
+      Billed {formatDate(billing.billedOn)}
+      {billing.runs > 1 ? <span className="text-ink-secondary"> · newest of {billing.runs}</span> : null}
     </div>
   );
 }

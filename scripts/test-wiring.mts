@@ -2366,4 +2366,12 @@ check("Send all on Reminder Emails sends in the same paced batches",
       REMINDERS_SCREEN.includes("const report = await sendLettersPaced(") &&
         SEND_LETTERS.includes("export async function sendLettersPaced("), true);
 
+section("The Late Payment Fees screen shows each tenant's billing date");
+
+const LATEFEES_SCREEN = code(path.join(APP, "late-fees", "page.tsx"));
+check("the fee screen shows the billing date, to flag adhoc billing",
+      LATEFEES_SCREEN.includes("billingForTenant(invoicesForAccount(a, ds.invoices), ds.asOf)") &&
+        LATEFEES_SCREEN.includes("function BilledOn(") &&
+        LATEFEES_SCREEN.includes("Billed {formatDate(billing.billedOn)}"), true);
+
 process.exit(failures === 0 ? 0 : 1);
