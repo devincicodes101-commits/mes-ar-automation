@@ -870,5 +870,58 @@ const inCredit = (() => {
 })();
 check("an account in credit is never chased", inCredit, 0);
 
+section("The flat layout: the customer repeated on every line, no headings");
+
+/*
+ * The September Custom A/R Aging Detail - With Description arrives this way:
+ * Customer filled on every charge line, no heading rows, no "Total -" lines,
+ * one grand Total at the foot. Read as blocks, every line looked like a heading
+ * and every charge was dropped, so a file with 5,157 lines and SGD 5.1 million
+ * open said "no outstanding charges" - which reads as every tenant having paid.
+ */
+const FLAT_HEADER = [
+  "Customer", "Company Name", "Date", "Description", "Document Number",
+  "Linked Contract", "Contract Item Start Date", "P.O. No.", "Due Date", "Age",
+  "Open Balance", "Primary Sales Rep",
+];
+const flatLine = (cust: string, doc: string, desc: string, amount: number) => [
+  cust, cust.replace(/^DORM-\d+ /, ""), "7/15/2026", desc, doc, "", "", "",
+  "7/30/2026", 18, amount, "700 Tester",
+];
+const flatRows: unknown[][] = [
+  ["Mini Environment Service Pte Ltd (MOH)"],
+  ["Consol : Mini Environment Service Pte Ltd : MES & JPD Housing Pte Ltd"],
+  ["Custom A/R Aging Detail - With Description"],
+  ["As of 15 September 2026"],
+  [],
+  FLAT_HEADER,
+  flatLine("DORM-700 KAYA TOAST PTE. LTD.", "JPD1-786/007001", "Occupancy Fee Charges", 2000),
+  flatLine("DORM-700 KAYA TOAST PTE. LTD.", "JPD1-786/007002", "Other Charges", 500),
+  flatLine("DORM-701 LAKSA HOUSE PTE. LTD.", "JPD1-786/007003", "Occupancy Fee Charges", 1500),
+  flatLine("DORM-701 LAKSA HOUSE PTE. LTD.", "JPD1-786/007004", "Credit", -200),
+  ["Total", "", "", "", "", "", "", "", "", "", 3800, ""],
+];
+const flatWb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(flatWb, XLSX.utils.aoa_to_sheet(flatRows), "Custom A_R Aging Detail - With");
+const flat = parseAgingDetail(flatWb);
+check("every charge line is read, not taken for a heading", flat.invoices.length, 4);
+check("two customers, found from the repeated Customer cell", flat.accounts.length, 2);
+check("the first customer's lines add up", flat.accounts.find((a) => a.customerCode === "DORM-700")?.total, 2500);
+check("a credit line is netted, not lost", flat.accounts.find((a) => a.customerCode === "DORM-701")?.total, 1300);
+check("the net equals the file's own Total row", flat.accounts.reduce((s, a) => s + a.total, 0), 3800);
+check("and it does not say there is nothing to chase", said(flat, "no outstanding charges"), false);
+
+/*
+ * The old layout must be untouched. Put one real heading row (a customer with
+ * no document number or amount) into the same sheet and it is a blocked file
+ * again, so the repeated Customer cells are headings, exactly as before.
+ */
+const withHeading = [...flatRows];
+withHeading.splice(6, 0, ["DORM-700 KAYA TOAST PTE. LTD."]);
+const blockedWb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(blockedWb, XLSX.utils.aoa_to_sheet(withHeading), "Custom A_R Aging Detail - With");
+check("a file with heading rows is still read as blocks, not as flat",
+      parseAgingDetail(blockedWb).invoices.length, 0);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

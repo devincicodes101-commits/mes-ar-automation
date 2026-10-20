@@ -712,6 +712,37 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
   let current: { code: string; name: string } | null = null;
 
   /*
+   * Two layouts, and the difference decides what a filled Customer cell means.
+   *
+   * Blocked: a heading row opens each customer, the charge lines beneath it
+   * leave the Customer cell empty, and a "Total -" line closes it. A filled
+   * Customer cell is a heading.
+   *
+   * Flat: no headings and no totals at all. The Customer cell is filled on
+   * every charge line, the customer repeated down the page. The September
+   * Custom A/R Aging Detail - With Description arrived this way. Read as the
+   * blocked layout every line looked like a heading, every charge was dropped,
+   * and the system reported "no outstanding charges" for a file with 5,157
+   * lines and SGD 10 million open - which says every tenant has paid.
+   *
+   * It is the flat layout only when there is no heading-shaped row anywhere (a
+   * filled Customer cell with no document number or amount) and at least one
+   * charge line carries the customer. A blocked file always has headings, so
+   * it can never be mistaken for this, and nothing changes for it.
+   */
+  let flatCharges = 0;
+  let headingRows = 0;
+  for (let r = headerAt + 1; r < rows.length; r += 1) {
+    const row = rows[r] ?? [];
+    if (!splitCustomer(clean(at(row, COL.customer)))) continue;
+    const hasDocument = clean(at(row, COL.document)) !== "";
+    const hasAmount = clean(at(row, COL.balance)) !== "" && money(at(row, COL.balance)) !== null;
+    if (hasDocument && hasAmount) flatCharges += 1;
+    else headingRows += 1;
+  }
+  const flat = flatCharges > 0 && headingRows === 0;
+
+  /*
    * Who each customer code actually is, taken from the two places that state
    * it outright: the heading that opens the block, and the "Total -" line
    * that closes it. Both put the code and the name in the same cell, so they
@@ -789,7 +820,7 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
        * BALANCES export lost a line.
        */
       const strayAmount = money(at(row, COL.balance));
-      if (clean(at(row, COL.txType)) !== "" && strayAmount !== null && strayAmount !== 0) {
+      if (!flat && clean(at(row, COL.txType)) !== "" && strayAmount !== null && strayAmount !== 0) {
         problems.push({
           sheet: clean(sheetName),
           row: i + 1,
@@ -801,10 +832,12 @@ export function parseAgingDetail(wb: XLSX.WorkBook): ParsedAgingDetail {
             "looks damaged - check this customer against the source.",
         });
       }
-      continue;
+      // In the flat layout the line IS a charge for this customer: carry on and
+      // import it. Anywhere else a heading is only a heading.
+      if (!flat) continue;
+    } else if (first !== "") {
+      continue; // grand totals and stray labels
     }
-
-    if (first !== "") continue; // grand totals and stray labels
 
     const txType = clean(row[COL.txType]);
     const company = clean(row[COL.company]);
