@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { data, formatSgd, kpis } from "@/lib/data";
+import { suggestPeriod, type PeriodGuess } from "@/lib/suggest-period";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
@@ -56,6 +57,10 @@ export default function UploadPage() {
   const [contactFile, setContactFile] = useState<File | null>(null);
   const [results, setResults] = useState<ParseResult[]>([]);
   const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
+  /* How the month was worked out from the file, and whether the officer has
+     chosen one themselves. Once they have, a later file does not overwrite it. */
+  const [guess, setGuess] = useState<PeriodGuess | null>(null);
+  const [chosenByHand, setChosenByHand] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const accounts = ds.accounts;
@@ -83,6 +88,11 @@ export default function UploadPage() {
       const parsed = await Promise.all(chosen.map((f) => parseWorkbook(f)));
       setResults(parsed);
       setPhase("done");
+
+      /* The month is in the file: fill it in, say how, and leave it changeable. */
+      const found = suggestPeriod(parsed);
+      setGuess(found);
+      if (found && !chosenByHand) setPeriod(found.period);
 
       const readable = parsed.filter((r) => r.kind !== "unreadable").length;
       const errors = parsed.reduce(
@@ -120,9 +130,24 @@ export default function UploadPage() {
           <input
             type="month"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              setChosenByHand(true);
+            }}
             className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
           />
+          {/* Said under the picker so nobody has to wonder where the month came from. */}
+          {guess ? (
+            <span className="mt-1.5 block max-w-xs text-[11px] leading-snug text-ink-muted">
+              {guess.period === period
+                ? guess.basis === "bills"
+                  ? `Read from the file: ${guess.tenants} of ${guess.of} tenants were last billed in this month${
+                      guess.example ? `, mostly on ${guess.example}` : ""
+                    }. Change it if that is not the month this report is for.`
+                  : `The file has no bill dates, so this is the month of the report date (${guess.example}). Check it.`
+                : `The file reads as ${guess.period}, but you chose ${period}.`}
+            </span>
+          ) : null}
         </label>
         {/*
           * Reworded, because the old text read as a rule the system applies.

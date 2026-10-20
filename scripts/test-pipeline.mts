@@ -923,5 +923,39 @@ XLSX.utils.book_append_sheet(blockedWb, XLSX.utils.aoa_to_sheet(withHeading), "C
 check("a file with heading rows is still read as blocks, not as flat",
       parseAgingDetail(blockedWb).invoices.length, 0);
 
+section("The billing month is read from the file, not picked from a fixed default");
+
+import { suggestPeriod } from "../src/lib/suggest-period.ts";
+
+const lineOn = (code: string, date: string | null) => ({ customerCode: code, date });
+const report = (invoices: ReturnType<typeof lineOn>[], asOf: string | null = "2026-09-15") =>
+  [{ kind: "ar-aging-detail", asOf, invoices }] as never;
+
+/* Most tenants last billed on 15 Sept; a few older, one ad hoc. */
+const mostlySept = report([
+  ...Array.from({ length: 8 }, (_, i) => lineOn(`DORM-${i}`, "2026-09-15")),
+  lineOn("DORM-8", "2026-08-25"),
+  lineOn("DORM-9", "2025-03-24"),
+  /* A tenant's OLDER line must not count: only the newest bill does. */
+  lineOn("DORM-0", "2026-03-01"),
+]);
+const g1 = suggestPeriod(mostlySept);
+check("the month most tenants were last billed in is the period", g1?.period, "2026-09");
+check("and it says how many tenants that is out of how many", g1 ? `${g1.tenants}/${g1.of}` : null, "8/10");
+check("with the date most of them share, as the example", g1?.example, "2026-09-15");
+
+/* The October report loaded in November: the report date is no help. */
+const lateLoad = report([lineOn("A", "2026-10-01"), lineOn("B", "2026-10-01")], "2026-11-04");
+check("a report dated November, billed in October, is October", suggestPeriod(lateLoad)?.period, "2026-10");
+
+check("a tie goes to the later month, the fresher cycle",
+      suggestPeriod(report([lineOn("A", "2026-08-15"), lineOn("B", "2026-09-15")]))?.period, "2026-09");
+
+const undated = suggestPeriod(report([lineOn("A", null)], "2026-09-15"));
+check("with no bill dates it falls back to the report date, and says so",
+      undated?.period === "2026-09" && undated.basis === "report-date", true);
+
+check("a file it cannot place gives no guess", suggestPeriod([{ kind: "unreadable", problems: [] }] as never), null);
+
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
