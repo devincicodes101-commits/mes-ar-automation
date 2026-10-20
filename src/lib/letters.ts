@@ -282,15 +282,25 @@ export const LETTERS: LetterSpec[] = [
   },
 ];
 
-/** One letter, filled. The wording comes from LETTER_BODIES and nowhere else. */
-function renderBody(id: LetterId, c: LetterContext): string {
+/**
+ * Fills any wording for one letter: MES's standard text, or an officer's saved
+ * edit of it. Both go through here so an edited letter gets exactly the same
+ * date formats, deadline and figures as the standard one - an edit changes the
+ * words, never the arithmetic.
+ */
+export function fillWording(id: LetterId, wording: string, c: LetterContext): string {
   const fmt = LETTER_DATE_FORMAT[id];
-  return fillLetter(LETTER_BODIES[id], {
+  return fillLetter(wording, {
     company: c.companyName,
     amount: c.grandTotal,
     today: fmt.today(c.sentOn),
     dueBy: fmt.dueBy(deadlineFor(id, c.sentOn)),
   });
+}
+
+/** One letter, filled. The standard wording comes from LETTER_BODIES. */
+function renderBody(id: LetterId, c: LetterContext): string {
+  return fillWording(id, LETTER_BODIES[id], c);
 }
 
 export function letterById(id: LetterId): LetterSpec {

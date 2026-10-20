@@ -19,6 +19,7 @@ import type { Pipeline } from "@/lib/pipeline";
 import { allowlistFromEnv, mayLeave, modeFromEnv, senderFor } from "@/lib/mail";
 import { pacingFromEnv, sendPaced } from "@/lib/mail/pacing";
 import { renderLetter } from "@/lib/letters";
+import { editKey, loadLetterEdits, renderEdited } from "@/lib/letter-edits";
 import {
   askedFor,
   cycleDayFor,
@@ -845,6 +846,14 @@ async function persist(
      * On a build where sending is switched off this loop still runs, still
      * records the letters, and every attempt comes back blocked with a reason.
      */
+    const { edits: savedEdits, problem: editsProblem } = await loadLetterEdits(db);
+    /* Said only when it is a real fault. Before 0026 is applied there are
+       simply no edits, and the run sends the standard letters as always. */
+    if (editsProblem && !/0026_letter_edits/.test(editsProblem)) {
+      notes.push(`edited letters not read: ${editsProblem}`);
+    }
+    const editedUsed: string[] = [];
+
     const rows = written
       .map((id) => {
         const account = byId.get(id);
@@ -859,11 +868,21 @@ async function persist(
          */
         const plannedLetter = planned.get(id)!;
         const isFinal = plannedLetter.stage === "final-notice";
-        const letter = renderLetter(plannedLetter.stage, {
+        const context = {
           companyName: account.companyName,
           grandTotal: account.total,
           sentOn: today.iso,
-        });
+        };
+        /*
+         * A letter an officer edited by hand, for this tenant and this bill, is
+         * sent as edited. Every other letter is MES's standard wording. The
+         * figures and dates are filled in here either way, on the day, so an
+         * edit changes the words and never the arithmetic.
+         */
+        const saved = savedEdits.get(editKey(id, plannedLetter.stage, plannedLetter.billedOn));
+        const standard = renderLetter(plannedLetter.stage, context);
+        const letter = saved ? { ...standard, ...renderEdited(saved, context) } : standard;
+        if (saved) editedUsed.push(account.companyName);
 
         return {
           /*
@@ -899,6 +918,16 @@ async function persist(
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    /* On the schedule screen, so "why did this tenant's letter read differently"
+       has an answer without reading the letter. */
+    if (editedUsed.length > 0) {
+      notes.push(
+        `used a saved edit for ${editedUsed.length} letter${editedUsed.length === 1 ? "" : "s"}: ` +
+          editedUsed.slice(0, 5).join(", ") +
+          (editedUsed.length > 5 ? `, and ${editedUsed.length - 5} more` : ""),
+      );
+    }
 
     if (rows.length > 0) {
       const r = await db.from("emails_sent").upsert(rows, { onConflict: "id" });

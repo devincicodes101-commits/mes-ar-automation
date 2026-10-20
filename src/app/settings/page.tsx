@@ -203,6 +203,15 @@ export default function SettingsPage() {
           title="Standard email wording"
           hint="Words in double braces are filled in for each tenant."
         />
+        {/* Said here because the two are easy to confuse: this wording is kept in
+            this browser, and the automatic run does not read it. */}
+        <div className="border-b border-line-hair bg-amber-50 px-5 py-2.5 text-[11px] leading-relaxed text-amber-900">
+          <b>This does not change the automatic emails.</b> The 9am run sends MES&apos;s standard
+          letters. To change what one tenant&apos;s automatic letter says, open{" "}
+          <a href="/schedule" className="underline underline-offset-2">The Schedule</a> or Reminder
+          Emails and press <b>Edit letter</b> on that tenant. What you save there is what the
+          automatic run sends to them.
+        </div>
         <ul className="divide-y divide-line-grid">
           {store.templates.map((t) => (
             <li key={t.id} className="flex flex-wrap gap-4 px-5 py-3.5">

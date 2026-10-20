@@ -36,6 +36,8 @@ import {
   Tag,
 } from "@/components/ui";
 import { MailboxStrip } from "@/components/MailAccounts";
+import { LetterEditor } from "@/components/LetterEditor";
+import { savedKey, useLetterEdits, type SavedEdit } from "@/lib/use-letter-edits";
 
 /**
  * Fills the {{placeholders}} in a template from one account.
@@ -93,13 +95,20 @@ function merge(
  * is three chances for the automatic run on the 7th to say something slightly
  * different from the one an officer reads on screen before approving it.
  */
-function letterFor(account: Account, template: Template, asOf: string): Outgoing {
+function letterFor(
+  account: Account,
+  template: Template,
+  asOf: string,
+  /* A letter somebody edited and saved: sent as edited, in this screen's
+     send as well as in the 9am run, so the two cannot disagree. */
+  edit?: SavedEdit,
+): Outgoing {
   return {
     tenantId: account.id,
     companyName: account.companyName,
     to: account.emails,
-    subject: merge(template.subject, account, asOf, template.id),
-    body: merge(template.body, account, asOf, template.id),
+    subject: merge(edit?.subject ?? template.subject, account, asOf, template.id),
+    body: merge(edit?.body ?? template.body, account, asOf, template.id),
     templateId: template.id,
     templateName: template.name,
     /* Which month's letter this is — from the calendar, not from asOf. The
@@ -117,6 +126,10 @@ export default function RemindersPage() {
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
   const [drafting, setDrafting] = useState<Account | null>(null);
+  /* Letters somebody has edited by hand and saved. The 9am run sends those as
+     saved, so this screen says so and sends them the same way. */
+  const { edits, reload: reloadEdits } = useLetterEdits();
+  const [editingLetter, setEditingLetter] = useState<Account | null>(null);
   // Which sent letter is open. The Sent list below is the only place an
   // officer can see what actually went out to a tenant.
   const [opened, setOpened] = useState<string | null>(null);
@@ -161,7 +174,14 @@ export default function RemindersPage() {
       else (l.stage === "final-notice" ? final : first).push(item(a));
     }
     const byOverdue = (x: QueueItem, y: QueueItem) => y.overdue - x.overdue;
-    return { first: first.sort(byOverdue), final: final.sort(byOverdue), noEmail: noEmail.sort(byOverdue) };
+    /* Which bill each letter is about: a saved edit belongs to one bill. */
+    const billedOnById = new Map(decided.write.map((l) => [l.accountId, l.billedOn]));
+    return {
+      first: first.sort(byOverdue),
+      final: final.sort(byOverdue),
+      noEmail: noEmail.sort(byOverdue),
+      billedOnById,
+    };
   }, [ds, scope, store.emails, store.promises, timing.window, todayIso]);
 
 
@@ -234,6 +254,13 @@ export default function RemindersPage() {
   const pending = (view === "final" ? plan.final : plan.first).filter((q) =>
     matches([q.account.companyName, q.account.customerCode, ...q.account.emails]),
   );
+
+  const stage: LetterId = view === "final" ? "final-notice" : "first-reminder";
+  const editFor = (a: Account): SavedEdit | undefined => {
+    const billedOn = plan.billedOnById.get(a.id);
+    return billedOn ? edits.get(savedKey(a.id, stage, billedOn)) : undefined;
+  };
+  const editedPending = pending.filter((q) => editFor(q.account)).length;
 
   /* Tab counts, from the same plan the lists use, so a number on a tab and
      the list behind it can never disagree - and neither can disagree with
@@ -335,6 +362,14 @@ export default function RemindersPage() {
           </p>
         </div>
 
+        {editedPending > 0 ? (
+          <div className="border-b border-line-hair bg-amber-50 px-5 py-2.5 text-[11px] leading-relaxed text-amber-900">
+            <b>{editedPending} of these {editedPending === 1 ? "letter has" : "letters have"} been edited by hand.</b>{" "}
+            The automatic 9am run, and Send all here, use the edited wording for them. The rest go
+            as the standard letter.
+          </div>
+        ) : null}
+
         {pending.length === 0 ? (
           <EmptyState
             title={`No tenants for the ${template.name.toLowerCase()}`}
@@ -357,6 +392,7 @@ export default function RemindersPage() {
                       {item.account.companyName}
                     </span>
                     {item.account.isOneFm ? <Tag>1FM</Tag> : null}
+                    {editFor(item.account) ? <Tag>Edited: sent as saved</Tag> : null}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                     {item.account.emails.join(", ")}
@@ -366,13 +402,22 @@ export default function RemindersPage() {
                   SGD {formatSgd(item.overdue)} overdue
                 </div>
                 {canAct ? (
-                  <button
-                    type="button"
-                    onClick={() => setDrafting(item.account)}
-                    className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
-                  >
-                    Read and send
-                  </button>
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingLetter(item.account)}
+                      className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                    >
+                      Edit letter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDrafting(item.account)}
+                      className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                    >
+                      Read and send
+                    </button>
+                  </div>
                 ) : (
                   <span className="shrink-0 text-[11px] text-ink-muted">
                     View only
@@ -493,7 +538,23 @@ export default function RemindersPage() {
           account={drafting}
           template={template}
           asOf={ds.asOf}
+          edit={editFor(drafting)}
           onClose={() => setDrafting(null)}
+        />
+      ) : null}
+
+      {editingLetter && plan.billedOnById.get(editingLetter.id) ? (
+        <LetterEditor
+          tenantId={editingLetter.id}
+          companyName={editingLetter.companyName}
+          billedOn={plan.billedOnById.get(editingLetter.id)!}
+          owed={editingLetter.total}
+          sendOn={{ "first-reminder": todayIso, "final-notice": todayIso }}
+          startAt={stage}
+          edits={edits}
+          canEdit={canAct}
+          onSaved={reloadEdits}
+          onClose={() => setEditingLetter(null)}
         />
       ) : null}
 
@@ -505,7 +566,11 @@ export default function RemindersPage() {
         >
           <p className="text-xs leading-relaxed text-ink-secondary">
             The same wording goes to everyone below, with each tenant&apos;s own
-            name and balance filled in. Nothing has been sent yet.
+            name and balance filled in
+            {editedPending > 0
+              ? `, except the ${editedPending} whose letter was edited and saved: they get the edited version`
+              : ""}
+            . Nothing has been sent yet.
           </p>
 
           <div className="mt-3 max-h-[42vh] overflow-auto rounded border border-line-hair">
@@ -552,7 +617,7 @@ export default function RemindersPage() {
                    run, so a long list cannot outrun the route or the inbox
                    providers. See sendLettersPaced. */
                 const report = await sendLettersPaced(
-                  pending.map((q) => letterFor(q.account, template, ds.asOf)),
+                  pending.map((q) => letterFor(q.account, template, ds.asOf, editFor(q.account))),
                   (done, total) => setProgress({ done, total }),
                 );
                 setSending(false);
@@ -594,20 +659,23 @@ function Draft({
   account,
   template,
   asOf,
+  edit,
   onClose,
 }: {
   account: Account;
   template: Template;
   /** The uploaded report's date, which is what the letter dates itself by. */
   asOf: string;
+  /** This tenant's saved edit of the letter, if somebody made one. */
+  edit?: SavedEdit;
   onClose: () => void;
 }) {
   const { notify } = useToast();
   const [subject, setSubject] = useState(
-    merge(template.subject, account, asOf, template.id),
+    merge(edit?.subject ?? template.subject, account, asOf, template.id),
   );
   const [body, setBody] = useState(
-    merge(template.body, account, asOf, template.id),
+    merge(edit?.body ?? template.body, account, asOf, template.id),
   );
 
   const [sending, setSending] = useState(false);
@@ -657,6 +725,12 @@ function Draft({
       onClose={onClose}
     >
       <div className="space-y-4">
+        {edit ? (
+          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <b>This letter was edited and saved.</b> What you see below is the saved version, and
+            the automatic 9am run will send it too.
+          </div>
+        ) : null}
         <div className="rounded border border-line-hair bg-surface-alt px-3 py-2">
           <p className="text-[11px] text-ink-muted">To</p>
           <p className="mt-0.5 break-all text-xs text-ink">

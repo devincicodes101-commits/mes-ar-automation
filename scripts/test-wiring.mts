@@ -756,6 +756,23 @@ check("and a send that could not be recorded says so rather than passing quietly
  */
 check("letters go one at a time", /for \(const letter of letters\)/.test(SEND), true);
 
+/*
+ * A letter an officer edited and saved is what the automatic run sends. The
+ * run reads the saved edits and renders them the same way as the standard
+ * letter, and says on the schedule when it used one.
+ */
+const CRON_SRC = read("src/app/api/cron/route.ts");
+check("the 9am run reads the letters officers edited",
+      CRON_SRC.includes("loadLetterEdits(db)") && CRON_SRC.includes("renderEdited(saved, context)"), true);
+check("and finds them by bill, letter and tenant, as it names every letter",
+      CRON_SRC.includes("editKey(id, plannedLetter.stage, plannedLetter.billedOn)"), true);
+check("and says on the schedule when it used one",
+      CRON_SRC.includes("used a saved edit for"), true);
+check("saving an edit is limited to the roles that may send",
+      read("src/app/api/letter-edits/route.ts").includes("mayUpload(who.caller)"), true);
+check("and is written to the audit log",
+      read("src/app/api/letter-edits/route.ts").includes('action: "letter.edit"'), true);
+
 /* ---------------------------------------------- what changed ------------ */
 
 console.log("\nComparison reads two reports the way MES read them");

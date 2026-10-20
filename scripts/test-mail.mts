@@ -14,6 +14,8 @@
  */
 import { allowlistFromEnv, mayLeave, modeFromEnv, type Letter } from "../src/lib/mail/connector.ts";
 import { gmailConfigFromEnv } from "../src/lib/mail/gmail-config.ts";
+import { checkEdit, editKey, renderEdited } from "../src/lib/letter-edits.ts";
+import { LETTER_BODIES, renderLetter, letterById, type LetterId } from "../src/lib/letters.ts";
 import {
   outlookConfigFromEnv,
   outlookHostFor,
@@ -262,6 +264,52 @@ check("an attachment is named and base64 encoded",
       withFile.message.attachments[0].name === "r.xlsx" &&
         withFile.message.attachments[0].contentBytes === Buffer.from("hello").toString("base64"), true);
 check("the attachment ceiling leaves room under Graph's request limit", MAX_ATTACHMENT_BYTES < 3_000_000, true);
+
+/* ------------------------------------------- edited letters (saved by hand) -- */
+
+console.log("\nA letter edited by hand is sent as edited; the rest are standard\n");
+
+const CTX = { companyName: "ZOOMWORKS PTE. LTD.", grandTotal: 25369.29, sentOn: "2026-10-22" };
+const STAGES: LetterId[] = ["first-reminder", "final-notice"];
+
+for (const stage of STAGES) {
+  const standard = renderLetter(stage, CTX);
+  check(`${stage}: MES's standard wording is itself a valid edit`,
+        checkEdit(letterById(stage).subject, LETTER_BODIES[stage]), null);
+  /*
+   * The property that matters most: saving the standard text unchanged must
+   * produce exactly the standard letter, so an edit can only ever change the
+   * words somebody changed and never the figures or the dates.
+   */
+  const same = renderEdited({ stage, subject: letterById(stage).subject, body: LETTER_BODIES[stage] }, CTX);
+  check(`${stage}: an unchanged edit renders exactly the standard letter`, same.body === standard.body, true);
+  check(`${stage}: and the standard subject`, same.subject === standard.subject, true);
+}
+
+const edited = renderEdited(
+  {
+    stage: "first-reminder",
+    subject: "A word about {{company}}",
+    body: "Dear {{company}}\n\nYou owe ${{amount}} as of {{today}}. Please pay by {{dueBy}}.\n\nThank you",
+  },
+  CTX,
+);
+check("an edit is sent in the officer's words", edited.body.startsWith("Dear ZOOMWORKS PTE. LTD."), true);
+check("the balance is filled in on the day, not frozen", edited.body.includes("$25,369.29"), true);
+check("the date is filled in the way the letter writes it", edited.body.includes("22nd October 2026"), true);
+check("the deadline is the same six days as the standard first reminder", edited.body.includes("28 October 2026"), true);
+check("the subject is filled in too", edited.subject, "A word about ZOOMWORKS PTE. LTD.");
+check("nothing is left in double braces", /\{\{/.test(edited.body + edited.subject), false);
+
+check("an empty subject is refused", checkEdit("  ", "Dear {{company}}") !== null, true);
+check("an empty letter is refused", checkEdit("Subject", "   ") !== null, true);
+const bad = checkEdit("Subject", "You owe {{ammount}}");
+check("a misspelt placeholder is refused, and named", bad !== null && bad.includes("{{ammount}}"), true);
+
+/* The same name the 9am run gives a letter, so an edit is found by it. */
+check("an edit is found by bill, letter and tenant", editKey("t1", "final-notice", "2026-09-25"), "2026-09-25|final-notice|t1");
+check("a different bill is a different letter, so an old edit is not reused",
+      editKey("t1", "final-notice", "2026-10-25") === editKey("t1", "final-notice", "2026-09-25"), false);
 
 console.log(failures === 0 ? "\nALL CHECKS PASS\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);

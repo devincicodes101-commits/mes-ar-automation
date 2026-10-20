@@ -11,6 +11,8 @@ import { billingForTenant } from "@/lib/billing-cycles";
 import { letterPosition, reminderDatesFor, type LetterPosition, type SentLetter } from "@/lib/reminder-timing";
 import { useReminderWindow } from "@/lib/use-reminder-window";
 import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag } from "@/components/ui";
+import { LetterEditor } from "@/components/LetterEditor";
+import { savedKey, useLetterEdits } from "@/lib/use-letter-edits";
 
 /**
  * What the schedule has done, and a way to watch it do one.
@@ -441,7 +443,11 @@ function Delivery({ summary }: { summary: Run["summary"] }) {
 function WhenEachTenantIsChased() {
   const ds = useDataset();
   const store = useStore();
+  const { canAct } = useSession();
   const [all, setAll] = useState(false);
+  /* Letters somebody has edited by hand: the 9am run sends those as edited. */
+  const { edits, reload: reloadEdits } = useLetterEdits();
+  const [editing, setEditing] = useState<string | null>(null);
 
   /* The window the nine o'clock run uses, read from the same place it reads
      it. This card once read the browser's copy and could disagree with the
@@ -519,6 +525,13 @@ function WhenEachTenantIsChased() {
 
   if (rows.length === 0) return null;
 
+  const isEdited = (r: (typeof rows)[number]) =>
+    r.billedOn !== null &&
+    (edits.has(savedKey(r.id, "first-reminder", r.billedOn)) ||
+      edits.has(savedKey(r.id, "final-notice", r.billedOn)));
+  const editedCount = rows.filter((r) => r.total > 0 && isEdited(r)).length;
+  const editingRow = editing ? rows.find((r) => r.id === editing) ?? null : null;
+
   const count = (kind: LetterPosition["kind"]) =>
     rows.filter((r) => r.total > 0 && !r.promised && r.position?.kind === kind).length;
   const missing = rows.filter((r) => r.total > 0 && r.position === null).length;
@@ -566,6 +579,14 @@ function WhenEachTenantIsChased() {
         them.
       </div>
 
+      {editedCount > 0 ? (
+        <div className="border-b border-line-hair bg-amber-50 px-5 py-2.5 text-[11px] leading-relaxed text-amber-900">
+          <b>{editedCount} tenant{editedCount === 1 ? " has" : "s have"} an edited letter.</b> The
+          automatic 9am run sends those tenants the wording that was saved, not the standard
+          letter. Every other tenant gets the standard wording.
+        </div>
+      ) : null}
+
       <ScrollPanel max={420}>
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-surface">
@@ -575,7 +596,8 @@ function WhenEachTenantIsChased() {
               <th className="px-3 py-2.5">First reminder</th>
               <th className="px-3 py-2.5">Final notice</th>
               <th className="px-3 py-2.5 text-right">Owed</th>
-              <th className="px-5 py-2.5">Today</th>
+              <th className="px-3 py-2.5">Today</th>
+              <th className="px-5 py-2.5">Letter</th>
             </tr>
           </thead>
           <tbody>
@@ -602,14 +624,58 @@ function WhenEachTenantIsChased() {
                 <td className="tabular px-3 py-2.5 text-right text-ink">
                   {formatSgd(r.owed)}
                 </td>
-                <td className="px-5 py-2.5">
+                <td className="px-3 py-2.5">
                   <Standing position={r.position} promised={r.promised} total={r.total} />
+                </td>
+                <td className="px-5 py-2.5">
+                  {r.total > 0 && r.billedOn ? (
+                    <div className="flex flex-col items-start gap-1">
+                      {/* Said here, not only inside the editor: an edited letter
+                          is sent as edited without anybody pressing send. */}
+                      {isEdited(r) ? (
+                        <span className="rounded border border-accent px-1.5 py-0.5 text-[11px] text-ink">
+                          Edited: sent as saved
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setEditing(r.id)}
+                        className="rounded border border-line-hair px-2.5 py-1 text-xs text-ink hover:border-line-strong"
+                      >
+                        {canAct ? "Edit letter" : "View"}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-ink-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </ScrollPanel>
+
+      {editingRow && editingRow.billedOn ? (
+        <LetterEditor
+          tenantId={editingRow.id}
+          companyName={editingRow.name}
+          billedOn={editingRow.billedOn}
+          owed={editingRow.total}
+          sendOn={{ "first-reminder": editingRow.first, "final-notice": editingRow.final }}
+          startAt={
+            editingRow.position &&
+            (editingRow.position.kind === "first-sent" ||
+              editingRow.position.kind === "final-due" ||
+              editingRow.position.kind === "final-sent")
+              ? "final-notice"
+              : "first-reminder"
+          }
+          edits={edits}
+          canEdit={canAct}
+          onSaved={reloadEdits}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
     </Card>
   );
 }
