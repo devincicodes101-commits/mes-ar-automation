@@ -181,10 +181,10 @@ export default function SettingsPage() {
           The 9am run sends MES&apos;s standard letters. To change what one
           tenant&apos;s automatic letter says, press <b>Edit letter</b> beside
           them on{" "}
-          <Link href="/schedule" className="font-medium text-accent-text underline underline-offset-2">
-            The Schedule
-          </Link>{" "}
-          or Reminder Emails.
+          <Link href="/reminders" className="font-medium text-accent-text underline underline-offset-2">
+            Reminder Emails
+          </Link>
+          .
         </div>
         <ul className="divide-y divide-line-grid">
           {store.templates.map((t) => (

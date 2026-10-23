@@ -1498,7 +1498,8 @@ console.log("\nThe schedule can be seen, and the cron's guard is untouched");
  */
 const CRON_ROUTE = read("src/app/api/cron/route.ts");
 const SCHED_ROUTE = read("src/app/api/schedule/route.ts");
-const SCHED_PAGE = read("src/app/schedule/page.tsx");
+/* The Schedule lives in a component since it became the Activity Log's 9am runs tab. */
+const SCHED_PAGE = read("src/components/ScheduleView.tsx");
 
 check("the cron still accepts nothing but the secret",
       CRON_ROUTE.includes("const secret = process.env.CRON_SECRET") &&
@@ -1850,7 +1851,7 @@ check("a run records who it wrote to, not only how many",
 check("and who it held back, with the reason",
       CRON_CODE.includes("heldBack.push") && CRON_CODE.includes("promised "), true);
 check("the schedule screen shows them",
-      code(path.join(APP, "schedule", "page.tsx")).includes("summary!.heldBack!"), true);
+      code("src/components/ScheduleView.tsx").includes("summary!.heldBack!"), true);
 check("records are given an id the database will accept",
       lib("store.ts").includes("crypto.randomUUID()"), true);
 check("and not eight characters of Math.random",
@@ -2116,7 +2117,7 @@ for (const href of ["/outbox", "/simulation", "/checks", "/defaulters", "/chased
   check(`${href} is out of the menu, not removed`,
         navEntry(href).includes("hidden: true"), true);
 }
-for (const href of ["/activity", "/schedule", "/reports", "/late-fees"]) {
+for (const href of ["/activity", "/reports", "/late-fees"]) {
   check(`${href} stays in the menu`, navEntry(href).includes("hidden: true"), false);
 }
 /* Merged into a tab of another entry on 24 October; the address still works. */
@@ -2124,6 +2125,7 @@ for (const [href, host, tab] of [
   ["/no-email", "src/app/reminders/page.tsx", "<NoEmailPage />"],
   ["/promises", "src/app/calls/page.tsx", "<PromisesPage />"],
   ["/access", "src/app/users/page.tsx", "<AccessPage />"],
+  ["/schedule", "src/app/activity/page.tsx", "<ScheduleView />"],
 ] as const) {
   check(`${href} is a tab now, not its own menu entry`,
         navEntry(href).includes("hidden: true") && code(host).includes(tab), true);
@@ -2195,7 +2197,7 @@ check("and a logged call carries its bill on a line of its own",
 section("The reminder window is read where the 9am run reads it");
 
 const SETTINGS_CODE = code(path.join(APP, "settings", "page.tsx"));
-const SCHEDULE_CODE = code(path.join(APP, "schedule", "page.tsx"));
+const SCHEDULE_CODE = code("src/components/ScheduleView.tsx");
 const WINDOW_ROUTE = code(path.join(APP, "api", "settings", "reminders", "route.ts"));
 
 check("the numbers are no longer kept in the browser",
@@ -2258,7 +2260,7 @@ check("without becoming 'the newest upload' the 9am run reads",
 section("A letter that did not leave is never counted as sent");
 
 const REPORTS_SCREEN = code(path.join(APP, "reports", "page.tsx"));
-const SCHEDULE_SCREEN = code(path.join(APP, "schedule", "page.tsx"));
+const SCHEDULE_SCREEN = code("src/components/ScheduleView.tsx");
 /* "When each tenant would be chased", now the All tenants tab on Reminder Emails. */
 const CHASE_CARD = code("src/components/ChaseTimeline.tsx");
 const REMINDERS_SCREEN = code(path.join(APP, "reminders", "page.tsx"));

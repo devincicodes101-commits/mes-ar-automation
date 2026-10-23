@@ -45,6 +45,8 @@ export const NAV: {
      */
     href: "/schedule",
     label: "The Schedule",
+    /* The 9am runs tab of the Activity Log since 24 October. */
+    hidden: true,
     group: "The cycle",
     when: "9am daily",
     note: "What the 9am run does, and what it has done.",
@@ -208,7 +210,7 @@ export const NAV: {
     href: "/activity",
     label: "Activity Log",
     group: "Admin",
-    note: "Every action, with who did it and when.",
+    note: "Every action, who did it and when, and each 9am run.",
   },
 ];
 

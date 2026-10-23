@@ -1,5 +1,7 @@
 "use client";
 
+import { PageTabs, usePageTab } from "@/components/PageTabs";
+import { ScheduleView } from "@/components/ScheduleView";
 import { useEffect, useMemo, useState } from "react";
 import { CALL_OUTCOMES, deliveredOnly, useStore } from "@/lib/store";
 import { useDataset } from "@/lib/dataset";
@@ -49,7 +51,7 @@ const KINDS: { key: Kind | "all"; label: string }[] = [
   { key: "call", label: "Calls" },
   { key: "promise", label: "Promises" },
   { key: "fee", label: "Late fees" },
-  { key: "schedule", label: "9am run" },
+  /* No "9am run" filter: the 9am runs tab shows every morning in full. */
   { key: "admin", label: "Admin" },
 ];
 
@@ -80,7 +82,40 @@ const OUTCOME = Object.fromEntries(CALL_OUTCOMES.map((o) => [o.value, o.label]))
 /** Lines per page. The log only grows. */
 const PAGE = 50;
 
+/**
+ * The Activity Log and the 9am run, one menu entry (24 October). The log
+ * already listed each morning's run beside everything else; The Schedule
+ * listed the same mornings again with its warnings. Now the warnings sit
+ * above the log, and the full run history is its second tab.
+ */
 export default function ActivityPage() {
+  const [tab, setTab] = usePageTab(["log", "runs"] as const, "log");
+  return (
+    <div className="space-y-5">
+      <Card className="px-4 py-3 sm:px-5">
+        <PageTabs
+          label="The log or the 9am runs"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "log", label: "Everything that has been done" },
+            { key: "runs", label: "9am runs" },
+          ]}
+        />
+      </Card>
+      {tab === "log" ? (
+        <>
+          <ScheduleView part="attention" />
+          <ActivityLog />
+        </>
+      ) : (
+        <ScheduleView />
+      )}
+    </div>
+  );
+}
+
+function ActivityLog() {
   const store = useStore();
   const ds = useDataset();
   const [kind, setKind] = useState<Kind | "all">("all");
