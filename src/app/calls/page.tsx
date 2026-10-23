@@ -87,6 +87,8 @@ function WhoToPhone() {
   const mayLog = can("log-calls");
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [active, setActive] = useState<{ account: Account; round: CallRound } | null>(null);
+  /* A logged call, opened to read the form as it was filled in. */
+  const [viewing, setViewing] = useState<CallLog | null>(null);
   /*
    * Everyone stays on the call list by design, including tenants already rung,
    * which is right and made the list unreadable: on the 7th it is every
@@ -587,20 +589,38 @@ function WhoToPhone() {
                     <p className="mt-1 text-xs text-ink-secondary">{c.notes}</p>
                   ) : null}
                 </div>
-                {c.promisedDate ? (
-                  <div className="shrink-0 text-[11px] text-ink-secondary sm:text-right">
-                    <div className="tabular font-medium text-ink">
-                      SGD {formatSgd(c.promisedAmount ?? 0)}
+                <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+                  {c.promisedDate ? (
+                    <div className="text-[11px] text-ink-secondary sm:text-right">
+                      <div className="tabular font-medium text-ink">
+                        SGD {formatSgd(c.promisedAmount ?? 0)}
+                      </div>
+                      <div>promised for {formatDate(c.promisedDate)}</div>
                     </div>
-                    <div>promised for {formatDate(c.promisedDate)}</div>
-                  </div>
-                ) : null}
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setViewing(c)}
+                    className="rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-strong hover:text-ink"
+                  >
+                    View the call
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
           )}
           <Pagination {...logPage.pager} />
         </Card>
+      ) : null}
+
+      {viewing ? (
+        <CallView
+          call={viewing}
+          round={CALL_STAGES.find((x) => x.value === roundOf(viewing))?.label ?? "-"}
+          billing={billing.get(viewing.accountId) ?? NO_BILLING}
+          onClose={() => setViewing(null)}
+        />
       ) : null}
 
       {active ? (
@@ -811,6 +831,54 @@ function CallForm({
           ) : null}
         </div>
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * A logged call, as the form was filled in.
+ *
+ * The list showed the outcome, who was spoken to and the note, and left out
+ * when to check back - so the one date an officer set to come back to the
+ * tenant could not be read anywhere (24 October). Every field of the form,
+ * read only, in the order the form asks them.
+ */
+function CallView({
+  call: c,
+  round,
+  billing,
+  onClose,
+}: {
+  call: CallLog;
+  round: string;
+  billing: TenantBilling;
+  onClose: () => void;
+}) {
+  const said = CALL_OUTCOMES.find((o) => o.value === c.outcome)?.label ?? c.outcome;
+  const row = (label: string, value: string) => (
+    <div className="grid gap-1 border-b border-line-hair py-2.5 last:border-0 sm:grid-cols-[14rem_1fr] sm:gap-4">
+      <dt className="text-xs text-ink-muted">{label}</dt>
+      <dd className="text-sm text-ink">{value}</dd>
+    </div>
+  );
+  return (
+    <Modal title={`Call with ${c.companyName}`} onClose={onClose}>
+      <p className="text-[11px] text-ink-muted">Logged {formatDateTime(c.at)}</p>
+      <dl className="mt-3">
+        {row("Which reminder this call was about", round)}
+        {row("Who they spoke to", c.reached || "Nobody named")}
+        {row("What happened", said)}
+        {c.outcome === "promised-to-pay" || c.promisedAmount !== null ? (
+          <>
+            {row("How much they agreed to pay", c.promisedAmount !== null ? `SGD ${formatSgd(c.promisedAmount)}` : "-")}
+            {row("Date they said they would pay", formatDate(c.promisedDate) || "-")}
+          </>
+        ) : null}
+        {row("When to check back", formatDate(c.nextActionDate) || "Not set")}
+        {row("Anything else worth recording", c.notes || "Nothing written")}
+        {row("How overdue they were", c.agingBucket || "-")}
+        {row("Their bill", billing.billedOn ? `Billed ${formatDate(billing.billedOn)}, due ${formatDate(billing.dueBy)}` : "-")}
+      </dl>
     </Modal>
   );
 }
