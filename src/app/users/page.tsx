@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PageTabs, usePageTab } from "@/components/PageTabs";
+import AccessPage from "@/app/access/page";
 import { ROLE_LABEL, ROLE_SUMMARY, type Role } from "@/lib/auth";
 import { authHeader } from "@/lib/use-letter-edits";
 import { useDataset } from "@/lib/dataset";
@@ -29,7 +31,31 @@ const ROLES: Role[] = ["super-admin", "admin", "CSD", "RM", "Management"];
  * controls that changed nothing outside the browser. It now reads and changes
  * the real logins through /api/users, which enforces who may do what.
  */
+/**
+ * User Management and Access Control, one menu entry (24 October): who can
+ * sign in, and what each role lets them do.
+ */
 export default function UsersPage() {
+  const [tab, setTab] = usePageTab(["logins", "roles"] as const, "logins");
+  return (
+    <div className="space-y-5">
+      <Card className="px-4 py-3 sm:px-5">
+        <PageTabs
+          label="Logins or roles"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "logins", label: "Logins" },
+            { key: "roles", label: "What each role can do" },
+          ]}
+        />
+      </Card>
+      {tab === "logins" ? <Logins /> : <AccessPage />}
+    </div>
+  );
+}
+
+function Logins() {
   const { notify } = useToast();
   const [users, setUsers] = useState<Login[] | null>(null);
   const [mayGrantSuper, setMayGrantSuper] = useState(false);

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PageTabs, usePageTab } from "@/components/PageTabs";
+import PromisesPage from "@/app/promises/page";
 import {
   formatDate,
   formatSgd,
@@ -45,7 +47,31 @@ import {
 } from "@/components/ui";
 import { usePaged } from "@/lib/use-paged";
 
+/**
+ * Call List and Payment Promises, one menu entry (24 October). A promise is
+ * what a call ends in, and both are the phone half of the job.
+ */
 export default function CallListPage() {
+  const [tab, setTab] = usePageTab(["calls", "promises"] as const, "calls");
+  return (
+    <div className="space-y-5">
+      <Card className="px-4 py-3 sm:px-5">
+        <PageTabs
+          label="Calls or promises"
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { key: "calls", label: "Who to phone" },
+            { key: "promises", label: "Payment promises" },
+          ]}
+        />
+      </Card>
+      {tab === "calls" ? <WhoToPhone /> : <PromisesPage />}
+    </div>
+  );
+}
+
+function WhoToPhone() {
   const store = useStore();
   /*
    * can("log-calls"), not canAct.

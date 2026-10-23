@@ -110,19 +110,23 @@ export const NAV: {
     group: "The cycle",
     when: "with each send",
     note: "Letters for tenants with no email address.",
+    /* The By hand tab of Reminder Emails since 24 October. */
+    hidden: true,
   },
   {
     href: "/calls",
     label: "Call List",
     group: "The cycle",
     when: "after each",
-    note: "Who to phone, and what they said.",
+    note: "Who to phone, what they said, and what they promised.",
   },
   {
     href: "/promises",
     label: "Payment Promises",
     group: "Review",
     note: "Every promise to pay, and when it is due.",
+    /* The Payment promises tab of Call List since 24 October. */
+    hidden: true,
   },
   {
     href: "/late-fees",
@@ -190,13 +194,15 @@ export const NAV: {
     href: "/users",
     label: "User Management",
     group: "Admin",
-    note: "Add people, remove them, and set what each one is.",
+    note: "Who can sign in, and what each role can do.",
   },
   {
     href: "/access",
     label: "Access Control",
     group: "Admin",
     note: "What each role is allowed to see and do.",
+    /* The second tab of User Management since 24 October. */
+    hidden: true,
   },
   {
     href: "/activity",

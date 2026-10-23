@@ -2,7 +2,6 @@
 
 import { useReminderWindow } from "@/lib/use-reminder-window";
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   formatSgd,
   overdueTotal,
@@ -26,6 +25,8 @@ import {
   type PlannedLetter,
 } from "@/lib/reminder-timing";
 import { LetterView } from "@/components/LetterView";
+import { usePageTab } from "@/components/PageTabs";
+import NoEmailPage from "@/app/no-email/page";
 import {
   DEADLINE_DAYS,
   LETTER_DATE_FORMAT,
@@ -252,7 +253,9 @@ export default function RemindersPage() {
    * made three places for one job. They are tabs now and those entries are
    * hidden; the pages still answer on their own URLs.
    */
-  const [view, setView] = useState<"first" | "final" | "sent" | "all">("first");
+  /* "byhand": Send By Hand, one menu entry with the reminders since 24
+     October - the same letters, for the tenants with no address. */
+  const [view, setView] = usePageTab(["first", "final", "sent", "all", "byhand"] as const, "first");
 
   /* Finding one tenant, which is how an officer actually uses this: somebody
      rings up asking whether their reminder went out. */
@@ -322,6 +325,7 @@ export default function RemindersPage() {
             /* Every tenant and where they stand, which used to sit on The
                Schedule and repeat these tabs there. */
             ["all", "All tenants", null],
+            ["byhand", "By hand", null],
           ] as const).map(([key, label, count]) => (
             <button
               key={key}
@@ -345,7 +349,7 @@ export default function RemindersPage() {
           ))}
         </div>
 
-        {view !== "all" ? (
+        {view !== "all" && view !== "byhand" ? (
         <label className="flex items-center gap-2 lg:ml-auto">
           <span className="sr-only">Find a tenant</span>
           <input
@@ -360,8 +364,10 @@ export default function RemindersPage() {
         ) : null}
       </Card>
 
+      {view === "byhand" ? <NoEmailPage /> : null}
+
       {/* The tenants due a letter with no address to send it to. Their list
-          is on Send By Hand; one line here rather than the same list twice. */}
+          is on the By hand tab; one line here rather than the same list twice. */}
       {(view === "first" || view === "final") && plan.noEmail.length > 0 ? (
         <div className="flex flex-col gap-2 rounded-lg border border-line-hair bg-surface px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span className="text-ink-secondary">
@@ -370,12 +376,13 @@ export default function RemindersPage() {
             </b>{" "}
             due a letter today {plan.noEmail.length === 1 ? "has" : "have"} no email address.
           </span>
-          <Link
-            href="/no-email"
+          <button
+            type="button"
+            onClick={() => setView("byhand")}
             className="self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary sm:self-auto"
           >
             Send theirs by hand
-          </Link>
+          </button>
         </div>
       ) : null}
 

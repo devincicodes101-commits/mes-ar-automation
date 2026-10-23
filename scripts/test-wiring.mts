@@ -2074,12 +2074,14 @@ const REM_W = code("src/app/reminders/page.tsx");
 const SHELL_N = code("src/components/Shell.tsx");
 
 check("the reminders screen shows one part at a time",
-      REM_W.includes('useState<"first" | "final" | "sent" | "all">'), true);
+      REM_W.includes('usePageTab(["first", "final", "sent", "all", "byhand"] as const, "first")'), true);
 check("with a tab for each",
       REM_W.includes('"First reminder"') && REM_W.includes('"Final notice"') &&
         REM_W.includes('"Sent"') && REM_W.includes('"All tenants"'), true);
-check("the tenants with no address are listed on Send By Hand only, and linked to",
-      !REM_W.includes('"By hand"') && REM_W.includes('href="/no-email"'), true);
+/* Send By Hand is the By hand tab since 24 October: one menu entry for the job. */
+check("the tenants with no address are on the By hand tab, and the line opens it",
+      REM_W.includes('["byhand", "By hand", null]') && REM_W.includes('{view === "byhand" ? <NoEmailPage /> : null}') &&
+        REM_W.includes('onClick={() => setView("byhand")}'), true);
 check("and the tab picks the wording, so there is one way to choose",
       REM_W.includes('setTemplateId("reminder-7th")') &&
         REM_W.includes('setTemplateId("final-21st")') &&
@@ -2113,8 +2115,17 @@ for (const href of ["/outbox", "/simulation", "/checks", "/defaulters", "/chased
   check(`${href} is out of the menu, not removed`,
         navEntry(href).includes("hidden: true"), true);
 }
-for (const href of ["/no-email", "/promises", "/access", "/activity", "/schedule", "/reports", "/late-fees"]) {
+for (const href of ["/activity", "/schedule", "/reports", "/late-fees"]) {
   check(`${href} stays in the menu`, navEntry(href).includes("hidden: true"), false);
+}
+/* Merged into a tab of another entry on 24 October; the address still works. */
+for (const [href, host, tab] of [
+  ["/no-email", "src/app/reminders/page.tsx", "<NoEmailPage />"],
+  ["/promises", "src/app/calls/page.tsx", "<PromisesPage />"],
+  ["/access", "src/app/users/page.tsx", "<AccessPage />"],
+] as const) {
+  check(`${href} is a tab now, not its own menu entry`,
+        navEntry(href).includes("hidden: true") && code(host).includes(tab), true);
 }
 
 /* ===================================== a call says which reminder it chased */
