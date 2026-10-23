@@ -55,6 +55,9 @@ export function exactOf(a: Account): { total: number; buckets: Buckets } {
   return a.exact ?? { total: a.total, buckets: a.buckets };
 }
 
+/* Net of credits, unlike overdueTotal: these add up totals, which have to
+   agree with the billing runs on the same screen, and a credit note there
+   reduces what a run has overdue. A single tenant is shown clamped instead. */
 export const exactOverdue = (x: { buckets: Buckets }) =>
   x.buckets.d30 + x.buckets.d60 + x.buckets.d90 + x.buckets.d90plus;
 

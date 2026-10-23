@@ -83,11 +83,18 @@ export function invoicesForAccount(
  * inside Current: see feesDue.
  */
 export function overdueTotal(a: Account): number {
-  return a.buckets.d30 + a.buckets.d60 + a.buckets.d90 + a.buckets.d90plus;
+  /*
+   * Never below nothing. A credit note sitting in an old bucket nets against
+   * what is overdue, which is right, but a tenant whose old buckets are all
+   * credit owes nothing overdue - not -365.83 of it. That figure reached the
+   * tenant page, the manager balances and every total as a negative debt
+   * (found 24 October).
+   */
+  return Math.max(0, a.buckets.d30 + a.buckets.d60 + a.buckets.d90 + a.buckets.d90plus);
 }
 
 export function severeTotal(a: Account): number {
-  return a.buckets.d90 + a.buckets.d90plus;
+  return Math.max(0, a.buckets.d90 + a.buckets.d90plus);
 }
 
 /**

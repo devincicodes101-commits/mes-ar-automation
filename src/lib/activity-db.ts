@@ -161,6 +161,8 @@ export function emailToRow(e: SentEmail, wasSimulated: boolean) {
     recipients: e.to,
     sent_at: e.at,
     was_simulated: wasSimulated,
+    /* Which bills a reminder covered; see emails_sent.billed_on (0027). */
+    billed_on: e.billedOn && e.billedOn.length > 0 ? e.billedOn : null,
   };
 }
 

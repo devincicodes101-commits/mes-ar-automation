@@ -30,13 +30,24 @@ import {
 import { usePaged } from "@/lib/use-paged";
 import { formatDate } from "@/lib/format";
 
-const ORDER: PromiseState[] = ["broken", "due-today", "upcoming"];
+/*
+ * "paid": the tenant is no longer in the report, or owes nothing in it.
+ * MES's rule for reading a new report - gone means paid in full - applied to
+ * promises too. Without it a tenant who had paid read "Date passed, still
+ * unpaid" and counted as money at risk (found 24 October).
+ */
+type Shown = PromiseState | "paid";
 
-const KIND: Record<PromiseState, "good" | "warning" | "critical"> = {
+const ORDER: Shown[] = ["broken", "due-today", "upcoming", "paid"];
+
+const KIND: Record<Shown, "good" | "warning" | "critical" | "neutral"> = {
   upcoming: "good",
   "due-today": "warning",
   broken: "critical",
+  paid: "neutral",
 };
+
+const LABEL: Record<Shown, string> = { ...PROMISE_STATE_LABEL, paid: "Paid, no longer owing" };
 
 export default function PromisesPage() {
   const store = useStore();
@@ -62,7 +73,7 @@ export default function PromisesPage() {
   const mayRecord = can("record-promises");
   const { notify } = useToast();
   const [adding, setAdding] = useState(false);
-  const [state, setState] = useState<PromiseState | "all">("all");
+  const [state, setState] = useState<Shown | "all">("all");
   const [query, setQuery] = useState("");
 
   const template = store.templates.find((t) => t.id === "promise-confirmation");
@@ -126,18 +137,25 @@ export default function PromisesPage() {
     await hydrateActivity(true);
   }
 
+  const stateOf = (p: PromiseRecord): Shown => {
+    const a = accountById(p.accountId);
+    return !a || a.total <= 0 ? "paid" : promiseState(p);
+  };
   const grouped = useMemo(() => {
-    const g: Record<PromiseState, PromiseRecord[]> = {
+    const g: Record<Shown, PromiseRecord[]> = {
       upcoming: [],
       "due-today": [],
       broken: [],
+      paid: [],
     };
-    for (const p of store.promises) g[promiseState(p)].push(p);
+    for (const p of store.promises) g[stateOf(p)].push(p);
     for (const k of ORDER) {
       g[k].sort((a, b) => a.promisedFor.localeCompare(b.promisedFor));
     }
     return g;
-  }, [store.promises]);
+    // stateOf reads the report, which ds.accounts carries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.promises, ds.accounts]);
 
   /*
    * One list with a filter over it, rather than three stacked sections.
@@ -154,7 +172,8 @@ export default function PromisesPage() {
     );
   }, [grouped, state, query]);
 
-  const total = store.promises.reduce((s, p) => s + p.amount, 0);
+  /* Still owed: a promise from a tenant who has since paid is not money due. */
+  const total = store.promises.filter((p) => stateOf(p) !== "paid").reduce((s, p) => s + p.amount, 0);
   const brokenValue = grouped.broken.reduce((s, p) => s + p.amount, 0);
   const promisePage = usePaged(shown, `${state}|${query}`);
 
@@ -199,9 +218,9 @@ export default function PromisesPage() {
                 [
                   ["all", "All", store.promises.length],
                   ...ORDER.map(
-                    (k) => [k, PROMISE_STATE_LABEL[k], grouped[k].length] as const,
+                    (k) => [k, LABEL[k], grouped[k].length] as const,
                   ),
-                ] as [PromiseState | "all", string, number][]
+                ] as [Shown | "all", string, number][]
               ).map(([key, label, count]) => (
                 <button
                   key={key}
@@ -252,8 +271,8 @@ export default function PromisesPage() {
                         </p>
                         <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
                           <StatusBadge
-                            kind={KIND[promiseState(p)]}
-                            label={PROMISE_STATE_LABEL[promiseState(p)]}
+                            kind={KIND[stateOf(p)]}
+                            label={LABEL[stateOf(p)]}
                           />
                           <span>
                             Promised on{" "}

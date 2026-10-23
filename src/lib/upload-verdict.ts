@@ -231,3 +231,33 @@ export async function markUsable(
 
   return { ok: true, uploadId };
 }
+
+/**
+ * The upload in the Activity Log. Replacing the report changes every figure
+ * on every screen and what the 9am run acts on, and it was the one admin
+ * action the log did not have (found 24 October). A failure is swallowed:
+ * the report is stored either way.
+ */
+export async function recordUploadEntry(
+  db: SupabaseClient,
+  u: {
+    actor: string;
+    actorName: string;
+    uploadId: string | null;
+    fileName: string | null;
+    reportDate: string | null;
+    tenants: number;
+    lines: number;
+    contacts: number | null;
+  },
+): Promise<void> {
+  await db.from("audit_log").insert({
+    actor: u.actor,
+    actor_name: u.actorName,
+    action: "report.upload",
+    subject:
+      `${u.fileName ?? "a report"} · report of ${u.reportDate ?? "no date"} · ${u.tenants} tenants` +
+      (u.contacts !== null ? ` · with a contact list of ${u.contacts}` : ""),
+    meta: { uploadId: u.uploadId, reportDate: u.reportDate, tenants: u.tenants, lines: u.lines },
+  });
+}

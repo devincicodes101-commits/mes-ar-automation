@@ -320,8 +320,18 @@ export async function POST(request: Request) {
        * run was genuine would make the two indistinguishable afterwards, which
        * is the whole reason the column exists.
        */
+      /*
+       * One exception, and it is not the caller's claim about the mail: a
+       * letter an officer marks "sent by hand" has no recipients - there was
+       * no address - and went by post or another mailbox. It did reach the
+       * tenant, so it is a real letter, and stored as simulated it showed as
+       * "not delivered" and never counted as the bill's reminder (24 Oct).
+       */
+      const e = body.record as SentEmail;
+      const byHand =
+        Array.isArray(e.to) && e.to.length === 0 && / \(by hand\)$/.test(e.templateName ?? "");
       row = {
-        ...emailToRow(body.record as SentEmail, !CAN_SEND_FOR_REAL),
+        ...emailToRow(e, byHand ? false : !CAN_SEND_FOR_REAL),
         sent_by: who.caller.userId,
       };
     } else if (body.kind === "late-fee") {

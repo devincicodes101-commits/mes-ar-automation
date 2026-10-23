@@ -199,7 +199,9 @@ export default function ReportsPage() {
      second press while the first is still going. */
   const [sendingReport, setSendingReport] = useState(false);
 
-  const { recipients } = useRecipients(ds.accounts.map((a) => (a as { rm?: string }).rm));
+  /* Sending waits for the saved addresses: pressed before they arrived, it
+     said "No email address" for a recipient that had one (24 October). */
+  const { recipients, loading: recipientsLoading } = useRecipients(ds.accounts.map((a) => (a as { rm?: string }).rm));
 
   /* Only letters that really left. A letter the run wrote while sending was
      off is not contact with the customer, and NetSuite must not be told it
@@ -391,7 +393,8 @@ export default function ReportsPage() {
                     {formatSgd(m.outstanding)}
                   </div>
                   <div className="tabular mt-0.5 text-[11px] text-ink-muted">
-                    {formatSgd(m.overdue)} overdue
+                    {/* A book entirely in credit has nothing overdue. */}
+                    {formatSgd(Math.max(0, m.overdue))} overdue
                   </div>
                 </div>
                 <button
@@ -558,7 +561,7 @@ export default function ReportsPage() {
             */}
           <button
             type="button"
-            disabled={!canAct || sendingReport}
+            disabled={!canAct || sendingReport || recipientsLoading}
             onClick={async () => {
               const report = sendable.find((r) => r.code === sendingCode);
               if (!report) return;

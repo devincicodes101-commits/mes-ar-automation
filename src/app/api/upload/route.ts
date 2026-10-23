@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { identify, mayUpload } from "@/lib/api-auth";
-import { markUsable, recordVerdict } from "@/lib/upload-verdict";
+import { markUsable, recordUploadEntry, recordVerdict } from "@/lib/upload-verdict";
 import { serverSupabase } from "@/lib/supabase-server";
 import { toImportPayload } from "@/lib/to-database";
 import type { Account } from "@/lib/types";
@@ -253,6 +253,23 @@ export async function POST(request: Request) {
   const verdictStored = uploadId
     ? await recordVerdict(db, uploadId, Array.isArray(body.findings) ? body.findings : [])
     : null;
+
+  /*
+   * In the Activity Log. Replacing the report changes every figure on every
+   * screen and what the 9am run acts on, and it was the one admin action the
+   * log did not have (found 24 October). Swallowed if it fails: the report is
+   * stored either way.
+   */
+  await recordUploadEntry(db, {
+    actor: who.caller.userId,
+    actorName: who.caller.email ?? who.caller.role,
+    uploadId,
+    fileName: body.fileName ?? null,
+    reportDate: body.reportDate ?? null,
+    tenants: payload.p_tenants.length,
+    lines: payload.p_invoices.length,
+    contacts: body.contacts ? body.contacts.length : null,
+  });
 
   return NextResponse.json({
     ok: true,

@@ -315,6 +315,8 @@ function plainAudit(action: string, subject: string, names: Map<string, string>)
       return { text: `Report recipients saved, ${subject}`, subject: "Changed the report recipients" };
     case "contacts.upload":
       return { text: "Uploaded a contact list", subject: tidy(subject) };
+    case "report.upload":
+      return { text: "Uploaded a report", subject: tidy(subject) };
     case "upload.override":
       return { text: "Marked an upload usable despite its checks", subject: tidy(subject) };
     case "user.create":

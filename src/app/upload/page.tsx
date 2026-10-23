@@ -474,6 +474,28 @@ function ApplyBar({
    * screen and stored are different things, and a file can be the first
    * without ever having been the second.
    */
+  /*
+   * Just adopted. The file is now the one in use, so the check below would
+   * say "Already in use, nothing to apply" - true, and no answer to somebody
+   * who has just pressed the button. Found testing on 24 October: the save
+   * worked and the screen never said so. Said here instead, with what changed.
+   */
+  if (alreadyApplied && adopted) {
+    return (
+      <Card className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5">
+        <StatusBadge kind={saveError ? "critical" : saved ? "good" : "neutral"} label={saveError ? "Not saved" : saved ? "In use" : "Saving"} />
+        <p className="min-w-0 flex-1 text-sm font-medium text-ink">
+          {saveError
+            ? <>On screen, but <b>not saved</b>: {saveError} Until it is saved, only this browser can see it.</>
+            : saved
+              ? "Saved. Everyone signed in now sees this report."
+              : "Using this report. Saving it for everyone..."}
+        </p>
+        {frozen.current ? <WhatChanged changed={frozen.current} after={built.accounts} /> : null}
+      </Card>
+    );
+  }
+
   if (alreadyApplied) {
     return (
       <Card className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:px-5">

@@ -357,6 +357,9 @@ export function withManualEmails(
 }
 
 export function applyDataset(d: Dataset): void {
+  /* A reload already on its way left before this file was chosen; see
+     hydrateFromServer. */
+  appliedAt += 1;
   commit(d);
 }
 
@@ -434,6 +437,19 @@ async function authHeader(): Promise<Record<string, string>> {
 }
 
 let hydrating: Promise<void> | null = null;
+/*
+ * How many times a file has been put on screen, and whether a reload has been
+ * asked for while another was already on its way.
+ *
+ * Found on 24 October uploading two files a few seconds apart: the first
+ * save's reload was still in flight when the second file was applied, the
+ * second save was handed that same reload, and it arrived carrying the first
+ * file - which then replaced the second on every screen, while the database
+ * held the second. A reload that left before a file was applied must not
+ * overwrite it, and a save must get a reload that left after it was stored.
+ */
+let appliedAt = 0;
+let reloadAgain = false;
 
 /**
  * Loads the newest stored report, and keeps what is on screen if it cannot.
@@ -447,10 +463,21 @@ let hydrating: Promise<void> | null = null;
  * copy, neither aware the server never answered, is exactly the situation this
  * phase exists to end.
  */
-export async function hydrateFromServer(): Promise<void> {
+export async function hydrateFromServer(opts: { fresh?: boolean } = {}): Promise<void> {
   if (typeof window === "undefined") return;
-  if (hydrating) return hydrating;
+  if (hydrating) {
+    /* One already on its way may predate what was just stored: go again
+       once it is back, rather than taking its answer. */
+    if (!opts.fresh) return hydrating;
+    reloadAgain = true;
+    return hydrating.then(() => {
+      if (!reloadAgain) return;
+      reloadAgain = false;
+      return hydrateFromServer({ fresh: true });
+    });
+  }
 
+  const startedAt = appliedAt;
   hydrating = (async () => {
     setState({ loading: true, serverError: null });
     try {
@@ -508,6 +535,12 @@ export async function hydrateFromServer(): Promise<void> {
         return;
       }
 
+      /* A file was put on screen after this left: it is newer than this
+         answer, and the save that follows it will reload. */
+      if (startedAt !== appliedAt) {
+        setState({ loading: false, serverError: null });
+        return;
+      }
       commit(body.dataset);
       setState({ loading: false, serverError: null, origin: "server" });
     } catch (e) {
@@ -552,7 +585,7 @@ export async function storeContacts(
     });
     const body = (await r.json()) as { ok?: boolean; error?: string; addresses?: number; companies?: number };
     if (!r.ok || !body.ok) return { ok: false, error: body.error ?? `The server answered ${r.status}.` };
-    await hydrateFromServer();
+    await hydrateFromServer({ fresh: true });
     return { ok: true, addresses: body.addresses ?? 0, companies: body.companies ?? 0 };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
@@ -615,6 +648,6 @@ export async function storeDataset(
     return { ok: false, error: body.error, problems: body.problems };
   }
 
-  await hydrateFromServer();
+  await hydrateFromServer({ fresh: true });
   return { ok: true };
 }

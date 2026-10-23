@@ -269,7 +269,27 @@ export async function GET(request: Request) {
       started_at: startedAt,
       finished_at: new Date().toISOString(),
     };
-    const written = await db.from("cron_runs").upsert(full, { onConflict: "ran_for" });
+
+    /*
+     * A later run of the same morning that did nothing keeps the earlier line.
+     *
+     * The 10, 11 and 12 o'clock follow-ups, and anybody pressing "run this
+     * morning again", record over the morning's line. When they had nothing
+     * left to do they wrote "nothing-due" or "0 fees" over a 9am run that sent
+     * letters or raised the 16th's fees, and The Schedule lost what the
+     * morning did (found 24 October). Its diary lines are still written.
+     */
+    const did = (x: Record<string, unknown> | null | undefined) =>
+      Number(x?.lettersWritten ?? 0) + Number(x?.feesRaised ?? 0) > 0;
+    const earlier = await db.from("cron_runs").select("status,summary").eq("ran_for", today.iso).maybeSingle();
+    const keepEarlier =
+      earlier.data?.status === "ok" &&
+      did(earlier.data.summary as Record<string, unknown>) &&
+      (row.status === "nothing-due" || row.status === "ok") &&
+      !did(row.summary);
+    const written = keepEarlier
+      ? await db.from("cron_runs").update({ finished_at: full.finished_at }).eq("ran_for", today.iso)
+      : await db.from("cron_runs").upsert(full, { onConflict: "ran_for" });
 
     /*
      * After the upsert, never before: run_log.ran_for references cron_runs,
@@ -292,7 +312,11 @@ export async function GET(request: Request) {
        * run will think this one never happened and report it as missed, and
        * somebody should know which of the two is wrong.
        */
-      recorded: written.error ? `not recorded: ${written.error.message}` : true,
+      recorded: written.error
+        ? `not recorded: ${written.error.message}`
+        : keepEarlier
+          ? "nothing new to do: the morning's earlier record was kept"
+          : true,
       logged: logged ?? `${log.size()} lines`,
     });
   };

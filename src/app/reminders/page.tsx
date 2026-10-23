@@ -315,7 +315,7 @@ export default function RemindersPage() {
 
       {/* One row to pick the part of the job, and one box to find a tenant. */}
       <Card className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
-        <div className="flex gap-1 overflow-x-auto rounded-lg bg-surface-alt p-1" role="tablist" aria-label="Which reminders to show">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-surface-alt p-1" role="tablist" aria-label="Which reminders to show">
           {([
             ["first", "First reminder", pendingFirst],
             ["final", "Final notice", pendingFinal],
@@ -337,7 +337,7 @@ export default function RemindersPage() {
                 if (key === "first") setTemplateId("reminder-7th");
                 if (key === "final") setTemplateId("final-21st");
               }}
-              className={`flex-1 whitespace-nowrap rounded-md px-3.5 py-1.5 text-[13px] lg:flex-none ${
+              className={`min-w-[30%] flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] sm:min-w-0 lg:flex-none ${
                 view === key
                   ? "bg-surface font-medium text-accent-text shadow-sm"
                   : "text-ink-muted hover:text-ink-secondary"

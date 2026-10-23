@@ -13,8 +13,16 @@ import {
   useStore,
   type SentEmail,
 } from "@/lib/store";
-import { currentPeriod } from "@/lib/schedule";
-import { letterById, renderLetter, type LetterId } from "@/lib/letters";
+import { currentPeriod, inSingapore } from "@/lib/schedule";
+import { letterById, renderLetter } from "@/lib/letters";
+import {
+  linesByAccount,
+  lettersToWrite,
+  remindersDueOn,
+  sentReminders,
+  type PlannedLetter,
+} from "@/lib/reminder-timing";
+import { useReminderWindow } from "@/lib/use-reminder-window";
 import {
   Card,
   CardHeader,
@@ -54,8 +62,9 @@ export default function NoEmailPage() {
   const store = useStore();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
-  const [letter, setLetter] = useState<LetterId>("first-reminder");
-  const [open, setOpen] = useState<Account | null>(null);
+  /* The tenant, and the letter due today, when one is open. */
+  const [open, setOpen] = useState<{ account: Account; letter: PlannedLetter } | null>(null);
+  const timing = useReminderWindow();
   const [query, setQuery] = useState("");
   /*
    * The screen only ever showed tenants still waiting, so somebody working
@@ -65,20 +74,43 @@ export default function NoEmailPage() {
    */
   const [show, setShow] = useState<"todo" | "sent" | "all">("todo");
 
+  const noAddress = useMemo(
+    () =>
+      scope(ds.accounts)
+        .filter((a) => !a.hasContact)
+        .filter((a) => a.status === "Live")
+        .filter((a) => overdueTotal(a) > 0 || a.total > 0)
+        .sort((x, y) => overdueTotal(y) - overdueTotal(x)),
+    [ds, scope],
+  );
   const missing = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return scope(ds.accounts)
-      .filter((a) => !a.hasContact)
-      .filter((a) => a.status === "Live")
-      .filter((a) => overdueTotal(a) > 0 || a.total > 0)
-      .filter((a) =>
-        q === ""
-          ? true
-          : a.companyName.toLowerCase().includes(q) ||
-            a.customerCode.toLowerCase().includes(q),
-      )
-      .sort((x, y) => overdueTotal(y) - overdueTotal(x));
-  }, [ds, scope, query]);
+    return noAddress.filter((a) =>
+      q === ""
+        ? true
+        : a.companyName.toLowerCase().includes(q) || a.customerCode.toLowerCase().includes(q),
+    );
+  }, [noAddress, query]);
+
+  /*
+   * The letters due today for tenants with no address, decided exactly as
+   * the 9am run and the Reminder Emails tabs decide them: each billing date on
+   * its own day, asking for that date's total. This screen used to offer any
+   * letter to any tenant, for the whole balance, whatever the day - a second
+   * set of rules for the same job (24 October). A letter marked sent by hand
+   * counts as that bill's letter, so it leaves this list.
+   */
+  const todayIso = inSingapore().iso;
+  const dueToday = useMemo(() => {
+    const plan = lettersToWrite(
+      remindersDueOn(noAddress, linesByAccount(noAddress, ds.invoices), todayIso, timing.window),
+      sentReminders(store.emails),
+      timing.window,
+    );
+    const by = new Map<string, PlannedLetter[]>();
+    for (const l of plan.write) by.set(l.accountId, [...(by.get(l.accountId) ?? []), l]);
+    return by;
+  }, [noAddress, ds.invoices, todayIso, timing.window, store.emails]);
 
   /*
    * The letters already sent by hand, this billing month.
@@ -103,14 +135,17 @@ export default function NoEmailPage() {
     return byAccount;
   }, [store.emails]);
 
-  /* The rows the table shows, once the three-way filter has had its say. */
+  /* The rows the table shows: a letter due today, a hand send, or a tenant. */
   const rows = useMemo(() => {
-    if (show === "all") return missing;
-    const sent = show === "sent";
-    return missing.filter((a) => handSent.has(a.id) === sent);
-  }, [missing, show, handSent]);
+    if (show === "todo") {
+      return missing.flatMap((a) => (dueToday.get(a.id) ?? []).map((letter) => ({ a, letter })));
+    }
+    const list = show === "sent" ? missing.filter((a) => handSent.has(a.id)) : missing;
+    return list.map((a) => ({ a, letter: (dueToday.get(a.id) ?? [])[0] ?? null }));
+  }, [missing, show, handSent, dueToday]);
 
   const doneCount = missing.filter((a) => handSent.has(a.id)).length;
+  const dueCount = missing.reduce((n, a) => n + (dueToday.get(a.id)?.length ?? 0), 0);
   /* One dormitory in the report: a column saying so on every row says nothing. */
   const manyDorms = new Set(missing.map((a) => a.property)).size > 1;
   const rowPage = usePaged(rows, `${show}|${query}`);
@@ -180,14 +215,6 @@ export default function NoEmailPage() {
               >
                 Download the list
               </button>
-              <select
-                value={letter}
-                onChange={(e) => setLetter(e.target.value as LetterId)}
-                className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
-              >
-                <option value="first-reminder">First reminder</option>
-                <option value="final-notice">Final notice</option>
-              </select>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -211,7 +238,7 @@ export default function NoEmailPage() {
         >
           {(
             [
-              ["todo", "Still to send", missing.length - doneCount],
+              ["todo", "Due today", dueCount],
               ["sent", "Sent by hand", doneCount],
               ["all", "All", missing.length],
             ] as ["todo" | "sent" | "all", string, number][]
@@ -240,14 +267,14 @@ export default function NoEmailPage() {
                 ? "Every tenant has an address"
                 : show === "sent"
                   ? "None sent by hand yet this month"
-                  : "All of them have been sent"
+                  : "No letters due by hand today"
             }
             body={
               missing.length === 0
                 ? "Nothing needs sending by hand. Reminders go out on their own, counted from each tenant's billing date."
                 : show === "sent"
                   ? "Open a letter and mark it sent once you have posted it from Outlook."
-                  : "Every tenant on this list has been marked as sent by hand this month."
+                  : "A tenant with no address gets their letter here on its day, as everyone else gets theirs by email. All lists every tenant without an address."
             }
           />
         ) : (
@@ -266,11 +293,17 @@ export default function NoEmailPage() {
                 </tr>
               </thead>
               <tbody>
-                {rowPage.shown.map((a) => (
-                  <tr key={a.id} className="border-b border-line-hair last:border-0">
+                {rowPage.shown.map(({ a, letter }) => (
+                  <tr key={`${a.id}|${letter?.stage ?? ""}`} className="border-b border-line-hair last:border-0">
                     <td className="px-4 py-2.5 sm:px-5">
                       <TenantLink id={a.id} name={a.companyName} className="text-ink" />
                       <div className="mono text-[11px] text-ink-muted">{a.customerCode}</div>
+                      {letter ? (
+                        <div className="mt-0.5 text-[11px] text-ink-secondary">
+                          {letterById(letter.stage).name} due today · billed{" "}
+                          {letter.bills.map((b) => formatDate(b.billedOn)).join(" and ")} · SGD {formatSgd(letter.amount)}
+                        </div>
+                      ) : null}
                       {/* On a phone the figures fold in under the name. */}
                       <div className="tabular mt-1 text-[11px] text-ink-secondary sm:hidden">
                         Overdue {formatSgd(overdueTotal(a))} of {formatSgd(a.total)}
@@ -306,13 +339,17 @@ export default function NoEmailPage() {
                         * modal opened, which reads exactly like a control that
                         * does not work.
                         */}
-                      <button
-                        type="button"
-                        onClick={() => setOpen(a)}
-                        className="rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
-                      >
-                        Read the {letterById(letter).name.toLowerCase()}
-                      </button>
+                      {letter ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpen({ account: a, letter })}
+                          className="rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
+                        >
+                          Read the {letterById(letter.stage).name.toLowerCase()}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-ink-muted">Nothing due today</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -325,40 +362,44 @@ export default function NoEmailPage() {
 
       {open ? (
         <LetterModal
-          account={open}
-          letter={letter}
+          account={open.account}
+          letter={open.letter}
           asOf={ds.asOf}
           canAct={canAct}
           onClose={() => setOpen(null)}
-          alreadySent={handSent.get(open.id)?.at ?? null}
+          alreadySent={handSent.get(open.account.id)?.at ?? null}
           onSent={() => {
-            const spec = letterById(letter);
-            const written = renderLetter(letter, {
-              companyName: open.companyName,
-              grandTotal: open.total,
+            const { account, letter } = open;
+            const spec = letterById(letter.stage);
+            const written = renderLetter(letter.stage, {
+              companyName: account.companyName,
+              grandTotal: letter.amount,
               sentOn: ds.asOf ?? new Date().toISOString().slice(0, 10),
             });
             recordEmail({
-              accountId: open.id,
-              companyName: open.companyName,
+              accountId: account.id,
+              companyName: account.companyName,
               period: currentPeriod(),
-              templateId: letter,
+              /* The reminder's own ids, so it counts as this bill's letter. */
+              templateId: letter.stage === "final-notice" ? "final-21st" : "reminder-7th",
               templateName: `${spec.name} (by hand)`,
               subject: written.subject,
               body: written.body,
+              billedOn: letter.bills.map((b) => b.billedOn),
               /* Empty on purpose: this is the marker for a hand send. */
               to: [],
             });
             notify(
-              `${open.companyName} marked as sent`,
-              `${spec.name} recorded against this month. It moves to the Sent by hand list.`,
+              `${account.companyName} marked as sent`,
+              `${spec.name} recorded for the bill of ${letter.bills.map((b) => formatDate(b.billedOn)).join(" and ")}. It moves to the Sent by hand list.`,
             );
             setOpen(null);
           }}
           onSaved={(emails) => {
-            setManualEmails(open.id, open.companyName, emails);
+            const account = open.account;
+            setManualEmails(account.id, account.companyName, emails);
             notify(
-              `${open.companyName} can now be emailed`,
+              `${account.companyName} can now be emailed`,
               `${emails.length} address${emails.length === 1 ? "" : "es"} saved. They rejoin the automatic send.`,
             );
             setOpen(null);
@@ -388,7 +429,8 @@ function LetterModal({
   onSaved,
 }: {
   account: Account;
-  letter: LetterId;
+  /** The letter due today: which one, for which bills, for how much. */
+  letter: PlannedLetter;
   asOf: string | null;
   canAct: boolean;
   alreadySent: string | null;
@@ -401,9 +443,9 @@ function LetterModal({
 
   const rendered = useMemo(
     () =>
-      renderLetter(letter, {
+      renderLetter(letter.stage, {
         companyName: account.companyName,
-        grandTotal: account.total,
+        grandTotal: letter.amount,
         sentOn: asOf ?? new Date().toISOString().slice(0, 10),
       }),
     [letter, account, asOf],
@@ -436,8 +478,8 @@ function LetterModal({
         <div className="flex flex-wrap items-center gap-2.5">
           <StatusBadge kind="warning" label="No email address" />
           <span className="text-[11px] text-ink-muted">
-            {account.propertyName} &middot; owes {formatSgd(account.total)},
-            overdue {formatSgd(overdueTotal(account))}
+            {letterById(letter.stage).name} for the bill of{" "}
+            {letter.bills.map((b) => formatDate(b.billedOn)).join(" and ")} &middot; SGD {formatSgd(letter.amount)}
           </span>
         </div>
 

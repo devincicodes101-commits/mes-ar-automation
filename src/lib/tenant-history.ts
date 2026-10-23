@@ -96,7 +96,14 @@ export function historyFor(
       id: c.id,
       kind: "call",
       at: c.at,
-      title: c.reached === "yes" ? `Spoke to them: ${said}` : `Called: ${said}`,
+      /* reached is who was spoken to, as typed on the call form. It was a
+         yes or no once, and older calls still say so. */
+      title:
+        c.reached === "yes"
+          ? `Spoke to them: ${said}`
+          : c.reached && c.reached !== "no"
+            ? `Spoke to ${c.reached}: ${said}`
+            : `Called: ${said}`,
       detail: c.notes || "No note was left.",
       amount: c.promisedAmount,
       reachedTheTenant: false,

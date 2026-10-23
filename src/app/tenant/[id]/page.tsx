@@ -168,14 +168,20 @@ export default function TenantPage() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatTile label="Owed" prefix="SGD" value={formatSgd(account.total)} />
+        {/* A tenant in credit owes nothing: "Owed -365.83" and "Overdue
+            -365.83" read as debts. Said as credit, and nothing is overdue. */}
+        {account.total < 0 ? (
+          <StatTile label="In credit" prefix="SGD" value={formatSgd(-account.total)} />
+        ) : (
+          <StatTile label="Owed" prefix="SGD" value={formatSgd(account.total)} />
+        )}
         <StatTile
           label="Overdue"
           prefix="SGD"
-          value={formatSgd(overdue)}
+          value={formatSgd(Math.max(0, overdue))}
           emphasis
         />
-        <StatTile label="Over 90 days" prefix="SGD" value={formatSgd(severe)} />
+        <StatTile label="Over 90 days" prefix="SGD" value={formatSgd(Math.max(0, severe))} />
         <StatTile label="Oldest money" value={oldestBucket(account.buckets)} />
       </div>
 
