@@ -855,9 +855,10 @@ const CLIENT_ROUTE = code("src/app/api/mail/client/route.ts");
 check("the client route exists", CLIENT_ROUTE.length > 0, true);
 check("it never selects the secret",
       /select\([^)]*client_secret/.test(CLIENT_ROUTE), false);
+/* The screen that set it (Settings > Advanced) was removed on 24 October: the
+   client is set once, and the setup card only showed developer detail. */
 check("and no screen asks for it back",
-      /client_secret|clientSecret\s*[:=]\s*(body|data|state)/.test(
-        code("src/components/GoogleClient.tsx")), false);
+      existsSync(path.join(process.cwd(), "src/components/GoogleClient.tsx")), false);
 
 // Swapping the client points every future sign in at a different Google
 // project, so it is an administrator's decision and it leaves a trace.

@@ -26,14 +26,13 @@ import {
   Tag,
 } from "@/components/ui";
 import { MailAccounts } from "@/components/MailAccounts";
-import { GoogleClient } from "@/components/GoogleClient";
 
-type Tab = "mailbox" | "timing" | "fees" | "wording" | "recipients" | "charges" | "advanced";
+type Tab = "mailbox" | "timing" | "fees" | "wording" | "recipients" | "charges";
 
 export default function SettingsPage() {
   const store = useStore();
   const { window: reminderDays, source: timingSource } = useReminderWindow();
-  const { canAct, role } = useSession();
+  const { canAct } = useSession();
   const [editing, setEditing] = useState<Template | null>(null);
   const [tab, setTab] = useState<Tab>("mailbox");
   /* The managers are the ones in the report, not a fixed pair. */
@@ -49,7 +48,6 @@ export default function SettingsPage() {
     { key: "fees", label: "Fees and reports" },
     { key: "recipients", label: "Report recipients" },
     { key: "charges", label: "Charge types" },
-    ...(role === "super-admin" ? [{ key: "advanced" as Tab, label: "Advanced" }] : []),
   ];
 
   return (
@@ -83,7 +81,6 @@ export default function SettingsPage() {
         </>
       ) : null}
 
-      {tab === "advanced" ? <GoogleClient /> : null}
 
       {/* --------------------------------------------- when reminders fall due */}
       {tab === "timing" ? <ReminderTiming /> : null}
