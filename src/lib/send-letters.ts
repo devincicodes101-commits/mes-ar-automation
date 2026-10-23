@@ -40,6 +40,8 @@ export interface Outgoing {
   templateName?: string;
   /** The billing month this letter is about, as the first of it. */
   period?: string;
+  /** For a reminder: the billing dates of the invoices it lists. */
+  billedOn?: string[];
 }
 
 export interface SendReport {

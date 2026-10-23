@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   billingCycles,
   cycleStage,
-  CREDIT_DAYS,
   type BillingCycle,
   type BillingLine,
 } from "@/lib/billing-cycles";
 import { formatSgd } from "@/lib/data";
-import { Card, CardHeader, StatusBadge } from "@/components/ui";
+import { Card, CardHeader, Pagination, StatusBadge } from "@/components/ui";
+import { formatDate } from "@/lib/format";
+import { usePaged } from "@/lib/use-paged";
 
 /* ------------------------------------------------------- billing cycles ---
  * Raman asked for this outright on 14 September: "in one report you may have
@@ -38,32 +39,21 @@ export function BillingCycles({
   invoices: readonly BillingLine[];
   asOf: string | null;
 }) {
-  const [all, setAll] = useState(false);
   const { cycles, undated, undatedTotal } = useMemo(
     () => billingCycles(invoices, asOf),
     [invoices, asOf],
   );
+  /* Newest first, ten at a time: a report can carry hundreds of runs. */
+  const { shown, pager } = usePaged(cycles, null, 10);
   if (cycles.length === 0) return null;
 
-  const shown = all ? cycles : cycles.slice(0, 6);
   const overdue = cycles.reduce((s, c) => s + c.overdue, 0);
 
   return (
     <Card>
       <CardHeader
         title="What each billing run is still owed"
-        hint={`MES bill on the 15th, and adhoc runs happen on other dates too. Payment falls due ${CREDIT_DAYS} days after each one, so every run has its own clock. This upload contains ${cycles.length} of them.`}
-        right={
-          cycles.length > 6 ? (
-            <button
-              type="button"
-              onClick={() => setAll((v) => !v)}
-              className="rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
-            >
-              {all ? "Show recent only" : `Show all ${cycles.length}`}
-            </button>
-          ) : null
-        }
+        hint={`${cycles.length} billing ${cycles.length === 1 ? "run" : "runs"} in this report`}
       />
 
       <div className="overflow-x-auto">
@@ -100,8 +90,8 @@ export function BillingCycles({
               const stage = cycleStage(c);
               return (
                 <tr key={c.billedOn} className="border-b border-line-hair last:border-0">
-                  <td className="tabular px-5 py-2.5 text-ink">{c.billedOn}</td>
-                  <td className="tabular px-3 py-2.5 text-ink-secondary">{c.dueBy}</td>
+                  <td className="tabular whitespace-nowrap px-5 py-2.5 text-ink">{formatDate(c.billedOn)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{formatDate(c.dueBy)}</td>
                   <td className="px-3 py-2.5">
                     <StatusBadge
                       kind={
@@ -126,7 +116,7 @@ export function BillingCycles({
                   <td className="tabular px-3 py-2.5 text-right text-ink">{formatSgd(c.total)}</td>
                   <td className="tabular px-5 py-2.5 text-right font-medium text-ink">
                     {c.overdue === 0 ? (
-                      <span className="text-ink-muted">&mdash;</span>
+                      <span className="text-ink-muted">-</span>
                     ) : (
                       formatSgd(c.overdue)
                     )}
@@ -138,16 +128,11 @@ export function BillingCycles({
         </table>
       </div>
 
+      <Pagination {...pager} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-line-hair px-5 py-3 text-[11px] text-ink-muted">
         <span>
-          <b className="text-ink-secondary">{formatSgd(overdue)}</b> is old
-          enough to chase across all {cycles.length} runs, which is the figure
-          the tiles above count. That means more than fifteen days past the due
-          date, which is where MES{"’"}s own aging stops calling a charge
-          Current. A run can therefore be a few days past its due date and still
-          hold nothing chaseable. The credit clock beside each run is a
-          different measure again: it counts from the billing date, not the due
-          date, so it always reads higher.
+          <b className="text-ink-secondary">SGD {formatSgd(overdue)}</b> is old enough to chase,
+          across all {cycles.length} runs.
         </span>
         {undated > 0 ? (
           <span>
@@ -173,7 +158,7 @@ export function BillingCycles({
  */
 function Who({ cycle }: { cycle: BillingCycle }) {
   const { who, properties } = cycle;
-  if (who.length === 0) return <span className="text-ink-muted">&mdash;</span>;
+  if (who.length === 0) return <span className="text-ink-muted">-</span>;
 
   const names =
     who.length === 1

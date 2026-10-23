@@ -234,14 +234,26 @@ export function lateFeeWorkbook(
     return row;
   };
 
+  /*
+   * No Status column: the Aging Detail export has none, so it read "Live" for
+   * every tenant. "New balance" is what the tenant owes once the fee is added,
+   * as the screen shows it, not the overdue part plus the fee.
+   */
   const COLUMNS = [
-    "Company Name", "Dormitory", "Status", "Overdue",
+    "Company Name", "Dormitory", "Overdue", "Owed",
     "Fee", "New balance", "Billed in NetSuite", "Raised by us", "Sales Rep",
   ];
   const W = COLUMNS.length;
+  const month = period
+    ? new Date(`${period.slice(0, 7)}-01T00:00:00Z`).toLocaleString("en-GB", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : null;
   const rows: Cell[][] = [
     head(listing.entity ?? "MES Group", W),
-    head(`Late payment admin fee${period ? ` — ${period.slice(0, 7)}` : ""}`, W),
+    head(`Late payment admin fee${month ? `, ${month}` : ""}`, W),
     head(`As of ${longDate(listing.asOf)}`, W),
     head(
       `$${listing.fee} each, on anything more than ${listing.minimumAgeDays} days overdue`,
@@ -255,10 +267,10 @@ export function lateFeeWorkbook(
     rows.push([
       `${c.account.customerCode} ${c.account.companyName}`,
       c.account.property,
-      c.account.status,
       c.overdue,
+      c.account.total,
       c.fee,
-      Math.round((c.overdue + c.fee) * 100) / 100,
+      Math.round((c.account.total + c.fee) * 100) / 100,
       c.billedByMes,
       c.raisedByUs,
       (c.account as { rm?: string }).rm ?? "",
@@ -268,8 +280,9 @@ export function lateFeeWorkbook(
   rows.push(Array.from({ length: W }, () => null));
   rows.push([
     "Total",
-    null, null,
+    null,
     Math.round(listing.rows.reduce((t, c) => t + c.overdue, 0) * 100) / 100,
+    Math.round(listing.rows.reduce((t, c) => t + c.account.total, 0) * 100) / 100,
     Math.round(listing.rows.reduce((t, c) => t + c.fee, 0) * 100) / 100,
     null, null, null, null,
   ]);
@@ -281,8 +294,8 @@ export function lateFeeWorkbook(
    * wrong nobody would find out.
    */
   rows.push([], [], []);
-  rows.push(head("Held back — on GIRO, a bounced deduction is not their failure", W));
-  rows.push(["Company Name", "Dormitory", "Status", "Overdue", null, null, null, null, null]);
+  rows.push(head("Held back: on GIRO, a bounced deduction is not their failure", W));
+  rows.push(["Company Name", "Dormitory", "Overdue", null, null, null, null, null, null]);
   if (listing.giroExcluded.length === 0) {
     rows.push(["Nobody in this report is on GIRO.", null, null, null, null, null, null, null, null]);
   }
@@ -290,9 +303,8 @@ export function lateFeeWorkbook(
     rows.push([
       `${g.account.customerCode} ${g.account.companyName}`,
       g.account.property,
-      g.account.status,
       g.overdue,
-      null, null, null, null, null,
+      null, null, null, null, null, null,
     ]);
   }
 

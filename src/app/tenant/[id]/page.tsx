@@ -1,16 +1,29 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { BUCKETS, type BucketKey } from "@/lib/types";
 import { formatSgd, invoicesForAccount, overdueTotal, severeTotal } from "@/lib/data";
 import { useStore } from "@/lib/store";
+import { formatDate } from "@/lib/format";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { useSession } from "@/lib/session";
 import { historyFor, summariseHistory, type HistoryKind } from "@/lib/tenant-history";
-import { Card, CardHeader, EmptyState, StatTile, StatusBadge, Tag } from "@/components/ui";
+import {
+  Card,
+  CardHeader,
+  EmptyState,
+  Pagination,
+  SearchBox,
+  StatTile,
+  StatusBadge,
+  Tag,
+  matchesQuery,
+} from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
+import { backTarget } from "@/components/Shell";
 
 /**
  * One tenant, and everything this system has done about them.
@@ -28,7 +41,7 @@ import { Card, CardHeader, EmptyState, StatTile, StatusBadge, Tag } from "@/comp
  */
 
 const TINT: Record<HistoryKind, "good" | "warning" | "critical" | "neutral"> = {
-  letter: "warning",
+  letter: "neutral",
   call: "neutral",
   promise: "good",
   fee: "critical",
@@ -44,6 +57,8 @@ const WHAT: Record<HistoryKind, string> = {
 export default function TenantPage() {
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(String(params?.id ?? ""));
+  /* Read once per visit: the page this tenant was opened from. */
+  const [back] = useState(backTarget);
 
   const store = useStore();
   const { scope } = useSession();
@@ -65,13 +80,35 @@ export default function TenantPage() {
      this page groups charges exactly as every other screen does rather than
      inventing a second rule that could disagree with them. */
   const charges = useMemo(
-    () => (account ? invoicesForAccount(account, ds.invoices) : []),
+    () =>
+      account
+        ? [...invoicesForAccount(account, ds.invoices)].sort((a, b) => (b.age ?? 0) - (a.age ?? 0))
+        : [],
     [account, ds.invoices],
   );
+
+  /* Some tenants carry a few hundred lines, so a search and a page at a time. */
+  const [find, setFind] = useState("");
+  const foundCharges = useMemo(
+    () =>
+      charges.filter((c) =>
+        matchesQuery(find, [c.description, c.documentNumber, c.bucket, formatDate(c.date), formatDate(c.dueDate)]),
+      ),
+    [charges, find],
+  );
+  const chargePage = usePaged(foundCharges, find);
 
   if (!account) {
     return (
       <div className="space-y-5">
+        <div>
+          <Link
+            href={back.href}
+            className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary"
+          >
+            Back to {back.label}
+          </Link>
+        </div>
         <Card>
           <EmptyState
             title="That tenant is not in the current report"
@@ -98,7 +135,8 @@ export default function TenantPage() {
           <div className="min-w-0">
             <h1 className="text-lg font-semibold text-ink">{account.companyName}</h1>
             <p className="mt-1 text-xs text-ink-muted">
-              {account.customerCode} · {account.property} · {account.status}
+              {account.customerCode} · {account.property}
+              {account.status === "Terminated" ? " · moved out" : ""}
               {account.isOneFm ? " · 1FM" : ""}
             </p>
             <p className="mt-2 max-w-[70ch] text-sm text-ink-secondary">
@@ -120,26 +158,25 @@ export default function TenantPage() {
               <StatusBadge kind="critical" label="No email address" />
             )}
             <Link
-              href="/collections"
+              href={back.href}
               className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
             >
-              Back to the list
+              Back to {back.label}
             </Link>
           </div>
         </div>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Owed" prefix="SGD" value={formatSgd(account.total)} note="Everything on the account" />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatTile label="Owed" prefix="SGD" value={formatSgd(account.total)} />
         <StatTile
           label="Overdue"
           prefix="SGD"
           value={formatSgd(overdue)}
-          note="More than 15 days past due"
           emphasis
         />
-        <StatTile label="Over 90 days" prefix="SGD" value={formatSgd(severe)} note="The hardest to recover" />
-        <StatTile label="Oldest money" value={oldestBucket(account.buckets)} note="Where the debt sits" />
+        <StatTile label="Over 90 days" prefix="SGD" value={formatSgd(severe)} />
+        <StatTile label="Oldest money" value={oldestBucket(account.buckets)} />
       </div>
 
       <Timeline events={events} />
@@ -147,37 +184,53 @@ export default function TenantPage() {
       <Card>
         <CardHeader
           title="What they are being charged for"
-          hint="Every line in the report on screen, oldest money first."
+          hint={`${charges.length} ${charges.length === 1 ? "line" : "lines"}`}
+          right={
+            charges.length > 10 ? (
+              <SearchBox
+                value={find}
+                onChange={setFind}
+                placeholder="Find a charge, document or date"
+                label="Find a charge"
+              />
+            ) : null
+          }
         />
         {charges.length === 0 ? (
           <EmptyState title="No charge lines" body="This upload carried no line detail for them." />
+        ) : foundCharges.length === 0 ? (
+          <EmptyState title="No charges match" body="Try a different word, or clear the search." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line-hair text-left text-xs text-ink-muted">
-                  <th className="px-5 py-2 font-medium">Billed</th>
-                  <th className="px-3 py-2 font-medium">Due</th>
+                  <th className="px-4 py-2 font-medium sm:px-5">Billed</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">Due</th>
                   <th className="px-3 py-2 font-medium">What it is</th>
-                  <th className="px-3 py-2 font-medium">How overdue</th>
-                  <th className="px-5 py-2 text-right font-medium">Owed</th>
+                  <th className="hidden px-3 py-2 font-medium sm:table-cell">How overdue</th>
+                  <th className="px-4 py-2 text-right font-medium sm:px-5">Owed</th>
                 </tr>
               </thead>
               <tbody>
-                {[...charges]
-                  .sort((a, b) => (b.age ?? 0) - (a.age ?? 0))
-                  .map((c) => (
+                {chargePage.shown.map((c) => (
                     <tr key={c.id} className="border-b border-line-hair last:border-0">
-                      <td className="tabular px-5 py-2.5 text-ink-secondary">{c.date ?? "—"}</td>
-                      <td className="tabular px-3 py-2.5 text-ink-secondary">{c.dueDate ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-ink-secondary">{c.description}</td>
-                      <td className="px-3 py-2.5">
-                        <Tag>{c.bucket || "—"}</Tag>
+                      <td className="tabular whitespace-nowrap px-4 py-2.5 align-top text-ink-secondary sm:px-5">{formatDate(c.date)}</td>
+                      <td className="tabular hidden whitespace-nowrap px-3 py-2.5 text-ink-secondary sm:table-cell">{formatDate(c.dueDate)}</td>
+                      <td className="px-3 py-2.5 align-top text-ink-secondary">
+                        {c.description}
+                        <span className="mt-0.5 block text-[11px] text-ink-muted sm:hidden">
+                          {c.bucket || "Not due"}
+                          {c.age !== null && c.age > 0 ? ` · ${c.age} days` : ""}
+                        </span>
+                      </td>
+                      <td className="hidden px-3 py-2.5 sm:table-cell">
+                        <Tag>{c.bucket || "-"}</Tag>
                         {c.age !== null ? (
-                          <span className="ml-2 text-xs text-ink-muted">{c.age}d</span>
+                          <span className="ml-2 text-xs text-ink-muted">{c.age} days</span>
                         ) : null}
                       </td>
-                      <td className="tabular px-5 py-2.5 text-right font-medium text-ink">
+                      <td className="tabular px-4 py-2.5 text-right align-top font-medium text-ink sm:px-5">
                         {formatSgd(c.openBalance)}
                       </td>
                     </tr>
@@ -186,17 +239,18 @@ export default function TenantPage() {
             </table>
           </div>
         )}
+        <Pagination {...chargePage.pager} />
       </Card>
     </div>
   );
 }
 
 function Timeline({ events }: { events: ReturnType<typeof historyFor> }) {
+  const { shown, pager } = usePaged(events);
   return (
     <Card>
       <CardHeader
         title="Everything we have done"
-        hint="Letters, calls, promises and fees in one order, newest first. A letter is something the tenant has too."
         right={<StatusBadge kind="neutral" label={`${events.length} events`} />}
       />
       {events.length === 0 ? (
@@ -206,7 +260,7 @@ function Timeline({ events }: { events: ReturnType<typeof historyFor> }) {
         />
       ) : (
         <ol className="divide-y divide-line-hair">
-          {events.map((e) => (
+          {shown.map((e) => (
             <li key={e.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
               <StatusBadge kind={TINT[e.kind]} label={WHAT[e.kind]} />
               <div className="min-w-0 flex-1">
@@ -214,15 +268,16 @@ function Timeline({ events }: { events: ReturnType<typeof historyFor> }) {
                 <p className="mt-0.5 text-xs leading-relaxed text-ink-secondary">{e.detail}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="tabular text-xs text-ink-secondary">{e.at.slice(0, 10)}</p>
+                <p className="tabular text-xs text-ink-secondary">{formatDate(e.at)}</p>
                 <p className="text-[11px] text-ink-muted">
-                  {e.reachedTheTenant ? "the tenant has this too" : "internal record"}
+                  {e.reachedTheTenant ? "Sent to the tenant" : "Internal record"}
                 </p>
               </div>
             </li>
           ))}
         </ol>
       )}
+      <Pagination {...pager} />
     </Card>
   );
 }

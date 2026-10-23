@@ -218,7 +218,7 @@ export async function sendingStatus(
       : mode === "allowed"
         ? allowlist.length === 0
           ? "Sending is limited to a test list and the list is empty, so nothing " +
-            "can go out. Set MAIL_ALLOWLIST."
+            "can go out. Ask your administrator to add test addresses."
           : `Only these addresses can be written to: ${allowlist.join(", ")}.`
         : "Letters go to real tenants at the addresses on their account.";
 

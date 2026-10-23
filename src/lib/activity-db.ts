@@ -102,6 +102,8 @@ export interface EmailRow {
   /** The billing month the letter was about. Null for rows written before
       0018_email_period.sql added it. */
   period?: string | null;
+  /** The billing dates a reminder listed. Null before 0027_letter_bills.sql. */
+  billed_on?: string[] | null;
   tenants?: { company_name: string } | null;
 }
 
@@ -233,5 +235,6 @@ export function emailsFromRows(rows: readonly EmailRow[]): SentEmail[] {
     /* The month the letter was about, which is not the month it was sent.
        Undefined for letters stored before the column existed. */
     period: r.period ?? undefined,
+    billedOn: r.billed_on ?? undefined,
   }));
 }

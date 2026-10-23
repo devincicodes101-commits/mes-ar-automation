@@ -25,9 +25,12 @@ import {
   StatusBadge,
   Tag,
   ScrollPanel,
+  TenantLink,
+  Pagination,
 } from "@/components/ui";
-
-type StatusFilter = "Live" | "Terminated";
+import { usePaged } from "@/lib/use-paged";
+import { formatDate } from "@/lib/format";
+import { sumExact } from "@/lib/money";
 
 const PROPERTIES: (PropertyCode | "ALL")[] = ["ALL", "JPD1", "JPD2", "BSD", "LEO"];
 
@@ -39,7 +42,6 @@ const PROPERTY_LABEL: Record<string, string> = {
   LEO: "The Leo",
 };
 
-type ViewMode = "tenant" | "charge";
 type SortKey = "name" | "total" | "overdue" | BucketKey;
 
 export default function AgingBoardPage() {
@@ -47,16 +49,17 @@ export default function AgingBoardPage() {
   const store = useStore();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [property, setProperty] = useState<PropertyCode | "ALL">("ALL");
-  const [status, setStatus] = useState<StatusFilter>("Live");
-  const [view, setView] = useState<ViewMode>("tenant");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("overdue");
   const [desc, setDesc] = useState(true);
-  /* The aging columns are an analyst's tool. Closed until asked for. */
+  /* The aging columns are an analyst's tool: added to the one table on
+     request, rather than drawn as a second table of the same tenants. */
+  const [aging, setAging] = useState(false);
+  /* Charge types and billing runs, which are not per tenant. */
   const [full, setFull] = useState(false);
   /*
-   * Which tenants the plain list shows. It showed only the overdue - 160 of
+   * Which tenants the list shows. It showed only the overdue - 160 of
    * MES's 263 in September - and MES asked to see every tenant: the ones not
    * late yet, the ones in credit and the ones who owe nothing are still
    * tenants, and a list that leaves them out reads as though they are missing.
@@ -76,66 +79,17 @@ export default function AgingBoardPage() {
     );
   }, [ds.accounts, ds.invoices, scope]);
 
-  const accounts = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = scope(ds.accounts)
-      .filter((a) => (property === "ALL" ? true : a.property === property))
-      .filter((a) => a.status === status)
-      .filter((a) =>
-        q === ""
-          ? true
-          : a.companyName.toLowerCase().includes(q) ||
-            a.customerCode.toLowerCase().includes(q),
-      );
-
-    const value = (a: (typeof list)[0]) => {
-      if (sort === "name") return a.companyName;
-      if (sort === "total") return a.total;
-      if (sort === "overdue") return overdueTotal(a);
-      return a.buckets[sort];
-    };
-
-    return list.sort((a, b) => {
-      const x = value(a);
-      const y = value(b);
-      const cmp =
-        typeof x === "string" && typeof y === "string"
-          ? x.localeCompare(y)
-          : Number(x) - Number(y);
-      return desc ? -cmp : cmp;
-    });
-  }, [ds, property, status, query, sort, desc, scope]);
-
-  function sortState(key: SortKey): "ascending" | "descending" | "none" {
-    if (sort !== key) return "none";
-    return desc ? "descending" : "ascending";
-  }
-
-  function sortBy(key: SortKey) {
-    if (sort === key) {
-      setDesc(!desc);
-      return;
-    }
-    setSort(key);
-    setDesc(key !== "name");
-  }
-
-  const k = useMemo(() => kpis(accounts), [accounts]);
-  const totals = useMemo(() => bucketTotals(accounts), [accounts]);
-  const charges = useMemo(
-    () => revenueBreakdown(accounts, ds.invoices),
-    [accounts, ds.invoices],
+  /* The dormitories the report covers. MES's export is one entity, one
+     dormitory, so a picker offering four more was four empty lists. */
+  const dorms = useMemo(
+    () => Array.from(new Set(scope(ds.accounts).map((a) => a.property))),
+    [ds.accounts, scope],
   );
 
   /*
-   * The only list most people opening this page want: who owes money that is
-   * late, biggest first. Everyone who has paid, is in credit, or is not late
-   * yet is left out, because none of them is a thing to do today.
-   */
-  /*
-   * The plain list's tenants: the dormitory and the search applied, and not
-   * the Live / Terminated tabs of the full breakdown below, which used to
-   * leave moved-out tenants off this list without saying so.
+   * The list's tenants: the dormitory and the search applied. Moved-out
+   * tenants stay in, marked, because they still owe what they owe; a Live /
+   * Terminated switch used to leave them off without saying so.
    */
   const plain = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -152,89 +106,142 @@ export default function AgingBoardPage() {
   const whoOwe = plain.filter((a) => a.total > 0);
 
   /* Late money first, then what is owed but not late, then nothing owed,
-     then credit - so the list still opens on who to chase. */
+     then credit - so the list still opens on who to chase. With the aging
+     columns open, a column header sorts instead. */
   const owing = useMemo(() => {
     const list = show === "overdue" ? overdueOnly : show === "owing" ? whoOwe : plain;
-    return [...list].sort(
-      (x, y) =>
-        Math.max(overdueTotal(y), 0) - Math.max(overdueTotal(x), 0) || y.total - x.total,
-    );
+    if (!aging) {
+      return [...list].sort(
+        (x, y) =>
+          Math.max(overdueTotal(y), 0) - Math.max(overdueTotal(x), 0) || y.total - x.total,
+      );
+    }
+    const value = (a: Account) => {
+      if (sort === "name") return a.companyName;
+      if (sort === "total") return a.total;
+      if (sort === "overdue") return overdueTotal(a);
+      return a.buckets[sort];
+    };
+    return [...list].sort((a, b) => {
+      const x = value(a);
+      const y = value(b);
+      const cmp =
+        typeof x === "string" && typeof y === "string"
+          ? x.localeCompare(y)
+          : Number(x) - Number(y);
+      return desc ? -cmp : cmp;
+    });
     // overdueOnly and whoOwe are derived from plain on every render.
-  }, [plain, show]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [plain, show, aging, sort, desc]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* A page at a time, so a full report does not render every row at once. */
+  const plainPage = usePaged(owing, `${show}|${property}|${query}|${aging}|${sort}|${desc}`);
+
+  function sortState(key: SortKey): "ascending" | "descending" | "none" {
+    if (sort !== key) return "none";
+    return desc ? "descending" : "ascending";
+  }
+
+  function sortBy(key: SortKey) {
+    if (sort === key) {
+      setDesc(!desc);
+      return;
+    }
+    setSort(key);
+    setDesc(key !== "name");
+  }
+
+  /* The tiles count every tenant the dormitory and search leave, moved out
+     or not, so they add up to the report's own total. */
+  const k = useMemo(() => kpis(plain), [plain]);
+  const totals = useMemo(() => bucketTotals(owing), [owing]);
+  const charges = useMemo(
+    () => revenueBreakdown(plain, ds.invoices),
+    [plain, ds.invoices],
+  );
 
   return (
-    <div className="space-y-6">
-      {/*
-       * ------------------------------------------------------ the plain view
-       *
-       * This screen was four summary tiles, a billing-runs table, two toggles,
-       * five dormitory tabs and a nine-column aging matrix, all at once. Every
-       * part of it had been asked for, and together they answered no question
-       * in particular: a reader had to work out for themselves which number
-       * was the answer and which control to touch first.
-       *
-       * So it now opens on one number and one list - how much is late, and who
-       * owes it - with a search box and a dormitory dropdown. Nothing has been
-       * removed. All of it is one button away below, for the people who came
-       * here to read the aging columns.
-       */}
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatTile
+          label="Overdue"
+          prefix="SGD"
+          value={formatSgd(k.overdue)}
+          note={`${k.actionable} ${k.actionable === 1 ? "tenant" : "tenants"} to chase`}
+          emphasis
+        />
+        <StatTile
+          label="Total owed"
+          prefix="SGD"
+          value={formatSgd(k.outstanding)}
+          note={`${whoOwe.length} ${whoOwe.length === 1 ? "tenant owes" : "tenants owe"}`}
+        />
+        <StatTile
+          label="Over 90 days"
+          prefix="SGD"
+          value={formatSgd(k.severe)}
+        />
+        <StatTile
+          label="In credit"
+          value={String(k.inCredit)}
+        />
+      </div>
+
       <Card>
-        <div className="border-b border-line-hair px-5 py-4">
-          <h1 className="text-base font-medium text-ink">Tenants</h1>
-          <p className="mt-1 text-xs text-ink-secondary">
-            From the report for {ds.asOf}. Largest overdue amount first, then
-            what is owed but not late yet, then nothing owed, then credit.
-          </p>
-        </div>
+        <CardHeader
+          title="Tenants"
+          hint={`Report of ${formatDate(ds.asOf)} · ${aging ? "click a column to sort" : "most overdue first"}`}
+          right={
+            <button
+              type="button"
+              onClick={() => setAging(!aging)}
+              aria-pressed={aging}
+              className={`rounded-full border px-3 py-1 text-xs ${
+                aging
+                  ? "border-accent bg-accent-wash font-medium text-accent-text"
+                  : "border-line-hair bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+              }`}
+            >
+              Aging columns
+            </button>
+          }
+        />
 
-        <div className="border-b border-line-hair bg-surface-alt px-5 py-4">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            Overdue, needs chasing
-          </p>
-          <p className="tabular mt-1 text-3xl font-medium text-ink">
-            <span className="mr-1.5 text-base text-ink-secondary">SGD</span>
-            {formatSgd(k.overdue)}
-          </p>
-          <p className="mt-1 text-xs text-ink-secondary">
-            {k.actionable} {k.actionable === 1 ? "tenant" : "tenants"} out of{" "}
-            {k.accounts}. The rest have paid, are in credit, or are not late yet.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find a tenant by name or code"
-            aria-label="Find a tenant"
-            className="w-64 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
-          />
-          <select
-            value={property}
-            onChange={(e) => setProperty(e.target.value as PropertyCode | "ALL")}
-            aria-label="Dormitory"
-            className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+        <div className="flex flex-col gap-2 border-b border-line-hair px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a tenant by name or code"
+              aria-label="Find a tenant"
+              className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted sm:w-64 sm:py-1.5 sm:text-xs"
+            />
+            {dorms.length > 1 ? (
+            <select
+              value={property}
+              onChange={(e) => setProperty(e.target.value as PropertyCode | "ALL")}
+              aria-label="Dormitory"
+              className="w-full rounded-md border bg-surface px-2.5 py-2 text-sm text-ink sm:w-auto sm:py-1.5 sm:text-xs"
+            >
+              {PROPERTIES.filter((pc) => pc === "ALL" || dorms.includes(pc)).map((pc) => (
+                <option key={pc} value={pc}>
+                  {PROPERTY_LABEL[pc]}
+                </option>
+              ))}
+            </select>
+            ) : null}
+          </div>
+          <div
+            className="flex gap-1 overflow-x-auto rounded-md bg-surface-alt p-1 lg:ml-auto"
+            role="group"
+            aria-label="Which tenants"
           >
-            {PROPERTIES.map((pc) => (
-              <option key={pc} value={pc}>
-                {PROPERTY_LABEL[pc]}
-              </option>
-            ))}
-          </select>
-          {/* Said out loud, because all three views open on the same overdue
-              tenants at the top - the difference is at the bottom - and a
-              filter whose effect is out of sight reads as broken. */}
-          <span className="ml-auto text-[11px] text-ink-muted" aria-live="polite">
-            Showing {owing.length} {owing.length === 1 ? "tenant" : "tenants"}
-            {show !== "overdue" ? " · overdue first, the rest further down" : ""}
-          </span>
-          <div className="flex flex-wrap gap-1" role="group" aria-label="Which tenants">
             {(
               [
-                ["all", "All tenants", plain.length],
-                ["owing", "Everyone who owes", whoOwe.length],
-                ["overdue", "Overdue only", overdueOnly.length],
+                ["all", "All", plain.length],
+                ["owing", "Owing", whoOwe.length],
+                ["overdue", "Overdue", overdueOnly.length],
               ] as const
             ).map(([key, label, count]) => (
               <button
@@ -242,13 +249,13 @@ export default function AgingBoardPage() {
                 type="button"
                 onClick={() => setShow(key)}
                 aria-pressed={show === key}
-                className={`rounded px-2.5 py-1 text-xs ${
+                className={`flex-1 whitespace-nowrap rounded px-3 py-1.5 text-xs lg:flex-none ${
                   show === key
-                    ? "bg-accent-wash font-medium text-ink"
-                    : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                    ? "bg-surface font-medium text-accent-text shadow-sm"
+                    : "text-ink-muted hover:text-ink-secondary"
                 }`}
               >
-                {label} ({count})
+                {label} <span className="tabular opacity-70">{count}</span>
               </button>
             ))}
           </div>
@@ -256,204 +263,11 @@ export default function AgingBoardPage() {
 
         {owing.length === 0 ? (
           <EmptyState
-            title={show === "overdue" ? "Nobody here is overdue" : "No tenants match"}
-            body="Try another search or dormitory, or choose All tenants."
+            title={show === "overdue" && !query.trim() ? "Nobody here is overdue" : "No tenants match"}
+            body="Try another search or dormitory, or choose All."
           />
-        ) : (
-          <ScrollPanel max={520}>
-            <table className="w-full border-collapse text-sm">
-              <thead className="sticky top-0 z-10 bg-surface">
-                <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
-                  <th className="px-5 py-2.5">Tenant</th>
-                  <th className="px-5 py-2.5">Dormitory</th>
-                  <th className="px-5 py-2.5 text-right">Owed</th>
-                  <th className="px-5 py-2.5 text-right">Overdue</th>
-                  <th className="px-5 py-2.5">How late</th>
-                </tr>
-              </thead>
-              <tbody>
-                {owing.map((a) => (
-                  <tr key={a.id} className="border-b border-line-hair">
-                    <td className="px-5 py-3">
-                      <div className="text-ink">{a.companyName}</div>
-                      <div className="mt-0.5 text-[11px] text-ink-muted">
-                        {a.customerCode}
-                        {a.status === "Terminated" ? " · moved out" : ""}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-xs text-ink-secondary">
-                      {a.propertyName}
-                    </td>
-                    <td className="tabular px-5 py-3 text-right text-ink-secondary">
-                      {formatSgd(a.total)}
-                    </td>
-                    <td className="tabular px-5 py-3 text-right text-ink">
-                      {overdueTotal(a) > 0 ? formatSgd(overdueTotal(a)) : "—"}
-                    </td>
-                    <td className="px-5 py-3 text-xs text-ink-secondary">
-                      {isInCredit(a) ? "In credit" : a.total === 0 ? "Nothing owed" : lateness(a)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollPanel>
-        )}
-      </Card>
-
-      <div>
-        <button
-          type="button"
-          onClick={() => setFull(!full)}
-          aria-expanded={full}
-          className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:text-ink"
-        >
-          {full ? "Hide the full breakdown" : "Show the full breakdown"}
-        </button>
-        <p className="mt-1.5 text-[11px] text-ink-muted">
-          The aging columns, charge types, terminated accounts and billing runs.
-        </p>
-      </div>
-
-      {full ? (
-        <>
-      {/* ---------------------------------------------------------- KPI row */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Total owed"
-          prefix="SGD"
-          value={formatSgd(k.outstanding)}
-          note={`${k.accounts} tenants shown`}
-        />
-        <StatTile
-          label="Overdue, needs chasing"
-          prefix="SGD"
-          value={formatSgd(k.overdue)}
-          note={`${k.actionable} tenants with money to chase`}
-          emphasis
-        />
-        <StatTile
-          label="Owed for over 90 days"
-          prefix="SGD"
-          value={formatSgd(k.severe)}
-          note="The hardest money to recover"
-        />
-        <StatTile
-          label="In credit, do not chase"
-          value={String(k.inCredit)}
-          note="These tenants have overpaid"
-        />
-      </div>
-
-      <BillingCycles invoices={myInvoices} asOf={ds.asOf} />
-
-      {/* ------------------------------------------------------------ table */}
-      <Card>
-        <CardHeader
-          title="Every tenant, and how overdue they are"
-          hint={`Figures as at ${ds.asOf}. Anything to the right of the thick line is more than 15 days past its due date and needs chasing. The $100 admin fee applies from 14 days overdue, on the 15th. A tenant renting at two dormitories is listed once for each.`}
-          right={
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Proposal 4.3: see balances split by what they are actually for. */}
-              <div
-                className="flex rounded border border-line-hair p-0.5"
-                role="group"
-                aria-label="View"
-              >
-                {(
-                  [
-                    ["tenant", "By tenant"],
-                    ["charge", "By charge type"],
-                  ] as [ViewMode, string][]
-                ).map(([v, label]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setView(v)}
-                    aria-pressed={view === v}
-                    className={`rounded px-2.5 py-1 text-xs ${
-                      view === v
-                        ? "bg-accent-wash font-medium text-ink"
-                        : "text-ink-muted hover:text-ink-secondary"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div
-                className="flex rounded border border-line-hair p-0.5"
-                role="group"
-                aria-label="Account status"
-              >
-                {(["Live", "Terminated"] as StatusFilter[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setStatus(s)}
-                    aria-pressed={status === s}
-                    className={`rounded px-2.5 py-1 text-xs ${
-                      status === s
-                        ? "bg-accent-wash font-medium text-ink"
-                        : "text-ink-muted hover:text-ink-secondary"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          }
-        />
-
-        {/* property tabs and search */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-line-hair px-5 py-2.5">
-          <div className="flex flex-wrap gap-1" role="tablist" aria-label="Property">
-            {PROPERTIES.map((p) => (
-              <button
-                key={p}
-                type="button"
-                role="tab"
-                aria-selected={property === p}
-                onClick={() => setProperty(p)}
-                className={`rounded px-2.5 py-1 text-xs ${
-                  property === p
-                    ? "bg-accent-wash font-medium text-ink"
-                    : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
-                }`}
-              >
-                {PROPERTY_LABEL[p]}
-              </button>
-            ))}
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a tenant by name or code"
-              aria-label="Find a tenant"
-              className="w-56 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
-            />
-            {query ? (
-              <span className="text-[11px] text-ink-muted">
-                {accounts.length} found
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        {view === "charge" ? (
-          <ChargeTypeTable rows={charges} />
-        ) : accounts.length === 0 ? (
-          <EmptyState
-            title="No accounts in this view"
-            body="Change the property or status filter to see accounts."
-          />
-        ) : (
-          <ScrollPanel max={440}>
+        ) : aging ? (
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
@@ -510,7 +324,7 @@ export default function AgingBoardPage() {
               </thead>
 
               <tbody>
-                {accounts.map((a) => (
+                {plainPage.shown.map((a) => (
                   <AccountRow
                     key={a.id}
                     account={a}
@@ -527,7 +341,7 @@ export default function AgingBoardPage() {
               <tfoot>
                 <tr className="border-t-2 border-line-base font-medium">
                   <td className="px-5 py-3 text-xs text-ink-secondary">
-                    {accounts.length} accounts
+                    {owing.length} accounts
                   </td>
                   {BUCKETS.map((b) => (
                     <td
@@ -540,14 +354,83 @@ export default function AgingBoardPage() {
                     </td>
                   ))}
                   <td className="tabular px-5 py-3 text-right text-xs text-ink">
-                    {formatSgd(k.outstanding)}
+                    {formatSgd(sumExact(owing, (x) => x.total))}
                   </td>
                 </tr>
               </tfoot>
             </table>
-          </ScrollPanel>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10 bg-surface">
+                <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
+                  <th className="px-4 py-2.5 sm:px-5">Tenant</th>
+                  {dorms.length > 1 ? <th className="hidden px-5 py-2.5 md:table-cell">Dormitory</th> : null}
+                  <th className="hidden px-5 py-2.5 text-right sm:table-cell">Owed</th>
+                  <th className="px-4 py-2.5 text-right sm:px-5">Overdue</th>
+                  <th className="hidden px-5 py-2.5 sm:table-cell">How late</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plainPage.shown.map((a) => (
+                  <tr key={a.id} className="border-b border-line-hair hover:bg-surface-alt">
+                    <td className="px-4 py-3 sm:px-5">
+                      <TenantLink id={a.id} name={a.companyName} className="font-medium text-ink" />
+                      <div className="mt-0.5 text-[11px] text-ink-muted">
+                        {a.customerCode}
+                        {dorms.length > 1 ? <span className="md:hidden"> · {a.propertyName}</span> : null}
+                        {a.status === "Terminated" ? " · moved out" : ""}
+                      </div>
+                      <div className="mt-1.5 sm:hidden">
+                        <Lateness account={a} />
+                      </div>
+                    </td>
+                    {dorms.length > 1 ? (
+                      <td className="hidden px-5 py-3 text-xs text-ink-secondary md:table-cell">
+                        {a.propertyName}
+                      </td>
+                    ) : null}
+                    <td className="tabular hidden px-5 py-3 text-right text-ink-secondary sm:table-cell">
+                      {formatSgd(a.total)}
+                    </td>
+                    <td className="tabular px-4 py-3 text-right font-medium text-ink sm:px-5">
+                      {overdueTotal(a) > 0 ? formatSgd(overdueTotal(a)) : "-"}
+                      <div className="text-[11px] font-normal text-ink-muted sm:hidden">
+                        of {formatSgd(a.total)}
+                      </div>
+                    </td>
+                    <td className="hidden px-5 py-3 sm:table-cell">
+                      <Lateness account={a} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
+        <Pagination {...plainPage.pager} />
       </Card>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setFull(!full)}
+          aria-expanded={full}
+          className="inline-flex items-center gap-1.5 rounded-md border border-line-strong bg-surface px-3 py-1.5 text-xs font-medium text-ink-secondary hover:border-accent hover:text-accent-text"
+        >
+          <span aria-hidden="true">{full ? "−" : "+"}</span>
+          {full ? "Hide charge types and billing runs" : "Show charge types and billing runs"}
+        </button>
+      </div>
+
+      {full ? (
+        <>
+          <Card>
+            <CardHeader title="By charge type" hint={`As at ${formatDate(ds.asOf)}`} />
+            <ChargeTypeTable rows={charges} />
+          </Card>
+          <BillingCycles invoices={myInvoices} asOf={ds.asOf} />
         </>
       ) : null}
     </div>
@@ -565,6 +448,19 @@ export default function AgingBoardPage() {
  */
 function lateness(a: Account): string {
   return worstBucket(a);
+}
+
+/** The worst of a tenant's money, as a pill whose colour steps with age. */
+function Lateness({ account: a }: { account: Account }) {
+  if (isInCredit(a)) return <StatusBadge kind="good" label="In credit" />;
+  if (a.total === 0) return <StatusBadge kind="neutral" label="Nothing owed" />;
+  const kind =
+    a.buckets.d90plus > 0 || a.buckets.d90 > 0
+      ? "critical"
+      : a.buckets.d60 > 0 || a.buckets.d30 > 0
+        ? "warning"
+        : "neutral";
+  return <StatusBadge kind={kind} label={lateness(a)} />;
 }
 
 /**
@@ -627,7 +523,7 @@ function AddEmail({ account, canAct }: { account: Account; canAct: boolean }) {
           setValue("");
         }}
         placeholder="name@company.com, press Enter"
-        className="w-56 rounded border border-line-hair bg-surface px-2 py-0.5 text-xs text-ink placeholder:text-ink-muted"
+        className="w-56 rounded-md border border-line-strong bg-surface px-2 py-0.5 text-xs text-ink placeholder:text-ink-muted"
       />
       <button
         type="button"
@@ -786,6 +682,7 @@ function AccountRow({
 }) {
   const credit = isInCredit(account);
   const invoices = open ? invoicesForAccount(account, allInvoices) : [];
+  const linePage = usePaged(invoices, account.id, 15);
 
   return (
     <>
@@ -803,7 +700,7 @@ function AccountRow({
             </span>
             <div className="min-w-0">
               <div className="truncate font-medium text-ink">
-                {account.companyName}
+                <TenantLink id={account.id} name={account.companyName} />
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                 <span className="text-[11px] text-ink-muted">
@@ -849,7 +746,7 @@ function AccountRow({
           className="tabular px-5 py-3 text-right font-medium"
           style={credit ? { color: "var(--credit)" } : undefined}
         >
-          {formatSgd(account.total, { sign: credit })}
+          {formatSgd(account.total)}
         </td>
       </tr>
 
@@ -861,8 +758,7 @@ function AccountRow({
             </p>
             {invoices.length === 0 ? (
               <p className="text-xs text-ink-muted">
-                No invoice detail in the sample for this account. The detailed
-                report covers a subset of tenants.
+                No invoice lines for this tenant in the uploaded report.
               </p>
             ) : (
               <table className="w-full text-xs">
@@ -876,7 +772,7 @@ function AccountRow({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((i) => (
+                  {linePage.shown.map((i) => (
                     <tr key={i.id} className="border-t border-line-grid">
                       <td className="py-1.5 pr-4 text-ink-secondary">
                         <span className="inline-flex items-center gap-1.5">
@@ -888,10 +784,10 @@ function AccountRow({
                         {i.documentNumber}
                       </td>
                       <td className="py-1.5 pr-4 text-ink-muted">
-                        {i.dueDate ?? ""}
+                        {formatDate(i.dueDate ?? null)}
                       </td>
                       <td className="tabular py-1.5 pr-4 text-right text-ink-muted">
-                        {i.age !== null && i.age > 0 ? `${i.age}d` : "not due"}
+                        {i.age !== null && i.age > 0 ? `${i.age} days` : "Not due"}
                       </td>
                       <td className="tabular py-1.5 text-right text-ink-secondary">
                         {formatSgd(i.openBalance)}
@@ -901,6 +797,9 @@ function AccountRow({
                 </tbody>
               </table>
             )}
+            <div className="-mx-5 -mb-4 mt-2">
+              <Pagination {...linePage.pager} />
+            </div>
           </td>
         </tr>
       ) : null}

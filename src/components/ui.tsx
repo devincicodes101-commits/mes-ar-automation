@@ -25,7 +25,7 @@ export function TenantLink({
   return (
     <Link
       href={`/tenant/${encodeURIComponent(id)}`}
-      className={`underline decoration-line-hair underline-offset-4 hover:decoration-accent ${className}`}
+      className={`underline decoration-line-strong underline-offset-4 hover:text-accent-text hover:decoration-accent ${className}`}
     >
       {name}
     </Link>
@@ -60,14 +60,14 @@ export function CardHeader({
   right?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line-hair px-5 py-4">
-      <div>
-        <h2 className="text-sm font-semibold text-ink">{title}</h2>
+    <div className="flex flex-col gap-3 border-b border-line-hair px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-5">
+      <div className="min-w-0">
+        <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
         {hint ? (
           <p className="mt-0.5 text-xs text-ink-muted">{hint}</p>
         ) : null}
       </div>
-      {right}
+      {right ? <div className="shrink-0">{right}</div> : null}
     </div>
   );
 }
@@ -85,10 +85,10 @@ export function SkeletonText({ w = "w-24" }: { w?: string }) {
 /** Placeholder for a KPI row while the batch summary loads. */
 export function StatTileSkeleton() {
   return (
-    <Card className="p-5">
-      <Skeleton className="h-3 w-28" />
-      <Skeleton className="mt-3 h-8 w-36" />
-      <Skeleton className="mt-3 h-3 w-20" />
+    <Card className="p-4 sm:p-5">
+      <Skeleton className="h-3 w-20 sm:w-28" />
+      <Skeleton className="mt-3 h-7 w-24 sm:w-36" />
+      <Skeleton className="mt-3 h-3 w-16 sm:w-20" />
     </Card>
   );
 }
@@ -97,10 +97,10 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
   return (
     <div className="divide-y divide-line-grid" role="status" aria-label="Loading">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-5 py-3.5">
-          <Skeleton className="h-3.5 w-56" />
+        <div key={i} className="flex items-center gap-4 px-4 py-3.5 sm:px-5">
+          <Skeleton className="h-3.5 w-40 sm:w-56" />
           <Skeleton className="h-3.5 w-16" />
-          <div className="ml-auto flex gap-6">
+          <div className="ml-auto hidden gap-6 sm:flex">
             <Skeleton className="h-3.5 w-16" />
             <Skeleton className="h-3.5 w-16" />
             <Skeleton className="h-3.5 w-16" />
@@ -108,6 +108,39 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * The shape of a page - a row of figures, then a list - for while its data
+ * is on the way. Shown in place of the page rather than over it, so nothing
+ * on screen is a number that is about to change.
+ */
+export function PageSkeleton() {
+  return (
+    <div className="space-y-5" role="status" aria-label="Loading">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatTileSkeleton />
+        <StatTileSkeleton />
+        <StatTileSkeleton />
+        <StatTileSkeleton />
+      </div>
+      <Card>
+        <div className="flex items-center justify-between border-b border-line-hair px-4 py-4 sm:px-5">
+          <div>
+            <Skeleton className="h-4 w-40 sm:w-48" />
+            <Skeleton className="mt-2 h-3 w-56 sm:w-72" />
+          </div>
+          <Skeleton className="hidden h-8 w-32 rounded-lg sm:block" />
+        </div>
+        <div className="flex gap-2 border-b border-line-hair px-4 py-3 sm:px-5">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-20 rounded-md" />
+          ))}
+        </div>
+        <TableSkeleton rows={8} />
+      </Card>
     </div>
   );
 }
@@ -128,19 +161,28 @@ export function StatTile({
   emphasis?: boolean;
 }) {
   return (
-    <Card className="p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-ink-muted">
+    <Card
+      className="p-4 sm:p-5"
+    >
+      <div className="text-[11px] font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </div>
       <div
-        className={`mt-2 flex items-baseline gap-1.5 ${
-          emphasis ? "text-ink" : "text-ink"
+        className={`mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 ${
+          emphasis ? "text-accent-text" : "text-ink"
         }`}
       >
         {prefix ? (
           <span className="text-sm text-ink-secondary">{prefix}</span>
         ) : null}
-        <span className="text-[28px] font-semibold leading-none">{value}</span>
+        {/* Millions do not fit a phone's half-width tile at full size. */}
+        <span
+          className={`tabular font-semibold leading-none sm:text-[28px] ${
+            value.length > 9 ? "text-xl" : "text-2xl"
+          }`}
+        >
+          {value}
+        </span>
       </div>
       {note ? (
         <div className="mt-2.5 text-xs text-ink-secondary">{note}</div>
@@ -153,15 +195,15 @@ export function StatTile({
 
 type StatusKind = "good" | "warning" | "serious" | "critical" | "neutral";
 
-const STATUS_ICON: Record<StatusKind, string> = {
-  good: "✓", // check
-  warning: "△", // triangle
-  serious: "◆", // diamond
-  critical: "✕", // cross
-  neutral: "•", // dot
+const STATUS_PILL: Record<StatusKind, string> = {
+  good: "bg-good-wash text-good-ink",
+  warning: "bg-warn-wash text-warn-ink",
+  serious: "bg-warn-wash text-warn-ink",
+  critical: "bg-crit-wash text-crit-ink",
+  neutral: "bg-surface-sunk text-ink-secondary",
 };
 
-const STATUS_VAR: Record<StatusKind, string> = {
+const STATUS_DOT: Record<StatusKind, string> = {
   good: "var(--status-good)",
   warning: "var(--status-warning)",
   serious: "var(--status-serious)",
@@ -170,9 +212,9 @@ const STATUS_VAR: Record<StatusKind, string> = {
 };
 
 /**
- * Status is never colour alone. Every badge ships the reserved status hue as a
- * small mark plus a text label, so it survives colour blindness, print and
- * forced-colors.
+ * Status is never colour alone: a soft tinted pill, a dot in the status hue
+ * and a text label, so it survives colour blindness, print and forced-colors.
+ * No border - the tint is the edge - so a row of them reads quietly.
  */
 export function StatusBadge({
   kind,
@@ -182,18 +224,24 @@ export function StatusBadge({
   label: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded border border-line-hair bg-surface-alt px-2 py-0.5 text-xs text-ink-secondary">
-      <span aria-hidden="true" style={{ color: STATUS_VAR[kind] }}>
-        {STATUS_ICON[kind]}
-      </span>
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-[5px] text-xs font-medium leading-none ${STATUS_PILL[kind]}`}
+    >
+      <span
+        aria-hidden="true"
+        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+        style={{ background: STATUS_DOT[kind] }}
+      />
       {label}
     </span>
   );
 }
 
+/** A plain label for facts about a row (a code, a type, a count). Square-ish,
+    so it never reads as a status. */
 export function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center whitespace-nowrap rounded border border-line-hair px-1.5 py-0.5 text-[11px] text-ink-muted">
+    <span className="inline-flex items-center whitespace-nowrap rounded-md bg-surface-alt px-2 py-[5px] text-[11px] font-medium leading-none text-ink-secondary">
       {children}
     </span>
   );
@@ -222,11 +270,14 @@ export function Modal({
   onClose,
   children,
   wide = false,
+  full = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  /** Nearly the whole screen, for a grid of data. */
+  full?: boolean;
 }) {
   return (
     <div
@@ -239,7 +290,7 @@ export function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         className={`w-full rounded-lg border border-line-hair bg-surface shadow-xl ${
-          wide ? "max-w-3xl" : "max-w-xl"
+          full ? "max-w-[1400px]" : wide ? "max-w-3xl" : "max-w-xl"
         }`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-line-hair px-5 py-3.5">
@@ -267,7 +318,15 @@ export function EmptyState({
   body: string;
 }) {
   return (
-    <div className="px-5 py-14 text-center">
+    <div className="px-5 py-12 text-center">
+      <span
+        aria-hidden="true"
+        className="mx-auto mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-accent-wash text-accent-text"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M2.5 9.5h3l1 2h3l1-2h3M2.5 9.5l1.6-5.2a1 1 0 0 1 .95-.8h5.9a1 1 0 0 1 .95.8l1.6 5.2v3a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-3z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+        </svg>
+      </span>
       <p className="text-sm font-medium text-ink">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-xs text-ink-muted">{body}</p>
     </div>
@@ -311,6 +370,102 @@ export function Loading({
       <span>{label}</span>
     </div>
   );
+}
+
+/* -------------------------------------------------------------- pagination */
+
+/**
+ * Page through a long list: where you are, and previous / next.
+ * `page` counts from 0. Renders nothing when everything fits on one page.
+ */
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPage: (page: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (total <= pageSize) return null;
+  const from = page * pageSize + 1;
+  const to = Math.min(total, (page + 1) * pageSize);
+  return (
+    <div className="flex flex-col items-center gap-2 border-t border-line-hair px-4 py-3 sm:flex-row sm:justify-between sm:px-5">
+      <p className="tabular text-xs text-ink-muted">
+        Showing {from}-{to} of {total}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={page === 0}
+          onClick={(e) => {
+            onPage(page - 1);
+            backToTop(e.currentTarget);
+          }}
+          className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink-secondary"
+        >
+          Previous
+        </button>
+        <span className="tabular px-1 text-xs text-ink-secondary">
+          Page {page + 1} of {pages}
+        </span>
+        <button
+          type="button"
+          disabled={page >= pages - 1}
+          onClick={(e) => {
+            onPage(page + 1);
+            backToTop(e.currentTarget);
+          }}
+          className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink-secondary"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** After a page turn, the top of the list rather than the pager at its foot. */
+function backToTop(from: HTMLElement) {
+  const list = from.closest("[data-paged]") ?? from.parentElement?.parentElement?.parentElement;
+  if (list && list.getBoundingClientRect().top < 0) list.scrollIntoView({ block: "start" });
+}
+
+/** The search box that sits in a card's header, above a paged list. */
+export function SearchBox({
+  value,
+  onChange,
+  placeholder = "Find a tenant by name or code",
+  label = "Find a tenant",
+  className = "sm:w-64",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <input
+      type="search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      aria-label={label}
+      className={`w-full rounded-md border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted sm:text-xs ${className}`}
+    />
+  );
+}
+
+/** True when any of the given fields contains the search text. */
+export function matchesQuery(query: string, fields: (string | null | undefined)[]): boolean {
+  const q = query.trim().toLowerCase();
+  if (q === "") return true;
+  return fields.some((f) => (f ?? "").toLowerCase().includes(q));
 }
 
 /* --------------------------------------------------------------- scrolling */

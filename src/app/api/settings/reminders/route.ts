@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
     );
   }
 
-  let body: { first?: unknown; final?: unknown };
+  let body: { first?: unknown; final?: unknown; countFrom?: unknown; lateDays?: unknown; finalWithoutFirst?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -83,9 +83,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
+  const lateDays = body.lateDays === undefined ? undefined : Number(body.lateDays);
+  if (lateDays !== undefined && (!Number.isFinite(lateDays) || lateDays < 0 || lateDays > 30)) {
+    return NextResponse.json({ ok: false, error: "Days late must be 0 to 30." }, { status: 400 });
+  }
   const wrote = await writeReminderWindow(
     db,
-    { first, final },
+    {
+      first,
+      final,
+      countFrom: body.countFrom === "newest" ? "newest" : "each",
+      lateDays,
+      finalWithoutFirst: typeof body.finalWithoutFirst === "boolean" ? body.finalWithoutFirst : undefined,
+    },
     { userId: who.caller.userId, name: who.caller.email ?? who.caller.role },
   );
   if (!wrote.ok) {

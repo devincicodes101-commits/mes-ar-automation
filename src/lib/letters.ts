@@ -28,7 +28,12 @@ export type LetterId = "first-reminder" | "final-notice";
 
 export interface LetterContext {
   companyName: string;
-  /** The balance, already rounded. Formatted with thousands separators. */
+  /**
+   * What the letter asks for: the total of the invoices of the billing date
+   * it is about, not the tenant's whole balance. The invoices themselves are
+   * not listed - a tenant can have dozens, and MES asked on 23 October for the
+   * letter to stay short.
+   */
   grandTotal: number;
   /** The date the letter is being sent, ISO. Normally the AR report date. */
   sentOn: string;
@@ -277,7 +282,7 @@ export const LETTERS: LetterSpec[] = [
     id: "final-notice",
     name: "Final Reminder",
     triggerDay: 21,
-    subject: "Final reminder — outstanding rental and maintenance charges",
+    subject: "Final reminder: outstanding rental and maintenance charges",
     render: (c) => renderBody("final-notice", c),
   },
 ];

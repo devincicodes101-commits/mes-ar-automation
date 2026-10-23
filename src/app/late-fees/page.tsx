@@ -8,9 +8,9 @@ import {
   feesDue,
   formatDate,
   formatSgd,
-  invoicesForAccount,
 } from "@/lib/data";
-import { billingForTenant, NO_BILLING, type TenantBilling } from "@/lib/billing-cycles";
+import { isAdHoc, type FeeBill } from "@/lib/billing-cycles";
+import { useRules } from "@/lib/use-rules";
 import { hydrateActivity, recordExport, settledFees, useStore } from "@/lib/store";
 import { raiseFees } from "@/lib/raise-fees";
 import { useSession, useToast } from "@/lib/session";
@@ -18,18 +18,21 @@ import { useDataset, withManualEmails } from "@/lib/dataset";
 import { buildLateFeeListing, giroEnrolled } from "@/lib/reports";
 import { lateFeeName, lateFeeXlsx } from "@/lib/workbook";
 import { downloadFile } from "@/lib/export";
+import { managerDisplayName } from "@/lib/dispatch";
 import { currentPeriod } from "@/lib/schedule";
+import { formatDateTime, formatMonth } from "@/lib/format";
 import {
   Card,
   CardHeader,
   EmptyState,
   Modal,
-  ScrollPanel,
   StatTile,
   StatusBadge,
   Tag,
   TenantLink,
+  Pagination,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
 
 /**
  * Late payment fees, proposal 4.8 and MES SOP section 2.3.
@@ -43,8 +46,19 @@ export default function LateFeesPage() {
   const { scope, canAct, can } = useSession();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const { notify } = useToast();
-  const [rule, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
+  const [ruleDraft, setRule] = useState<FeeRule>(DEFAULT_FEE_RULE);
+  /* How many days, and counted from which date, is Settings', as the 9am
+     run reads it; the rest of the rule is this screen's to try out. */
+  const { rules } = useRules();
+  const rule = useMemo<FeeRule>(
+    () => ({ ...ruleDraft, minimumAgeDays: rules.feeDays, from: rules.feeFrom }),
+    [ruleDraft, rules.feeDays, rules.feeFrom],
+  );
+  const pastWhat = rule.from === "billing" ? "after billing" : "past due";
   const [preview, setPreview] = useState(false);
+  /* The rule is right as it stands; changing it is a deliberate step. */
+  const [editingRule, setEditingRule] = useState(false);
+  const [showSettled, setShowSettled] = useState(false);
   /* Raising now goes over the network, so the button has to say so and refuse
      a second press while the first batch is still going. */
   const [raising, setRaising] = useState(false);
@@ -84,6 +98,12 @@ export default function LateFeesPage() {
     return Array.from(seen).sort();
   }, [ds.accounts, scope]);
   const [onlyRms, setOnlyRms] = useState<string[]>([]);
+  /* The Aging Detail export has no Status column, so nobody reads as moved
+     out and the "skip moved-out tenants" choice would change nothing. */
+  const anyMovedOut = useMemo(
+    () => ds.accounts.some((a) => a.status === "Terminated"),
+    [ds.accounts],
+  );
   /*
    * The manager chips answer "whose tenants", which is the question MES's Flow
    * tab asked for. They do not answer "is this one tenant on the list", and on
@@ -110,6 +130,8 @@ export default function LateFeesPage() {
         }),
         ds.invoices, ds.asOf, null, {
         fee: rule.value,
+        minimumAgeDays: rule.minimumAgeDays,
+        from: rule.from,
         raised: store.fees,
         period,
       }),
@@ -138,20 +160,6 @@ export default function LateFeesPage() {
    */
   const onGiro = useMemo(() => giroEnrolled(ds.invoices), [ds.invoices]);
 
-  /*
-   * Each tenant's billing date, shown beside their fee. Raman, 18 October:
-   * the fee stays on the fixed 16th, but the officer should be able to see
-   * when a charge was billed - a charge billed off the normal cycle ("adhoc")
-   * is worth a second look before the $100 is raised. "newest of N" flags a
-   * tenant with more than one billing run.
-   */
-  const billing = useMemo(() => {
-    const m = new Map<string, TenantBilling>();
-    for (const a of scope(ds.accounts)) {
-      m.set(a.id, billingForTenant(invoicesForAccount(a, ds.invoices), ds.asOf));
-    }
-    return m;
-  }, [ds.accounts, ds.invoices, ds.asOf, scope]);
   const byManager = useMemo(
     () =>
       onlyRms.length === 0
@@ -214,6 +222,10 @@ export default function LateFeesPage() {
   const stillOwing = useMemo(() => new Set(ds.accounts.map((a) => a.id)), [ds.accounts]);
   const settled = useMemo(() => settledFees(store.fees, stillOwing), [store.fees, stillOwing]);
 
+  const feePage = usePaged(shown, `${query}|${onlyRms.join(",")}`);
+  const settledPage = usePaged(settled);
+  const excludedPage = usePaged(excluded);
+
   const chargeable = lines.filter((l) => !l.raisedThisPeriod);
   const alreadyThisMonth = lines.length - chargeable.length;
   const totalFees = chargeable.reduce((s, l) => s + l.fee, 0);
@@ -221,23 +233,21 @@ export default function LateFeesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Accounts to be charged"
           value={String(lines.length)}
-          note={`Unpaid ${rule.minimumAgeDays} days past due`}
+          note={`Unpaid ${rule.minimumAgeDays} days ${pastWhat}`}
           emphasis
         />
         <StatTile
           label="Fees to raise"
           prefix="SGD"
           value={formatSgd(totalFees)}
-          note="Added to each tenant's balance"
         />
         <StatTile
           label="Charged before"
           value={String(repeat)}
-          note="Already carrying earlier late fees"
         />
         <StatTile
           label="Fee per account"
@@ -247,7 +257,6 @@ export default function LateFeesPage() {
               ? formatSgd(rule.value)
               : `${rule.value}%`
           }
-          note="Change the rule below"
         />
       </div>
 
@@ -255,12 +264,21 @@ export default function LateFeesPage() {
       <Card>
         <CardHeader
           title="How the fee is worked out"
-          hint="Change the rule and the list below updates."
+          hint={
+            `${rule.basis === "flat" ? `SGD ${formatSgd(rule.value)} per account` : `${rule.value}% of what is overdue`}` +
+            `, for tenants unpaid ${rule.minimumAgeDays} days ${pastWhat}` +
+            `${rule.minimumBalance > 0 ? ` who owe more than SGD ${formatSgd(rule.minimumBalance)}` : ""}` +
+            `${rule.skipTerminated && anyMovedOut ? ". Moved-out tenants are skipped." : "."}`
+          }
           right={
-            <StatusBadge
-              kind="good"
-              label="Confirmed by MES's reminder letter"
-            />
+            <button
+              type="button"
+              onClick={() => setEditingRule(!editingRule)}
+              aria-expanded={editingRule}
+              className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink-secondary hover:border-accent hover:text-accent-text"
+            >
+              {editingRule ? "Done" : "Change for this run"}
+            </button>
           }
         />
 
@@ -268,16 +286,14 @@ export default function LateFeesPage() {
           <div className="flex flex-wrap items-center gap-3 border-b border-line-hair bg-surface-alt px-5 py-2.5">
             <StatusBadge kind="warning" label={`${approximate} approximate`} />
             <p className="text-[11px] leading-relaxed text-ink-muted">
-              These uploads carried no invoice dates, so the aging columns were
-              used instead. Those cannot express &ldquo;
-              {rule.minimumAgeDays} days past due&rdquo;, so a tenant who has
-              just crossed the line may be missing. Amounts on the AR detail
-              export would settle it.
+              The report has no invoice dates for these, so a tenant who has
+              only just passed {rule.minimumAgeDays} days may be missing.
             </p>
           </div>
         ) : null}
 
-        <div className="grid gap-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+        {editingRule ? (
+        <div className="grid gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-4">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
               Charge a
@@ -287,7 +303,7 @@ export default function LateFeesPage() {
               onChange={(e) =>
                 setRule({ ...rule, basis: e.target.value as FeeBasis })
               }
-              className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+              className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             >
               <option value="flat">Fixed amount</option>
               <option value="percent">Percentage of what is overdue</option>
@@ -305,7 +321,7 @@ export default function LateFeesPage() {
               onChange={(e) =>
                 setRule({ ...rule, value: Number(e.target.value) || 0 })
               }
-              className="tabular w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+              className="tabular w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             />
           </label>
 
@@ -323,10 +339,11 @@ export default function LateFeesPage() {
                   minimumBalance: Number(e.target.value) || 0,
                 })
               }
-              className="tabular w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+              className="tabular w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             />
           </label>
 
+          {anyMovedOut ? (
           <label className="flex items-end gap-2 pb-2">
             <input
               type="checkbox"
@@ -340,8 +357,9 @@ export default function LateFeesPage() {
               Skip tenants who have moved out
             </span>
           </label>
+          ) : null}
         </div>
-
+        ) : null}
       </Card>
 
       {/* ------------------------------------------------------------ lines */}
@@ -369,81 +387,89 @@ export default function LateFeesPage() {
            */
           right={
             <div className="flex flex-wrap items-center gap-2">
-              {/*
-                * MES's Flow tab, under the 16th: "provide User the option to
-                * select one or more RMs from drop down". Chips rather than a
-                * select, because "one or more" is the requirement and a
-                * multi-select that needs ctrl-click is a way of getting one.
-                *
-                * Hidden when the report names no managers at all, which is
-                * what an export without the Primary Sales Rep column looks
-                * like — an empty filter bar would read as a fault.
-                */}
-              {managers.length > 0 ? (
-                <div className="mr-1 flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setOnlyRms([])}
-                    className={`rounded border px-2.5 py-1 text-xs ${
-                      onlyRms.length === 0
-                        ? "border-accent bg-accent text-accent-ink"
-                        : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
-                    }`}
-                  >
-                    Every manager
-                  </button>
-                  {managers.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() =>
-                        setOnlyRms((was) =>
-                          was.includes(m) ? was.filter((x) => x !== m) : [...was, m],
-                        )
-                      }
-                      className={`rounded border px-2.5 py-1 text-xs ${
-                        onlyRms.includes(m)
-                          ? "border-accent bg-accent text-accent-ink"
-                          : "border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a tenant"
-              aria-label="Find a tenant"
-              className="w-44 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
-            />
-            <button
-              type="button"
-              disabled={!can("generate-reports")}
-              onClick={() =>
-                downloadFile(
-                  lateFeeName(period),
-                  lateFeeXlsx(listing, period),
-                )
-              }
-              className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:opacity-40"
-            >
-              Download the listing
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreview(true)}
-              disabled={chargeable.length === 0 || !canAct}
-              className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Review and raise
-            </button>
+              <button
+                type="button"
+                disabled={!can("generate-reports")}
+                onClick={() =>
+                  downloadFile(
+                    lateFeeName(period),
+                    lateFeeXlsx(listing, period),
+                  )
+                }
+                className="rounded-md border border-line-strong px-3 py-1.5 text-xs text-ink-secondary hover:border-accent hover:text-accent-text disabled:opacity-40"
+              >
+                Download the listing
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreview(true)}
+                disabled={chargeable.length === 0 || !canAct}
+                className="rounded-md border border-accent bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-ink"
+              >
+                {chargeable.length === 0 ? "Nothing to raise" : "Review and raise"}
+              </button>
             </div>
           }
         />
+
+        {/*
+          * Whose tenants, and finding one. Their own row: in the header they
+          * squeezed the title to a word a line and ran off the screen.
+          *
+          * MES's Flow tab, under the 16th: "provide User the option to select
+          * one or more RMs from drop down". Chips rather than a select, because
+          * "one or more" is the requirement. Hidden when the report names no
+          * managers at all, which is what an export without the Primary Sales
+          * Rep column looks like.
+          */}
+        <div className="flex flex-col gap-3 border-b border-line-hair bg-surface-alt px-4 py-3 sm:px-5 lg:flex-row lg:items-start">
+          {managers.length > 0 ? (
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5" role="group" aria-label="Manager">
+              <button
+                type="button"
+                aria-pressed={onlyRms.length === 0}
+                onClick={() => setOnlyRms([])}
+                className={`rounded-full border px-3 py-1 text-xs ${
+                  onlyRms.length === 0
+                    ? "border-accent bg-accent-wash font-medium text-accent-text"
+                    : "border-line-hair bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                Every manager
+              </button>
+              {managers.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  title={m}
+                  onClick={() =>
+                    setOnlyRms((was) =>
+                      was.includes(m) ? was.filter((x) => x !== m) : [...was, m],
+                    )
+                  }
+                  aria-pressed={onlyRms.includes(m)}
+                  className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs ${
+                    onlyRms.includes(m)
+                      ? "border-accent bg-accent-wash font-medium text-accent-text"
+                      : "border-line-hair bg-surface text-ink-secondary hover:border-line-strong hover:text-ink"
+                  }`}
+                >
+                  {managerLabel(m)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1" />
+          )}
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Find a tenant by name or code"
+            aria-label="Find a tenant"
+            className="w-full shrink-0 rounded-md border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted sm:text-xs lg:w-64"
+          />
+        </div>
 
         {lines.length === 0 ? (
           <EmptyState
@@ -453,37 +479,37 @@ export default function LateFeesPage() {
         ) : shown.length === 0 ? (
           <EmptyState
             title="No tenant matches that search"
-            body="Clear the box to see all of them again. The search changes only what is listed here, never what gets charged."
+            body="Clear the search to see everyone. Searching never changes what gets charged."
           />
         ) : (
-          <ScrollPanel max={440}>
-            <table className="w-full min-w-[760px] border-collapse text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm sm:min-w-[760px]">
               <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
-                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
+                  <th className="px-4 py-2.5 text-xs font-medium text-ink-muted sm:px-5">
                     Tenant
                   </th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">
+                  <th className="hidden px-3 py-2.5 text-right text-xs font-medium text-ink-muted sm:table-cell">
                     Overdue
                   </th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">
+                  <th className="hidden px-3 py-2.5 text-right text-xs font-medium text-ink-muted sm:table-cell">
                     Fees already charged
                   </th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-ink-muted sm:px-3">
                     Fee this month
                   </th>
-                  <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">
+                  <th className="hidden px-5 py-2.5 text-right text-xs font-medium text-ink-muted sm:table-cell">
                     New balance
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((l) => (
+                {feePage.shown.map((l) => (
                   <tr
                     key={l.account.id}
                     className="border-b border-line-grid hover:bg-surface-alt"
                   >
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-3 sm:px-5">
                       <div className="font-medium text-ink">
                         <TenantLink id={l.account.id} name={l.account.companyName} />
                       </div>
@@ -495,9 +521,16 @@ export default function LateFeesPage() {
                           <Tag>Moved out</Tag>
                         ) : null}
                       </div>
-                      <BilledOn billing={billing.get(l.account.id) ?? NO_BILLING} />
+                      <BilledOn bills={l.feeBills} regularDay={rules.regularBillingDay} />
+                      {/* On a phone the other columns fold in here. */}
+                      <div className="tabular mt-1 text-[11px] text-ink-secondary sm:hidden">
+                        Overdue {formatSgd(l.overdue)} ·{" "}
+                        {l.raisedByUs + l.billedByMes > 0
+                          ? `${l.raisedByUs + l.billedByMes} charged before`
+                          : "first time"}
+                      </div>
                     </td>
-                    <td className="tabular px-3 py-3 text-right text-ink-secondary">
+                    <td className="tabular hidden px-3 py-3 text-right text-ink-secondary sm:table-cell">
                       {formatSgd(l.overdue)}
                     </td>
                     {/* Both answers, side by side, because they are different
@@ -507,7 +540,7 @@ export default function LateFeesPage() {
                         somebody at MES enters it into the first, and showing
                         only NetSuite made every tenant read as "first time"
                         however many months running we had charged them. */}
-                    <td className="px-3 py-3 text-right">
+                    <td className="hidden px-3 py-3 text-right sm:table-cell">
                       {l.raisedByUs > 0 || l.billedByMes > 0 ? (
                         <div className="flex flex-col items-end gap-1">
                           {l.raisedByUs > 0 ? (
@@ -545,10 +578,10 @@ export default function LateFeesPage() {
                         <span className="text-xs text-ink-muted">first time</span>
                       )}
                     </td>
-                    <td className="tabular px-3 py-3 text-right font-medium text-ink">
+                    <td className="tabular px-4 py-3 text-right font-medium text-ink sm:px-3">
                       {formatSgd(l.fee)}
                     </td>
-                    <td className="tabular px-5 py-3 text-right text-ink-secondary">
+                    <td className="tabular hidden px-5 py-3 text-right text-ink-secondary sm:table-cell">
                       {formatSgd(l.account.total + l.fee)}
                     </td>
                   </tr>
@@ -556,29 +589,42 @@ export default function LateFeesPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-line-base font-medium">
-                  <td className="px-5 py-3 text-xs text-ink-secondary">
+                  <td className="px-4 py-3 text-xs text-ink-secondary sm:px-5">
                     {chargeable.length} accounts
                   </td>
-                  <td className="tabular px-3 py-3 text-right text-xs text-ink" />
-                  <td />
-                  <td className="tabular px-3 py-3 text-right text-xs text-ink">
+                  <td className="hidden sm:table-cell" />
+                  <td className="hidden sm:table-cell" />
+                  <td className="tabular px-4 py-3 text-right text-xs text-ink sm:px-3">
                     {formatSgd(totalFees)}
                   </td>
-                  <td />
+                  <td className="hidden sm:table-cell" />
                 </tr>
               </tfoot>
             </table>
-          </ScrollPanel>
+          </div>
         )}
+        <Pagination {...feePage.pager} />
       </Card>
 
       {settled.length > 0 ? (
         <Card>
           <CardHeader
-            title="No longer chargeable — these tenants have paid"
-            hint="They are gone from the latest report, which MES read as paid in full. The fee is not pursued, and the record of having raised it is kept."
-            right={<StatusBadge kind="good" label={`${settled.length} settled`} />}
+            title="Settled: these tenants have since paid"
+            right={
+              <div className="flex items-center gap-2">
+                <StatusBadge kind="good" label={`${settled.length} settled`} />
+                <button
+                  type="button"
+                  onClick={() => setShowSettled(!showSettled)}
+                  aria-expanded={showSettled}
+                  className="rounded-md border border-line-strong px-3 py-1.5 text-xs text-ink-secondary hover:border-accent hover:text-accent-text"
+                >
+                  {showSettled ? "Hide" : "Show"}
+                </button>
+              </div>
+            }
           />
+          {showSettled ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -589,10 +635,12 @@ export default function LateFeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {settled.map((f) => (
+                {settledPage.shown.map((f) => (
                   <tr key={f.id} className="border-b border-line-hair last:border-0">
-                    <td className="px-5 py-3 text-ink-secondary">{f.tenantId}</td>
-                    <td className="tabular px-3 py-3 text-ink-secondary">{f.period.slice(0, 7)}</td>
+                    <td className="px-5 py-3 text-ink-secondary">
+                      {f.companyName ?? "Former tenant"}
+                    </td>
+                    <td className="tabular px-3 py-3 text-ink-secondary">{formatMonth(f.period)}</td>
                     <td className="tabular px-5 py-3 text-right text-ink-secondary">
                       {formatSgd(f.amount)}
                     </td>
@@ -600,7 +648,9 @@ export default function LateFeesPage() {
                 ))}
               </tbody>
             </table>
+            <Pagination {...settledPage.pager} />
           </div>
+          ) : null}
         </Card>
       ) : null}
 
@@ -608,8 +658,8 @@ export default function LateFeesPage() {
       {excluded.length > 0 ? (
         <Card>
           <CardHeader
-            title="Held back because they are on GIRO"
-            hint="Jacqueline removes these by hand each month. They are identified by carrying a rejected-GIRO fee, so no bank statement is needed."
+            title="Left out: on GIRO"
+            hint="Each has a rejected-GIRO fee in the report, so the late fee is not raised for them."
             right={
               <StatusBadge
                 kind="warning"
@@ -617,42 +667,35 @@ export default function LateFeesPage() {
               />
             }
           />
-          <ScrollPanel max={280}>
+          <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10 bg-surface">
                 <tr className="border-b border-line-grid text-left">
-                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
+                  <th className="px-4 py-2.5 text-xs font-medium text-ink-muted sm:px-5">
                     Tenant
                   </th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-ink-muted sm:px-5">
                     Overdue
-                  </th>
-                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">
-                    Why
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {excluded.map((l) => (
+                {excludedPage.shown.map((l) => (
                   <tr key={l.account.id} className="border-b border-line-grid">
-                    <td className="px-5 py-2.5">
-                      <span className="text-ink">{l.account.companyName}</span>
-                      <span className="ml-2 text-[11px] text-ink-muted">
-                        {l.account.customerCode}
-                      </span>
-                      <BilledOn billing={billing.get(l.account.id) ?? NO_BILLING} />
+                    <td className="px-4 py-2.5 sm:px-5">
+                      <TenantLink id={l.account.id} name={l.account.companyName} className="text-ink" />
+                      <div className="mt-0.5 text-[11px] text-ink-muted">{l.account.customerCode}</div>
+                      <BilledOn bills={l.feeBills} regularDay={rules.regularBillingDay} />
                     </td>
-                    <td className="tabular px-3 py-2.5 text-right text-ink-secondary">
+                    <td className="tabular px-4 py-2.5 text-right align-top text-ink-secondary sm:px-5">
                       {formatSgd(l.overdue)}
-                    </td>
-                    <td className="px-5 py-2.5 text-[11px] text-ink-muted">
-                      Carries a rejected-GIRO fee
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </ScrollPanel>
+          </div>
+          <Pagination {...excludedPage.pager} />
         </Card>
       ) : null}
 
@@ -663,7 +706,7 @@ export default function LateFeesPage() {
           onClose={() => setPreview(false)}
         >
           <p className="text-xs leading-relaxed text-ink-secondary">
-            This raises {chargeable.length} fee notices totalling{" "}
+            This raises {chargeable.length} {chargeable.length === 1 ? "fee notice" : "fee notices"} totalling{" "}
             <span className="tabular font-medium text-ink">
               SGD {formatSgd(totalFees)}
             </span>
@@ -741,7 +784,7 @@ export default function LateFeesPage() {
               .map((a) => (
                 <li key={a.id} className="flex gap-4 px-5 py-2.5 text-xs">
                   <span className="w-40 shrink-0 text-ink-muted">
-                    {new Date(a.at).toLocaleString("en-SG")}
+                    {formatDateTime(a.at)}
                   </span>
                   <span className="text-ink-secondary">{a.subject}</span>
                 </li>
@@ -754,18 +797,44 @@ export default function LateFeesPage() {
 }
 
 /**
- * A tenant's billing date, for the late-fee tables. Shows the newest billing
- * run, and flags when there is more than one so an off-cycle ("adhoc") charge
- * is visible before the fee is raised.
+ * Which bills a fee is for, for the late-fee tables.
+ *
+ * Raman, 18 October: the fee stays on the fixed 16th, but the officer should
+ * see when the bill behind it was raised, and a bill raised off the normal
+ * cycle is marked ad hoc. These are the billing dates more than 14 days past
+ * due - the ones the fee is charged on - not the tenant's newest bill, which
+ * may not be late at all. The newest three are named - they are the ones an
+ * officer is asked about - and the rest are counted, back to the oldest.
  */
-function BilledOn({ billing }: { billing: TenantBilling }) {
-  if (!billing.billedOn) {
+const SHOWN_BILLS = 3;
+
+function BilledOn({ bills, regularDay }: { bills: readonly FeeBill[]; regularDay: number }) {
+  if (bills.length === 0) {
     return <div className="mt-0.5 text-[11px] text-ink-muted">No billing date in this file</div>;
   }
+  /* bills arrive oldest first; the newest are the ones worth naming. */
+  const shown = bills.slice(-SHOWN_BILLS).reverse();
   return (
-    <div className="mt-0.5 text-[11px] text-ink-muted">
-      Billed {formatDate(billing.billedOn)}
-      {billing.runs > 1 ? <span className="text-ink-secondary"> · newest of {billing.runs}</span> : null}
+    <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-ink-muted">
+      <span>{bills.length === 1 ? "For the bill of" : "For bills of"}</span>
+      {shown.map((b, i) => (
+        <span key={b.billedOn} className="inline-flex items-center gap-1">
+          <span className="text-ink-secondary">{formatDate(b.billedOn)}</span>
+          {isAdHoc(b.billedOn, regularDay) ? <Tag>Ad hoc</Tag> : null}
+          {i < shown.length - 1 ? <span aria-hidden>·</span> : null}
+        </span>
+      ))}
+      {bills.length > SHOWN_BILLS ? (
+        <span>
+          and {bills.length - SHOWN_BILLS} more, back to {formatDate(bills[0]!.billedOn)}
+        </span>
+      ) : null}
     </div>
   );
+}
+
+/** A manager as a person: "2611 Ray Ang" reads "Ray Ang", NetSuite's own account says so. */
+function managerLabel(key: string): string {
+  if (/do not delete/i.test(key)) return "NetSuite system account";
+  return managerDisplayName(key);
 }

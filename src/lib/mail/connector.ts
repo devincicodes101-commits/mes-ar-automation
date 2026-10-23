@@ -53,6 +53,8 @@ export interface Letter {
    * routinely different and neither can be worked out from the other.
    */
   period?: string;
+  /** For a reminder: the billing dates of the invoices it lists. */
+  billedOn?: string[];
 }
 
 export type SendOutcome =

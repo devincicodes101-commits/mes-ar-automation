@@ -140,6 +140,8 @@ export function buildPipeline(
   asOf: string | null,
   entity: string | null,
   parseProblems: ParseProblem[] = [],
+  /** The late fee rule from Settings; left out, MES's agreed default. */
+  fee: { minimumAgeDays?: number; from?: "due" | "billing" } = {},
 ): Pipeline {
   const revenueTabs = REVENUE_TABS.map((spec) =>
     buildRevenueTab(spec, invoices, asOf, entity),
@@ -182,8 +184,8 @@ export function buildPipeline(
       message:
         "No manager report: no tenant here carries a relationship manager, " +
         "so there is nothing to group them by. Either the Primary Sales Rep " +
-        "column was missing from the file — it is on MES's Finance AR " +
-        "Download tab but not on the Custom A/R Aging Detail — or nobody has " +
+        "column was missing from the file. It is on MES's Finance AR " +
+        "Download tab but not on the Custom A/R Aging Detail, or nobody has " +
         "been assigned yet. The upload result says how many managers the " +
         "last file named.",
     });
@@ -199,7 +201,7 @@ export function buildPipeline(
     byProperty: agingByProperty(accounts),
     revenueTabs,
     managerReports,
-    lateFees: buildLateFeeListing(accounts, invoices, asOf, entity),
+    lateFees: buildLateFeeListing(accounts, invoices, asOf, entity, fee),
     defaulters: recurringDefaulters(invoices, accounts),
     giroCustomers: giroEnrolled(invoices),
     contactCoverage: {

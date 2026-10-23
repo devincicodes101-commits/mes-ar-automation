@@ -121,7 +121,7 @@ export async function sendReport(report: ReportToSend): Promise<ReportSent> {
     sent: true,
     title: `${report.reportName} sent`,
     detail:
-      `${report.to.join(", ")} — ${result.filename ?? report.filename} attached` +
+      `${report.to.join(", ")}, with ${result.filename ?? report.filename} attached` +
       (result.from ? `, from ${result.from}` : ""),
   };
 }

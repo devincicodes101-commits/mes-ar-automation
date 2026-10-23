@@ -49,7 +49,7 @@ export const ROLE_SUMMARY: Record<Role, string> = {
   "super-admin":
     "Everything, including adding and removing users and changing the fee rules.",
   admin:
-    "The full monthly cycle: upload, send, call, raise fees, export. Cannot manage users.",
+    "The full monthly cycle: upload, send, call, raise fees, export. Manages logins, but not a super admin's.",
   CSD: "The daily collections work. Cannot change settings or manage users.",
   RM: "Only the tenants assigned to them. They can log a call and record a promise, and nothing else.",
   Management: "Totals and reports across every property. Read only.",
@@ -90,8 +90,8 @@ export const CAPABILITY_LABEL: Record<Capability, string> = {
   "generate-reports": "Generate and download reports",
   "email-reports": "Email a report to RM or AR team",
   "edit-templates": "Edit the email wording",
-  "edit-settings": "Change fee rules and recipients",
-  "manage-users": "Add or remove users",
+  "edit-settings": "Change settings: mailbox, timing, recipients",
+  "manage-users": "Add logins and switch them off",
   "read-audit-log": "Read the activity log",
 };
 
@@ -111,10 +111,16 @@ export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
     "email-reports", "edit-templates", "edit-settings", "manage-users",
     "read-audit-log",
   ],
+  /*
+   * An admin manages logins too, as asked on 23 October, but never a super
+   * admin's: /api/users refuses an admin creating, changing or switching off
+   * a super admin, and anybody changing their own role.
+   */
   admin: [
     "view-all-tenants", "view-tenant-emails", "upload-reports", "send-reminders",
     "log-calls", "record-promises", "raise-late-fees", "generate-reports",
-    "email-reports", "edit-templates", "edit-settings", "read-audit-log",
+    "email-reports", "edit-templates", "edit-settings", "manage-users",
+    "read-audit-log",
   ],
   CSD: [
     "view-all-tenants", "view-tenant-emails", "upload-reports", "send-reminders",

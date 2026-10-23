@@ -4,13 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
-
-
 import { useRouter } from "next/navigation";
 import { ROLE_LABEL, canOpen, useSession } from "@/lib/session";
 import { hydrateFromServer, useDataset, useDatasetState } from "@/lib/dataset";
-import { hydrateActivity, useSync } from "@/lib/store";
-import { Loading } from "@/components/ui";
+import { hydrateActivity, useStore, useSync } from "@/lib/store";
+import { PageSkeleton, Skeleton } from "@/components/ui";
+import { formatMonth } from "@/lib/format";
 
 /**
  * Names are written for the CSD officer who uses this daily, not for the spec.
@@ -48,7 +47,7 @@ export const NAV: {
     label: "The Schedule",
     group: "The cycle",
     when: "9am daily",
-    note: "Every run, and what each one did. Run a day from here.",
+    note: "What the 9am run does, and what it has done.",
   },
   {
     // First in Review rather than in the cycle, because it is not part of the
@@ -100,7 +99,7 @@ export const NAV: {
     label: "Reminder Emails",
     group: "The cycle",
     when: "by billing date",
-    note: "The first reminder and the final notice, counted from each tenant's billing date.",
+    note: "First reminders and final notices.",
   },
   {
     // Directly under the reminders, because it is the other half of the same
@@ -110,27 +109,27 @@ export const NAV: {
     label: "Send By Hand",
     group: "The cycle",
     when: "with each send",
-    note: "Tenants with no address. The letter is written, you send it.",
+    note: "Letters for tenants with no email address.",
   },
   {
     href: "/calls",
     label: "Call List",
     group: "The cycle",
     when: "after each",
-    note: "Who to phone after each reminder goes out, and what they said.",
+    note: "Who to phone, and what they said.",
   },
   {
     href: "/promises",
     label: "Payment Promises",
     group: "Review",
-    note: "Every promise to pay, with the date it was promised for.",
+    note: "Every promise to pay, and when it is due.",
   },
   {
     href: "/late-fees",
     label: "Late Payment Fees",
     group: "The cycle",
     when: "16th",
-    note: "Work out and raise the admin fee on the 16th of the month.",
+    note: "The admin fee raised on the 16th.",
   },
   {
     href: "/outbox",
@@ -140,7 +139,7 @@ export const NAV: {
     hidden: true,
     group: "The cycle",
     when: "audit",
-    note: "Every reminder that went out, with the letter exactly as it was sent.",
+    note: "Every letter that went out.",
   },
   {
     href: "/defaulters",
@@ -179,13 +178,13 @@ export const NAV: {
     label: "Reports & Export",
     group: "Review",
     when: "on demand",
-    note: "Weekly and monthly reports, plus the file to load into NetSuite.",
+    note: "Reports, and the file for NetSuite.",
   },
   {
     href: "/settings",
     label: "Settings",
     group: "Admin",
-    note: "Email wording and how the system behaves.",
+    note: "Mailbox, reminder timing and recipients.",
   },
   {
     href: "/users",
@@ -203,12 +202,36 @@ export const NAV: {
     href: "/activity",
     label: "Activity Log",
     group: "Admin",
-    note: "A permanent record of every action, with who did it and when.",
+    note: "Every action, with who did it and when.",
   },
 ];
 
+/*
+ * The last ordinary page somebody was on, so a page opened from it (a
+ * tenant) can send them back to where they came from rather than to a fixed
+ * list.
+ */
+let lastPage = "/";
+
+/** Where "Back" on a tenant page goes, and what to call it. */
+export function backTarget(): { href: string; label: string } {
+  const item = NAV.find((n) => n.href === lastPage);
+  return { href: lastPage, label: item?.label ?? "Outstanding Balances" };
+}
+
 export function navFor(pathname: string) {
-  return NAV.find((n) => n.href === pathname);
+  const found = NAV.find((n) => n.href === pathname);
+  if (found) return found;
+  /* Not in the menu, but still a page with a name. */
+  if (pathname.startsWith("/tenant/")) {
+    return {
+      href: pathname,
+      label: "Tenant",
+      group: "",
+      note: "One tenant's balance, charges and history.",
+    };
+  }
+  return undefined;
 }
 
 /**
@@ -238,16 +261,81 @@ function ThemeToggle() {
       "data-theme",
       next ? "dark" : "light",
     );
+    /* Remembered on this device; the layout applies it before the first paint. */
+    try {
+      window.localStorage.setItem("mes-theme", next ? "dark" : "light");
+    } catch {
+      /* Private windows refuse storage; the choice lasts for this page. */
+    }
   }
 
   return (
     <button
       type="button"
       onClick={toggle}
-      className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Light mode" : "Dark mode"}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
     >
-      {dark ? "Light mode" : "Dark mode"}
+      {dark ? (
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M13.5 9.6A5.6 5.6 0 0 1 6.4 2.5a5.6 5.6 0 1 0 7.1 7.1z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+        </svg>
+      )}
     </button>
+  );
+}
+
+/**
+ * The first screen while the session is restored: the brand and a moving
+ * bar, not a sentence. It shows on every full page load, so it must not read
+ * as though anybody is being signed in again.
+ */
+function AppSplash() {
+  return (
+    <div
+      className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-page px-6"
+      role="status"
+      aria-label="Loading"
+    >
+      <Image
+        src="/mes-logo.png"
+        alt="MES Group"
+        width={438}
+        height={127}
+        priority
+        className="logo-mark h-10 w-auto"
+      />
+      <div className="h-1 w-40 overflow-hidden rounded-full bg-surface-sunk">
+        <div className="loader-bar h-full w-1/3 rounded-full bg-accent" />
+      </div>
+    </div>
+  );
+}
+
+/** A thin bar across the top of the page while data is loading. */
+function TopProgress() {
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 -bottom-px z-30 h-0.5 overflow-hidden bg-accent-wash"
+      role="progressbar"
+      aria-label="Loading"
+    >
+      <div className="loader-bar h-full w-1/3 bg-accent" />
+    </div>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <path d="M2.5 4.5h13M2.5 9h13M2.5 13.5h13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -273,11 +361,25 @@ export function Shell({ children }: { children: ReactNode }) {
   const { session, ready, role, scopeNote, signOut } = useSession();
   const ds = useDataset();
   const sync = useSync();
+  const store = useStore();
+  /* Nothing from the activity record in this browser yet: a first visit,
+     or cleared storage. Until the server answers, its counts would be zeros. */
+  const noActivityHere =
+    store.emails.length + store.calls.length + store.promises.length + store.fees.length + store.audit.length === 0;
   /* Whether the figures on screen came from a real upload or the bundled
      example. See the banner below. */
   const dataset = useDatasetState();
   const figuresAreFromTheReport = !NOT_FROM_THE_REPORT.includes(pathname);
+  /* The stored report has not arrived and nothing better is in this browser. */
+  const reportPending = dataset.loading && ds.source === "sample";
   const current = navFor(pathname);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close the drawer whenever the page changes, and remember the page.
+  useEffect(() => {
+    setMenuOpen(false);
+    if (!pathname.startsWith("/tenant/") && pathname !== "/login") lastPage = pathname;
+  }, [pathname]);
 
   // The nav only offers what this role may actually open, so nobody is invited
   // to click into a screen that will refuse them.
@@ -326,32 +428,21 @@ export function Shell({ children }: { children: ReactNode }) {
   // Restoring the session reads local storage, which is a tick. Showing the
   // spinner rather than nothing means a slow machine does not flash a blank
   // page before the app appears.
-  if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loading label="Signing you in" />
-      </div>
-    );
-  }
+  if (!ready) return <AppSplash />;
   if (!session) return null;
 
-  return (
-    /*
-     * The shell is exactly one screen tall and the content scrolls inside it.
-     *
-     * It was min-h-screen, so the page grew with whatever was on it and the
-     * window scrolled — taking the sidebar and the header with it. On the
-     * aging board, which is 190 rows, that meant scrolling to the bottom to
-     * read a figure and then scrolling all the way back to reach the
-     * navigation.
-     *
-     * h-dvh rather than h-screen because on a phone h-screen is the window
-     * including the address bar, so the bottom of the content sits under it
-     * until the bar retracts.
-     */
-    <div className="flex h-dvh overflow-hidden">
-      <aside className="flex h-full w-64 shrink-0 flex-col border-r border-line-hair bg-surface">
-        <div className="border-b border-line-hair px-5 py-4">
+  const initials = session.name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const sidebar = (
+    <>
+      <div className="flex items-start justify-between border-b border-line-hair px-5 py-4">
+        <div>
           <Image
             src="/mes-logo.png"
             alt="MES Group"
@@ -360,127 +451,204 @@ export function Shell({ children }: { children: ReactNode }) {
             priority
             className="logo-mark h-7 w-auto"
           />
-          <p className="mt-2 text-[11px] uppercase tracking-wider text-ink-muted">
+          <p className="mt-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
             AR Automation
           </p>
-          <p className="mt-1.5 text-[10px] leading-tight text-ink-muted">
-            {ds.period}
+        </div>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(false)}
+          aria-label="Close menu"
+          className="rounded-md p-1.5 text-ink-muted hover:bg-surface-alt hover:text-ink lg:hidden"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* The month is the stored report's, so it waits for it: before the
+          server answers, ds holds the bundled example and its August. */}
+      {reportPending ? (
+        <div className="px-4 pt-4">
+          <Skeleton className="h-[52px] w-full rounded-md" />
+        </div>
+      ) : ds.period ? (
+        <div className="px-4 pt-4">
+          <div className="rounded-md bg-accent-wash px-3 py-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-ink-muted">
+              Report loaded
+            </p>
+            <p className="text-[13px] font-semibold text-accent-text">
+              {formatMonth(ds.period)}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main">
+        {groups.map((group) => (
+          <div key={group} className="mb-5">
+            <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+              {group}
+            </p>
+            {visible.filter((n) => n.group === group).map((item) => {
+              const active = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  title={item.note}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative block rounded-md px-3 py-2 text-[13.5px] lg:py-1.5 ${
+                    active
+                      ? "bg-accent-wash font-medium text-accent-text"
+                      : "text-ink-secondary hover:bg-surface-alt hover:text-ink"
+                  }`}
+                >
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-accent"
+                    />
+                  ) : null}
+                  <span className="block truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      <div className="flex items-center gap-2 border-t border-line-hair px-4 py-3">
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-accent-ink"
+        >
+          {initials || "?"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-ink">{session.name}</p>
+          <p className="truncate text-[11px] text-ink-muted">
+            {ROLE_LABEL[session.role]}
           </p>
         </div>
+        <ThemeToggle />
+        <button
+          type="button"
+          onClick={() => {
+            signOut();
+            router.replace("/login");
+          }}
+          aria-label="Sign out"
+          title="Sign out"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line-hair text-ink-secondary hover:border-line-strong hover:text-ink"
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6 2.5H3.5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1H6M10.5 11l3-3-3-3M13.5 8H6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+    </>
+  );
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {groups.map((group) => (
-            <div key={group} className="mb-5">
-              <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                {group}
-              </p>
-              {visible.filter((n) => n.group === group).map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    title={item.note}
-                    aria-current={active ? "page" : undefined}
-                    className={`block rounded px-2 py-1.5 text-[13px] ${
-                      active
-                        ? "bg-accent-wash font-medium text-ink"
-                        : "text-ink-secondary hover:bg-surface-alt hover:text-ink"
-                    }`}
-                  >
-                    <span className="flex items-baseline gap-1.5">
-                      <span className="truncate">{item.label}</span>
-                      {item.when ? (
-                        <span className="ml-auto shrink-0 text-[9.5px] uppercase tracking-wide text-ink-muted">
-                          {item.when}
-                        </span>
-                      ) : null}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
+  return (
+    /*
+     * The shell is exactly one screen tall and the content scrolls inside it,
+     * so the navigation never scrolls away. h-dvh rather than h-screen
+     * because on a phone h-screen includes the address bar.
+     */
+    <div className="flex h-dvh overflow-hidden">
+      {/* Desktop: a fixed sidebar. */}
+      <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-line-hair bg-surface lg:flex">
+        {sidebar}
       </aside>
+
+      {/* Phone and tablet: the same sidebar as a drawer. */}
+      {menuOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[17rem] max-w-[85vw] flex-col bg-surface shadow-xl">
+            {sidebar}
+          </aside>
+        </div>
+      ) : null}
 
       {/* overflow-hidden so the column cannot grow past the screen: the
           scrolling belongs to <main> below, not to the window. */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex items-center gap-4 border-b border-line-hair bg-surface px-6 py-3">
+        <header className="relative flex items-center gap-3 border-b border-line-hair bg-surface px-4 py-3 sm:px-6">
+          {/* Something is on its way from the server. */}
+          {dataset.loading || sync.loading ? <TopProgress /> : null}
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            className="-ml-1 rounded-md p-1.5 text-ink-secondary hover:bg-surface-alt hover:text-ink lg:hidden"
+          >
+            <MenuIcon />
+          </button>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">
-              {current?.label ?? "AR Automation"}
-            </p>
+            {pathname.startsWith("/tenant/") ? (
+              <p className="truncate text-base font-semibold text-ink sm:text-lg">
+                {current?.label}
+              </p>
+            ) : (
+              <h1 className="truncate text-base font-semibold text-ink sm:text-lg">
+                {current?.label ?? "AR Automation"}
+              </h1>
+            )}
             {current ? (
-              <p className="truncate text-[11px] text-ink-muted">
+              <p className="hidden truncate text-xs text-ink-muted sm:block">
                 {current.note}
               </p>
             ) : null}
           </div>
-
-          <div className="ml-auto flex items-center gap-2.5">
-            <div className="hidden text-right sm:block">
-              <p className="text-[11px] font-medium leading-tight text-ink">
-                {session.name}
-              </p>
-              <p className="text-[10px] leading-tight text-ink-muted">
-                {ROLE_LABEL[session.role]}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                signOut();
-                router.replace("/login");
-              }}
-              className="rounded border border-line-hair px-2.5 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
-            >
-              Sign out
-            </button>
-
-            <ThemeToggle />
-          </div>
+          {reportPending ? (
+            <Skeleton className="ml-auto h-6 w-24 shrink-0 rounded-full lg:hidden" />
+          ) : ds.period ? (
+            <span className="ml-auto shrink-0 rounded-full bg-accent-wash px-2.5 py-1 text-[11px] font-medium text-accent-text lg:hidden">
+              {formatMonth(ds.period)}
+            </span>
+          ) : null}
         </header>
 
-        {/* Says plainly what this role can see, so the demo never leaves anyone
-            guessing why a number changed. */}
+        {/* Says plainly what this role can see, so nobody is left guessing
+            why a number differs from a colleague's. */}
         {role !== "CSD" && role !== "admin" && role !== "super-admin" ? (
-          <div className="border-b border-line-hair bg-surface-alt px-6 py-2">
-            <p className="text-[11px] text-ink-muted">
+          <div className="border-b border-line-hair bg-surface-alt px-4 py-2 sm:px-6">
+            <p className="text-xs text-ink-muted">
               <span className="font-medium text-ink-secondary">
                 Signed in as {ROLE_LABEL[session.role]}.
               </span>{" "}
-              {scopeNote} In production this is enforced by the database, not by
-              the screen.
+              {scopeNote}
             </p>
           </div>
         ) : null}
 
         {/*
-          * Records that exist in this browser and nowhere else.
-          *
-          * Shown on every screen rather than on the one that created them,
-          * because the officer will have moved on by the time it matters and
-          * their own screen shows the call either way. A history that looks
-          * complete while missing the calls made during an outage is the worst
-          * thing this system could quietly do.
+          * Records that exist in this browser and nowhere else. On every
+          * screen, because the officer will have moved on by the time it
+          * matters.
           */}
         {sync.unsaved > 0 || sync.lastError ? (
           <div
-            className={`border-b px-6 py-3 text-sm ${
+            className={`border-b px-4 py-3 text-sm sm:px-6 ${
               sync.unsaved > 0
-                ? "border-red-200 bg-red-50 text-red-900"
-                : "border-amber-200 bg-amber-50 text-amber-900"
+                ? "border-crit-line bg-crit-wash text-crit-ink"
+                : "border-warn-line bg-warn-wash text-warn-ink"
             }`}
             role="status"
           >
             {sync.unsaved > 0 ? (
               <span className="font-medium">
                 {sync.unsaved === 1
-                  ? "1 record is saved in this browser only."
-                  : `${sync.unsaved} records are saved in this browser only.`}{" "}
+                  ? "1 record has not reached the server yet."
+                  : `${sync.unsaved} records have not reached the server yet.`}{" "}
               </span>
             ) : null}
             {sync.lastError}
@@ -488,45 +656,55 @@ export function Shell({ children }: { children: ReactNode }) {
         ) : null}
 
         {/*
-          * Sample data, said out loud.
-          *
-          * When the database holds no report the app falls back to a bundled
-          * sample so a fresh install is not a blank page. Nothing said so, and
-          * the sample is MES's own August export — 190 tenants and SGD 2.78m,
-          * which reads exactly like the real thing.
-          *
-          * The first person to clear the database and open the app therefore
-          * saw a full system and concluded the reset had failed. Worse is
-          * available: uploading a file, having it silently refused, and
-          * demonstrating the sample to a client in the belief it is theirs.
-          *
-          * On every screen, because the figures are on every screen.
+          * Sample data, said out loud. When the database holds no report the
+          * app falls back to a bundled sample, which reads exactly like the
+          * real thing, so it is labelled on every screen with figures.
           */}
-        {!figuresAreFromTheReport ? null : dataset.origin === "empty" ? (
+        {!figuresAreFromTheReport || dataset.loading ? null : dataset.origin === "empty" ? (
           <div
-            className="border-b border-line-hair bg-surface-raised px-6 py-3 text-sm text-ink-secondary"
+            className="border-b border-line-hair bg-accent-wash px-4 py-3 text-sm text-ink-secondary sm:px-6"
             role="status"
           >
-            <span className="font-medium text-ink">No report is loaded.</span>{" "}
-            The database holds nothing yet, so every figure reads zero. Upload
-            an AR report and the month fills in.
+            <span className="font-medium text-ink">No report loaded yet.</span>{" "}
+            Upload this month&rsquo;s AR report to fill in the figures.{" "}
+            {canOpen(role, "/upload") ? (
+              <Link href="/upload" className="font-medium text-accent-text underline underline-offset-4">
+                Upload a report
+              </Link>
+            ) : null}
           </div>
         ) : dataset.origin === "sample" ? (
           <div
-            className="border-b border-amber-200 bg-amber-50 px-6 py-3 text-sm text-amber-900"
+            className="border-b border-warn-line bg-warn-wash px-4 py-3 text-sm text-warn-ink sm:px-6"
             role="status"
           >
-            <span className="font-medium">This is sample data.</span>{" "}
-            The stored report has not been read yet, so the app is showing the
-            example figures it ships with. They are not MES&rsquo;s current
-            balances.
+            <span className="font-medium">Example figures.</span>{" "}
+            The stored report has not loaded, so these are not MES&rsquo;s
+            current balances.
           </div>
         ) : null}
 
         {/* The only thing that scrolls. min-h-0 is load bearing: without it a
             flex child refuses to shrink below its content and the overflow
-            escapes to the window again, which is the bug this replaced. */}
-        <main className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</main>
+            escapes to the window. */}
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
+          <div className="mx-auto w-full max-w-[1400px]">
+            {/* Until the stored report arrives, the page's shape rather than
+                the bundled example: figures that are about to change are
+                worse than none. A report already in this browser shows at
+                once. */}
+            {/* A page this role may not open is never drawn, not even for the
+                moment before the redirect above: typing /settings as CSD
+                showed the settings for a second. */}
+            {!canOpen(role, pathname) ||
+            (figuresAreFromTheReport && reportPending) ||
+            ((figuresAreFromTheReport || pathname === "/activity") && sync.loading && noActivityHere) ? (
+              <PageSkeleton />
+            ) : (
+              children
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );

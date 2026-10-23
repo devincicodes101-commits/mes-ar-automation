@@ -1,8 +1,10 @@
 import { overdueTotal, severeTotal } from "./data.ts";
 import {
   DEFAULT_REMINDER_DAYS,
+  letterCovers,
   reminderDatesFor,
   remindersDueOn,
+  type DueReminder,
   type ReminderWindow,
   type SentLetter,
 } from "./reminder-timing.ts";
@@ -22,9 +24,14 @@ import type { Account, QueueItem, QueueReason } from "./types.ts";
  *
  * Now both ask the same thing, from the same dates: anyone who still owes and
  * whose first reminder date (billing date + 23 days, as set on Settings) has
- * passed is due their first call; past the final notice date (+ 27), their
+ * passed is due their first call; past the final notice date (+ 37), their
  * second. No report date and no age groups - those stay for MES's own aging
  * report. Agreed 14 October.
+ *
+ * One call per tenant, not one per bill. Letters go per billing date, but a
+ * call is to a person about everything they owe, so a tenant billed on three
+ * dates is on the list once, for their newest bill that has reached its
+ * reminder date: the call follows the latest letter.
  *
  * A tenant with a promise to pay that has not yet fallen due is left off, as
  * the letters leave them off.
@@ -66,12 +73,16 @@ export function callListOn(
   calls: readonly { accountId: string; at: string; round: CallRound }[] = [],
 ): CallItem[] {
   const finalSent = (accountId: string, billedOn: string) =>
-    sent.some((l) => l.tenantId === accountId && l.stage === "final-notice" && l.sentAt.slice(0, 10) >= billedOn);
+    sent.some((l) => l.tenantId === accountId && l.stage === "final-notice" && letterCovers(l, billedOn));
 
   const byId = new Map(accounts.map((a) => [a.id, a]));
   const items: CallItem[] = [];
 
-  for (const due of remindersDueOn(accounts, linesFor, today, window)) {
+  /* The newest due bill per tenant. remindersDueOn lists oldest first. */
+  const newest = new Map<string, DueReminder>();
+  for (const d of remindersDueOn(accounts, linesFor, today, window)) newest.set(d.accountId, d);
+
+  for (const due of Array.from(newest.values())) {
     if (promised.has(due.accountId)) continue;
     const account = byId.get(due.accountId);
     const dates = reminderDatesFor(due.billedOn, window);

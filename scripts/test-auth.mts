@@ -122,10 +122,10 @@ check("and so is one carrying a role that does not exist",
 
 section("What each role may do");
 
-check("only the super admin manages users",
-  ROLES.filter((r) => can(r, "manage-users")).join(","), "super-admin");
-check("admin can run the whole cycle but not manage users",
-  can("admin", "send-reminders") && !can("admin", "manage-users"), true);
+check("super admin and admin manage logins, nobody else",
+  ROLES.filter((r) => can(r, "manage-users")).join(","), "super-admin,admin");
+check("admin can run the whole cycle and manage logins",
+  can("admin", "send-reminders") && can("admin", "manage-users"), true);
 check("CSD can send but cannot change settings",
   can("CSD", "send-reminders") && !can("CSD", "edit-settings"), true);
 /*
@@ -172,7 +172,7 @@ check("signed out, every route is closed",
 check("except the login page", canOpen(null, "/login"), true);
 
 check("super admin can open user management", canOpen("super-admin", "/users"), true);
-check("admin cannot", canOpen("admin", "/users"), false);
+check("and so can admin", canOpen("admin", "/users"), true);
 check("CSD cannot", canOpen("CSD", "/users"), false);
 check("CSD can open upload", canOpen("CSD", "/upload"), true);
 check("CSD cannot open settings", canOpen("CSD", "/settings"), false);

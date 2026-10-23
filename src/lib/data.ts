@@ -1,5 +1,7 @@
+import { feeAge, feeBillsOf, type FeeBill } from "./billing-cycles.ts";
 import raw from "./mock/arData.json" with { type: "json" };
 import { exactOverdue, exactSevere, sumExact } from "./money.ts";
+import { formatDate as formatDay } from "./format.ts";
 import type {
   Account,
   ArData,
@@ -265,14 +267,10 @@ export function formatSgd(value: number, opts?: { sign?: boolean }): string {
   return s;
 }
 
+/** "22 Oct 2026", Singapore time, the one date format on every screen. */
 export function formatDate(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-SG", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDay(iso);
 }
 
 /** The worst bucket an account has money sitting in. Used on the call form. */
@@ -532,6 +530,9 @@ export interface FeeRule {
    * fee applies if payment has not arrived by the 15th.
    */
   minimumAgeDays: number;
+  /** Count those days from the due date (agreed 24 October) or the billing
+      date, as Settings say. */
+  from?: "due" | "billing";
 }
 
 /**
@@ -589,6 +590,8 @@ export interface FeeLine {
    * express "14 days", so the selection is approximate and the screen says so.
    */
   approximate: boolean;
+  /** The billing dates the fee is charged on, oldest first. See feeBillsOf. */
+  feeBills: FeeBill[];
 }
 
 /**
@@ -653,7 +656,7 @@ export function feesDue(
       const lines = invoicesForAccount(a, invoices);
       const dated = lines.filter((i) => i.age !== null);
       if (dated.length === 0) {
-        return { account: a, overdue: overdueTotal(a), approximate: true };
+        return { account: a, overdue: overdueTotal(a), approximate: true, feeBills: [] as FeeBill[] };
       }
       /*
        * Rounded to the cent before anything is decided on it.
@@ -666,16 +669,17 @@ export function feesDue(
        */
       const overdue = Math.round(
         dated
-          .filter((i) => (i.age as number) >= rule.minimumAgeDays)
+          .filter((i) => (feeAge(i, rule.from) ?? -1) >= rule.minimumAgeDays)
           .reduce((n, i) => n + i.openBalance, 0) * 100,
       ) / 100;
-      return { account: a, overdue, approximate: false };
+      return { account: a, overdue, approximate: false, feeBills: feeBillsOf(dated, rule.minimumAgeDays, rule.from) };
     })
     .filter((r) => r.overdue > rule.minimumBalance)
     .map((r) => ({
       account: r.account,
       overdue: r.overdue,
       approximate: r.approximate,
+      feeBills: r.feeBills,
       fee:
         rule.basis === "flat"
           ? rule.value

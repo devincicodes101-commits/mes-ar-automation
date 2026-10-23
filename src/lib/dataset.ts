@@ -389,13 +389,18 @@ export interface DatasetState {
   loading: boolean;
 }
 
-let state: DatasetState = { origin: "sample", serverError: null, loading: false };
+/* Loading from the start: until the server has answered, nothing on screen
+   is the stored report, and the shell shows the page's shape instead. */
+let state: DatasetState = { origin: "sample", serverError: null, loading: true };
 const stateListeners = new Set<() => void>();
 
 function setState(next: Partial<DatasetState>) {
   state = { ...state, ...next };
   stateListeners.forEach((l) => l());
 }
+
+/* One object, so React sees the same snapshot on every server render. */
+const SERVER_STATE: DatasetState = { origin: "sample", serverError: null, loading: true };
 
 export function useDatasetState(): DatasetState {
   return useSyncExternalStore(
@@ -404,7 +409,7 @@ export function useDatasetState(): DatasetState {
       return () => stateListeners.delete(l);
     },
     () => state,
-    () => ({ origin: "sample", serverError: null, loading: false }) as DatasetState,
+    () => SERVER_STATE,
   );
 }
 

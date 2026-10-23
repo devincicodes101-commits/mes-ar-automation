@@ -198,7 +198,7 @@ export default function ChecksPage() {
         </div>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile label="Cases" value={String(results.length)} note="From the published case file" />
         <StatTile label="Passed" value={String(passed)} note="Worked out in this browser" emphasis />
         <StatTile
@@ -241,13 +241,13 @@ export default function ChecksPage() {
                   <td className="tabular px-3 py-2.5 text-right text-ink-secondary">{t.pass}</td>
                   <td className="tabular px-3 py-2.5 text-right">
                     {t.fail === 0 ? (
-                      <span className="text-ink-muted">&mdash;</span>
+                      <span className="text-ink-muted">-</span>
                     ) : (
                       <span className="font-medium text-[var(--critical)]">{t.fail}</span>
                     )}
                   </td>
                   <td className="tabular px-5 py-2.5 text-right text-ink-muted">
-                    {t.skipped === 0 ? "—" : t.skipped}
+                    {t.skipped === 0 ? "-" : t.skipped}
                   </td>
                 </tr>
               ))}
@@ -319,7 +319,7 @@ export default function ChecksPage() {
                       <td className="px-3 py-2.5 text-ink-secondary">{r.scenario}</td>
                       <td className="tabular px-3 py-2.5 text-ink-secondary">{r.expected}</td>
                       <td className="tabular px-3 py-2.5 text-ink">
-                        {r.skipped ? <span className="text-ink-muted">&mdash;</span> : r.actual}
+                        {r.skipped ? <span className="text-ink-muted">-</span> : r.actual}
                       </td>
                       <td className="px-5 py-2.5">
                         {r.skipped ? (

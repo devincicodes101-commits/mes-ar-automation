@@ -177,6 +177,11 @@ export async function POST(request: Request) {
         template_id: letter.templateId ?? null,
         template_name: letter.templateName ?? "Sent by the connector",
         period: letter.period ?? null,
+        /* Which bills a reminder listed, so the 9am run does not send that
+           bill's letter again. Kept only when it is a list of dates. */
+        billed_on: Array.isArray(letter.billedOn) && letter.billedOn.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d)))
+          ? letter.billedOn
+          : null,
         subject: letter.subject,
         body: letter.body,
         recipients: letter.to,

@@ -7,6 +7,7 @@ import { buildPipeline } from "@/lib/pipeline";
 import { planFor, runDay, type CycleDay, type SimState } from "@/lib/cycle";
 import { lettersSince, priorContact, stateFrom, type PriorContact } from "@/lib/prior-contact";
 import { readReminderWindow } from "@/lib/reminder-window";
+import { readRules } from "@/lib/rules-server";
 import {
   lettersToWrite,
   linesByAccount,
@@ -27,7 +28,7 @@ import {
   missedSince,
   periodOf,
   reportAgeDays,
-  tooOldToAct,
+  reportAgeWarning,
   type SgDate,
 } from "@/lib/schedule";
 
@@ -347,12 +348,18 @@ export async function GET(request: Request) {
   const report = stored.report;
 
   try {
+    /* The fee and report-age rules from Settings; the defaults if unread. */
+    const { rules, problem: rulesProblem } = await readRules(db);
+    if (rulesProblem) {
+      log.say("plan", "Could not read the business rules, so the defaults were used", { problem: rulesProblem }, { level: "warn" });
+    }
     const pipeline = buildPipeline(
       report.accounts,
       report.invoices,
       report.asOf,
       null,
       [],
+      { minimumAgeDays: rules.feeDays, from: rules.feeFrom },
     );
 
     /*
@@ -413,10 +420,11 @@ export async function GET(request: Request) {
      *
      * This used to be "is today the 7th or the 21st". MES's reports carry
      * dozens of billing dates, so a fixed day gave a tenant billed on the
-     * 2nd five days' grace and one billed on the 28th forty. Now each tenant
-     * is chased the same number of days into their own newest bill, and those
-     * two numbers are read from the database - the Settings screen writes
-     * them there - rather than carried in the code.
+     * 2nd five days' grace and one billed on the 28th forty. Now every
+     * billing date is chased the same number of days into itself - a tenant
+     * billed on two dates gets a letter for each, listing that date's
+     * invoices - and those two numbers are read from the database - the
+     * Settings screen writes them there - rather than carried in the code.
      *
      * Worked out before the gates, not after, because the gates only matter
      * on a day that writes to somebody, and that is no longer a fact about
@@ -463,7 +471,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const decided = lettersToWrite(due, sent.letters, today.iso, days);
+    const decided = lettersToWrite(due, sent.letters, days);
 
     /*
      * The two holds that are about the tenant rather than the timing. No
@@ -508,7 +516,7 @@ export async function GET(request: Request) {
        before, but with the reasons in the diary rather than unasked. */
     if (!writesToday && day === null) {
       for (const h of held) {
-        log.say("plan", `Not written to: ${byIdEarly.get(h.accountId)?.companyName ?? h.accountId} — ${h.why}`, {
+        log.say("plan", `Not written to: ${byIdEarly.get(h.accountId)?.companyName ?? h.accountId}: ${h.why}`, {
           why: h.why,
         }, { tenant: h.accountId });
       }
@@ -522,33 +530,30 @@ export async function GET(request: Request) {
     }
 
     /*
-     * How far behind the figures are, and whether this day should act on them.
+     * How far behind the figures are: said, not acted on.
      *
-     * The Age column is fixed when MES press export; it does not advance as
-     * days pass. So a report pulled on the 4th and still newest on the 21st is
-     * seventeen days stale, and every decision from it is seventeen days out of
-     * date. On a day that writes to a tenant that matters: the 16th would
-     * charge $100 to somebody who paid a fortnight ago.
-     *
-     * Refused rather than done anyway, because a missed fee can be caught up
-     * the moment the report arrives and a wrong charge cannot be taken back
-     * without a phone call and a credit note. A missed reminder catches itself
-     * up too: the next run finds the tenant still past their date.
+     * This used to stop the run once the report was more than 25 days old.
+     * Agreed 24 October: MES upload whenever they like and keeping the report
+     * current is theirs, so the run acts on the newest report however old,
+     * and says so when it is getting old. See reportAgeWarning.
      */
     const ageDays = reportAgeDays(report.asOf, today);
-    const freshness = tooOldToAct(day ?? 0, ageDays, writesToday);
-    if (!freshness.act) {
-      log.say("report", freshness.why, {
-        reportDate: report.asOf,
-        ageDays,
-        cycleDay: day,
-      }, { level: "error" });
+    const ageWarning = reportAgeWarning(ageDays, rules.warnReportAfter);
+
+    /* Unless Settings say to stop past a number of days, which MES may turn
+       on. Off since 24 October. Only a morning that writes is stopped. */
+    if (writesToday && rules.stopReportAfter !== null && ageDays !== null && ageDays > rules.stopReportAfter) {
+      const why =
+        `The newest report is ${ageDays} days old, more than the ${rules.stopReportAfter} days set ` +
+        "on Settings, so nothing was sent and no fee was raised. Upload a newer report, then " +
+        "run this morning again.";
+      log.say("report", why, { reportDate: report.asOf, ageDays }, { level: "error" });
       return finish({
         cycle_day: day,
         status: "report-too-old",
-        summary: { title: "The report is too far behind to act on", reportAgeDays: ageDays },
+        summary: { title: "The report is older than Settings allow", reportAgeDays: ageDays },
         report_date: report.asOf,
-        error: freshness.why,
+        error: why,
       });
     }
 
@@ -638,9 +643,9 @@ export async function GET(request: Request) {
       db, day, today, period, after, pipeline, memory.prior, log, checksWarning,
       letters, held, Date.parse(startedAt) + SEND_BUDGET_MS,
     );
-    if (freshness.warn) {
-      wrote.notes.unshift(freshness.warn);
-      log.say("report", freshness.warn, { ageDays }, { level: "warn" });
+    if (ageWarning) {
+      wrote.notes.unshift(ageWarning);
+      log.say("report", ageWarning, { ageDays }, { level: "warn" });
     }
     if (timing.source === "default") {
       wrote.notes.push(
@@ -779,7 +784,10 @@ async function persist(
    * bill - and this only writes them down and sends them.
    */
   const written = letters.map((l) => l.accountId);
-  const planned = new Map(letters.map((l) => [l.accountId, l]));
+  /* By the letter's row id rather than by tenant: one tenant can be due a
+     first reminder for one bill and a final notice for another on the same
+     morning, and those are two letters. */
+  const planned = new Map<string, PlannedLetter>();
 
   let feesRaised = 0;
   if (charged.length > 0) {
@@ -854,8 +862,9 @@ async function persist(
     }
     const editedUsed: string[] = [];
 
-    const rows = written
-      .map((id) => {
+    const rows = letters
+      .map((plannedLetter) => {
+        const id = plannedLetter.accountId;
         const account = byId.get(id);
         if (!account) return null;
 
@@ -866,11 +875,12 @@ async function persist(
          * fired, which is the sort of thing a tenant notices and an officer
          * cannot explain.
          */
-        const plannedLetter = planned.get(id)!;
         const isFinal = plannedLetter.stage === "final-notice";
+        /* The total of the invoices listed, not the tenant's whole balance:
+           a letter is about one billing date's invoices. */
         const context = {
           companyName: account.companyName,
-          grandTotal: account.total,
+          grandTotal: plannedLetter.amount,
           sentOn: today.iso,
         };
         /*
@@ -884,6 +894,8 @@ async function persist(
         const letter = saved ? { ...standard, ...renderEdited(saved, context) } : standard;
         if (saved) editedUsed.push(account.companyName);
 
+        const rowId = letterId(`${plannedLetter.bills.map((b) => b.billedOn).join("+")}|${plannedLetter.stage}|${id}`);
+        planned.set(rowId, plannedLetter);
         return {
           /*
            * Derived rather than random, so a second run on the same day
@@ -895,8 +907,11 @@ async function persist(
            * tries again tomorrow, because sending was off or the send failed,
            * lands on the same row instead of writing a second letter.
            */
-          id: letterId(`${plannedLetter.billedOn}|${plannedLetter.stage}|${id}`),
+          id: rowId,
           tenant_id: id,
+          /* Which billing dates it lists, so tomorrow's run knows the 24th's
+             bill has not had its reminder just because the 15th's has. */
+          billed_on: plannedLetter.bills.map((b) => b.billedOn),
           /* The ids every sender already uses. Named for the 7th and the 21st,
              which they no longer mean; see lettersSince. */
           template_id: isFinal ? "final-21st" : "reminder-7th",
@@ -1002,8 +1017,9 @@ async function persist(
             subject: row.subject,
             period,
             templateId: row.template_id,
-            billedOn: planned.get(row.tenant_id)?.billedOn ?? null,
-            note: planned.get(row.tenant_id)?.note ?? null,
+            billedOn: row.billed_on,
+            amount: planned.get(row.id)?.amount ?? null,
+            note: planned.get(row.id)?.note ?? null,
           }, { tenant: row.tenant_id });
           // was_simulated false only once a letter genuinely left, so the day
           // sending was switched on stays findable in the data afterwards.
@@ -1104,7 +1120,7 @@ async function persist(
   for (const h of held) {
     heldBack.push({ ...name(h.accountId), why: h.why });
     const a = byId.get(h.accountId);
-    log.say("plan", `Not written to: ${a?.companyName ?? h.accountId} — ${h.why}`, {
+    log.say("plan", `Not written to: ${a?.companyName ?? h.accountId}: ${h.why}`, {
       why: h.why,
       owes: a?.total ?? null,
       hasAddress: a?.hasContact ?? null,

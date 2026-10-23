@@ -81,13 +81,14 @@ export function periodOf(d: SgDate): string {
 }
 
 /**
- * The cycle days between two dates that nothing ran on.
+ * The mornings between two dates that nothing ran on.
  *
  * A cron that fails is silent. Vercel retries nothing, and the only evidence
- * is a run that is not in the table. On MES's calendar a missed day is not a
- * missed log line: the 16th is when the late fee is raised and the 21st is
- * when the final notice goes out, so a day nobody noticed is money not charged
- * and a tenant not chased.
+ * is a run that is not in the table. Every morning counts since reminders
+ * follow each tenant's billing date rather than MES's old six days: it named
+ * a missed 4th, which no longer does anything, and said nothing about a
+ * missed ordinary morning. The 16th is the costly one - the 17th does not
+ * raise its fees - which needsAttention() says separately.
  *
  * Both ends exclusive of the last run and inclusive of today, because the last
  * run already happened and today is the one being decided.
@@ -111,13 +112,7 @@ export function missedSince(lastRun: string | null, today: SgDate): string[] {
    * readable.
    */
   for (let guard = 0; cursor < to && guard < 60; guard += 1) {
-    const day = cursor.getUTCDate();
-    if ((CYCLE_DAYS as readonly number[]).includes(day)) {
-      const p = (n: number) => String(n).padStart(2, "0");
-      missed.push(
-        `${cursor.getUTCFullYear()}-${p(cursor.getUTCMonth() + 1)}-${p(day)}`,
-      );
-    }
+    missed.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
@@ -187,25 +182,18 @@ export function askedFor(value: string | null, today: SgDate): { date: SgDate } 
   };
 }
 
-/* ------------------------------------------------- how old is too old --- */
+/* --------------------------------------------- how old the report is --- */
 
 /**
- * The days a report may be behind before the schedule stops acting on it.
+ * Where it is worth saying "this report is getting old".
  *
- * MES upload three times a month — the 4th, the 7th and the 16th — and the
- * whole cycle assumes it. The Age column in their export is fixed at the
- * moment they press export; it does not advance as days pass. So a report
- * pulled on the 4th and still the newest on the 21st has ages seventeen days
- * stale, and every decision taken from it is seventeen days out of date.
- *
- * The longest legitimate gap is the 16th to the 4th of the next month, which
- * is nineteen days, so at any cycle day the newest report should be at most
- * about sixteen days old. Twenty-five means at least one upload was missed
- * outright, not that somebody was a day late.
+ * Said, never acted on. The run used to refuse to send or charge anything once
+ * the newest report was more than 25 days old, so a tenant who had paid since
+ * the export would not be chased. Agreed 24 October: MES may upload whenever
+ * they like, and keeping the report current - so that tenants who have paid
+ * drop out of it - is theirs to do. The run always acts on the newest report
+ * and says when it is old, on The Schedule and in the run's notes.
  */
-export const STALE_AFTER_DAYS = 25;
-
-/** Where it is worth saying "this is getting old" without refusing. */
 export const AGEING_AFTER_DAYS = 16;
 
 /**
@@ -225,56 +213,16 @@ export function reportAgeDays(reportDate: string | null, today: SgDate): number 
 }
 
 /**
- * Whether a day that writes to tenants should act on this report.
+ * The warning for a report that is getting old, or null.
  *
- * Only the three days that write: the 7th and the 21st put a letter in front
- * of a tenant, and the 16th charges them $100. The other three record that
- * they woke and are harmless on any data.
- *
- * Refusing is the right way round. A missed fee can be caught up the moment
- * the report arrives — askedFor() exists for exactly that — while a $100
- * charged to somebody who paid three weeks ago is a phone call from an angry
- * customer and a credit note. The recoverable failure is the one to choose.
+ * A report dated ahead of today (next month's export loaded early) is not old.
  */
-export function tooOldToAct(
-  day: number,
-  ageDays: number | null,
-  /*
-   * Whether this run writes to anybody, where the caller knows better than
-   * the day number does.
-   *
-   * The 7th, the 16th and the 21st used to be the only days that wrote. Once
-   * reminders are counted from each tenant's billing date a letter can fall
-   * due on any day, so the run says whether it has letters to send and that
-   * answer wins. Left out, the day decides, exactly as before.
-   */
-  writesToday?: boolean,
-): { act: false; why: string } | { act: true; warn: string | null } {
-  const writes = writesToday ?? (day === 7 || day === 16 || day === 21);
-  if (!writes || ageDays === null) return { act: true, warn: null };
-
-  if (ageDays > STALE_AFTER_DAYS) {
-    return {
-      act: false,
-      why:
-        `The newest report is ${ageDays} days old, which is more than the ` +
-        `${STALE_AFTER_DAYS} days this day will act on. MES upload on the ` +
-        "4th, the 7th and the 16th, so a report this far behind means an " +
-        "upload was missed. Nothing was sent and no fee was raised: upload " +
-        "the current report and run this day again.",
-    };
-  }
-
-  if (ageDays > AGEING_AFTER_DAYS) {
-    return {
-      act: true,
-      warn:
-        `The report is ${ageDays} days old. It was acted on, but the figures ` +
-        "are from before the last upload was due.",
-    };
-  }
-
-  return { act: true, warn: null };
+export function reportAgeWarning(ageDays: number | null, after: number = AGEING_AFTER_DAYS): string | null {
+  if (ageDays === null || ageDays <= after) return null;
+  return (
+    `The newest report is ${ageDays} days old. The run acted on it, but a tenant ` +
+    "who has paid since it was exported is still in it. Upload a newer report."
+  );
 }
 
 /**
@@ -423,4 +371,124 @@ export function runNeedsAttention(run: { status: string; summary: RunLetterSumma
   if (runNeedsLookingAt(run.status)) return true;
   const d = letterDelivery(run.summary);
   return (d?.failed ?? 0) > 0 || (d?.deferred ?? 0) > 0;
+}
+
+/* ------------------------------------------------------ needs attention --- */
+
+/**
+ * By this hour in Singapore the morning is over: the 9am run and the 10, 11
+ * and 12 o'clock follow-ups (vercel.json) have all had their turn. Before it,
+ * a morning with letters still to go may simply not be finished yet.
+ */
+export const MORNING_SETTLED_HOUR = 13;
+
+/** Run statuses that mean the report was missing, too old, or failed its checks. */
+/* Not "report-too-old": the run no longer stops for an old report, so a
+   morning recorded that way before 24 October runs if it is run again. */
+export const REFUSED_FOR_THE_REPORT = ["no-report", "checks-failed"];
+
+export interface AttentionRun {
+  ran_for: string;
+  status: string;
+  error: string | null;
+  summary: RunLetterSummary | null;
+}
+
+export type AttentionItem =
+  /* The 16th did not run, or stopped: that month's late fees were never raised. */
+  | { kind: "fee-day"; date: string; error: string | null; needsUpload: boolean }
+  /* The newest morning ran but some of its letters did not go. */
+  | { kind: "unfinished"; date: string; notSent: number; written: number; why: string | null }
+  /* The newest morning stopped before doing its work. */
+  | { kind: "failed"; date: string; error: string | null; needsUpload: boolean }
+  /* Nothing has run today, and the morning is over. */
+  | { kind: "not-today"; date: string; lastRan: string }
+  /* Mornings that did not run. Their reminders were not sent: each letter has
+     one day, and a later morning does not send it. */
+  | { kind: "gap"; dates: string[] };
+
+/**
+ * What on the schedule somebody should do something about, from its history.
+ *
+ * A date picker asked the officer to know which morning had gone wrong. The
+ * history already says: a morning with no row, a 16th that stopped, a run
+ * whose letters did not all go. Only those that need a hand get a button.
+ * A missed ordinary morning is listed so somebody knows its reminders did not
+ * go: each letter has one day, and the next morning does not send it. A
+ * retry for those is to come; running the morning again sends them. A missed
+ * 16th has its own button, because
+ * the 17th does not raise the 16th's fees.
+ *
+ * Running a morning again is always safe: every letter and fee is keyed so a
+ * second run skips what the first one did.
+ */
+export function needsAttention(runs: AttentionRun[], today: SgDate): AttentionItem[] {
+  if (runs.length === 0) return [];
+  const byDay = new Map(runs.map((r) => [r.ran_for, r]));
+  const newestFirst = [...runs].sort((a, b) => b.ran_for.localeCompare(a.ran_for));
+  const newest = newestFirst[0]!;
+  const oldest = newestFirst[newestFirst.length - 1]!;
+  const settled = today.hour >= MORNING_SETTLED_HOUR;
+  const isFeeDay = (iso: string) => Number(iso.slice(8, 10)) === 16;
+  /* Stopped for want of a usable report: running again refuses again. */
+  const needsUpload = (status: string) => REFUSED_FOR_THE_REPORT.includes(status);
+
+  /* Every morning from the first recorded run to the last one that should
+     have happened by now, and which of them have no row. */
+  const lastDue = settled ? today.iso : shiftDay(today.iso, -1);
+  const missing: string[] = [];
+  for (let d = shiftDay(oldest.ran_for, 1), guard = 0; d <= lastDue && guard < 90; d = shiftDay(d, 1), guard += 1) {
+    if (!byDay.has(d)) missing.push(d);
+  }
+
+  const items: AttentionItem[] = [];
+
+  for (const d of missing.filter(isFeeDay)) {
+    items.push({ kind: "fee-day", date: d, error: null, needsUpload: false });
+  }
+  for (const r of newestFirst) {
+    if (isFeeDay(r.ran_for) && runNeedsLookingAt(r.status)) {
+      items.push({ kind: "fee-day", date: r.ran_for, error: r.error ?? r.status, needsUpload: needsUpload(r.status) });
+    }
+  }
+
+  /* A run that stopped has stopped: the follow-ups refuse for the same
+     reason. Only letters still to go may yet be sent this morning. */
+  const stillRunning = newest.ran_for === today.iso && !settled;
+  if (!isFeeDay(newest.ran_for) && runNeedsLookingAt(newest.status)) {
+    items.push({
+      kind: "failed",
+      date: newest.ran_for,
+      error: newest.error ?? newest.status,
+      needsUpload: needsUpload(newest.status),
+    });
+  }
+  const d = letterDelivery(newest.summary);
+  const notSent = (d?.failed ?? 0) + (d?.deferred ?? 0);
+  if (d && notSent > 0 && !stillRunning) {
+    items.push({
+      kind: "unfinished",
+      date: newest.ran_for,
+      notSent,
+      written: d.written,
+      why: d.failedBecause,
+    });
+  }
+
+  const ordinary = missing.filter((m) => !isFeeDay(m));
+  if (ordinary.includes(today.iso)) {
+    items.push({ kind: "not-today", date: today.iso, lastRan: newest.ran_for });
+  }
+  /* The last month only: an older gap was answered long ago. */
+  const monthAgo = shiftDay(today.iso, -31);
+  const covered = ordinary.filter((m) => m < newest.ran_for && m >= monthAgo);
+  if (covered.length > 0) items.push({ kind: "gap", dates: covered });
+
+  return items;
+}
+
+function shiftDay(iso: string, by: number): string {
+  const t = new Date(`${iso}T00:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + by);
+  return t.toISOString().slice(0, 10);
 }

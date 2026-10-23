@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { DEFAULT_REMINDER_DAYS, type ReminderWindow } from "./reminder-timing.ts";
+import { DEFAULT_REMINDER_DAYS, sane, type FullWindow, type ReminderWindow } from "./reminder-timing.ts";
 
 /**
  * The reminder window as the nine o'clock run will use it.
@@ -23,7 +23,7 @@ async function authHeader(): Promise<Record<string, string>> {
 }
 
 export interface ReminderWindowState {
-  window: ReminderWindow;
+  window: FullWindow;
   /** "default" means the database holds no setting yet; see reminder-window.ts. */
   source: "database" | "default" | "loading";
   updatedAt: string | null;
@@ -31,57 +31,75 @@ export interface ReminderWindowState {
   save: (next: ReminderWindow) => Promise<{ ok: true } | { ok: false; error: string }>;
 }
 
+/*
+ * One copy for the whole app, loaded once.
+ *
+ * Each screen used to fetch this for itself and, until its answer came back,
+ * work from the built-in 23 and 27 days. For a moment every screen showed the
+ * default's dates and the default's list of who is due - stale figures that
+ * then changed under the reader. Now the first screen to ask loads it, every
+ * later screen gets it at once, and until it has arrived `source` says
+ * "loading" so a screen can show its shape instead of a guess.
+ */
+type Held = Omit<ReminderWindowState, "save">;
+
+let held: Held = { window: DEFAULT_REMINDER_DAYS, source: "loading", updatedAt: null, error: null };
+let inflight: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+function set(next: Partial<Held>) {
+  held = { ...held, ...next };
+  listeners.forEach((l) => l());
+}
+
+function load(): Promise<void> {
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const r = await fetch("/api/settings/reminders", { headers: await authHeader() });
+      const j = await r.json();
+      if (!j.ok) {
+        set({ error: j.error ?? `The server said ${r.status}.`, source: "default" });
+        return;
+      }
+      set({ window: sane(j.window), source: j.source, updatedAt: j.updatedAt ?? null, error: j.problem ?? null });
+    } catch (e) {
+      set({ error: (e as Error).message, source: "default" });
+      /* A failed read may be retried by the next screen that asks. */
+      inflight = null;
+    }
+  })();
+  return inflight;
+}
+
+async function save(next: ReminderWindow): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const r = await fetch("/api/settings/reminders", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...(await authHeader()) },
+      body: JSON.stringify(next),
+    });
+    const j = await r.json();
+    if (!j.ok) return { ok: false as const, error: j.error ?? `The server said ${r.status}.` };
+    set({ window: sane(j.window), source: "database", updatedAt: new Date().toISOString(), error: null });
+    return { ok: true as const };
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
+}
+
 export function useReminderWindow(): ReminderWindowState {
-  const [window, setWindow] = useState<ReminderWindow>(DEFAULT_REMINDER_DAYS);
-  const [source, setSource] = useState<ReminderWindowState["source"]>("loading");
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<Held>(held);
 
   useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const r = await fetch("/api/settings/reminders", { headers: await authHeader() });
-        const j = await r.json();
-        if (!live) return;
-        if (!j.ok) {
-          setError(j.error ?? `The server said ${r.status}.`);
-          setSource("default");
-          return;
-        }
-        setWindow(j.window);
-        setSource(j.source);
-        setUpdatedAt(j.updatedAt ?? null);
-        setError(j.problem ?? null);
-      } catch (e) {
-        if (!live) return;
-        setError((e as Error).message);
-        setSource("default");
-      }
-    })();
+    const l = () => setState(held);
+    listeners.add(l);
+    l();
+    void load();
     return () => {
-      live = false;
+      listeners.delete(l);
     };
   }, []);
 
-  const save = useCallback(async (next: ReminderWindow) => {
-    try {
-      const r = await fetch("/api/settings/reminders", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify(next),
-      });
-      const j = await r.json();
-      if (!j.ok) return { ok: false as const, error: j.error ?? `The server said ${r.status}.` };
-      setWindow(j.window);
-      setSource("database");
-      setUpdatedAt(new Date().toISOString());
-      setError(null);
-      return { ok: true as const };
-    } catch (e) {
-      return { ok: false as const, error: (e as Error).message };
-    }
-  }, []);
-
-  return { window, source, updatedAt, error, save };
+  return { ...state, save };
 }

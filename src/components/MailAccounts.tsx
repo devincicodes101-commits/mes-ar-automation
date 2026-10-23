@@ -20,7 +20,9 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
-import { Card, CardHeader, Spinner, StatusBadge, Tag } from "@/components/ui";
+import Link from "next/link";
+import { Card, CardHeader, Skeleton, Spinner, StatusBadge, Tag } from "@/components/ui";
+import { formatDate } from "@/lib/format";
 
 type Provider = "google" | "microsoft";
 
@@ -54,8 +56,7 @@ const MODE_LABEL: Record<Status["mode"], { label: string; kind: "good" | "warnin
   everyone: { label: "Sending to real tenants", kind: "critical" },
 };
 
-const when = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-SG", { day: "2-digit", month: "short", year: "numeric" });
+const when = (iso: string) => formatDate(iso);
 
 async function authHeader(): Promise<Record<string, string>> {
   try {
@@ -178,9 +179,9 @@ export function MailboxStrip() {
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded border px-4 py-3 ${
+      className={`flex flex-col gap-3 rounded-lg border px-4 py-3 lg:flex-row lg:items-center lg:justify-between ${
         tone === "amber"
-          ? "border-amber-200 bg-amber-50 text-amber-900"
+          ? "border-warn-line bg-warn-wash text-warn-ink"
           : "border-line-hair bg-surface-alt text-ink-secondary"
       }`}
     >
@@ -201,7 +202,7 @@ export function MailboxStrip() {
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/*
           Shown whether or not Google is set up yet. Hiding it made the feature
           look like it did not exist, when in fact it was one missing setting
@@ -221,7 +222,7 @@ export function MailboxStrip() {
           type="button"
           disabled={busy === "connect"}
           onClick={() => void connect("google")}
-          className="inline-flex items-center gap-2 rounded bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-sm hover:border-accent disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
           {mine?.provider === "google" ? "Reconnect Google" : "Sign in with Google"}
@@ -230,17 +231,17 @@ export function MailboxStrip() {
           type="button"
           disabled={busy === "connect"}
           onClick={() => void connect("microsoft")}
-          className="inline-flex items-center gap-2 rounded bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm ring-1 ring-slate-300 hover:ring-slate-400 disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-sm hover:border-accent disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
           {mine?.provider === "microsoft" ? "Reconnect Outlook" : "Sign in with Microsoft"}
         </button>
-        <a
+        <Link
           href="/settings"
           className="whitespace-nowrap text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
         >
-          More options
-        </a>
+          Settings
+        </Link>
       </div>
     </div>
   );
@@ -313,8 +314,18 @@ export function MailAccounts() {
 
   if (loading) {
     return (
-      <Card className="p-8">
-        <Spinner /> <span className="ml-2 text-sm text-ink-secondary">Reading the mailbox settings</span>
+      <Card>
+        <div className="border-b border-line-hair px-4 py-4 sm:px-5">
+          <Skeleton className="h-4 w-36" />
+          <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+        </div>
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-center gap-4 border-b border-line-hair px-4 py-4 last:border-0 sm:px-5">
+            <Skeleton className="h-4 w-4 rounded-full" />
+            <Skeleton className="h-3.5 w-48" />
+            <Skeleton className="ml-auto h-8 w-24 rounded-lg" />
+          </div>
+        ))}
       </Card>
     );
   }
@@ -324,48 +335,48 @@ export function MailAccounts() {
   return (
     <Card>
       <CardHeader
-        title="Which mailbox letters come from"
-        hint="Each person connects their own Google or Outlook account. Replies come back to them."
+        title="Sending mailbox"
+        hint="Connect a Google or Outlook account. Reminders go out from it, and replies come back to it."
         right={mode ? <StatusBadge kind={mode.kind} label={mode.label} /> : null}
       />
 
       {/* Said plainly, at the top, because it is the answer to "why did
           nobody get the reminder" and it should not need hunting for. */}
       {status ? (
-        <div className="border-b border-line-hair px-5 py-3">
+        <div className="border-b border-line-hair px-4 py-3 sm:px-5">
           <p className="text-sm text-ink">{status.explanation}</p>
           {status.from ? (
             <p className="mt-1 text-xs text-ink-muted">
-              Letters would go out from <b>{status.from}</b>
-              {status.via === "shared" ? " (the shared mailbox, not a connected account)" : ""}.
+              Reminders go out from <b className="text-ink-secondary">{status.from}</b>
+              {status.via === "shared" ? " (the shared mailbox)" : ""}.
             </p>
           ) : null}
         </div>
       ) : null}
 
       {problem ? (
-        <div className="border-b border-line-hair bg-amber-50 px-5 py-3 text-sm text-amber-900">
+        <div className="border-b border-line-hair bg-warn-wash px-5 py-3 text-sm text-warn-ink">
           {problem}
         </div>
       ) : null}
 
       {!status?.googleReady && !status?.microsoftReady ? (
-        <div className="border-b border-line-hair bg-amber-50 px-5 py-3 text-sm text-amber-900">
-          Sign in is not set up yet, so nobody can connect an account. For Outlook,
-          the app has to be registered with Microsoft once and its id and secret
-          put in the environment. For Google, an OAuth client has to be created in
-          Google Cloud the same way.
+        <div className="border-b border-line-hair bg-warn-wash px-4 py-3 text-sm text-warn-ink sm:px-5">
+          Mailbox sign-in has not been set up yet, so no account can be
+          connected. Please contact your system administrator.
         </div>
       ) : null}
 
       <ul className="divide-y divide-line-grid">
         {accounts.map((a) => (
-          <li key={a.userId} className="flex flex-wrap items-start gap-4 px-5 py-3.5">
+          <li key={a.userId} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start sm:px-5">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-ink">{a.email}</span>
-                {a.isDefault ? <Tag>the schedule sends from this</Tag> : null}
-                <Tag>{a.provider === "microsoft" ? "Outlook" : "Google"}</Tag>
+                <span className="flex items-center gap-1.5 break-all font-medium text-ink">
+                  {a.provider === "microsoft" ? <MicrosoftMark /> : <GoogleMark />}
+                  {a.email}
+                </span>
+                {a.isDefault ? <StatusBadge kind="good" label="Sends the 9am reminders" /> : null}
                 {a.isMine ? <Tag>you</Tag> : null}
               </div>
               <p className="mt-1 text-xs text-ink-muted">
@@ -376,7 +387,7 @@ export function MailAccounts() {
               {/* A revoked connection is the failure that would otherwise be
                   discovered as a quiet morning where the 7th sent nothing. */}
               {a.lastError ? (
-                <p className="mt-1 text-xs text-red-700">{a.lastError}</p>
+                <p className="mt-1 text-xs text-crit-ink">{a.lastError}</p>
               ) : null}
             </div>
 
@@ -386,9 +397,9 @@ export function MailAccounts() {
                   type="button"
                   disabled={busy === a.userId}
                   onClick={() => void nominate(a.userId, a.email)}
-                  className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong disabled:opacity-40"
+                  className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
                 >
-                  Use for the schedule
+                  Use for 9am reminders
                 </button>
               ) : null}
               {a.isMine || admin ? (
@@ -396,7 +407,7 @@ export function MailAccounts() {
                   type="button"
                   disabled={busy === a.userId}
                   onClick={() => void remove(a.userId, a.email)}
-                  className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-red-300 disabled:opacity-40"
+                  className="rounded-md border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-crit-line hover:text-crit-ink disabled:opacity-40"
                 >
                   Disconnect
                 </button>
@@ -409,19 +420,19 @@ export function MailAccounts() {
           <li className="px-5 py-8 text-center">
             <p className="text-sm text-ink">No Google or Outlook account is connected.</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-ink-muted">
-              Until one is, the schedule has no mailbox to send the 7th and the
-              21st from.
+              Until one is, the 9am run has no mailbox to send reminders from.
             </p>
           </li>
         ) : null}
       </ul>
 
-      <div className="flex flex-wrap items-center gap-3 border-t border-line-hair px-5 py-4">
+      <div className="flex flex-col gap-3 border-t border-line-hair px-4 py-4 sm:px-5 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="flex flex-wrap gap-2">
         <button
           type="button"
           disabled={busy === "connect"}
           onClick={() => void connect("google")}
-          className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <GoogleMark />}
           {accounts.some((a) => a.isMine && a.provider === "google") ? "Reconnect my Google account" : "Sign in with Google"}
@@ -430,40 +441,33 @@ export function MailAccounts() {
           type="button"
           disabled={busy === "connect"}
           onClick={() => void connect("microsoft")}
-          className="inline-flex items-center gap-2 rounded border border-line-hair bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
           {accounts.some((a) => a.isMine && a.provider === "microsoft") ? "Reconnect my Outlook account" : "Sign in with Microsoft"}
         </button>
+        </div>
 
-        <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="flex flex-1 items-center gap-2">
           <input
             type="email"
             value={testTo}
             onChange={(e) => setTestTo(e.target.value)}
             placeholder="your@address.com"
-            className="min-w-0 flex-1 rounded border border-line-hair px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
             aria-label="Address to send a test letter to"
           />
           <button
             type="button"
             disabled={busy === "test" || !testTo.trim()}
             onClick={() => void sendTest()}
-            className="rounded border border-line-hair px-3 py-2 text-sm text-ink hover:border-line-strong disabled:opacity-40"
+            className="shrink-0 rounded-md border border-line-strong px-3 py-2 text-sm text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
           >
             {busy === "test" ? <Spinner /> : "Send me a test"}
           </button>
         </div>
       </div>
 
-      {/* The test letter says in its own text that it is not a bill, so that
-          if it ever reaches somebody by mistake it is obviously not a demand
-          for money. Worth saying here too. */}
-      <p className="border-t border-line-hair px-5 py-3 text-xs text-ink-muted">
-        The test letter is not a reminder and says so in its own wording. It goes
-        out through exactly the path a real letter would, including every check
-        that can stop one.
-      </p>
     </Card>
   );
 }

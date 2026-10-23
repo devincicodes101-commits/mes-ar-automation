@@ -9,7 +9,6 @@ import type { Report } from "@/lib/reports";
 type ReportShape = Report & { managerName?: string };
 import {
   allAccounts,
-  data,
   depositReport,
   formatSgd,
   isInCredit,
@@ -18,7 +17,6 @@ import {
 } from "@/lib/data";
 import { deliveredOnly, recordExport, useStore } from "@/lib/store";
 import {
-  MANAGER_COLUMNS,
   REVENUE_TABS,
   buildManagerReports,
   depositsFromLedger,
@@ -27,10 +25,12 @@ import {
 } from "@/lib/reports";
 import {
   RECIPIENT_KIND_LABEL,
+  managerDisplayName,
   simulateReportSend,
   type ReportDispatch,
 } from "@/lib/dispatch";
 import { useSession, useToast } from "@/lib/session";
+import { useRecipients } from "@/lib/use-recipients";
 import { updateColumn } from "@/lib/update-column";
 import { reportToXlsx, workbookName } from "@/lib/workbook";
 import { sendReport } from "@/lib/send-report";
@@ -41,10 +41,12 @@ import {
   CardHeader,
   EmptyState,
   Modal,
-  StatTile,
+  Pagination,
   StatusBadge,
   Tag,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
+import { formatDate } from "@/lib/format";
 
 interface ReportDef {
   id: string;
@@ -77,7 +79,7 @@ const REPORTS: ReportDef[] = [
     name: "Relationship manager balances",
     goesTo: "Each RM",
     when: "Ongoing",
-    what: "One list per manager covering only their own tenants, in the layout of the mockup MES sent. Two columns wait on them: the deposit figures, and how Risk Exposure is worked out.",
+    what: "One list per manager covering only their own tenants.",
     confirmed: false,
   },
 ];
@@ -108,10 +110,13 @@ export default function ReportsPage() {
     return Array.from(m.entries()).sort((x, y) => y[1].total - x[1].total);
   }, [accounts]);
 
+  const hasIndustry = accounts.some((a) => a.industry);
+  const regularReports = REPORTS.filter((r) => r.id !== "industry" || hasIndustry);
   const deposits = useMemo(
     () => depositReport(accounts, ds.invoices),
     [accounts, ds.invoices],
   );
+  const depositPage = usePaged(deposits, null, 15);
   const managers = useMemo(
     () =>
       rmReports(accounts, ds.managers).filter((m) => m.accounts.length > 0),
@@ -194,7 +199,7 @@ export default function ReportsPage() {
      second press while the first is still going. */
   const [sendingReport, setSendingReport] = useState(false);
 
-  const recipients = store.settings.recipients;
+  const { recipients } = useRecipients(ds.accounts.map((a) => (a as { rm?: string }).rm));
 
   /* Only letters that really left. A letter the run wrote while sending was
      off is not contact with the customer, and NetSuite must not be told it
@@ -206,43 +211,19 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Rows ready to export"
-          value={String(activityRows)}
-          note="Emails, calls and promises"
-          emphasis
-        />
-        <StatTile
-          label="Scheduled reports"
-          value={String(REPORTS.length)}
-          note="Two still need confirming"
-        />
-        <StatTile
-          label="Exports done"
-          value={String(
-            store.audit.filter((a) => a.action === "Exported a report").length,
-          )}
-          note="Recorded in the activity log"
-        />
-        <StatTile
-          label="Business types"
-          value={String(industry.length)}
-          note="Used for the management report"
-        />
-      </div>
+      {/* The tiles that were here repeated the cards below: rows to export,
+          the reports listed, the business types tabled. */}
 
       {/* --------------------------------------------------- NetSuite export */}
       <Card>
         <CardHeader
           title="File to load back into NetSuite"
-          hint="Everything done this period, ready to upload into NetSuite."
           right={
             <button
               type="button"
               onClick={() => setPreview("netsuite")}
               disabled={activityRows === 0}
-              className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md border border-accent bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-ink"
             >
               Preview the export
             </button>
@@ -276,13 +257,12 @@ export default function ReportsPage() {
       {/* ------------------------------------------------ scheduled reports */}
       <Card>
         <CardHeader
-          title="Reports that go out on a schedule"
-          hint="Sent on a schedule."
+          title="Regular reports"
         />
         <ul className="divide-y divide-line-grid">
-          {REPORTS.map((r) => (
-            <li key={r.id} className="flex flex-wrap gap-4 px-5 py-3.5">
-              <div className="min-w-0 flex-1">
+          {regularReports.map((r) => (
+            <li key={r.id} className="flex flex-wrap gap-x-4 gap-y-3 px-4 py-3.5 sm:px-5">
+              <div className="min-w-0 flex-1 basis-full sm:basis-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-ink">{r.name}</span>
                   <Tag>to {r.goesTo}</Tag>
@@ -291,10 +271,7 @@ export default function ReportsPage() {
                 <p className="mt-1 text-xs text-ink-secondary">{r.what}</p>
                 {!r.confirmed ? (
                   <div className="mt-1.5">
-                    <StatusBadge
-                      kind="warning"
-                      label="MES to confirm the source"
-                    />
+                    <StatusBadge kind="warning" label="Draft" />
                   </div>
                 ) : null}
               </div>
@@ -315,7 +292,7 @@ export default function ReportsPage() {
                 // the reminder permission.
                 disabled={!can("generate-reports")}
                 onClick={() => {
-                  const built = buildReport(r.id, accounts, ds.invoices);
+                  const built = buildReport(r.id, accounts, ds.invoices, ds.managers);
                   if (built.rows.length === 0) {
                     notify(
                       `${r.name} has no rows`,
@@ -324,7 +301,7 @@ export default function ReportsPage() {
                     return;
                   }
                   downloadCsv(
-                    exportName(r.id, data.asOfSummary),
+                    exportName(r.id, ds.asOf),
                     built.headers,
                     built.rows,
                   );
@@ -350,14 +327,15 @@ export default function ReportsPage() {
           <CardHeader
             title="Security deposits"
             hint="To CSD every Monday."
-            right={<StatusBadge kind="warning" label="MES to confirm the source" />}
+            right={<StatusBadge kind="warning" label="Draft" />}
           />
           {deposits.length === 0 ? (
             <EmptyState
               title="No deposit lines found"
-              body="No security deposit lines in the invoice detail. Waiting on MES to confirm the source."
+              body="This report has no security deposit lines."
             />
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-line-grid text-left">
@@ -367,7 +345,7 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {deposits.map((d) => (
+                {depositPage.shown.map((d) => (
                   <tr key={d.account.id} className="border-b border-line-grid">
                     <td className="px-5 py-2.5">
                       <span className="text-ink">{d.account.companyName}</span>
@@ -390,19 +368,20 @@ export default function ReportsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
+          <Pagination {...depositPage.pager} />
         </Card>
 
         <Card>
           <CardHeader
             title="Relationship manager balances"
-            hint={`One list per manager, in Ray's layout: ${MANAGER_COLUMN_COUNT} columns, the dormitory blocks stacked down the sheet. Open one to read it.`}
           />
           <ul className="divide-y divide-line-grid">
             {managers.map((m) => (
               <li key={m.key} className="flex flex-wrap items-center gap-4 px-5 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-ink">{m.name}</p>
+                  <p className="font-medium text-ink">{managerLabel(m.name)}</p>
                   <p className="mt-0.5 text-[11px] text-ink-muted">
                     {m.accounts.length} tenants
                   </p>
@@ -422,7 +401,7 @@ export default function ReportsPage() {
                       managerReports.find((r) => r.managerName === m.name) ?? null,
                     )
                   }
-                  className="shrink-0 rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-grid"
+                  className="shrink-0 rounded-md border border-line-strong px-2.5 py-1 text-xs text-ink-secondary hover:border-accent hover:text-accent-text"
                 >
                   Open the sheet
                 </button>
@@ -445,10 +424,8 @@ export default function ReportsPage() {
           <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
             {depositRows === 0 ? (
               <>
-                Security Deposit and Risk Exposure are empty on every row: no
-                tenant in this upload carries a deposit line for them to be
-                worked out from. Both columns are shown anyway, with the reason,
-                rather than left out.
+                Security Deposit and Risk Exposure are empty: no tenant in this
+                report has a deposit line.
               </>
             ) : depositRows === managerRowCount ? (
               <>
@@ -459,8 +436,7 @@ export default function ReportsPage() {
               <>
                 Security Deposit and Risk Exposure are filled on {depositRows}{" "}
                 of {managerRowCount} rows, from the deposit lines in the AR
-                report. The rest carry no deposit line, so they are shown empty
-                with the reason rather than as nil.
+                report. The rest have no deposit line.
               </>
             )}
           </div>
@@ -475,13 +451,6 @@ export default function ReportsPage() {
       <Card>
         <CardHeader
           title="Email a report"
-          hint={
-            "MES's Flow tab asks for two things: any of the six reports " +
-            "emailable on demand from a dropdown, and the late payment report " +
-            "going to the AR team on the 16th with one or more managers " +
-            "chosen from a dropdown. Nothing leaves the prototype — the " +
-            "message is built and shown."
-          }
         />
 
         <div className="grid gap-4 border-b border-line-grid px-5 py-4 md:grid-cols-2">
@@ -495,11 +464,11 @@ export default function ReportsPage() {
                 setSendingCode(e.target.value);
                 setDispatched(null);
               }}
-              className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+              className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
             >
               {sendable.map((r) => (
                 <option key={r.code} value={r.code}>
-                  {r.name} — {r.lineCount} lines
+                  {r.name} · {r.lineCount} lines
                 </option>
               ))}
             </select>
@@ -613,13 +582,13 @@ export default function ReportsPage() {
               setSendingReport(false);
               notify(said.title, said.detail);
             }}
-            className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink disabled:opacity-40"
+            className="rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
           >
             {sendingReport ? "Sending..." : "Send with the workbook"}
           </button>
           <span className="text-xs text-ink-muted">
-            Addresses are set in Settings. MES have not sent one for anybody
-            internal, so they start empty rather than invented.
+            Recipients&rsquo; addresses are set in Settings, under Report
+            recipients.
           </span>
         </div>
 
@@ -656,7 +625,7 @@ export default function ReportsPage() {
             <p className="mb-2 text-xs text-ink-muted">
               Subject: <span className="text-ink">{dispatched.subject}</span>
             </p>
-            <pre className="tabular overflow-x-auto whitespace-pre-wrap rounded border border-line-hair bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-secondary">
+            <pre className="overflow-x-auto whitespace-pre-wrap rounded-md border border-line-hair bg-surface-alt p-3 font-sans text-xs leading-relaxed text-ink-secondary">
               {dispatched.body}
             </pre>
           </div>
@@ -664,10 +633,13 @@ export default function ReportsPage() {
       </Card>
 
       {/* ----------------------------------------------- industry breakdown */}
+      {/* Only when the report carries a line of business. MES's Aging Detail
+          export has no Industry column, so for it this was one row, "Not
+          categorised", holding every tenant. */}
+      {hasIndustry ? (
       <Card>
         <CardHeader
           title="Outstanding by business type"
-          hint="Outstanding grouped by line of business."
         />
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -698,12 +670,14 @@ export default function ReportsPage() {
           </tbody>
         </table>
       </Card>
+      ) : null}
 
       {looking ? (
         <ReportPreview
           report={looking}
           accounts={accounts}
           invoices={ds.invoices}
+          managers={ds.managers}
           onClose={() => setLooking(null)}
         />
       ) : null}
@@ -735,6 +709,12 @@ function buildReport(
    * once.
    */
   invoices: Invoice[],
+  /*
+   * The report's own managers. Left to its default, rmReports read the
+   * bundled sample's list, so the file held only the tenants whose manager
+   * happened to share a key with the sample: 15 rows out of 251.
+   */
+  managers: { key: string; name: string }[],
 ): { headers: string[]; rows: unknown[][]; emptyReason?: string } {
   if (id === "deposit") {
     const rows = depositReport(accounts, invoices);
@@ -743,7 +723,6 @@ function buildReport(
         "Customer Code",
         "Company Name",
         "Property",
-        "Status",
         "Deposit Held SGD",
         "Being Offset",
         "Outstanding SGD",
@@ -752,7 +731,6 @@ function buildReport(
         d.account.customerCode,
         d.account.companyName,
         d.account.property,
-        d.account.status,
         d.deposits.toFixed(2),
         d.offsetting ? "Yes" : "No",
         d.outstanding.toFixed(2),
@@ -762,19 +740,16 @@ function buildReport(
   }
 
   if (id === "rm") {
-    const reports = rmReports(accounts);
-    // Ray's mockup, column for column. Ten of the thirteen are filled from the
-    // AR report. Security Deposit and Risk Exposure are left saying what they
-    // are waiting for rather than being dropped: a missing column tells MES
-    // nothing, an empty one named "awaiting MES" tells them exactly what to
-    // send. Overdue Total is our own definition and labelled as such, because
-    // the figures in the mockup do not follow any rule we could derive.
+    const reports = rmReports(accounts, managers);
+    // Ray's mockup, minus the two columns nothing in MES's files fills:
+    // Security Deposit and Risk Exposure were headed "awaiting MES" and were
+    // always empty. Overdue Total is our own definition and labelled as such,
+    // because the figures in the mockup do not follow any rule we could derive.
     return {
       headers: [
         "Sales Rep",
         "Customer Code",
         "Company Name",
-        "Status",
         "Property",
         "Current",
         "30 days",
@@ -784,8 +759,6 @@ function buildReport(
         "Grand Total",
         "Overdue Total (our calculation)",
         "Update",
-        "Security Deposit (awaiting MES)",
-        "Risk Exposure (awaiting formula)",
       ],
       // One file covering every manager, each row tagged with whose it is, so
       // it can be split per manager when it is actually sent out.
@@ -794,7 +767,6 @@ function buildReport(
           rep.name,
           a.customerCode,
           a.companyName,
-          a.status,
           a.property,
           a.buckets.current.toFixed(2),
           a.buckets.d30.toFixed(2),
@@ -804,8 +776,6 @@ function buildReport(
           a.total.toFixed(2),
           overdueTotal(a).toFixed(2),
           a.legacyNote ?? "",
-          "",
-          "",
         ]),
       ),
       emptyReason: "No tenants are assigned to a relationship manager.",
@@ -865,15 +835,18 @@ function ReportPreview({
   report,
   accounts,
   invoices,
+  managers,
   onClose,
 }: {
   report: ReportDef;
   accounts: ReturnType<typeof allAccounts>;
   invoices: Invoice[];
+  managers: { key: string; name: string }[];
   onClose: () => void;
 }) {
-  const built = buildReport(report.id, accounts, invoices);
+  const built = buildReport(report.id, accounts, invoices, managers);
   const waiting = built.headers.filter((h) => /awaiting/i.test(h));
+  const { shown, pager } = usePaged(built.rows, report.id);
 
   return (
     <Modal wide title={report.name} onClose={onClose}>
@@ -917,7 +890,7 @@ function ReportPreview({
               </tr>
             </thead>
             <tbody>
-              {built.rows.slice(0, 40).map((row, i) => (
+              {shown.map((row, i) => (
                 <tr key={i} className="border-b border-line-grid">
                   {row.map((cell, j) => (
                     <td
@@ -928,7 +901,7 @@ function ReportPreview({
                           : "text-ink-secondary"
                       }`}
                     >
-                      {String(cell) === "" ? "—" : String(cell)}
+                      {String(cell) === "" ? "-" : String(cell)}
                     </td>
                   ))}
                 </tr>
@@ -938,16 +911,17 @@ function ReportPreview({
         </div>
       )}
 
-      {built.rows.length > 40 ? (
-        <p className="mt-2 text-[11px] text-ink-muted">
-          Showing the first 40 of {built.rows.length}. The file has all of them.
-        </p>
+      {built.rows.length > 0 ? (
+        <div className="-mx-5">
+          <Pagination {...pager} />
+        </div>
       ) : null}
     </Modal>
   );
 }
 
 function ExportPreview({ onClose }: { onClose: () => void }) {
+  const { asOf } = useDataset();
   const store = useStore();
   const { notify } = useToast();
 
@@ -974,12 +948,12 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
       amount: formatSgd(p.amount),
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
+  const { shown, pager } = usePaged(rows);
 
   return (
     <Modal wide title="NetSuite export preview" onClose={onClose}>
       <p className="mb-3 text-xs text-ink-secondary">
         One row per action, ready to attach to the customer record in NetSuite.
-        The exact column names are agreed with MES before go live.
       </p>
       <div className="max-h-[50vh] overflow-auto rounded border border-line-hair">
         <table className="w-full border-collapse text-xs">
@@ -996,10 +970,10 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {shown.map((r, i) => (
               <tr key={i} className="border-b border-line-grid">
                 <td className="whitespace-nowrap px-3 py-1.5 text-ink-muted">
-                  {new Date(r.date).toLocaleDateString("en-SG")}
+                  {formatDate(r.date)}
                 </td>
                 <td className="px-3 py-1.5 text-ink">{r.company}</td>
                 <td className="px-3 py-1.5 text-ink-secondary">{r.type}</td>
@@ -1012,12 +986,15 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
           </tbody>
         </table>
       </div>
+      <div className="-mx-5">
+        <Pagination {...pager} />
+      </div>
       <div className="mt-4 flex items-center gap-2 border-t border-line-hair pt-4">
         <button
           type="button"
           onClick={() => {
             downloadCsv(
-              exportName("NetSuite_Activity", data.asOfSummary),
+              exportName("NetSuite_Activity", asOf),
               ["Date", "Customer", "Activity", "Detail", "Amount SGD"],
               rows.map((r) => [
                 new Date(r.date).toISOString().slice(0, 10),
@@ -1039,15 +1016,12 @@ function ExportPreview({ onClose }: { onClose: () => void }) {
           Download as CSV
         </button>
         <p className="text-[11px] text-ink-muted">
-          {rows.length} rows · from the {data.asOfSummary} period
+          {rows.length} rows · report of {formatDate(asOf)}
         </p>
       </div>
     </Modal>
   );
 }
-
-/** Ray's thirteen columns, counted once so the copy cannot drift from them. */
-const MANAGER_COLUMN_COUNT = MANAGER_COLUMNS.length;
 
 /**
  * One manager's sheet, in MES's own layout.
@@ -1106,56 +1080,7 @@ function ManagerSheet({
         </div>
 
         {report.blocks.map((b) => (
-          <div key={b.title}>
-            <h3 className="mb-1.5 text-xs font-medium text-ink-secondary">
-              {b.title}
-              {b.subtitle ? (
-                <span className="ml-2 font-normal text-ink-muted">{b.subtitle}</span>
-              ) : null}
-            </h3>
-            <div className="overflow-x-auto rounded border border-line-hair">
-              <table className="w-full border-collapse text-[11px]">
-                <thead>
-                  <tr className="border-b border-line-grid text-left">
-                    {b.columns.map((c) => (
-                      <th
-                        key={c.key}
-                        title={c.unavailable ?? undefined}
-                        className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${
-                          c.unavailable ? "text-ink-muted italic" : "text-ink-secondary"
-                        } ${c.kind === "money" ? "text-right" : ""}`}
-                      >
-                        {c.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {b.rows.map((r, n) => (
-                    <tr key={n} className="border-b border-line-hair last:border-0">
-                      {b.columns.map((c) => {
-                        const v = r[c.key];
-                        return (
-                          <td
-                            key={c.key}
-                            className={`whitespace-nowrap px-2.5 py-1.5 ${
-                              c.kind === "money" ? "tabular text-right" : ""
-                            } ${v === null || v === undefined ? "text-ink-muted" : "text-ink-secondary"}`}
-                          >
-                            {v === null || v === undefined
-                              ? "\u2014"
-                              : c.kind === "money"
-                                ? formatSgd(Number(v))
-                                : String(v)}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <SheetBlock key={b.title} block={b} />
         ))}
 
         {report.notes.length > 0 ? (
@@ -1170,4 +1095,68 @@ function ManagerSheet({
       </div>
     </Modal>
   );
+}
+
+/** One headed block of a manager's sheet, a page at a time. */
+function SheetBlock({ block: b }: { block: ReportShape["blocks"][number] }) {
+  const { shown, pager } = usePaged(b.rows, null, 15);
+  return (
+    <div>
+      <h3 className="mb-1.5 text-xs font-medium text-ink-secondary">
+        {b.title}
+        {b.subtitle ? (
+          <span className="ml-2 font-normal text-ink-muted">{b.subtitle}</span>
+        ) : null}
+      </h3>
+      <div className="overflow-x-auto rounded border border-line-hair">
+        <table className="w-full border-collapse text-[11px]">
+          <thead>
+            <tr className="border-b border-line-grid text-left">
+              {b.columns.map((c) => (
+                <th
+                  key={c.key}
+                  title={c.unavailable ?? undefined}
+                  className={`whitespace-nowrap px-2.5 py-1.5 font-medium ${
+                    c.unavailable ? "text-ink-muted italic" : "text-ink-secondary"
+                  } ${c.kind === "money" ? "text-right" : ""}`}
+                >
+                  {c.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r, n) => (
+              <tr key={n} className="border-b border-line-hair last:border-0">
+                {b.columns.map((c) => {
+                  const v = r[c.key];
+                  return (
+                    <td
+                      key={c.key}
+                      className={`whitespace-nowrap px-2.5 py-1.5 ${
+                        c.kind === "money" ? "tabular text-right" : ""
+                      } ${v === null || v === undefined ? "text-ink-muted" : "text-ink-secondary"}`}
+                    >
+                      {v === null || v === undefined
+                        ? "-"
+                        : c.kind === "money"
+                          ? formatSgd(Number(v))
+                          : String(v)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pagination {...pager} />
+    </div>
+  );
+}
+
+/** A manager as a person: "2611 Ray Ang" reads "Ray Ang"; NetSuite's own account says so. */
+function managerLabel(key: string): string {
+  if (/do not delete/i.test(key)) return "NetSuite system account";
+  return managerDisplayName(key);
 }

@@ -154,7 +154,7 @@ export function explain(
   if (status >= 500 || code === "unexpected_failure") {
     return (
       "The database refused the request, so this is not a password problem. " +
-      "Check the Supabase logs — a seeded account with null token columns " +
+      "Check the Supabase logs: a seeded account with null token columns " +
       "reports exactly this."
     );
   }

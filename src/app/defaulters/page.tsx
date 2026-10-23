@@ -127,7 +127,7 @@ export default function DefaultersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Fail nearly every month"
           value={String(chronic.length)}

@@ -16,7 +16,7 @@ import {
 } from "@/lib/billing-cycles";
 import { Account } from "@/lib/types";
 import { callListOn, calledThisRound, type CallRound } from "@/lib/call-list";
-import { linesByAccount } from "@/lib/reminder-timing";
+import { linesByAccount, sentReminders } from "@/lib/reminder-timing";
 import { inSingapore } from "@/lib/schedule";
 import { useReminderWindow } from "@/lib/use-reminder-window";
 import {
@@ -24,23 +24,26 @@ import {
   CALL_STAGES,
   CallOutcome,
   CallStage,
+  type CallLog,
   recordCall,
   feeCountsByTenant,
-  stageOfCall,
   useStore,
 } from "@/lib/store";
 import { useSession, useToast } from "@/lib/session";
+import { formatDateTime } from "@/lib/format";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import {
   Card,
   CardHeader,
   EmptyState,
   Modal,
-  StatTile,
   StatusBadge,
   Tag,
   TenantLink,
+  PageSkeleton,
+  Pagination,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
 
 export default function CallListPage() {
   const store = useStore();
@@ -64,7 +67,9 @@ export default function CallListPage() {
    * overdue tenant in one column with no way to see only the ones left. The
    * filter does not change who is on the list, only who is on screen.
    */
-  const [who, setWho] = useState<"all" | "todo" | "done">("all");
+  const [who, setWho] = useState<"all" | "todo" | "done" | "promised">("all");
+  /* How many times they have been rung, all calls counted. */
+  const [timesCalled, setTimesCalled] = useState<"any" | "0" | "1" | "2" | "3+">("any");
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<CallOutcome | "all">("all");
   const [logQuery, setLogQuery] = useState("");
@@ -92,30 +97,64 @@ export default function CallListPage() {
    * counted from their billing date exactly as the letters are. The call
    * follows the letter. See call-list.ts.
    */
-  const { window } = useReminderWindow();
+  const { window, source: timingSource } = useReminderWindow();
   const todayIso = inSingapore().iso;
-  const promised = useMemo(
-    () => new Set(store.promises.filter((pr) => pr.promisedFor >= todayIso).map((pr) => pr.accountId)),
-    [store.promises, todayIso],
-  );
+  /*
+   * A promise that has not fallen due, by tenant.
+   *
+   * These tenants used to be dropped from the list. So an officer who logged
+   * "Agreed to pay" watched the tenant vanish - not under "Already called",
+   * not anywhere - and with them gone the call log below disappeared too. They
+   * stay now, marked with the date they promised, under their own filter.
+   */
+  const promisedBy = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const pr of store.promises) {
+      if (pr.promisedFor < todayIso) continue;
+      const was = m.get(pr.accountId);
+      if (!was || pr.promisedFor > was) m.set(pr.accountId, pr.promisedFor);
+    }
+    return m;
+  }, [store.promises, todayIso]);
+  const noHold = useMemo(() => new Set<string>(), []);
+  /* Letters that really left, so a second call never comes before the
+     final notice it follows. */
+  const sent = useMemo(() => sentReminders(store.emails), [store.emails]);
+  /*
+   * Which round each call was about.
+   *
+   * The database keeps no column for it, so a call read back after a reload
+   * fell to stageOfCall's guess from the day of the month: anything on or
+   * after the 21st was a final-notice call. Every call logged on 23 October
+   * was therefore filed under the second round, while the tenants were due
+   * their first, and none of them ever showed as called. Decided instead from
+   * what really happened: a call after the tenant's final notice went is the
+   * second call, before it the first. A tenant with no address has no
+   * letters, so an earlier call to them makes this one the second.
+   */
+  const roundOf = useMemo(() => {
+    return (c: CallLog): CallStage => {
+      if (c.stage) return c.stage;
+      const anyLetter = sent.some((l) => l.tenantId === c.accountId);
+      if (anyLetter) {
+        return sent.some((l) => l.tenantId === c.accountId && l.stage === "final-notice" && l.sentAt <= c.at)
+          ? "final-notice"
+          : "first-reminder";
+      }
+      return store.calls.some((o) => o.accountId === c.accountId && o.at < c.at)
+        ? "final-notice"
+        : "first-reminder";
+    };
+  }, [sent, store.calls]);
   /* Called this round: a call logged for the same round, about this bill. */
   const roundCalls = useMemo(
-    () => store.calls.map((c) => ({ accountId: c.accountId, at: c.at, round: stageOfCall(c) })),
-    [store.calls],
+    () => store.calls.map((c) => ({ accountId: c.accountId, at: c.at, round: roundOf(c) })),
+    [store.calls, roundOf],
   );
   const queue = useMemo(() => {
     const accounts = scope(ds.accounts);
-    /* Letters that really left, so a second call never comes before the
-       final notice it follows. */
-    const sent = store.emails
-      .filter((e) => !e.simulated && (e.templateId === "reminder-7th" || e.templateId === "final-21st"))
-      .map((e) => ({
-        tenantId: e.accountId,
-        stage: e.templateId === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
-        sentAt: e.at,
-      }));
-    return callListOn(accounts, linesByAccount(accounts, ds.invoices), todayIso, window, raised, promised, sent, roundCalls);
-  }, [ds, scope, raised, todayIso, window, promised, store.emails, roundCalls]);
+    return callListOn(accounts, linesByAccount(accounts, ds.invoices), todayIso, window, raised, noHold, sent, roundCalls);
+  }, [ds, scope, raised, todayIso, window, noHold, sent, roundCalls]);
   const calledIds = new Set(
     queue.filter((q) => calledThisRound(q, roundCalls)).map((q) => q.account.id),
   );
@@ -161,38 +200,52 @@ export default function CallListPage() {
    */
   const todo = useMemo(() => {
     return [...queue].sort((a, b) => {
-      const ca = calledThisRound(a, roundCalls) ? 1 : 0;
-      const cb = calledThisRound(b, roundCalls) ? 1 : 0;
+      const rank = (x: typeof a) =>
+        calledThisRound(x, roundCalls) ? 2 : promisedBy.has(x.account.id) ? 1 : 0;
+      const ca = rank(a);
+      const cb = rank(b);
       if (ca !== cb) return ca - cb;
       return b.priority - a.priority;
     });
-  }, [queue, roundCalls]);
+  }, [queue, roundCalls, promisedBy]);
 
-  const notYetCalled = queue.filter((q) => !calledIds.has(q.account.id));
+  const notYetCalled = queue.filter((q) => !calledIds.has(q.account.id) && !promisedBy.has(q.account.id));
   const done = queue.filter((q) => calledIds.has(q.account.id));
+  const promisedOnList = queue.filter((q) => promisedBy.has(q.account.id));
+  const timesMatch = (id: string) => {
+    const n = callCounts.get(id) ?? 0;
+    return timesCalled === "any" ? true : timesCalled === "3+" ? n >= 3 : n === Number(timesCalled);
+  };
 
   /* The rows the call list shows, once the filter and the search have run. */
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return todo
       .filter((item) =>
-        who === "all" ? true : calledIds.has(item.account.id) === (who === "done"),
+        who === "all"
+          ? true
+          : who === "promised"
+            ? promisedBy.has(item.account.id)
+            : who === "done"
+              ? calledIds.has(item.account.id)
+              : !calledIds.has(item.account.id) && !promisedBy.has(item.account.id),
       )
+      .filter((item) => timesMatch(item.account.id))
       .filter((item) =>
         q === ""
           ? true
           : item.account.companyName.toLowerCase().includes(q) ||
             item.account.customerCode.toLowerCase().includes(q),
       );
-    // calledIds is rebuilt from store.calls on every render, so it is listed
-    // through its source rather than itself.
-  }, [todo, who, query, store.calls]); // eslint-disable-line react-hooks/exhaustive-deps
+    // calledIds and timesMatch are rebuilt on every render, so they are
+    // listed through their sources rather than themselves.
+  }, [todo, who, query, store.calls, promisedBy, timesCalled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* The same, for the log of calls already made. */
   const loggedShown = useMemo(() => {
     const q = logQuery.trim().toLowerCase();
     return store.calls
-      .filter((c) => (stage === "all" ? true : stageOfCall(c) === stage))
+      .filter((c) => (stage === "all" ? true : roundOf(c) === stage))
       .filter((c) => (outcome === "all" ? true : c.outcome === outcome))
       .filter((c) =>
         q === ""
@@ -201,79 +254,76 @@ export default function CallListPage() {
             (c.reached ?? "").toLowerCase().includes(q) ||
             (c.notes ?? "").toLowerCase().includes(q),
       );
-  }, [store.calls, outcome, logQuery, stage]);
+  }, [store.calls, outcome, logQuery, stage, roundOf]);
+
+  const callPage = usePaged(shown, `${who}|${query}|${timesCalled}`);
+  const logPage = usePaged(loggedShown, `${stage}|${outcome}|${logQuery}`);
+
+  /* Until the reminder timing has arrived, the page's shape rather than a
+     list worked out from the built-in default days. */
+  if (timingSource === "loading") return <PageSkeleton />;
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Still to call"
-          value={String(notYetCalled.length)}
-          note="Work down from the top"
-          emphasis
-        />
-        <StatTile
-          label="Already called"
-          value={String(done.length)}
-          note="This round, logged and saved"
-        />
-        <StatTile
-          label="Agreed to pay"
-          value={String(
-            store.calls.filter((c) => c.outcome === "promised-to-pay").length,
-          )}
-          note="Now on the promises screen"
-        />
-        <StatTile
-          label="Could not reach"
-          value={String(
-            store.calls.filter(
-              (c) => c.outcome === "no-answer" || c.outcome === "wrong-number",
-            ).length,
-          )}
-          note="Try again or check the number"
-        />
-      </div>
+      {/* The first two count tenants on today's list; the last two count every
+          call logged so far. Said on each, because side by side they read as
+          one set and did not add up. */}
+      {/* No tiles: "still to call" and "already called" are the counts on the
+          filter below, and "agreed to pay" is Payment Promises. */}
 
       <Card>
         <CardHeader
           title="Who to phone"
-          hint={`Everyone who still owes and is past their first reminder date (${window.first} days after billing) is due a call. Past the final notice date (${window.final} days), a second call. Call from your normal line, then log what was agreed.`}
         />
 
         {todo.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Which tenants">
+          <div className="flex flex-col gap-2 border-b border-line-hair px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
+            <div className="flex gap-1 overflow-x-auto rounded-md bg-surface-alt p-1" role="group" aria-label="Which tenants">
               {(
                 [
                   ["all", "Everyone", todo.length],
                   ["todo", "Not called yet", notYetCalled.length],
                   ["done", "Already called", done.length],
-                ] as ["all" | "todo" | "done", string, number][]
+                  ["promised", "Promised to pay", promisedOnList.length],
+                ] as ["all" | "todo" | "done" | "promised", string, number][]
               ).map(([key, label, count]) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => setWho(key)}
                   aria-pressed={who === key}
-                  className={`rounded px-2.5 py-1 text-xs ${
+                  className={`flex-1 whitespace-nowrap rounded px-3 py-1.5 text-xs lg:flex-none ${
                     who === key
-                      ? "bg-accent-wash font-medium text-ink"
-                      : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                      ? "bg-surface font-medium text-accent-text shadow-sm"
+                      : "text-ink-muted hover:text-ink-secondary"
                   }`}
                 >
-                  {label} ({count})
+                  {label} <span className="tabular opacity-70">{count}</span>
                 </button>
               ))}
             </div>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Find a tenant by name or code"
-              aria-label="Find a tenant"
-              className="ml-auto w-56 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row lg:ml-auto">
+              <select
+                value={timesCalled}
+                onChange={(e) => setTimesCalled(e.target.value as typeof timesCalled)}
+                aria-label="Calls made"
+                className="w-full rounded-md border bg-surface px-2.5 py-2 text-sm text-ink sm:w-auto sm:py-1.5 sm:text-xs"
+              >
+                <option value="any">Any number of calls</option>
+                <option value="0">Never called</option>
+                <option value="1">Called once</option>
+                <option value="2">Called twice</option>
+                <option value="3+">Called 3 times or more</option>
+              </select>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find a tenant by name or code"
+                aria-label="Find a tenant"
+                className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted sm:py-1.5 sm:text-xs lg:w-60"
+              />
+            </div>
           </div>
         ) : null}
 
@@ -289,13 +339,13 @@ export default function CallListPage() {
           />
         ) : (
           <ol className="divide-y divide-line-grid">
-            {shown.map((item, idx) => (
+            {callPage.shown.map((item, idx) => (
               <li
                 key={item.account.id}
-                className="flex flex-wrap items-start gap-4 px-5 py-3.5 hover:bg-surface-alt"
+                className="flex flex-wrap items-start gap-x-4 gap-y-3 px-4 py-3.5 hover:bg-surface-alt sm:px-5"
               >
-                <span className="tabular mt-0.5 w-6 shrink-0 text-xs text-ink-muted">
-                  {idx + 1}
+                <span className="tabular mt-0.5 hidden w-6 shrink-0 text-xs text-ink-muted sm:block">
+                  {callPage.pager.page * callPage.pager.pageSize + idx + 1}
                 </span>
 
                 <div className="min-w-0 flex-1">
@@ -312,11 +362,23 @@ export default function CallListPage() {
                     {item.account.status === "Terminated" ? (
                       <Tag>Moved out</Tag>
                     ) : null}
+                    {promisedBy.has(item.account.id) ? (
+                      <StatusBadge
+                        kind="good"
+                        label={`Promised to pay by ${formatDate(promisedBy.get(item.account.id) ?? null)}`}
+                      />
+                    ) : null}
                   </div>
 
                   {/* Which call this is, and the letter it follows. */}
                   <div className="mt-1 text-[11px]">
-                    <span className="font-medium text-ink">
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 font-medium ${
+                        item.round === "final-notice"
+                          ? "bg-warn-wash text-warn-ink"
+                          : "bg-accent-wash text-accent-text"
+                      }`}
+                    >
                       {item.round === "final-notice" ? "2nd call" : "1st call"}
                     </span>
                     <span className="text-ink-muted">
@@ -373,7 +435,7 @@ export default function CallListPage() {
                   <button
                     type="button"
                     onClick={() => setActive({ account: item.account, round: item.round })}
-                    className="shrink-0 rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90"
+                    className="w-full shrink-0 rounded-md border border-accent bg-accent px-3 py-2 text-xs font-medium text-accent-ink sm:w-auto sm:py-1.5"
                   >
                     Log this call
                   </button>
@@ -386,17 +448,17 @@ export default function CallListPage() {
             ))}
           </ol>
         )}
+        <Pagination {...callPage.pager} />
       </Card>
 
-      {done.length > 0 ? (
+      {store.calls.length > 0 ? (
         <Card>
           <CardHeader
             title="Calls logged"
-            hint="Saved with the date and time."
             right={
               <div className="flex flex-wrap items-center gap-2">
                 <div
-                  className="flex rounded border border-line-hair p-0.5"
+                  className="flex overflow-x-auto rounded-md border border-line-hair p-0.5"
                   role="group"
                   aria-label="Which reminder"
                 >
@@ -411,16 +473,16 @@ export default function CallListPage() {
                       type="button"
                       onClick={() => setStage(key)}
                       aria-pressed={stage === key}
-                      className={`rounded px-2.5 py-1 text-xs ${
+                      className={`whitespace-nowrap rounded px-2.5 py-1 text-xs ${
                         stage === key
-                          ? "bg-accent-wash font-medium text-ink"
+                          ? "bg-accent-wash font-medium text-accent-text"
                           : "text-ink-muted hover:text-ink-secondary"
                       }`}
                     >
                       {label} (
                       {key === "all"
                         ? store.calls.length
-                        : store.calls.filter((c) => stageOfCall(c) === key).length}
+                        : store.calls.filter((c) => roundOf(c) === key).length}
                       )
                     </button>
                   ))}
@@ -429,7 +491,7 @@ export default function CallListPage() {
                   value={outcome}
                   onChange={(e) => setOutcome(e.target.value as CallOutcome | "all")}
                   aria-label="Outcome"
-                  className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+                  className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
                 >
                   <option value="all">Every outcome</option>
                   {CALL_OUTCOMES.map((o) => (
@@ -444,7 +506,7 @@ export default function CallListPage() {
                   onChange={(e) => setLogQuery(e.target.value)}
                   placeholder="Find a tenant or a note"
                   aria-label="Find a logged call"
-                  className="w-52 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+                  className="w-full rounded-md border bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted sm:w-52"
                 />
               </div>
             }
@@ -456,13 +518,15 @@ export default function CallListPage() {
             />
           ) : (
           <ul className="divide-y divide-line-grid">
-            {loggedShown.map((c) => (
-              <li key={c.id} className="flex flex-wrap gap-4 px-5 py-3">
+            {logPage.shown.map((c) => (
+              <li key={c.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:gap-4 sm:px-5">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-ink">
-                      {c.companyName}
-                    </span>
+                    <TenantLink
+                      id={c.accountId}
+                      name={c.companyName}
+                      className="text-sm font-medium text-ink"
+                    />
                     <StatusBadge
                       kind={
                         c.outcome === "promised-to-pay"
@@ -489,26 +553,27 @@ export default function CallListPage() {
                     */}
                   <LoggedBilling billing={billing.get(c.accountId) ?? NO_BILLING} />
                   <p className="mt-0.5 text-[11px] text-ink-muted">
-                    {CALL_STAGES.find((x) => x.value === stageOfCall(c))?.label} ·
+                    {CALL_STAGES.find((x) => x.value === roundOf(c))?.label} ·
                     spoke to {c.reached || "nobody"} ·{" "}
-                    {new Date(c.at).toLocaleString("en-SG")}
+                    {formatDateTime(c.at)}
                   </p>
                   {c.notes ? (
                     <p className="mt-1 text-xs text-ink-secondary">{c.notes}</p>
                   ) : null}
                 </div>
                 {c.promisedDate ? (
-                  <div className="shrink-0 text-right text-[11px] text-ink-secondary">
+                  <div className="shrink-0 text-[11px] text-ink-secondary sm:text-right">
                     <div className="tabular font-medium text-ink">
                       SGD {formatSgd(c.promisedAmount ?? 0)}
                     </div>
-                    <div>promised for {c.promisedDate}</div>
+                    <div>promised for {formatDate(c.promisedDate)}</div>
                   </div>
                 ) : null}
               </li>
             ))}
           </ul>
           )}
+          <Pagination {...logPage.pager} />
         </Card>
       ) : null}
 
@@ -538,12 +603,13 @@ function CallForm({
 }) {
   const { notify } = useToast();
   const [reached, setReached] = useState("");
-  const [outcome, setOutcome] = useState<CallOutcome>("promised-to-pay");
+  /* Nothing chosen: starting on "Agreed to pay" recorded a promise for any
+     call whose outcome nobody changed. */
+  const [outcome, setOutcome] = useState<CallOutcome | "">("");
   const [amount, setAmount] = useState(String(overdueTotal(account).toFixed(2)));
   const [date, setDate] = useState("");
   const [next, setNext] = useState("");
   const [notes, setNotes] = useState("");
-  const [failDate, setFailDate] = useState("");
   const [stage, setStage] = useState<CallStage>(round);
 
   const promised = outcome === "promised-to-pay";
@@ -551,6 +617,7 @@ function CallForm({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (outcome === "") return;
     recordCall({
       accountId: account.id,
       companyName: account.companyName,
@@ -561,13 +628,13 @@ function CallForm({
       nextActionDate: next || null,
       notes,
       agingBucket: bucket,
-      deductionFailDate: failDate || null,
+      deductionFailDate: null,
       stage,
     });
     notify(
       `Call with ${account.companyName} saved`,
       promised && date
-        ? `Promise to pay SGD ${amount} by ${date} added to Payment Promises`
+        ? `Promise to pay SGD ${formatSgd(Number(amount))} by ${formatDate(date)} added to Payment Promises`
         : "Recorded in the activity log and the NetSuite export",
     );
     onClose();
@@ -591,7 +658,7 @@ function CallForm({
         />
         {/* An em dash rather than a blank: the report genuinely carries no
             billing date for some lines, and an empty box reads as a fault. */}
-        <Fact label="Billed on" value={formatDate(billing.billedOn) || "—"} />
+        <Fact label="Billed on" value={formatDate(billing.billedOn) || "-"} />
         <Fact
           label="Payment was due"
           value={
@@ -601,7 +668,7 @@ function CallForm({
                     ? ` · ${billing.daysPastDue} days ago`
                     : ""
                 }`
-              : "—"
+              : "-"
           }
         />
       </dl>
@@ -614,7 +681,7 @@ function CallForm({
           <select
             value={stage}
             onChange={(e) => setStage(e.target.value as CallStage)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink"
           >
             {CALL_STAGES.map((x) => (
               <option key={x.value} value={x.value}>
@@ -624,33 +691,25 @@ function CallForm({
           </select>
         </Field>
 
-        <Field label="Date their payment bounced">
-          <input
-            type="date"
-            value={failDate}
-            onChange={(e) => setFailDate(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
-          />
-          <span className="mt-1 block text-[11px] text-ink-muted">
-            Leave blank if you do not know it.
-          </span>
-        </Field>
-
         <Field label="Who did you speak to">
           <input
             value={reached}
             onChange={(e) => setReached(e.target.value)}
             placeholder="Name and role, for example Serene, accounts"
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
           />
         </Field>
 
         <Field label="What happened">
           <select
             value={outcome}
+            required
             onChange={(e) => setOutcome(e.target.value as CallOutcome)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink"
           >
+            <option value="" disabled>
+              Choose what happened
+            </option>
             {CALL_OUTCOMES.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -665,18 +724,21 @@ function CallForm({
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
+                required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="tabular w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+                className="tabular w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
               />
             </Field>
             <Field label="Date they said they would pay">
               <input
                 type="date"
                 required
+                min={inSingapore().iso}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+                className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink"
               />
             </Field>
           </div>
@@ -687,7 +749,7 @@ function CallForm({
             type="date"
             value={next}
             onChange={(e) => setNext(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink"
           />
         </Field>
 
@@ -697,14 +759,15 @@ function CallForm({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="For example, they are disputing the parking charge"
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
           />
         </Field>
 
         <div className="flex items-center gap-2 border-t border-line-hair pt-4">
           <button
             type="submit"
-            className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+            disabled={outcome === ""}
+            className="rounded-md border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
           >
             Save this call
           </button>

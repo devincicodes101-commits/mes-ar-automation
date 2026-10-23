@@ -222,7 +222,7 @@ TC-220,Access,Each role sees only what it should; a manager sees only their own,
 TC-221,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /users,canOpen,super-admin|/users,true
 TC-222,Access,Each role sees only what it should; a manager sees only their own,super-admin opening /simulation,canOpen,super-admin|/simulation,true
 TC-223,Access,Each role sees only what it should; a manager sees only their own,admin opening /reminders,canOpen,admin|/reminders,true
-TC-224,Access,Each role sees only what it should; a manager sees only their own,admin opening /users,canOpen,admin|/users,false
+TC-224,Access,Each role sees only what it should; a manager sees only their own,admin opening /users,canOpen,admin|/users,true
 TC-225,Access,Each role sees only what it should; a manager sees only their own,CSD opening /reminders,canOpen,CSD|/reminders,true
 TC-226,Access,Each role sees only what it should; a manager sees only their own,CSD opening /users,canOpen,CSD|/users,false
 TC-227,Access,Each role sees only what it should; a manager sees only their own,RM opening /,canOpen,RM|/,true
@@ -237,7 +237,7 @@ TC-235,Access,Each role sees only what it should; a manager sees only their own,
 TC-236,Access,Each role sees only what it should; a manager sees only their own,Management and the view-tenant-emails permission,can,Management|view-tenant-emails,false
 TC-237,Access,Each role sees only what it should; a manager sees only their own,CSD and the view-tenant-emails permission,can,CSD|view-tenant-emails,true
 TC-238,Access,Each role sees only what it should; a manager sees only their own,Management and the generate-reports permission,can,Management|generate-reports,true
-TC-239,Access,Each role sees only what it should; a manager sees only their own,admin and the manage-users permission,can,admin|manage-users,false
+TC-239,Access,Each role sees only what it should; a manager sees only their own,admin and the manage-users permission,can,admin|manage-users,true
 TC-240,Access,Each role sees only what it should; a manager sees only their own,super-admin and the manage-users permission,can,super-admin|manage-users,true
 TC-241,Access,Each role sees only what it should; a manager sees only their own,RM and the view-all-tenants permission,can,RM|view-all-tenants,false
 TC-242,Access,Each role sees only what it should; a manager sees only their own,RM and the view-own-tenants permission,can,RM|view-own-tenants,true

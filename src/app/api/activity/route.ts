@@ -121,20 +121,20 @@ export async function GET(request: Request) {
         "id,tenant_id,period,called_at,reached,outcome,promised_amount," +
           `promised_date,next_action_date,aging_bucket,deduction_fail_date,notes,${WITH_NAME}`,
       )
-      .order("called_at", { ascending: false }))),
+      .order("called_at", { ascending: false }).order("id", { ascending: true }))),
     everything(() => mine(db
       .from("promises")
       .select(
         `id,tenant_id,amount,promised_for,source,created_at,confirmation_sent_at,${WITH_NAME}`,
       )
-      .order("created_at", { ascending: false }))),
+      .order("created_at", { ascending: false }).order("id", { ascending: true }))),
     everything(() => mine(db
       .from("emails_sent")
       .select(
         "id,tenant_id,template_id,template_name,subject,body,recipients," +
-          `sent_at,was_simulated,period,${WITH_NAME}`,
+          `sent_at,was_simulated,period,billed_on,${WITH_NAME}`,
       )
-      .order("sent_at", { ascending: false }))),
+      .order("sent_at", { ascending: false }).order("id", { ascending: true }))),
     /*
      * The fees this system has raised, which is not the same question as the
      * fees MES have billed.
@@ -149,9 +149,23 @@ export async function GET(request: Request) {
      */
     everything(() => mine(db
       .from("late_fees")
-      .select("id,tenant_id,period,amount,raised_at")
-      .order("raised_at", { ascending: false }))),
+      .select(`id,tenant_id,period,amount,raised_at,${WITH_NAME}`)
+      .order("raised_at", { ascending: false }).order("id", { ascending: true }))),
   ]);
+
+  /*
+   * The admin trail: uploads, settings, mailbox changes, days run by hand.
+   * Only for roles that may read it, and the newest thousand, which is far
+   * more than anyone scrolls. Calls, letters, promises and fees are already
+   * above and the Activity Log builds its lines from those.
+   */
+  const audit = can(who.caller.role, "read-audit-log")
+    ? await db
+        .from("audit_log")
+        .select("id,at,actor_name,action,subject")
+        .order("at", { ascending: false })
+        .limit(1000)
+    : { data: [], error: null };
 
   const failed = [calls, promises, emails, fees].find((r) => r.error);
   if (failed?.error) {
@@ -182,9 +196,20 @@ export async function GET(request: Request) {
      * one fewer would be wrong in the direction nobody checks.
      */
     unreadableCalls: read.unreadable,
+    /* A failed read of the trail leaves the rest of the log standing. */
+    audit: audit.error
+      ? undefined
+      : ((audit.data ?? []) as Record<string, unknown>[]).map((a) => ({
+          id: `audit-${a.id as number}`,
+          at: a.at as string,
+          actor: (a.actor_name as string) || "System",
+          action: a.action as string,
+          subject: a.subject as string,
+        })),
     fees: ((fees.data ?? []) as Record<string, unknown>[]).map((f) => ({
       id: f.id as string,
       tenantId: f.tenant_id as string,
+      companyName: (f.tenants as { company_name?: string } | null)?.company_name ?? undefined,
       period: f.period as string,
       amount: Number(f.amount),
       raisedAt: f.raised_at as string,

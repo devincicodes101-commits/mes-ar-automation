@@ -35,6 +35,9 @@ export async function authHeader(): Promise<Record<string, string>> {
 export function useLetterEdits() {
   const [edits, setEdits] = useState<Map<string, SavedEdit>>(new Map());
   const [problem, setProblem] = useState<string | null>(null);
+  /* False until the first answer, so an editor never opens on the standard
+     letter while a saved one is still on its way. */
+  const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -45,6 +48,8 @@ export function useLetterEdits() {
       setEdits(new Map((body.edits ?? []).map((e) => [savedKey(e.tenantId, e.stage, e.billedOn), e])));
     } catch {
       /* No edits shown is the safe reading: the standard letters. */
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
@@ -52,5 +57,5 @@ export function useLetterEdits() {
     void reload();
   }, [reload]);
 
-  return { edits, problem, reload };
+  return { edits, loaded, problem, reload };
 }

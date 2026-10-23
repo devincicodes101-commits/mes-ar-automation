@@ -25,10 +25,10 @@ import {
   missedSince,
   periodOf,
   reportAgeDays,
-  tooOldToAct,
-  STALE_AFTER_DAYS,
+  reportAgeWarning,
   AGEING_AFTER_DAYS,
   runNeedsLookingAt,
+  needsAttention,
 } from "../src/lib/schedule.ts";
 import { CYCLE_DAYS } from "../src/lib/cycle.ts";
 import { refusedByChecks, UNKNOWN } from "../src/lib/upload-verdict.ts";
@@ -115,28 +115,76 @@ const sept18 = at("2026-09-18T01:00:00Z");
 check("a run yesterday missed nothing", missedSince("2026-09-17", sept18), []);
 check("nothing to compare against yet", missedSince(null, sept18), []);
 
-// Out since the 14th: the 15th and the 16th both went by. The 16th is the
-// expensive one.
-check("a gap names every cycle day inside it",
-      missedSince("2026-09-14", sept18), ["2026-09-15", "2026-09-16"]);
+// Out since the 14th: the 15th, 16th and 17th all went by. Reminders run
+// every morning now, so every morning counts, not MES's old six days.
+check("a gap names every morning inside it",
+      missedSince("2026-09-14", sept18), ["2026-09-15", "2026-09-16", "2026-09-17"]);
 
-// A gap over days MES do nothing on is not a gap worth reporting.
-check("quiet days in between are not reported",
-      missedSince("2026-09-17", at("2026-09-20T01:00:00Z")), ["2026-09-18", "2026-09-19"].filter(
-        (d) => (CYCLE_DAYS as readonly number[]).includes(Number(d.slice(-2))),
-      ));
-
-check("a gap across a month end still names both months' days",
-      missedSince("2026-08-30", at("2026-09-05T01:00:00Z")),
-      ["2026-09-01", "2026-09-04"]);
+check("a gap across a month end names both months' mornings",
+      missedSince("2026-08-30", at("2026-09-02T01:00:00Z")),
+      ["2026-08-31", "2026-09-01"]);
 
 /*
  * A database restored from an old backup would otherwise walk years a day at a
  * time and produce a list nobody can act on.
  */
 const ancient = missedSince("2020-01-01", sept18);
-check("an absurd gap is capped rather than unbounded", ancient.length <= 60 / 4 + 1, true);
+check("an absurd gap is capped rather than unbounded", ancient.length <= 60, true);
 check("and it is not empty, so the gap is still visible", ancient.length > 0, true);
+
+/* ------------------------------------------------- needs attention ---- */
+
+console.log("\nThe schedule says what needs a hand, rather than asking for a date\n");
+
+const ok = (d: string, summary: Record<string, unknown> | null = null) =>
+  ({ ran_for: d, status: "ok", error: null, summary });
+const oct23am = at("2026-10-23T02:00:00Z"); // 10am in Singapore
+const oct23pm = at("2026-10-23T06:00:00Z"); // 2pm
+
+check("a run every morning needs nothing",
+      needsAttention([ok("2026-10-22"), ok("2026-10-21"), ok("2026-10-20")], oct23am), []);
+check("no history yet is not a problem to report",
+      needsAttention([], oct23pm), []);
+check("before the morning is over, today not having run yet is not flagged",
+      needsAttention([ok("2026-10-22")], oct23am), []);
+check("after it, it is",
+      needsAttention([ok("2026-10-22")], oct23pm).map((i) => i.kind), ["not-today"]);
+
+const gap = needsAttention([ok("2026-10-22"), ok("2026-10-18")], oct23am);
+check("a missed ordinary morning is said, with no button needed",
+      gap, [{ kind: "gap", dates: ["2026-10-19", "2026-10-20", "2026-10-21"] }]);
+
+check("a gap more than a month old is not raised again",
+      needsAttention([ok("2026-10-22"), ok("2026-09-10")], oct23am).find((i) => i.kind === "gap")?.kind === "gap" &&
+        (needsAttention([ok("2026-10-22"), ok("2026-09-10")], oct23am).find((i) => i.kind === "gap") as { dates: string[] }).dates[0],
+      "2026-09-22");
+
+const feeMissed = needsAttention([ok("2026-10-18"), ok("2026-10-14")], oct23am);
+check("a missed 16th is its own item: its fees were never raised",
+      feeMissed.filter((i) => i.kind === "fee-day").map((i) => (i as { date: string }).date), ["2026-10-16"]);
+check("and is not lumped in with the ordinary gap",
+      (feeMissed.find((i) => i.kind === "gap") as { dates: string[] }).dates, ["2026-10-15", "2026-10-17"]);
+
+check("a 16th that stopped is an item too, with its reason",
+      needsAttention([ok("2026-10-17"), { ran_for: "2026-10-16", status: "report-too-old", error: "The report is 20 days old.", summary: null }], at("2026-10-17T06:00:00Z")),
+      [{ kind: "fee-day", date: "2026-10-16", error: "The report is 20 days old.", needsUpload: false }]);
+
+check("a morning whose letters did not all go says how many",
+      needsAttention([ok("2026-10-22", { lettersWritten: 208, lettersSent: 81, lettersDeferred: 127 })], oct23am),
+      [{ kind: "unfinished", date: "2026-10-22", notSent: 127, written: 208, why: null }]);
+check("but not while today's follow-up runs may still send them",
+      needsAttention([ok("2026-10-23", { lettersWritten: 208, lettersSent: 81, lettersDeferred: 127 }), ok("2026-10-22")], oct23am), []);
+check("letters test mode held back are not a problem",
+      needsAttention([ok("2026-10-22", { lettersWritten: 5, lettersSent: 0, lettersBlocked: 5 })], oct23am), []);
+check("a morning that stopped is said at once, not after the follow-ups",
+      needsAttention([{ ran_for: "2026-10-23", status: "report-too-old", error: "The report is 38 days old.", summary: null }, ok("2026-10-22")], oct23am),
+      [{ kind: "failed", date: "2026-10-23", error: "The report is 38 days old.", needsUpload: false }]);
+check("a morning that stopped for want of a report still needs an upload",
+      (needsAttention([{ ran_for: "2026-10-23", status: "no-report", error: null, summary: null }, ok("2026-10-22")], oct23am)[0] as { needsUpload: boolean }).needsUpload,
+      true);
+check("the newest morning stopping is an item",
+      needsAttention([{ ran_for: "2026-10-22", status: "failed", error: "Could not read the report.", summary: null }], oct23am).map((i) => i.kind),
+      ["failed"]);
 
 /* ----------------------------------------------------- catching up ------ */
 
@@ -216,25 +264,16 @@ check("a report dated in the future is negative, not stale",
 check("no report date gives no answer rather than a guess",
       reportAgeDays(null, sg("2026-09-16")), null);
 
-check("the 16th acts on a report from the 7th", tooOldToAct(16, 9).act, true);
-check("and on one at the edge of the window", tooOldToAct(16, STALE_AFTER_DAYS).act, true);
-check("but not one a day past it", tooOldToAct(16, STALE_AFTER_DAYS + 1).act, false);
-check("the 7th is refused too", tooOldToAct(7, 40).act, false);
-check("and the 21st", tooOldToAct(21, 40).act, false);
-
-/* The three that write are the three that matter. A day that only records
-   that it woke is harmless on any data. */
-check("the 1st still runs, however old the report", tooOldToAct(1, 400).act, true);
-check("so does the 4th, which is the day an upload arrives", tooOldToAct(4, 400).act, true);
-check("and the 15th", tooOldToAct(15, 400).act, true);
-
-check("an ageing report is acted on and flagged",
-      tooOldToAct(16, AGEING_AFTER_DAYS + 1).act === true &&
-        (tooOldToAct(16, AGEING_AFTER_DAYS + 1) as { warn: string | null }).warn !== null, true);
-check("a fresh one is not flagged",
-      (tooOldToAct(16, 3) as { warn: string | null }).warn, null);
-check("a future-dated report is never refused",
-      tooOldToAct(16, -40).act, true);
+/* Agreed 24 October: keeping the report current is MES's, so an old report
+   is acted on and flagged, never refused. A morning recorded as refused for
+   an old report before then is simply run again: no upload is asked for. */
+check("a fresh report is not flagged", reportAgeWarning(3), null);
+check("nor one at the edge", reportAgeWarning(AGEING_AFTER_DAYS), null);
+check("one a day past it is flagged", reportAgeWarning(AGEING_AFTER_DAYS + 1) !== null, true);
+check("and the flag says how old, and what to do",
+      /39 days old.*Upload a newer report/.test(reportAgeWarning(39) ?? ""), true);
+check("a future-dated report is not old", reportAgeWarning(-40), null);
+check("no report date, no warning", reportAgeWarning(null), null);
 
 
 console.log("\nWhich recorded runs actually need attention\n");

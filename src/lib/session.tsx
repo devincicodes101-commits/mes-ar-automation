@@ -201,7 +201,17 @@ export interface Toast {
   id: string;
   message: string;
   detail?: string;
+  problem: boolean;
 }
+
+/*
+ * Whether a toast reports something that did not happen.
+ *
+ * Every toast carried a green tick, so "Nothing was sent" and "The schedule
+ * did not run" looked like successes at a glance. Told from the wording the
+ * screens already use for failure, so no caller has to change.
+ */
+const PROBLEM = /^(nothing\b|could not|cannot|can't|not\b|no file|failed|the send failed|only\b)|did not|not sent|not saved|refused|went wrong|were not|was not/i;
 
 interface ToastValue {
   toasts: Toast[];
@@ -221,8 +231,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const notify = useCallback(
     (message: string, detail?: string) => {
       const id = Math.random().toString(36).slice(2, 9);
-      setToasts((t) => [...t, { id, message, detail }]);
-      window.setTimeout(() => dismiss(id), 4500);
+      const problem = PROBLEM.test(message);
+      setToasts((t) => [...t, { id, message, detail, problem }]);
+      /* A problem stays long enough to be read. */
+      window.setTimeout(() => dismiss(id), problem ? 9000 : 4500);
     },
     [dismiss],
   );
@@ -252,22 +264,25 @@ function ToastTray() {
 
   return (
     <div
-      className="fixed bottom-5 right-5 z-[60] flex w-80 flex-col gap-2"
+      className="fixed bottom-4 left-4 right-4 z-[60] flex flex-col gap-2 sm:bottom-5 sm:left-auto sm:right-5 sm:w-80"
       role="status"
       aria-live="polite"
     >
       {ctx.toasts.map((t) => (
         <div
           key={t.id}
-          className="rounded border border-line-strong bg-surface px-4 py-3 shadow-lg"
+          role={t.problem ? "alert" : undefined}
+          className={`rounded-md border bg-surface px-4 py-3 shadow-lg ${
+            t.problem ? "border-crit-line" : "border-line-strong"
+          }`}
         >
           <div className="flex items-start gap-2.5">
             <span
               aria-hidden="true"
-              className="pt-px text-xs"
-              style={{ color: "var(--status-good)" }}
+              className="pt-px text-xs font-bold"
+              style={{ color: t.problem ? "var(--status-critical)" : "var(--status-good)" }}
             >
-              ✓
+              {t.problem ? "!" : "✓"}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-ink">{t.message}</p>

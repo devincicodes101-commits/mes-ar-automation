@@ -114,10 +114,11 @@ export async function priorContact(
         .from("emails_sent")
         .select("tenant_id,template_id")
         .eq("period", period)
-        .eq("was_simulated", false) as unknown as Pageable,
+        .eq("was_simulated", false)
+        .order("id", { ascending: true }) as unknown as Pageable,
     ),
     everything<{ tenant_id: string }>(() =>
-      db.from("late_fees").select("tenant_id").eq("period", period) as unknown as Pageable,
+      db.from("late_fees").select("tenant_id").eq("period", period).order("id", { ascending: true }) as unknown as Pageable,
     ),
     /* Every promise, not this month's: one made in August for the 3rd of
        September is still an arrangement on the 1st of September. Settled ones
@@ -126,7 +127,8 @@ export async function priorContact(
       db
         .from("promises")
         .select("tenant_id,amount,promised_for")
-        .is("settled_at", null) as unknown as Pageable,
+        .is("settled_at", null)
+        .order("id", { ascending: true }) as unknown as Pageable,
     ),
   ]);
 
@@ -218,16 +220,20 @@ export async function lettersSince(
   db: SupabaseClient,
   since: string,
 ): Promise<
-  | { ok: true; letters: { tenantId: string; stage: "first-reminder" | "final-notice"; sentAt: string }[] }
+  | {
+      ok: true;
+      letters: { tenantId: string; stage: "first-reminder" | "final-notice"; sentAt: string; billedOn: string[] | null }[];
+    }
   | { ok: false; error: string }
 > {
-  const r = await everything<{ tenant_id: string; template_id: string | null; sent_at: string }>(() =>
+  const r = await everything<{ tenant_id: string; template_id: string | null; sent_at: string; billed_on: string[] | null }>(() =>
     db
       .from("emails_sent")
-      .select("tenant_id,template_id,sent_at")
+      .select("tenant_id,template_id,sent_at,billed_on")
       .in("template_id", ["reminder-7th", "final-21st"])
       .eq("was_simulated", false)
-      .gte("sent_at", since) as unknown as Pageable,
+      .gte("sent_at", since)
+      .order("id", { ascending: true }) as unknown as Pageable,
   );
   if (r.error) {
     return { ok: false, error: (r.error as { message?: string }).message ?? String(r.error) };
@@ -238,6 +244,9 @@ export async function lettersSince(
       tenantId: row.tenant_id,
       stage: row.template_id === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
       sentAt: row.sent_at,
+      /* Which bills it listed. Null for letters from before 0027, which were
+         about the whole balance. See letterCovers. */
+      billedOn: row.billed_on,
     })),
   };
 }

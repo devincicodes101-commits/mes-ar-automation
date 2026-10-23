@@ -1,42 +1,31 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { data, formatSgd, kpis } from "@/lib/data";
 import { suggestPeriod, type PeriodGuess } from "@/lib/suggest-period";
 import { Card, CardHeader, Skeleton, StatusBadge, Tag } from "@/components/ui";
 import { useSession, useToast } from "@/lib/session";
+import { formatDate, formatMonth } from "@/lib/format";
+import { ReportViewer } from "@/components/ReportViewer";
 import { ParseResult, parseWorkbook } from "@/lib/parser";
 import { unrecognisedDescriptions } from "@/lib/revenue-rules";
 import {
   applyDataset,
   datasetFromResults,
-  revertToSample,
   storeContacts,
   storeDataset,
   useDataset,
 } from "@/lib/dataset";
 import { newAddresses, sameFigures } from "@/lib/upload-compare";
+import { compareReports, newBills, summarise, type Movement } from "@/lib/movement";
+import { isAdHoc } from "@/lib/billing-cycles";
+import { useRules } from "@/lib/use-rules";
+import type { Account } from "@/lib/types";
 import { sumExact } from "@/lib/money";
 import type { ParsedContacts } from "@/lib/parser";
 import { checkUpload, worst, type Finding } from "@/lib/upload-checks";
 
 type Phase = "idle" | "parsing" | "done";
-
-/**
- * The tabs the detail export normally carries. Used to report what a file
- * turned out to contain, never to reject one: MES may add or drop a tab and
- * the reader copes either way, it just says so.
- */
-const EXPECTED_DETAIL_SHEETS = [
-  "Detailed Full Report",
-  "Stamp Duty",
-  "Park Fee",
-  "Late Fee",
-  "Industry",
-  "RM - User1",
-  "RM - User2",
-  "Contact Details",
-];
 
 /**
  * Upload Reports.
@@ -48,20 +37,58 @@ const EXPECTED_DETAIL_SHEETS = [
  * When FastAPI arrives the same parser runs server side instead, so results
  * can be written to Supabase. The screen does not change.
  */
+/*
+ * The upload in progress, kept while the app is open.
+ *
+ * It lived in the page's own state, so going to another screen and back threw
+ * away the chosen files, what was read from them and the "Use this report?"
+ * step. Kept here, an officer can check a figure elsewhere and come back to
+ * exactly where they were. A browser refresh still starts clean: a chosen file
+ * cannot be put back without the person choosing it again.
+ */
+const kept = new Map<string, unknown>();
+
+function useKept<T>(key: string, initial: T | (() => T)) {
+  const [value, setValue] = useState<T>(() => {
+    if (!kept.has(key)) {
+      kept.set(key, typeof initial === "function" ? (initial as () => T)() : initial);
+    }
+    return kept.get(key) as T;
+  });
+  const set = useCallback(
+    (next: T) => {
+      /* Written here first, so a read that finishes after the officer has
+         moved on is still there when they come back. */
+      kept.set(key, next);
+      setValue(next);
+    },
+    [key],
+  );
+  return [value, set] as const;
+}
+
 export default function UploadPage() {
   const { canAct } = useSession();
   const { notify } = useToast();
   const ds = useDataset();
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [arFile, setArFile] = useState<File | null>(null);
-  const [contactFile, setContactFile] = useState<File | null>(null);
-  const [results, setResults] = useState<ParseResult[]>([]);
-  const [period, setPeriod] = useState(data.asOfSummary.slice(0, 7));
+  const [phase, setPhase] = useKept<Phase>("phase", "idle");
+  const [arFile, setArFile] = useKept<File | null>("arFile", null);
+  const [contactFile, setContactFile] = useKept<File | null>("contactFile", null);
+  const [results, setResults] = useKept<ParseResult[]>("results", []);
+  /* This month until a file is read, then the month the file says it is for.
+     It started on the bundled sample's month, so the picker read August
+     beside an October report. */
+  const [period, setPeriod] = useKept<string>("period", () =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore", year: "numeric", month: "2-digit" })
+      .format(new Date())
+      .slice(0, 7),
+  );
   /* How the month was worked out from the file, and whether the officer has
      chosen one themselves. Once they have, a later file does not overwrite it. */
-  const [guess, setGuess] = useState<PeriodGuess | null>(null);
-  const [chosenByHand, setChosenByHand] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [guess, setGuess] = useKept<PeriodGuess | null>("guess", null);
+  const [chosenByHand, setChosenByHand] = useKept<boolean>("chosenByHand", false);
+  const [error, setError] = useKept<string | null>("error", null);
+  const [viewing, setViewing] = useState(false);
 
   const accounts = ds.accounts;
   const k = kpis(accounts);
@@ -101,7 +128,9 @@ export default function UploadPage() {
       );
       notify(
         readable > 0 ? `Read ${readable} file${readable === 1 ? "" : "s"}` : "Could not read the files",
-        errors > 0 ? `${errors} problem${errors === 1 ? "" : "s"} found, see below` : `Billing period ${period}`,
+        errors > 0
+          ? `${errors} problem${errors === 1 ? "" : "s"} found, see below`
+          : `Billing period ${formatMonth(found?.period ?? period)}`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong reading the files.");
@@ -109,23 +138,81 @@ export default function UploadPage() {
     }
   }
 
-  function reset() {
-    setPhase("idle");
-    setArFile(null);
-    setContactFile(null);
-    setResults([]);
-    setError(null);
-  }
-
   return (
     <div className="space-y-5">
-      {/* Which month this upload belongs to. The deck says the AR report is
-          pulled on or after the 15th, and may be uploaded later than that, so
-          the period cannot be inferred from the upload date. */}
-      <Card className="flex flex-wrap items-end gap-5 px-5 py-4">
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
-            Which billing period is this?
+      {/* What is live, first: the question an officer opens this page with. */}
+      {ds.source === "uploaded" ? (
+        <Card className="px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge kind="good" label="Report in use" />
+                <span className="text-sm font-semibold text-ink">{formatMonth(ds.period)}</span>
+              </div>
+              <p className="mt-1.5 text-sm text-ink-secondary">
+                {ds.accounts.length} tenants · {ds.invoices.length} invoice lines · report of{" "}
+                {formatDate(ds.asOf)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewing(true)}
+              className="w-full shrink-0 rounded-md border border-line-strong px-4 py-2 text-sm font-medium text-ink sm:w-auto"
+            >
+              View report
+            </button>
+          </div>
+          <p className="mt-3 border-t border-line-hair pt-3 text-xs text-ink-muted">
+            Uploaded the wrong file? Upload the right one below and it replaces this one. Calls,
+            promises and typed-in addresses are kept.
+          </p>
+        </Card>
+      ) : null}
+
+      {viewing ? <ReportViewer ds={ds} onClose={() => setViewing(false)} /> : null}
+
+      {error ? (
+        <Card className="px-5 py-3.5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+            <StatusBadge kind="critical" label="Cannot read that file" />
+            <p className="text-xs leading-relaxed text-ink-secondary">{error}</p>
+          </div>
+        </Card>
+      ) : null}
+
+      {/* Two inputs, and they are not equals. The AR report is the cycle;
+          the contact list is a reference file that changes rarely. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DropZone
+          step={1}
+          title="AR report"
+          hint="The NetSuite export. Upload it every month."
+          // Raman named the sheet on 14 September: Finance AR Download, the
+          // first worksheet of Detailed AR report(Final). The Custom A/R Aging
+          // Detail is still accepted, so both are named.
+          note="Finance AR Download (Detailed AR report). The Custom A/R Aging Detail export works too."
+          file={arFile}
+          onFile={setArFile}
+        />
+
+        <DropZone
+          step={2}
+          title="Client contact list"
+          optional
+          hint="Only when it changes. The last one you uploaded is kept."
+          file={contactFile}
+          onFile={setContactFile}
+        />
+      </div>
+
+      {/* Which month this upload belongs to. The report is pulled on or
+          after the 15th and may be uploaded later, so the month is read from
+          the file rather than from the upload date, and can be changed. */}
+      <Card className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:gap-5 sm:px-5">
+        <label className="block shrink-0">
+          <span className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-ink">
+            <StepDot n={3} />
+            Billing month
           </span>
           <input
             type="month"
@@ -134,91 +221,37 @@ export default function UploadPage() {
               setPeriod(e.target.value);
               setChosenByHand(true);
             }}
-            className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="rounded-md border bg-surface px-3 py-2 text-sm text-ink"
           />
-          {/* Said under the picker so nobody has to wonder where the month came from. */}
+        </label>
+        <div className="min-w-0 space-y-1.5 sm:pt-7">
           {guess ? (
-            <span className="mt-1.5 block max-w-xs text-[11px] leading-snug text-ink-muted">
+            <p className="text-xs leading-snug text-ink-secondary">
               {guess.period === period
                 ? guess.basis === "bills"
-                  ? `Read from the file: ${guess.tenants} of ${guess.of} tenants were last billed in this month${
-                      guess.example ? `, mostly on ${guess.example}` : ""
-                    }. Change it if that is not the month this report is for.`
-                  : `The file has no bill dates, so this is the month of the report date (${guess.example}). Check it.`
-                : `The file reads as ${guess.period}, but you chose ${period}.`}
-            </span>
-          ) : null}
-        </label>
-        {/*
-          * Reworded, because the old text read as a rule the system applies.
-          *
-          * It said "Billing runs from the 15th", and a reader reasonably asked
-          * whether picking a month therefore set the billing date to the 15th
-          * of it. It does not: every charge carries its own billing date in
-          * the Date column and the system reads each one. The month is a
-          * label, and this now says which it is.
-          */}
-        <div className="mb-2 max-w-md space-y-1.5">
-          <p className="text-[11px] text-ink-muted">
-            A label for the month this upload belongs to. It does not set any
-            billing date &mdash; every charge carries its own, and the system
-            reads each one from the file.
-          </p>
-          <p className="text-[11px] text-ink-muted">
-            It is what keeps the once-a-month rules honest: one late payment
-            fee per tenant per month, one first reminder per tenant per month,
-            and one set of figures to compare against the next.
-          </p>
-          <p className="text-[11px] text-amber-700 dark:text-amber-500">
-            Pick the month the report is for. Label it wrongly and the figures
-            are filed under the wrong month, so What Changed compares the wrong
-            two and the fee screen looks at the wrong month for what was
-            already charged.
+                  ? `Read from the file: ${guess.tenants} of ${guess.of} tenants were last billed in ${formatMonth(guess.period)}.`
+                  : `The file has no bill dates, so this is the month of the report date (${guess.example}). Please check it.`
+                : `The file reads as ${formatMonth(guess.period)}, but you chose ${formatMonth(period)}.`}
+            </p>
+          ) : (
+            <p className="text-xs text-ink-muted">
+              Filled in from the file once it is read. Change it only if it is wrong.
+            </p>
+          )}
+          <p className="text-xs text-ink-muted">
+            It does not set any billing date; each charge carries its own.
+            Choose carefully: with a wrong month, figures are
+            filed under the wrong month, and fees and reminders count against it.
           </p>
         </div>
       </Card>
 
-      {error ? (
-        <Card className="border-l-2 px-5 py-3.5" >
-          <div className="flex items-start gap-3">
-            <StatusBadge kind="critical" label="Cannot read that file" />
-            <p className="text-xs leading-relaxed text-ink-secondary">{error}</p>
-          </div>
-        </Card>
-      ) : null}
-
-      {/* Two inputs, and they are not equals. The AR report is the cycle;
-          the contact list is a reference file that changes rarely. The DBS
-          bank report was removed at the client's request: see
-          docs/dbs-removal.md. */}
-      <DropZone
-        title="AR Report"
-        hint="The export from NetSuite. Upload this every cycle."
-        // Raman named the sheet on 14 September: Finance AR Download, the
-        // first worksheet of Detailed AR report(Final). The Custom A/R Aging
-        // Detail is a reference sheet explaining the columns, and is still
-        // accepted because it is the only export so far carrying real
-        // amounts. Both are named here rather than only the newer one, so
-        // nobody is told the file they have is the wrong one.
-        note="Finance AR Download, the first sheet of Detailed AR report(Final). Custom A/R Aging Detail is read too. Everything on every screen comes from it."
-        file={arFile}
-        onFile={setArFile}
-      />
-
-      <DropZone
-        title="Client contact list"
-        hint="Only when it changes. The system keeps the last one you gave it."
-        note="The workbook with an Email Address column. Without it, reminders cannot be addressed and tenants can only be phoned."
-        file={contactFile}
-        onFile={setContactFile}
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={runParse}
           disabled={phase === "parsing" || !canAct}
-          className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-md border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink sm:w-auto"
         >
           {phase === "parsing"
             ? "Reading"
@@ -226,18 +259,6 @@ export default function UploadPage() {
               ? "Read both files"
               : "Read the file"}
         </button>
-
-        {phase === "done" ? (
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
-          >
-            Start again
-          </button>
-        ) : null}
-
-
       </div>
 
       {phase === "parsing" ? <ParseSkeleton /> : null}
@@ -257,45 +278,6 @@ export default function UploadPage() {
         />
       ) : null}
 
-      {ds.source === "uploaded" ? (
-        <Card className="px-5 py-3.5">
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge kind="good" label="Using your uploaded file" />
-            <p className="flex-1 text-xs text-ink-secondary">
-              {ds.accounts.length} tenants, period {ds.period}, as at {ds.asOf}.
-              <span className="font-medium text-ink">
-                {" "}Nothing further to do here.
-              </span>{" "}
-              Every screen is using this file.
-            </p>
-          </div>
-
-          {/* The way out, not the next step.
-              This sat beside the green tick reading "Use the sample instead",
-              which after a successful upload looks like an instruction rather
-              than an undo. It is separated, named for what it does, and says
-              what it costs. */}
-          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-line-hair pt-3">
-            <p className="flex-1 text-[11px] text-ink-muted">
-              Uploaded the wrong file? Discard it and go back to the built-in
-              sample. Your calls, promises and typed-in addresses are kept.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                revertToSample();
-                notify(
-                  "Discarded the uploaded file",
-                  "Back to the built-in sample data.",
-                );
-              }}
-              className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink-muted hover:border-line-strong hover:text-ink"
-            >
-              Discard this file
-            </button>
-          </div>
-        </Card>
-      ) : null}
 
       {phase === "done" ? (
         <ParseReport
@@ -334,6 +316,29 @@ function ApplyBar({
   const [saveError, setSaveError] = useState<string | null>(null);
   /* Memoised so the comparison below runs once per upload, not per render. */
   const built = useMemo(() => datasetFromResults(results, period), [results, period]);
+
+  /*
+   * What changed since the report in use, said before the file is adopted.
+   *
+   * Worked out against the report every screen is using, and frozen once
+   * "Use this report" is pressed: after that the report in use is this file,
+   * and comparing it with itself would say nothing changed.
+   */
+  const changed = useMemo(
+    () =>
+      built && active.source === "uploaded"
+        ? {
+            asOf: active.asOf,
+            moves: compareReports(active.accounts, built.accounts),
+            before: active.accounts,
+            bills: newBills(active.invoices, built.invoices),
+          }
+        : null,
+    [built, active],
+  );
+  const frozen = useRef(changed);
+  const [adopted, setAdopted] = useState(false);
+  if (!adopted) frozen.current = changed;
 
   /**
    * Sends the report to the database.
@@ -471,15 +476,16 @@ function ApplyBar({
    */
   if (alreadyApplied) {
     return (
-      <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
-        <StatusBadge kind="good" label="Already in use" />
+      <Card className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:px-5">
+        <span className="self-start sm:self-auto">
+          <StatusBadge kind="good" label="Already in use" />
+        </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-medium text-ink">
             This is the file every screen is already using.
           </p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            {built.accounts.length} tenants, {built.invoices.length} invoices,
-            as at {built.asOf}. Same balances, same lines
+            Same balances, same lines
             {contactFile ? ", and every address in the contact list is already stored" : ""}.
             Nothing to apply.
           </p>
@@ -488,14 +494,14 @@ function ApplyBar({
           type="button"
           disabled={!canAct || saving}
           onClick={() => void save(built)}
-          className="shrink-0 rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+          className="shrink-0 self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 sm:self-auto"
         >
-          {saving ? "Saving..." : "Save to the database again"}
+          {saving ? "Saving..." : "Save again"}
         </button>
 
         {saveError ? (
-          <p className="basis-full text-xs leading-relaxed text-[var(--critical)]">
-            <b>Not saved to the database</b>: {saveError}
+          <p className="basis-full text-xs leading-relaxed text-crit-ink">
+            <b>Not saved</b>: {saveError}
           </p>
         ) : null}
         {saved ? (
@@ -508,17 +514,16 @@ function ApplyBar({
   }
 
   return (
-    <Card className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+    <Card className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-5">
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-ink">
-          Use this file across the whole application?
+        <p className="text-sm font-medium text-ink">
+          Use this report for {formatMonth(period)}?
         </p>
-        <p className="mt-0.5 text-[11px] text-ink-muted">
-          {built.accounts.length} tenants, {built.invoices.length} invoices.
-          {errors > 0
-            ? ` ${errors} row${errors === 1 ? "" : "s"} could not be read.`
-            : ""}
-        </p>
+        {errors > 0 ? (
+          <p className="mt-0.5 text-[11px] text-ink-muted">
+            {errors} row{errors === 1 ? "" : "s"} could not be read. They are listed below.
+          </p>
+        ) : null}
       </div>
       <button
         type="button"
@@ -532,14 +537,19 @@ function ApplyBar({
            * they still have the month in front of them and a line saying it
            * did not save, rather than a spinner and no figures.
            */
+          setAdopted(true);
           applyDataset(built);
           onApplied(`${built.accounts.length} tenants loaded`);
           await save(built);
         }}
-        className="shrink-0 rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        className="shrink-0 rounded-md border border-accent bg-accent px-5 py-2.5 text-sm font-medium text-accent-ink"
       >
-        {saving ? "Saving..." : "Use this data"}
+        {saving ? "Saving..." : "Use this report"}
       </button>
+
+      {frozen.current && built ? (
+        <WhatChanged changed={frozen.current} after={built.accounts} />
+      ) : null}
 
       {/*
         * Said out loud, because the alternative is two people working from two
@@ -547,32 +557,134 @@ function ApplyBar({
         * means this file lives in this browser and nowhere else.
         */}
       {saveError ? (
-        <p className="basis-full text-xs leading-relaxed text-[var(--critical)]">
-          On screen, but <b>not saved to the database</b>: {saveError} It will
-          stay in this browser only, so nobody else can see it and it will not
-          survive clearing your data.
+        <p className="basis-full text-xs leading-relaxed text-crit-ink">
+          On screen, but <b>not saved</b>: {saveError} Until it is saved, only
+          this browser can see it.
         </p>
       ) : null}
       {saved ? (
-        <p className="basis-full text-xs leading-relaxed text-ink-muted">
-          Saved. Anyone signed in sees this report now, and it will still be
-          here on another machine.
+        <p className="basis-full text-sm font-medium text-good-ink">
+          Saved. Everyone signed in now sees this report.
         </p>
       ) : null}
     </Card>
   );
 }
 
+/**
+ * What changed since the report in use, in a few lines.
+ *
+ * MES's rule for reading two exports: gone from the newer one is paid in
+ * full, a smaller balance is part paid, and nothing here is called an amount
+ * paid - a balance that fell by $2,000 may be $5,000 paid and $3,000 billed.
+ * Each line opens to the names. Kept short on purpose: the full comparison is
+ * at /movement.
+ */
+const NAMED = 20;
+
+function WhatChanged({
+  changed,
+  after,
+}: {
+  changed: { asOf: string; moves: Movement[]; before: readonly Account[]; bills: ReturnType<typeof newBills> };
+  after: readonly Account[];
+}) {
+  const s = summarise(changed.moves, changed.before, after);
+  const { rules } = useRules();
+  const of = (d: Movement["direction"]) => changed.moves.filter((m) => m.direction === d);
+  const rows: [string, Movement[]][] = [
+    ["Paid in full, no longer in the report", of("settled")],
+    ["Paid part, balance went down", of("down")],
+    ["Owe more, balance went up", of("up")],
+    ["New tenants", of("new")],
+  ];
+  const shownDates = changed.bills.dates.slice(0, 4);
+  return (
+    <div className="basis-full border-t border-line-hair pt-3 text-xs text-ink-secondary">
+      <p className="mb-1.5 font-medium text-ink">Compared with the report of {formatDate(changed.asOf)}</p>
+      {/* Not one tenant in common: almost always the wrong file - another
+          dormitory's export, or another company's - rather than everybody
+          paying and a new set moving in. */}
+      {changed.before.length > 0 && after.length > 0 && changed.moves.every((m) => m.direction === "settled" || m.direction === "new") ? (
+        <p className="mb-1.5 text-crit-ink">
+          None of the tenants in this file are in the report in use. Check it is the right file before using it.
+        </p>
+      ) : null}
+      <ul className="divide-y divide-line-hair">
+        {rows.map(([label, list]) => (
+          <li key={label}>
+            <details className="group py-1.5">
+              <summary className={`flex justify-between gap-3 ${list.length ? "cursor-pointer" : "pointer-events-none"}`}>
+                <span>{label}</span>
+                <span className="tabular font-medium text-ink">
+                  {list.length} {list.length === 1 ? "tenant" : "tenants"}
+                </span>
+              </summary>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                {list.slice(0, NAMED).map((m) => m.companyName).join(", ")}
+                {list.length > NAMED ? `, and ${list.length - NAMED} more` : ""}
+              </p>
+            </details>
+          </li>
+        ))}
+        <li className="flex flex-wrap justify-between gap-x-3 gap-y-1 py-1.5">
+          <span>New bills</span>
+          <span className="text-right">
+            <span className="tabular font-medium text-ink">
+              {changed.bills.lines} {changed.bills.lines === 1 ? "invoice" : "invoices"}
+            </span>
+            {shownDates.length > 0 ? (
+              <span className="ml-1.5 inline-flex flex-wrap items-center justify-end gap-1 text-[11px] text-ink-muted">
+                billed
+                {shownDates.map((d) => (
+                  <span key={d.billedOn} className="inline-flex items-center gap-1">
+                    {formatDate(d.billedOn)}
+                    {isAdHoc(d.billedOn, rules.regularBillingDay) ? <Tag>Ad hoc</Tag> : null}
+                  </span>
+                ))}
+                {changed.bills.dates.length > shownDates.length
+                  ? `and ${changed.bills.dates.length - shownDates.length} more dates`
+                  : ""}
+              </span>
+            ) : null}
+          </span>
+        </li>
+        <li className="flex justify-between gap-3 py-1.5">
+          <span>Total owed</span>
+          <span className="tabular font-medium text-ink">
+            SGD {formatSgd(s.totalBefore)} → {formatSgd(s.totalAfter)}
+          </span>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function StepDot({ n }: { n: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-accent-ink"
+    >
+      {n}
+    </span>
+  );
+}
+
 function DropZone({
+  step,
   title,
+  optional = false,
   hint,
   note,
   file,
   onFile,
 }: {
+  step: number;
   title: string;
+  optional?: boolean;
   hint: string;
-  note: string;
+  note?: string;
   file: File | null;
   onFile: (f: File | null) => void;
 }) {
@@ -581,14 +693,20 @@ function DropZone({
   const [over, setOver] = useState(false);
 
   return (
-    <Card className="p-5">
-      <h2 className="text-sm font-semibold text-ink">{title}</h2>
+    <Card className="p-4 sm:p-5">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+        <StepDot n={step} />
+        {title}
+        {optional ? (
+          <span className="text-xs font-normal text-ink-muted">optional</span>
+        ) : null}
+      </h2>
       <p className="mt-1 text-xs leading-relaxed text-ink-muted">{hint}</p>
 
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xls,.csv,.pdf,.png,.jpg"
+        accept=".xlsx,.xls,.csv"
         className="sr-only"
         onChange={(e) => onFile(e.target.files?.[0] ?? null)}
       />
@@ -606,25 +724,27 @@ function DropZone({
           setOver(false);
           onFile(e.dataTransfer.files?.[0] ?? null);
         }}
-        className={`mt-3 w-full rounded border border-dashed px-4 py-8 text-center transition-colors ${
-          over
-            ? "border-accent bg-surface-sunk"
-            : "border-line-base hover:border-line-strong hover:bg-surface-alt"
+        className={`mt-3 w-full rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+          fileName
+            ? "border-accent bg-accent-wash"
+            : over
+              ? "border-accent bg-accent-wash"
+              : "border-line-base hover:border-accent hover:bg-accent-wash"
         }`}
       >
         {fileName ? (
           <>
-            <p className="break-all text-xs font-medium text-ink">{fileName}</p>
+            <p className="break-words text-sm font-medium text-accent-text">{fileName}</p>
             <p className="mt-1 text-[11px] text-ink-muted">
               Click to choose a different file
             </p>
           </>
         ) : (
           <>
-            <p className="text-xs text-ink-secondary">
+            <p className="text-sm font-medium text-ink-secondary">
               Choose a file, or drag one here
             </p>
-            <p className="mt-1 text-[11px] text-ink-muted">Excel or CSV</p>
+            <p className="mt-1 text-xs text-ink-muted">Excel or CSV</p>
           </>
         )}
       </button>
@@ -639,7 +759,7 @@ function DropZone({
         </button>
       ) : null}
 
-      <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">{note}</p>
+      {note ? <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">{note}</p> : null}
     </Card>
   );
 }
@@ -700,8 +820,15 @@ function ParseReport({
    * from the contact list that had just been uploaded alongside. Two counts
    * of the same thing, disagreeing on the same screen.
    */
+  /* With a contact list, the tenants it reaches: 260 rows on the list said
+     nothing about the 13 tenants it has no row for. */
+  const listCodes = contactList
+    ? new Set(contactList.contacts.map((c) => c.customerCode.toUpperCase()))
+    : null;
   const emailCount = contactList
-    ? contactList.contacts.length
+    ? balances
+      ? balances.accounts.filter((a) => listCodes!.has(a.customerCode.toUpperCase())).length
+      : contactList.contacts.length
     : detail && detail.contacts.length > 0
       ? detail.contacts.length
       : aging
@@ -718,8 +845,8 @@ function ParseReport({
         title={usingSample ? "What we found in the sample data" : "What we found in your files"}
         hint={
           usingSample
-            ? `Billing period ${period}. No file was chosen, so these are the MES sample figures as at ${asOf}.`
-            : `Billing period ${period}${summary?.asOf ? `. Report dated ${summary.asOf}` : ""}. Read in your browser; nothing was uploaded anywhere.`
+            ? `${formatMonth(period)}. No file was chosen, so these are example figures as at ${formatDate(asOf)}.`
+            : `${formatMonth(period)}${summary?.asOf ? ` · report of ${formatDate(summary.asOf)}` : ""}`
         }
         right={
           errors.length > 0 ? (
@@ -730,164 +857,86 @@ function ParseReport({
         }
       />
 
+      {/* Each figure once. The tenant, line and address counts used to be
+          said again in a paragraph, a badge and a box per file below. Not
+          shown when nothing could be read: the figures would be the report
+          already in use, presented as though they came from this file. */}
+      {usingSample || balances || lines || contactList ? (
       <dl className="grid gap-px bg-line-grid sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label="Tenant accounts" value={String(accountCount)} />
+        <Figure
+          label="Tenant accounts"
+          value={String(accountCount)}
+          note={
+            balances
+              ? [
+                  /* The Aging Detail export has no Status column, so everyone
+                     reads as renting; the split is only said when it exists. */
+                  balances.accounts.some((a) => a.status === "Terminated")
+                    ? `${balances.accounts.filter((a) => a.status === "Terminated").length} moved out`
+                    : null,
+                  `${inCredit} in credit`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : undefined
+          }
+        />
         <Figure label="Total owed" value={`SGD ${formatSgd(total)}`} />
         <Figure
-          label="Charge types"
-          value={lines ? String(chargeTypes) : "not loaded"}
+          label="Invoice lines"
+          value={lines ? String(lines.invoices.length) : "not loaded"}
+          note={lines ? `${chargeTypes} charge types · ${oneFm} 1FM` : undefined}
         />
         <Figure
-          label="Email addresses"
-          value={detail || aging || usingSample ? String(emailCount) : "not loaded"}
+          label="Can be emailed"
+          value={detail || aging || contactList || usingSample ? String(emailCount) : "not loaded"}
+          note={
+            contactList && balances
+              ? `of ${accountCount} tenants · ${contactList.contacts.length} on the contact list`
+              : undefined
+          }
         />
       </dl>
-
-      {balances ? (
-        <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-3">
-          <Figure
-            label="Still renting"
-            value={String(balances.accounts.filter((a) => a.status === "Live").length)}
-          />
-          <Figure
-            label="Moved out"
-            value={String(balances.accounts.filter((a) => a.status === "Terminated").length)}
-          />
-          <Figure label="In credit, not chased" value={String(inCredit)} />
-        </div>
       ) : null}
 
-      {aging ? (
-        <div className="border-t border-line-hair px-5 py-4">
-          <p className="text-xs text-ink-secondary">
-            {aging.invoices.length} invoice lines across {chargeTypes} charge
-            types, of which{" "}
-            <span className="font-medium text-ink">{oneFm}</span> are 1FM
-            maintenance, found by the document number prefix MES documented on
-            the export. Aging is worked out from the report date,{" "}
-            {aging.asOf ?? "not stated"}, so re-reading this file tomorrow
-            gives the same figures.
-          </p>
-        </div>
-      ) : detail ? (
-        <div className="border-t border-line-hair px-5 py-4">
-          <p className="text-xs text-ink-secondary">
-            {detail.invoices.length} invoices, of which{" "}
-            <span className="font-medium text-ink">{oneFm}</span> are 1FM
-            maintenance charges, found by the ONEFM reference inside the
-            description. {detail.managers.length} relationship managers and{" "}
-            {detail.industries.length} industry rows were also read.
-          </p>
-        </div>
+      {contactList && contactList.missing.length > 0 ? (
+        <p className="border-t border-line-hair px-5 py-3 text-xs leading-relaxed text-ink-secondary">
+          {contactList.missing.length} companies rent at a dormitory but have no address on the
+          contact list, so no reminder can reach them. They are named under &ldquo;Rows that need
+          a look&rdquo; and stay on the call list.
+        </p>
       ) : null}
-
-      {detail ? <SheetsRead sheets={detail.sheets} /> : null}
 
       {lines ? <Unclassified invoices={lines.invoices} /> : null}
 
-      {contactList ? (
-        <div className="border-t border-line-hair px-5 py-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <StatusBadge
-              kind={contactList.missing.length === 0 ? "good" : "warning"}
-              label={`${contactList.contacts.length} companies with an email address`}
-            />
-            <span className="text-[11px] text-ink-muted">
-              {contactList.contacts.reduce((n, c) => n + c.emails.length, 0)}{" "}
-              addresses in total
-            </span>
-          </div>
-          {contactList.missing.length > 0 ? (
-            <p className="mt-2.5 text-[11px] leading-relaxed text-ink-secondary">
-              {contactList.missing.length} companies rent at a dormitory but
-              have no address on this list, so no reminder can reach them. They
-              are named under &ldquo;Rows that need a look&rdquo; and stay on
-              the call list.
-            </p>
-          ) : null}
-        </div>
+      {/* What only each file says about itself, for when a figure needs tracing. */}
+      {aging || detail || contactList ? (
+        <details className="border-t border-line-hair px-5 py-3 text-[11px] text-ink-muted">
+          <summary className="cursor-pointer text-xs text-accent-text">File details</summary>
+          <dl className="mt-2.5 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+            {aging ? (
+              <>
+                <FileFact label="Report date" value={aging.asOf ?? "not stated"} />
+                <FileFact label="Entity" value={aging.entity ?? "not stated"} />
+                <FileFact label="The report's own subtotals" value={String(aging.subtotals.length)} />
+              </>
+            ) : null}
+            {detail ? (
+              <>
+                <FileFact label="Relationship managers" value={String(detail.managers.length)} />
+                <FileFact label="Industry rows" value={String(detail.industries.length)} />
+                <FileFact label="Sheets read" value={detail.sheets.join(", ")} />
+              </>
+            ) : null}
+            {contactList ? (
+              <>
+                <FileFact label="Contact list dated" value={contactList.asOf ?? "not stated"} />
+                <FileFact label="Contact list sheets" value={contactList.sheets.join(", ")} />
+              </>
+            ) : null}
+          </dl>
+        </details>
       ) : null}
-
-      {/* What each file gave us, separately. The figures above are the two
-          files merged, which is what the screens use, but a fault in one of
-          them is invisible in a merged number. */}
-      <div className="grid gap-px border-t border-line-hair bg-line-grid sm:grid-cols-2">
-        <div className="bg-surface px-5 py-4">
-          <div className="flex items-center gap-2">
-            <StatusBadge
-              kind={aging || summary ? "good" : "critical"}
-              label={aging || summary ? "AR report read" : "No AR report"}
-            />
-          </div>
-          {aging ? (
-            <dl className="mt-2.5 space-y-1 text-[11px] text-ink-muted">
-              <div className="flex justify-between gap-3">
-                <dt>Report date</dt>
-                <dd className="tabular text-ink">{aging.asOf ?? "not stated"}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Entity</dt>
-                <dd className="text-ink">{aging.entity ?? "not stated"}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Invoice lines</dt>
-                <dd className="tabular text-ink">{aging.invoices.length}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Tenant accounts</dt>
-                <dd className="tabular text-ink">{aging.accounts.length}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Their own subtotals</dt>
-                <dd className="tabular text-ink">{aging.subtotals.length}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="mt-2 text-[11px] text-ink-secondary">
-              Nothing on any screen can be shown without it.
-            </p>
-          )}
-        </div>
-
-        <div className="bg-surface px-5 py-4">
-          <div className="flex items-center gap-2">
-            <StatusBadge
-              kind={contactList ? "good" : "warning"}
-              label={contactList ? "Contact list read" : "No contact list"}
-            />
-          </div>
-          {contactList ? (
-            <dl className="mt-2.5 space-y-1 text-[11px] text-ink-muted">
-              <div className="flex justify-between gap-3">
-                <dt>Dated</dt>
-                <dd className="tabular text-ink">{contactList.asOf ?? "not stated"}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Sheets</dt>
-                <dd className="text-ink">{contactList.sheets.join(", ")}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>With an address</dt>
-                <dd className="tabular text-ink">{contactList.contacts.length}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Addresses in total</dt>
-                <dd className="tabular text-ink">
-                  {contactList.contacts.reduce((n, c) => n + c.emails.length, 0)}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt>Listed but no address</dt>
-                <dd className="tabular text-ink">{contactList.missing.length}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="mt-2 text-[11px] text-ink-secondary">
-              Addresses already loaded are kept. Reminders need them.
-            </p>
-          )}
-        </div>
-      </div>
 
       {/* Faults that only exist between the two files. */}
       <Findings findings={findings} />
@@ -908,7 +957,7 @@ function ParseReport({
                 <span className="shrink-0">
                   <StatusBadge
                     kind={p.severity === "error" ? "critical" : "warning"}
-                    label={p.row ? `${p.sheet} row ${p.row}` : p.sheet}
+                    label={p.row ? `${p.sheet || "File"} row ${p.row}` : p.sheet || "File"}
                   />
                 </span>
                 <p className="text-xs leading-relaxed text-ink-secondary">
@@ -996,9 +1045,9 @@ function Unclassified({
             </p>
           ) : null}
           <p className="mt-2 text-[11px] leading-relaxed text-ink-secondary">
-            These still count towards the tenant&apos;s balance. They are
-            grouped under Other Charges until a rule is added for them, which
-            is a code change so that money cannot be reclassified by accident.
+            These still count towards the tenant&apos;s balance, grouped under
+            Other Charges. To add a rule for one, contact the system
+            administrator.
           </p>
         </>
       ) : null}
@@ -1006,69 +1055,23 @@ function Unclassified({
   );
 }
 
-/**
- * What the workbook turned out to contain.
- *
- * Reported after reading rather than predicted before it, because a list of
- * expected tabs shown while somebody is still choosing a file tells them
- * nothing, and is wrong the moment MES changes their export.
- */
-function SheetsRead({ sheets }: { sheets: string[] }) {
-  const key = (s: string) => s.trim().replace(/\s+/g, " ").toUpperCase();
-  const present = new Set(sheets.map(key));
-
-  const found = EXPECTED_DETAIL_SHEETS.filter((s) => present.has(key(s)));
-  const missing = EXPECTED_DETAIL_SHEETS.filter((s) => !present.has(key(s)));
-
-  const expected = new Set(EXPECTED_DETAIL_SHEETS.map(key));
-  const extra = sheets.filter((s) => !expected.has(key(s)));
-
-  const lostContacts = missing.some((s) => key(s) === key("Contact Details"));
-
-  return (
-    <div className="border-t border-line-hair px-5 py-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <StatusBadge
-          kind={missing.length === 0 ? "good" : "warning"}
-          label={
-            missing.length === 0
-              ? "All expected tabs present"
-              : `${missing.length} expected tab${missing.length === 1 ? "" : "s"} missing`
-          }
-        />
-        <span className="text-[11px] text-ink-muted">
-          {sheets.length} tab{sheets.length === 1 ? "" : "s"} read
-        </span>
-      </div>
-
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {found.map((s) => (
-          <Tag key={s}>{s}</Tag>
-        ))}
-        {extra.map((s) => (
-          <Tag key={s}>{s}</Tag>
-        ))}
-      </div>
-
-      {missing.length > 0 ? (
-        <p className="mt-2.5 text-[11px] leading-relaxed text-ink-secondary">
-          Not in this file: {missing.join(", ")}.
-          {lostContacts
-            ? " Without Contact Details there are no email addresses, so reminders cannot be sent."
-            : ""}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
+function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="bg-surface px-5 py-4">
       <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </dt>
       <dd className="mt-1.5 text-xl font-semibold text-ink">{value}</dd>
+      {note ? <dd className="mt-1 text-[11px] text-ink-muted">{note}</dd> : null}
+    </div>
+  );
+}
+
+function FileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt>{label}</dt>
+      <dd className="tabular text-right text-ink">{value}</dd>
     </div>
   );
 }
@@ -1249,7 +1252,7 @@ function ContactsOnly({
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-xs text-[var(--critical)]">
+        <p className="mt-2 text-xs text-crit-ink">
           <b>Not saved</b>: {error}
         </p>
       ) : null}

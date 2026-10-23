@@ -1,5 +1,5 @@
 import type { Account } from "./types.ts";
-import { billingForTenant, type BillingLine } from "./billing-cycles.ts";
+import { CREDIT_DAYS, type BillingLine } from "./billing-cycles.ts";
 
 /**
  * When each tenant is due a reminder, counted from their own billing date.
@@ -15,32 +15,38 @@ import { billingForTenant, type BillingLine } from "./billing-cycles.ts";
  * letter happened to go.
  *
  * The rule MES actually work to is a count from the billing date: the first
- * reminder once a bill is 23 days old, the final once it is 27. A tenant
+ * reminder once a bill is 23 days old, the final once it is 37. A tenant
  * billed on the 2nd and a tenant billed on the 28th are then chased the same
  * number of days into their own bill, which is what "dynamic" meant.
  *
  * ---------------------------------------------------------------------------
  * Nothing here is hard-coded
  *
- * The two numbers arrive as an argument. They were dictated as 23 and 27 and
- * an earlier note of the same conversation recorded 23 and 37, which is the
- * sort of disagreement that gets settled after the code is written - so the
- * code does not care. DEFAULT_REMINDER_DAYS is a default, not a rule, and
+ * The two numbers arrive as an argument. They were dictated as 23 and 27, an
+ * earlier note of the same conversation recorded 23 and 37, and 37 was
+ * confirmed on 23 October against MES's cycle sheet. That is the sort of
+ * disagreement that gets settled after the code is written - so the code does
+ * not care. DEFAULT_REMINDER_DAYS is a default, not a rule, and
  * anything calling this may pass its own.
  *
  * ---------------------------------------------------------------------------
  * Which bill starts the clock
  *
- * The newest one. Most tenants owe against several runs at once - one in
- * MES's export owes against fifty-six - and the letter quotes the whole
- * balance, so it is a letter about the account rather than about one invoice.
- * Counting from the newest run means a tenant who is billed every month is
- * chased once a month, and the clock restarts when they are billed again.
+ * Every billing date has its own. A tenant's invoices are grouped by the date
+ * they were billed on, and each group is chased on its own: the first reminder
+ * 23 days after that date, the final notice 37 days after it. The letter asks
+ * for that group's total, not the tenant's whole balance, and does not list
+ * the invoices: a tenant can have dozens, and the letter is kept short.
  *
- * Counting from the oldest would leave anyone long overdue permanently past
- * both thresholds, needing a second rule to stop it firing for ever. Counting
- * every run separately would send a tenant with five unpaid runs up to ten
- * letters. Both were considered and rejected on 3 October.
+ * This used to count from the newest bill only, and a new bill restarted the
+ * clock: a tenant owing since August who was billed a small ad hoc charge on
+ * 20 October was not chased again until 12 November. Agreed 23 October:
+ * group by billing date, quote that date's total without listing the
+ * invoices, and several letters a month is acceptable for a tenant billed on
+ * several dates.
+ *
+ * Groups that fall due on the same morning for the same letter go in one
+ * email, so a tenant never gets two first reminders on one day.
  */
 
 export interface ReminderWindow {
@@ -48,20 +54,83 @@ export interface ReminderWindow {
   first: number;
   /** And the final notice. Must not be earlier than the first. */
   final: number;
+  /*
+   * The three choices made on 23 October, kept as settings so MES can change
+   * them on the Settings screen. Optional so a stored window from before
+   * keeps working; sane() fills in the agreed defaults.
+   */
+  /** "each": every billing date is chased on its own. "newest": only the
+      tenant's newest bill, the way it worked before. */
+  countFrom?: "each" | "newest";
+  /** Days after its day that a letter missed may still go. 0: its day only. */
+  lateDays?: number;
+  /** Send the final notice on its day even if this system sent no first. */
+  finalWithoutFirst?: boolean;
 }
 
-export const DEFAULT_REMINDER_DAYS: ReminderWindow = { first: 23, final: 27 };
+/** A window with every choice filled in, as sane() returns it. */
+export type FullWindow = Required<ReminderWindow>;
+
+/* 37 rather than 27: MES's own cycle sheet puts the final notice on the 21st
+   for a bill of the 15th of the month before. Confirmed 23 October. */
+export const DEFAULT_REMINDER_DAYS: FullWindow = {
+  first: 23,
+  final: 37,
+  countFrom: "each",
+  lateDays: 0,
+  finalWithoutFirst: true,
+};
 
 export type ReminderStage = "first-reminder" | "final-notice";
+
+/** One invoice as a letter lists it. */
+export interface BillInvoice {
+  documentNumber: string;
+  description: string;
+  amount: number;
+}
+
+/** A tenant's invoices that share one billing date: what one letter is about. */
+export interface BillRun {
+  billedOn: string;
+  /** When that run fell due, for the letter to quote. */
+  dueBy: string | null;
+  /** What is still owed on these invoices. */
+  amount: number;
+  invoices: BillInvoice[];
+}
+
+/**
+ * A tenant's unpaid invoices, grouped by billing date, oldest first.
+ *
+ * Bills only - lines that add to what is owed. A credit note or a payment has
+ * a date too, but it is not a bill anybody is chased for, and counting it
+ * would invent a billing date with nothing to ask for.
+ */
+export function billRuns(lines: readonly BillingLine[]): BillRun[] {
+  const by = new Map<string, BillRun>();
+  for (const l of lines) {
+    if (!l.date || !(l.openBalance > 0)) continue;
+    const run = by.get(l.date) ?? { billedOn: l.date, dueBy: l.dueDate ?? null, amount: 0, invoices: [] };
+    run.amount = Math.round((run.amount + l.openBalance) * 100) / 100;
+    run.invoices.push({ documentNumber: l.documentNumber ?? "", description: l.description ?? "", amount: l.openBalance });
+    if (!run.dueBy && l.dueDate) run.dueBy = l.dueDate;
+    by.set(l.date, run);
+  }
+  return Array.from(by.values()).sort((a, b) => a.billedOn.localeCompare(b.billedOn));
+}
 
 export interface DueReminder {
   accountId: string;
   companyName: string;
   stage: ReminderStage;
-  /** The billing run the clock was counted from. */
+  /** The billing date the clock was counted from. */
   billedOn: string;
   /** When that run fell due, for the letter to quote. */
   dueBy: string | null;
+  /** What is owed on this billing date's invoices, and the invoices. */
+  amount: number;
+  invoices: BillInvoice[];
   daysSinceBilled: number;
   /**
    * Stable per tenant, per billing run, per stage.
@@ -103,20 +172,25 @@ function dayDiff(from: string, to: string): number | null {
  * first: the two letters land together, which is visible and wrong in a way
  * somebody will report, instead of silently out of order.
  */
-export function sane(window: ReminderWindow): ReminderWindow {
+export function sane(window: ReminderWindow): FullWindow {
+  const first = Math.max(0, Math.round(window.first));
+  const late = Math.round(Number(window.lateDays ?? DEFAULT_REMINDER_DAYS.lateDays));
   return {
-    first: Math.max(0, Math.round(window.first)),
-    final: Math.max(Math.max(0, Math.round(window.first)), Math.round(window.final)),
+    first,
+    final: Math.max(first, Math.round(window.final)),
+    countFrom: window.countFrom === "newest" ? "newest" : "each",
+    lateDays: Number.isFinite(late) ? Math.min(30, Math.max(0, late)) : 0,
+    finalWithoutFirst: window.finalWithoutFirst ?? DEFAULT_REMINDER_DAYS.finalWithoutFirst,
   };
 }
 
 /**
- * The reminder each tenant is due as at `today`, or nothing.
+ * The reminder each billing date is due as at `today`, oldest bill first.
  *
- * At most one per tenant: a bill old enough for the final notice is past the
- * first reminder too, and sending both on the same day would be absurd. The
- * caller decides whether it has already been sent - see `key` - because only
- * the caller knows what has gone out.
+ * One entry per tenant per billing date that has reached the first reminder:
+ * a date old enough for the final notice is past the first too, and is listed
+ * once, at the further stage. The caller decides whether it has already been
+ * sent - see `key` - because only the caller knows what has gone out.
  *
  * `linesFor` rather than the whole invoice list, so this does not need to know
  * how a tenant is matched to their lines. That join is spelt differently in
@@ -135,28 +209,39 @@ export function remindersDueOn(
     /* Nothing owed is nothing to chase, whatever the calendar says. */
     if (a.total <= 0) continue;
 
-    const billing = billingForTenant(linesFor(a), today);
-    if (!billing.billedOn) continue;
+    const runs = billRuns(linesFor(a));
+    /* "newest": the clock runs from the newest bill only, and its letter is
+       about the whole balance, as before 23 October. */
+    const newest = w.countFrom === "newest";
+    for (const run of newest ? runs.slice(-1) : runs) {
+      const age = dayDiff(run.billedOn, today);
+      if (age === null || age < w.first) continue;
+      const stage: ReminderStage = age >= w.final ? "final-notice" : "first-reminder";
 
-    const age = dayDiff(billing.billedOn, today);
-    if (age === null || age < w.first) continue;
-
-    due.push({
-      accountId: a.id,
-      companyName: a.companyName,
-      stage: age >= w.final ? "final-notice" : "first-reminder",
-      billedOn: billing.billedOn,
-      dueBy: billing.dueBy,
-      daysSinceBilled: age,
-      key: reminderKey(
-        a.id,
-        billing.billedOn,
-        age >= w.final ? "final-notice" : "first-reminder",
-      ),
-    });
+      due.push({
+        accountId: a.id,
+        companyName: a.companyName,
+        stage,
+        billedOn: run.billedOn,
+        dueBy: run.dueBy ?? addDays(run.billedOn, CREDIT_DAYS),
+        amount: newest ? a.total : run.amount,
+        invoices: run.invoices,
+        daysSinceBilled: age,
+        key: reminderKey(a.id, run.billedOn, stage),
+      });
+    }
   }
 
   return due;
+}
+
+function addDays(iso: string, days: number): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  d.setDate(d.getDate() + days);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /**
@@ -192,10 +277,13 @@ export function reminderDatesFor(
  * 1st arrived. So the question is now "has this tenant had this letter since
  * their current bill was raised", which is the same question asked properly.
  *
- * It needs no new column. Every letter already records when it went, and a
- * letter sent on or after the billing date is about that bill or a later one.
- * That also makes it blind to how the letter was sent: one the nine o'clock
- * run wrote and one an officer sent from the Reminders screen count alike.
+ * Each letter records the billing dates it was about (emails_sent.billed_on),
+ * so a reminder for the bill of the 15th does not count for the bill of the
+ * 24th. Letters sent before that column existed were about the tenant's whole
+ * balance, so they count for every bill raised on or before the day they
+ * went. Either way it is blind to how the letter was sent: one the nine
+ * o'clock run wrote and one an officer sent from the Reminders screen count
+ * alike.
  */
 
 export interface SentLetter {
@@ -203,12 +291,48 @@ export interface SentLetter {
   stage: ReminderStage;
   /** When it really left. ISO, date or timestamp. */
   sentAt: string;
+  /** The billing dates it was about. Absent for letters sent before they were
+      recorded, which were about the whole balance. */
+  billedOn?: readonly string[] | null;
 }
 
+/** Whether this letter was about the bill of `billedOn`. */
+export function letterCovers(s: Pick<SentLetter, "sentAt" | "billedOn">, billedOn: string): boolean {
+  if (s.billedOn && s.billedOn.length > 0) return s.billedOn.includes(billedOn);
+  return dayOf(s.sentAt) >= billedOn;
+}
+
+/**
+ * The reminder letters in a list of sent emails, really sent only.
+ *
+ * Every screen that asks "what has this tenant been sent" builds this list,
+ * and they used to build it three slightly different ways. The template ids
+ * are named for the 7th and the 21st, which they no longer mean; renaming
+ * them would break the link to every letter already on record.
+ */
+export function sentReminders(
+  emails: readonly { accountId: string; templateId: string; at: string; simulated?: boolean; billedOn?: readonly string[] | null }[],
+): SentLetter[] {
+  return emails
+    .filter((e) => !e.simulated && (e.templateId === "reminder-7th" || e.templateId === "final-21st"))
+    .map((e) => ({
+      tenantId: e.accountId,
+      stage: e.templateId === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
+      sentAt: e.at,
+      billedOn: e.billedOn ?? null,
+    }));
+}
+
+/** One email to one tenant: one letter, one or more billing dates. */
 export interface PlannedLetter {
   accountId: string;
   stage: ReminderStage;
+  /** The billing dates it covers, oldest first. Usually one. */
+  bills: BillRun[];
+  /** The newest of those dates: what a saved edit and the letter's id are keyed on. */
   billedOn: string;
+  /** The total of the listed invoices, which is the figure the letter asks for. */
+  amount: number;
   dueBy: string | null;
   /** Said in the run's diary when the letter is not the obvious one. */
   note: string | null;
@@ -224,106 +348,113 @@ const dayOf = (iso: string) => iso.slice(0, 10);
 /**
  * Which of today's due reminders actually go, and why the rest do not.
  *
- * Two rules beyond the window, both about order:
+ * One day each, and no catching up. Agreed 23 October:
  *
- *   A final notice never goes to somebody who has not had the first reminder
- *   for this bill. If the first was missed - a report uploaded late, a run
- *   that failed - the first goes now and the final waits, rather than a
- *   tenant's first contact being the letter that cites the regulations.
+ *   The first reminder goes on the day the bill is 23 days old, and only
+ *   then. A bill already past that day when the system first sees it - a
+ *   report uploaded late, a bill from before the system - is taken to have
+ *   been reminded by MES, and nothing is sent for it.
  *
- *   And the final waits the same gap after the first that the window sets
- *   between them. A first reminder sent late on day 40 is not followed by the
- *   final on day 41.
+ *   The final notice goes on the day the bill is 37 days old, whether or not
+ *   this system sent that bill's first reminder. A bill first seen on day 30
+ *   missed its first reminder here, but MES chased it before the system did,
+ *   so the final notice still goes on its day.
+ *
+ *   A morning that did not run, or failed, does not send its letters on a
+ *   later morning. Running that morning again does (see askedFor), and a
+ *   retry button for it is to come.
+ *
+ * Decided for each billing date on its own, then gathered: everything one
+ * tenant is due for the same letter today goes in one email.
+ *
+ * Only bills whose day is today are reported as held. Every other bill is
+ * simply not due anything today, and listing them every morning would bury
+ * the ones that are.
  */
 export function lettersToWrite(
   due: readonly DueReminder[],
   sent: readonly SentLetter[],
-  today: string,
   window: ReminderWindow = DEFAULT_REMINDER_DAYS,
 ): { write: PlannedLetter[]; held: HeldLetter[] } {
   const w = sane(window);
-  const gap = w.final - w.first;
-  const write: PlannedLetter[] = [];
+  const each: { d: DueReminder; stage: ReminderStage; note: string | null }[] = [];
   const held: HeldLetter[] = [];
 
   for (const d of due) {
-    const since = sent.filter(
-      (s) => s.tenantId === d.accountId && dayOf(s.sentAt) >= d.billedOn,
-    );
-    const firsts = since
-      .filter((s) => s.stage === "first-reminder")
-      .map((s) => dayOf(s.sentAt))
-      .sort();
-    const hadFinal = since.some((s) => s.stage === "final-notice");
+    const about = sent.filter((s) => s.tenantId === d.accountId && letterCovers(s, d.billedOn));
+    const hadFirst = about.some((s) => s.stage === "first-reminder");
+    const hadFinal = about.some((s) => s.stage === "final-notice");
+    /* Its day, or up to lateDays after it (Settings; 0 since 23 October). A
+       first reminder stops being due once the final notice's day arrives. */
+    const age = d.daysSinceBilled;
+    const firstWindow = age >= w.first && age <= w.first + w.lateDays && age < w.final;
+    const finalWindow = age >= w.final && age <= w.final + w.lateDays;
 
-    if (hadFinal) {
-      held.push({
-        accountId: d.accountId,
-        why: `already had the final notice for the bill of ${d.billedOn}`,
-      });
-      continue;
-    }
-
-    if (d.stage === "first-reminder") {
-      if (firsts.length > 0) {
+    if (firstWindow) {
+      if (hadFirst) {
+        held.push({ accountId: d.accountId, why: `already had the first reminder for the bill of ${d.billedOn}` });
+      } else {
+        each.push({ d, stage: "first-reminder", note: age > w.first ? `${age - w.first} days late` : null });
+      }
+    } else if (finalWindow) {
+      if (hadFinal) {
+        held.push({ accountId: d.accountId, why: `already had the final notice for the bill of ${d.billedOn}` });
+      } else if (!hadFirst && !w.finalWithoutFirst) {
         held.push({
           accountId: d.accountId,
-          why: `already had the first reminder for the bill of ${d.billedOn}`,
+          why: `no first reminder was sent for the bill of ${d.billedOn}, and Settings say no final notice without one`,
         });
       } else {
-        write.push({ accountId: d.accountId, stage: "first-reminder", billedOn: d.billedOn, dueBy: d.dueBy, note: null });
+        each.push({
+          d,
+          stage: "final-notice",
+          note: hadFirst ? null : `no first reminder was sent from this system for the bill of ${d.billedOn}; the final notice goes on its day regardless`,
+        });
       }
-      continue;
-    }
-
-    /* Past the final threshold from here on. */
-    if (firsts.length === 0) {
-      write.push({
-        accountId: d.accountId,
-        stage: "first-reminder",
-        billedOn: d.billedOn,
-        dueBy: d.dueBy,
-        note:
-          `past the final notice point for the bill of ${d.billedOn} but never ` +
-          `sent the first reminder, so the first goes now and the final ` +
-          `follows ${gap} days after it`,
-      });
-      continue;
-    }
-
-    const firstOn = firsts[firsts.length - 1];
-    const waited = dayDiff(firstOn, today);
-    if (waited !== null && waited >= gap) {
-      write.push({ accountId: d.accountId, stage: "final-notice", billedOn: d.billedOn, dueBy: d.dueBy, note: null });
-    } else {
-      held.push({
-        accountId: d.accountId,
-        why: `final notice waits until ${gap} days after the first reminder of ${firstOn}`,
-      });
     }
   }
 
-  return { write, held };
+  /* Gathered per tenant per letter, in the order the tenants came. */
+  const byLetter = new Map<string, PlannedLetter>();
+  for (const { d, stage, note } of each) {
+    const k = `${d.accountId}|${stage}`;
+    const bill: BillRun = { billedOn: d.billedOn, dueBy: d.dueBy, amount: d.amount, invoices: d.invoices };
+    const at = byLetter.get(k);
+    if (!at) {
+      byLetter.set(k, { accountId: d.accountId, stage, bills: [bill], billedOn: d.billedOn, amount: d.amount, dueBy: d.dueBy, note });
+      continue;
+    }
+    at.bills.push(bill);
+    at.bills.sort((a, b) => a.billedOn.localeCompare(b.billedOn));
+    at.billedOn = at.bills[at.bills.length - 1]!.billedOn;
+    at.dueBy = at.bills[at.bills.length - 1]!.dueBy;
+    at.amount = Math.round((at.amount + d.amount) * 100) / 100;
+    at.note = [at.note, note].filter(Boolean).join("; ") || null;
+  }
+
+  return { write: Array.from(byLetter.values()), held };
 }
 
-/** Where one tenant stands with their letters for their current bill. */
+/** Where one tenant stands with their letters for one billing date. */
 export type LetterPosition =
   | { kind: "not-yet" }
   | { kind: "first-due" }
   | { kind: "first-sent"; firstSentOn: string; finalDueOn: string }
-  | { kind: "final-due"; firstSentOn: string }
-  | { kind: "final-sent"; finalSentOn: string };
+  /* firstSentOn is null where this system never sent the first reminder. */
+  | { kind: "final-due"; firstSentOn: string | null }
+  | { kind: "final-sent"; finalSentOn: string }
+  /* The first reminder's day went by with no first reminder. finalComing:
+     whether the final notice will still go on its own day (Settings). */
+  | { kind: "first-missed"; firstOn: string; finalOn: string; finalComing: boolean }
+  /* The final notice's day went by without it: no more emails for this bill. */
+  | { kind: "final-missed"; firstSentOn: string | null; finalOn: string };
 
 /**
- * Where a tenant stands, from the dates and from what has really been sent.
+ * Where a bill stands, from its dates and from what has really been sent.
  *
- * The schedule screen's "When each tenant would be chased" read the dates
- * alone, so on 14 October it said "final notice due" against all 255 tenants
- * while the 9am run, which knew none had had a first reminder, wrote 242 first
- * reminders - and once a first reminder went, the card would have gone on
- * saying "final notice due" regardless. The same rules as lettersToWrite, so
- * the card says what the run will do: the first reminder before the final
- * notice, and the final waiting the window's gap after the first really went.
+ * The same rules as lettersToWrite, so the card says what the run will do:
+ * each letter on its one day, the final on its day whether or not the first
+ * went, and a day that has gone by stays gone.
  */
 export function letterPosition(
   billedOn: string,
@@ -335,21 +466,28 @@ export function letterPosition(
   const dates = reminderDatesFor(billedOn, w);
   if (!dates) return { kind: "not-yet" };
 
-  const since = sent.filter((s) => dayOf(s.sentAt) >= billedOn);
-  const finals = since.filter((s) => s.stage === "final-notice").map((s) => dayOf(s.sentAt)).sort();
+  const about = sent.filter((s) => letterCovers(s, billedOn));
+  const finals = about.filter((s) => s.stage === "final-notice").map((s) => dayOf(s.sentAt)).sort();
   if (finals.length > 0) return { kind: "final-sent", finalSentOn: finals[finals.length - 1]! };
 
-  const firsts = since.filter((s) => s.stage === "first-reminder").map((s) => dayOf(s.sentAt)).sort();
+  /* The same windows as lettersToWrite: its day, or up to lateDays after. */
+  const age = dayDiff(billedOn, today) ?? 0;
+  const inFinal = age >= w.final && age <= w.final + w.lateDays;
+
+  const firsts = about.filter((s) => s.stage === "first-reminder").map((s) => dayOf(s.sentAt)).sort();
   if (firsts.length > 0) {
     const firstSentOn = firsts[firsts.length - 1]!;
-    const afterFirst = reminderDatesFor(firstSentOn, { first: w.final - w.first, final: w.final - w.first })!.first;
-    const finalDueOn = afterFirst > dates.final ? afterFirst : dates.final;
-    return today >= finalDueOn
-      ? { kind: "final-due", firstSentOn }
-      : { kind: "first-sent", firstSentOn, finalDueOn };
+    if (age < w.final) return { kind: "first-sent", firstSentOn, finalDueOn: dates.final };
+    if (inFinal) return { kind: "final-due", firstSentOn };
+    return { kind: "final-missed", firstSentOn, finalOn: dates.final };
   }
 
-  return today >= dates.first ? { kind: "first-due" } : { kind: "not-yet" };
+  if (age < w.first) return { kind: "not-yet" };
+  if (age <= w.first + w.lateDays && age < w.final) return { kind: "first-due" };
+  const missed = { kind: "first-missed" as const, firstOn: dates.first, finalOn: dates.final, finalComing: w.finalWithoutFirst };
+  if (age < w.final || !w.finalWithoutFirst) return { ...missed, finalComing: w.finalWithoutFirst && age < w.final };
+  if (inFinal) return { kind: "final-due", firstSentOn: null };
+  return { kind: "final-missed", firstSentOn: null, finalOn: dates.final };
 }
 
 /**

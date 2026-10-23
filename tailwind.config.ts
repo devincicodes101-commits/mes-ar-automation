@@ -24,9 +24,14 @@ const config: Config = {
         },
         accent: {
           DEFAULT: "var(--accent)",
+          strong: "var(--accent-strong)",
           ink: "var(--accent-ink)",
           wash: "var(--accent-wash)",
+          text: "var(--accent-text)",
         },
+        good: { wash: "var(--good-wash)", ink: "var(--good-ink)", line: "var(--good-line)" },
+        warn: { wash: "var(--warn-wash)", ink: "var(--warn-ink)", line: "var(--warn-line)" },
+        crit: { wash: "var(--crit-wash)", ink: "var(--crit-ink)", line: "var(--crit-line)" },
         age: {
           1: "var(--age-1)",
           2: "var(--age-2)",
@@ -43,9 +48,9 @@ const config: Config = {
         },
       },
       borderRadius: {
-        DEFAULT: "2px",
-        md: "3px",
-        lg: "4px",
+        DEFAULT: "4px",
+        md: "6px",
+        lg: "8px",
       },
       fontFamily: {
         sans: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],

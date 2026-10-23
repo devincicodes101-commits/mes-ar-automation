@@ -1,3 +1,4 @@
+import { feeAge, feeBillsOf, type FeeBill } from "./billing-cycles.ts";
 import type { Account, BucketKey, Invoice, PropertyCode } from "./types";
 import { BUCKETS } from "./types.ts";
 import { round2 } from "./aging-detail.ts";
@@ -584,7 +585,7 @@ export function buildManagerReports(
 
     reports.push({
       code: `RM-${rep.replace(/\W+/g, "-")}`,
-      name: `${rep} — clients by dorm`,
+      name: `${rep}: clients by dorm`,
       shorthand: "RM",
       managerName: rep,
       asOf,
@@ -612,6 +613,8 @@ export function buildManagerReports(
  * Tenants on GIRO are excluded, per Jacqueline's standing instruction to the
  * AR team. See giroEnrolled for how they are identified without the bank file.
  */
+export type { FeeBill };
+
 export interface LateFeeCandidate {
   account: Account;
   overdue: number;
@@ -629,7 +632,16 @@ export interface LateFeeCandidate {
   /** Whether this system already raised one for the month being looked at. */
   raisedThisPeriod: boolean;
   approximate: boolean;
+  /**
+   * The bills the fee is for: each billing date with something more than the
+   * minimum days past due, oldest first. Raman, 18 October: the fee stays on
+   * the 16th, but the officer should see which bill it is for, and whether
+   * that bill was billed off the normal cycle.
+   */
+  feeBills: FeeBill[];
 }
+
+
 
 /** One fee this system raised, as the activity log reports it. */
 export interface RaisedFee {
@@ -645,7 +657,7 @@ export interface LateFeeListing {
   minimumAgeDays: number;
   rows: LateFeeCandidate[];
   /** Excluded because they are on GIRO, listed so the exclusion is auditable. */
-  giroExcluded: { account: Account; overdue: number }[];
+  giroExcluded: { account: Account; overdue: number; feeBills: FeeBill[] }[];
   notes: string[];
 }
 
@@ -657,6 +669,8 @@ export function buildLateFeeListing(
   opts: {
     fee?: number;
     minimumAgeDays?: number;
+    /** Count those days from the due date (the default) or the billing date. */
+    from?: "due" | "billing";
     /**
      * What this system has already raised.
      *
@@ -671,6 +685,7 @@ export function buildLateFeeListing(
 ): LateFeeListing {
   const fee = opts.fee ?? 100;
   const minimumAgeDays = opts.minimumAgeDays ?? 14;
+  const from = opts.from ?? "due";
   const onGiro = giroEnrolled(invoices);
 
   /*
@@ -705,7 +720,7 @@ export function buildLateFeeListing(
     const overdue = round2(
       dated.length > 0
         ? dated
-            .filter((i) => (i.age as number) >= minimumAgeDays)
+            .filter((i) => (feeAge(i, from) ?? -1) >= minimumAgeDays)
             .reduce((n, i) => n + i.openBalance, 0)
         : a.buckets.d30 + a.buckets.d60 + a.buckets.d90 + a.buckets.d90plus,
     );
@@ -713,7 +728,7 @@ export function buildLateFeeListing(
     if (overdue <= 0) continue;
 
     if (onGiro.has(key)) {
-      giroExcluded.push({ account: a, overdue });
+      giroExcluded.push({ account: a, overdue, feeBills: feeBillsOf(dated, minimumAgeDays, from) });
       continue;
     }
 
@@ -725,6 +740,7 @@ export function buildLateFeeListing(
       raisedByUs: raisedEver.get(a.id) ?? 0,
       raisedThisPeriod: raisedNow.has(a.id),
       approximate: dated.length === 0,
+      feeBills: feeBillsOf(dated, minimumAgeDays, from),
     });
   }
 
@@ -733,7 +749,7 @@ export function buildLateFeeListing(
 
   const notes = [
     `The fee is $${fee} before GST, charged once per tenant per cycle, on ` +
-      `anything more than ${minimumAgeDays} calendar days past its due date. ` +
+      `anything more than ${minimumAgeDays} calendar days past its ${from === "due" ? "due" : "billing"} date. ` +
       "MES's own reminder letter states the rule.",
   ];
   const already = rows.filter((r) => r.raisedThisPeriod).length;

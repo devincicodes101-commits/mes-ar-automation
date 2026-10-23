@@ -231,13 +231,13 @@ export default function MovementPage() {
                     ) : null}
                   </td>
                   <td className="px-5 py-2.5 text-right tabular-nums text-ink-secondary">
-                    {m.before === null ? "—" : formatSgd(m.before)}
+                    {m.before === null ? "-" : formatSgd(m.before)}
                   </td>
                   <td className="px-5 py-2.5 text-right tabular-nums text-ink">
-                    {m.after === null ? "—" : formatSgd(m.after)}
+                    {m.after === null ? "-" : formatSgd(m.after)}
                   </td>
                   <td className="px-5 py-2.5 text-xs text-ink-secondary">
-                    {m.bucketAfter ?? m.bucketBefore ?? "—"}
+                    {m.bucketAfter ?? m.bucketBefore ?? "-"}
                   </td>
                 </tr>
               ))}
@@ -355,7 +355,7 @@ function ReportPicker({
     <div className="flex items-center gap-2 text-xs">
       <select
         aria-label="Earlier report"
-        className="rounded border border-line-hair bg-surface px-2 py-1 text-xs"
+        className="rounded-md border border-line-strong bg-surface px-2 py-1 text-xs"
         value={from}
         onChange={(e) => onChange({ from: e.target.value, to })}
       >
@@ -368,7 +368,7 @@ function ReportPicker({
       <span className="text-ink-muted">to</span>
       <select
         aria-label="Later report"
-        className="rounded border border-line-hair bg-surface px-2 py-1 text-xs"
+        className="rounded-md border border-line-strong bg-surface px-2 py-1 text-xs"
         value={to}
         onChange={(e) => onChange({ from, to: e.target.value })}
       >

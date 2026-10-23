@@ -6,8 +6,9 @@ import { checkEdit } from "@/lib/letter-edits";
 import { LETTER_BODIES, fillWording, letterById, type LetterId } from "@/lib/letters";
 import { authHeader, savedKey, type SavedEdit } from "@/lib/use-letter-edits";
 import { useToast } from "@/lib/session";
-import { Modal } from "@/components/ui";
+import { Modal, Skeleton } from "@/components/ui";
 import { formatDate } from "@/lib/data";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Editing one tenant's letter, for the automatic run to send.
@@ -28,7 +29,33 @@ const NAMES: Record<LetterId, string> = {
   "final-notice": "Final notice",
 };
 
-export function LetterEditor({
+/**
+ * The editor, once the saved edits are known.
+ *
+ * The form takes its starting text from the saved edit when it opens, so it
+ * must not open before the edits have arrived: it would start on the standard
+ * letter, and saving would quietly replace the edit somebody made.
+ */
+export function LetterEditor(
+  props: Parameters<typeof LetterEditorForm>[0] & { editsLoaded?: boolean },
+) {
+  const { editsLoaded = true, ...rest } = props;
+  if (!editsLoaded) {
+    return (
+      <Modal wide title={`Edit the automatic letter · ${props.companyName}`} onClose={props.onClose}>
+        <div className="space-y-3" role="status" aria-label="Loading">
+          <Skeleton className="h-14 w-full rounded-md" />
+          <Skeleton className="h-8 w-56 rounded-lg" />
+          <Skeleton className="h-9 w-full rounded-lg" />
+          <Skeleton className="h-64 w-full rounded-lg" />
+        </div>
+      </Modal>
+    );
+  }
+  return <LetterEditorForm {...rest} />;
+}
+
+function LetterEditorForm({
   tenantId,
   companyName,
   billedOn,
@@ -44,7 +71,7 @@ export function LetterEditor({
   companyName: string;
   /** The bill this letter is about, ISO. An edit belongs to this bill only. */
   billedOn: string;
-  /** What they owe, for the preview. */
+  /** What the letter asks for, for the preview: its billing date's total. */
   owed: number;
   /** When each letter goes, ISO, for the dates in the preview. */
   sendOn: Record<LetterId, string | null>;
@@ -143,7 +170,7 @@ export function LetterEditor({
       <div className="space-y-4">
         {/* The disclaimer. Said before anything else, because it changes what
             happens without anybody pressing send. */}
-        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+        <div className="rounded border border-warn-line bg-warn-wash px-3 py-2.5 text-xs leading-relaxed text-warn-ink">
           <p className="font-semibold">Please note</p>
           <p className="mt-0.5">
             Once you save, the <b>automatic 9am run will send this wording</b> to {companyName}{" "}
@@ -157,14 +184,15 @@ export function LetterEditor({
           <div className="rounded border border-accent bg-surface-alt px-3 py-2 text-xs text-ink">
             <b>This letter has been edited.</b> The automatic run will send the edited version
             to {companyName}. Saved{" "}
-            {new Date(saved.editedAt).toLocaleString("en-SG")}.
+            {formatDateTime(saved.editedAt)}.
             {!canEdit || saved.body === undefined
               ? " You can see that it was changed but not the words."
               : ""}
           </div>
         ) : null}
 
-        <div className="flex gap-1.5" role="tablist" aria-label="Which letter">
+        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Which letter">
+          <div className="flex gap-1 rounded-lg bg-surface-alt p-1">
           {(["first-reminder", "final-notice"] as const).map((id) => {
             const isEdited = edits.has(savedKey(tenantId, id, billedOn));
             return (
@@ -174,17 +202,18 @@ export function LetterEditor({
                 role="tab"
                 aria-selected={stage === id}
                 onClick={() => pick(id)}
-                className={
+                className={`whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] ${
                   stage === id
-                    ? "rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
-                    : "rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong"
-                }
+                    ? "bg-surface font-medium text-accent-text shadow-sm"
+                    : "text-ink-muted hover:text-ink-secondary"
+                }`}
               >
                 {NAMES[id]}
                 {isEdited ? " · edited" : ""}
               </button>
             );
           })}
+          </div>
           <span className="ml-auto self-center text-[11px] text-ink-muted">
             goes {sendOn[stage] ?? "on its date"}
           </span>
@@ -196,7 +225,7 @@ export function LetterEditor({
             value={subject}
             disabled={!canEdit}
             onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink disabled:opacity-60"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink disabled:opacity-60"
           />
         </label>
 
@@ -209,11 +238,11 @@ export function LetterEditor({
             disabled={!canEdit}
             onChange={(e) => setBody(e.target.value)}
             rows={14}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-ink disabled:opacity-60"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm leading-relaxed text-ink disabled:opacity-60"
           />
         </label>
 
-        {problem ? <p className="text-xs text-red-700">{problem}</p> : null}
+        {problem ? <p className="text-xs text-crit-ink">{problem}</p> : null}
 
         <details className="rounded border border-line-hair">
           <summary className="cursor-pointer px-3 py-2 text-xs text-ink-secondary">

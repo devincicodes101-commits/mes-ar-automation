@@ -332,7 +332,7 @@ const COLUMNS = {
   },
   industry: {
     names: ["End User: Industry Type", "Industry"],
-    purpose: "The industry breakdown report for management will be empty.",
+    purpose: "Reports will not group tenants by line of business.",
   },
   status: {
     names: ["Status"],

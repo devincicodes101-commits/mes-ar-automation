@@ -158,7 +158,7 @@ export default function ActionListPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Tenants to chase"
           value={String(queue.length)}
@@ -229,7 +229,7 @@ export default function ActionListPage() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusFilter)}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+              className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
             >
               <option value="All">Everyone</option>
               <option value="Live">Live only</option>
@@ -244,7 +244,7 @@ export default function ActionListPage() {
             <select
               value={age}
               onChange={(e) => setAge(e.target.value as AgeFilter)}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+              className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
             >
               {AGE_FILTERS.map((f) => (
                 <option key={f.key} value={f.key}>
@@ -261,7 +261,7 @@ export default function ActionListPage() {
             <select
               value={charge}
               onChange={(e) => setCharge(e.target.value)}
-              className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+              className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
             >
               <option value="All">Any charge</option>
               {types.map((t) => (

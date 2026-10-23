@@ -9,7 +9,7 @@ export const BUCKETS: { key: BucketKey; label: string; ramp: number }[] = [
   { key: "d30", label: "30 days", ramp: 2 },
   { key: "d60", label: "60 days", ramp: 3 },
   { key: "d90", label: "90 days", ramp: 4 },
-  { key: "d90plus", label: "90+ days", ramp: 5 },
+  { key: "d90plus", label: "More than 90 days", ramp: 5 },
 ];
 
 /** Follow-up begins once a balance crosses 30 days. MES SOP 1.3. */

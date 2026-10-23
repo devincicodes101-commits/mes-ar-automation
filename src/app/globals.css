@@ -5,18 +5,13 @@
 /*
   MES AR Automation - design tokens.
 
-  Monochrome by design. The interface is grey and white with near-black or
-  near-white as the only accent, so it reads as a finance tool rather than a
-  template.
+  Neutral grey and white, with one brand colour: MES blue, taken from the
+  logo (#05539b). Blue marks what can be acted on and where you are -
+  primary buttons, the current page, links, focus, selected tabs - and is the
+  hue of the aging ramp, light to dark as a balance gets older.
 
-  Aging severity is an ORDINAL ramp of neutral grey, light to dark, validated
-  with the dataviz validator in both modes:
-    light  #a3a29c,#85847e,#66655f,#47463f,#2a2924  ALL CHECKS PASS
-    dark   #4f4e47,#6d6c63,#8b8a80,#a9a89d,#c7c6ba  ALL CHECKS PASS
-
-  The only colour anywhere is the four reserved status hues. They appear as a
-  single small glyph and always carry a text label beside them, so meaning
-  never rests on colour and the page never reads as colourful.
+  Status (paid, due, overdue, failed) uses four fixed hues, always as a tinted
+  pill with a text label, so meaning never rests on colour alone.
 */
 
 :root {
@@ -39,20 +34,32 @@
   --border: rgba(16, 16, 16, 0.12);
   --border-strong: rgba(16, 16, 16, 0.26);
 
-  /* accent is ink, not a hue */
-  --accent: #101010;
+  /* MES blue */
+  --accent: #05539b;
+  --accent-strong: #04427c;
   --accent-ink: #ffffff;
-  --accent-wash: #e8e8e4;
+  --accent-wash: #e6eef7;
+  --accent-text: #05539b;
 
-  /* aging ordinal ramp: current through 90 plus */
-  --age-1: #a3a29c;
-  --age-2: #85847e;
-  --age-3: #66655f;
-  --age-4: #47463f;
-  --age-5: #2a2924;
+  /* aging ordinal ramp, MES blue light to dark: current through 90 plus */
+  --age-1: #b4cbe4;
+  --age-2: #7fa6d1;
+  --age-3: #4b7fba;
+  --age-4: #1f5c9f;
+  --age-5: #0b3666;
 
-  /* credit reads as ink, not green */
   --credit: #4a4945;
+
+  /* status washes: background, text, border */
+  --good-wash: #e8f5ea;
+  --good-ink: #1d6b2a;
+  --good-line: #b9dfc0;
+  --warn-wash: #fdf4e1;
+  --warn-ink: #7a4f06;
+  --warn-line: #f0d595;
+  --crit-wash: #fbeceb;
+  --crit-ink: #9b2420;
+  --crit-line: #efc0bd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -73,17 +80,29 @@
     --border: rgba(247, 247, 245, 0.12);
     --border-strong: rgba(247, 247, 245, 0.28);
 
-    --accent: #f7f7f5;
-    --accent-ink: #0c0c0b;
-    --accent-wash: #292927;
+    --accent: #2f74c0;
+    --accent-strong: #3f84d1;
+    --accent-ink: #ffffff;
+    --accent-wash: #16263a;
+    --accent-text: #8db9ea;
 
-    --age-1: #4f4e47;
-    --age-2: #6d6c63;
-    --age-3: #8b8a80;
-    --age-4: #a9a89d;
-    --age-5: #c7c6ba;
+    --age-1: #1e3550;
+    --age-2: #2a5585;
+    --age-3: #3d78b8;
+    --age-4: #6c9fdb;
+    --age-5: #a9c9ef;
 
     --credit: #b5b4ab;
+
+    --good-wash: #12291a;
+    --good-ink: #8fd49c;
+    --good-line: #24502f;
+    --warn-wash: #2b220f;
+    --warn-ink: #f0c66e;
+    --warn-line: #5a451a;
+    --crit-wash: #2e1514;
+    --crit-ink: #f2a19c;
+    --crit-line: #5e2825;
   }
 }
 
@@ -104,17 +123,29 @@
   --border: rgba(247, 247, 245, 0.12);
   --border-strong: rgba(247, 247, 245, 0.28);
 
-  --accent: #f7f7f5;
-  --accent-ink: #0c0c0b;
-  --accent-wash: #292927;
+  --accent: #2f74c0;
+  --accent-strong: #3f84d1;
+  --accent-ink: #ffffff;
+  --accent-wash: #16263a;
+  --accent-text: #8db9ea;
 
-  --age-1: #4f4e47;
-  --age-2: #6d6c63;
-  --age-3: #8b8a80;
-  --age-4: #a9a89d;
-  --age-5: #c7c6ba;
+  --age-1: #1e3550;
+  --age-2: #2a5585;
+  --age-3: #3d78b8;
+  --age-4: #6c9fdb;
+  --age-5: #a9c9ef;
 
   --credit: #b5b4ab;
+
+  --good-wash: #12291a;
+  --good-ink: #8fd49c;
+  --good-line: #24502f;
+  --warn-wash: #2b220f;
+  --warn-ink: #f0c66e;
+  --warn-line: #5a451a;
+  --crit-wash: #2e1514;
+  --crit-ink: #f2a19c;
+  --crit-line: #5e2825;
 }
 
 /* Status palette is fixed and never themed. Always paired with icon + label. */
@@ -158,6 +189,28 @@ body {
   }
 }
 
+/* An indeterminate loader: a short bar sliding across, over and over. */
+@keyframes loader-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.loader-bar {
+  animation: loader-slide 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-bar {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
@@ -191,8 +244,250 @@ body {
   }
 }
 
-/* Focus ring is ink, matching the monochrome accent. */
-:where(button, a, input, select, [tabindex]):focus-visible {
+/* Focus ring in MES blue. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Primary buttons: a hover that darkens rather than fades, and a disabled
+   state that reads as unavailable instead of a paler blue. */
+.bg-accent:not(:disabled):hover {
+  opacity: 1;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+/*
+  Buttons, everywhere at once: raised, like a key.
+
+  Every bordered button has a face lit slightly from above and a solid
+  darker edge underneath. Hover lifts it a pixel; pressing pushes it down
+  onto the edge. Segmented tabs and list rows carry no border class, so
+  they are left flat.
+*/
+:root {
+  --btn1-top: #1f6dba;
+  --btn1-bottom: #05539b;
+  --btn1-edge: #023566;
+  --btn1-glow: rgba(5, 83, 155, 0.28);
+
+  --btn2-top: #ffffff;
+  --btn2-bottom: #f1f1ed;
+  --btn2-edge: #c4c3bb;
+  --btn2-glow: rgba(16, 16, 16, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --btn1-top: #4189d6;
+  --btn1-bottom: #2f74c0;
+  --btn1-edge: #173f6e;
+  --btn1-glow: rgba(0, 0, 0, 0.45);
+
+  --btn2-top: #2a2a28;
+  --btn2-bottom: #20201e;
+  --btn2-edge: #050505;
+  --btn2-glow: rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --btn1-top: #4189d6;
+    --btn1-bottom: #2f74c0;
+    --btn1-edge: #173f6e;
+    --btn1-glow: rgba(0, 0, 0, 0.45);
+
+    --btn2-top: #2a2a28;
+    --btn2-bottom: #20201e;
+    --btn2-edge: #050505;
+    --btn2-glow: rgba(0, 0, 0, 0.4);
+  }
+}
+
+button,
+a {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 90ms ease,
+    transform 90ms ease,
+    filter 120ms ease;
+}
+
+button.border:not([aria-pressed]):not([role="tab"]):is(.rounded, .rounded-md) {
+  border-radius: 9px;
+}
+
+/* The small size, raised to a comfortable click target with readable text. */
+button.border:not([aria-pressed]):not([role="tab"]).text-xs:not(.py-0\.5) {
+  min-height: 34px;
+  padding-inline: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+button.border:not([aria-pressed]):not([role="tab"]).text-sm {
+  min-height: 38px;
+  padding-inline: 16px;
+  font-weight: 500;
+}
+
+/* Fields beside buttons share their height and corners. */
+:is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select).border:not(.py-0\.5) {
+  min-height: 34px;
+  border-radius: 9px;
+}
+
+/* ---- primary: MES blue key */
+button.bg-accent:not([aria-pressed]):not([role="tab"]):not(:disabled) {
+  background: linear-gradient(180deg, var(--btn1-top), var(--btn1-bottom));
+  border-color: var(--btn1-edge);
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+  box-shadow:
+    0 3px 0 var(--btn1-edge),
+    0 5px 10px var(--btn1-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+button.bg-accent:not([aria-pressed]):not([role="tab"]):not(:disabled):hover {
+  background: linear-gradient(180deg, var(--btn1-top), var(--btn1-bottom));
+  border-color: var(--btn1-edge);
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 0 var(--btn1-edge),
+    0 7px 14px var(--btn1-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+button.bg-accent:not([aria-pressed]):not([role="tab"]):not(:disabled):active {
+  filter: brightness(0.97);
+  transform: translateY(3px);
+  box-shadow:
+    0 0 0 var(--btn1-edge),
+    0 1px 2px var(--btn1-glow),
+    inset 0 2px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* ---- secondary: light key */
+button.border:not([aria-pressed]):not([role="tab"]):not(.bg-accent):not(:disabled) {
+  background: linear-gradient(180deg, var(--btn2-top), var(--btn2-bottom));
+  border-color: var(--btn2-edge);
+  box-shadow:
+    0 2px 0 var(--btn2-edge),
+    0 4px 8px var(--btn2-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+button.border:not([aria-pressed]):not([role="tab"]):not(.bg-accent):not(:disabled):hover {
+  background: linear-gradient(180deg, var(--btn2-top), var(--btn2-bottom));
+  border-color: var(--btn2-edge);
+  color: var(--accent-text);
+  transform: translateY(-1px);
+  box-shadow:
+    0 3px 0 var(--btn2-edge),
+    0 6px 12px var(--btn2-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+button.border:not([aria-pressed]):not([role="tab"]):not(.bg-accent):not(:disabled):active {
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 var(--btn2-edge),
+    0 1px 2px var(--btn2-glow),
+    inset 0 2px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- links that look like buttons get the same light key */
+a.border:is(.rounded, .rounded-md) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding-inline: 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  background: linear-gradient(180deg, var(--btn2-top), var(--btn2-bottom));
+  border-color: var(--btn2-edge);
+  box-shadow:
+    0 2px 0 var(--btn2-edge),
+    0 4px 8px var(--btn2-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+a.border:is(.rounded, .rounded-md):hover {
+  color: var(--accent-text);
+  transform: translateY(-1px);
+}
+
+a.border:is(.rounded, .rounded-md):active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 var(--btn2-edge), inset 0 2px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- disabled: flat, pressed in, clearly unavailable */
+button.bg-accent:not([aria-pressed]):not([role="tab"]):disabled {
+  background: var(--surface-3);
+  border-color: var(--border);
+  color: var(--text-muted);
+  text-shadow: none;
+  box-shadow: none;
+  opacity: 1;
+}
+
+button.border:not([aria-pressed]):not([role="tab"]):disabled {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  a {
+    transition: none;
+  }
+  button:not(:disabled):hover,
+  button:not(:disabled):active {
+    transform: none;
+  }
+}
+
+/* Inputs share one height and one border so forms line up. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  border-color: var(--border-strong);
+}
+
+:where(input, select, textarea):focus {
+  border-color: var(--accent);
+}
+
+/* Thin scrollbars inside panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Tab and filter strips scroll sideways on a narrow screen by swiping, with
+   no scrollbar drawn under them. */
+:is([role="tablist"], [role="group"]).overflow-x-auto {
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+:is([role="tablist"], [role="group"]).overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}
+
+/* A table that would overflow on a phone scrolls sideways inside its card
+   rather than pushing the page wider than the screen. */
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

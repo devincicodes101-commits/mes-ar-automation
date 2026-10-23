@@ -108,14 +108,13 @@ export async function uploadStanding(db: SupabaseClient): Promise<UploadStanding
  * 21st. The other three days read and rebuild, which is safe whatever the
  * checks said, and is how an officer sees the problem in the first place.
  *
- * Mirrors tooOldToAct, deliberately: same shape, same days, same reasoning.
- * Both answer "is this report fit to act on", and a reader who has met one
- * should recognise the other.
+ * The one gate left on the report itself: a file that does not add up is not
+ * acted on. How old it is no longer stops anything; see reportAgeWarning.
  */
 export function refusedByChecks(
   day: number,
   standing: UploadStanding,
-  /* As tooOldToAct: the run says whether it writes today, and that wins. */
+  /* The run says whether it writes today, and that wins over the day. */
   writesToday?: boolean,
 ): { act: false; why: string } | { act: true; warn: string | null } {
   const acts = writesToday ?? (day === 7 || day === 16 || day === 21);

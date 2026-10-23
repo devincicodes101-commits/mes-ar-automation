@@ -324,3 +324,42 @@ export function chronic(
 
   return out.sort((x, y) => y.reports - x.reports || y.owed - x.owed);
 }
+
+/* ------------------------------------------------------------ new bills --- */
+
+/** A bill line as newBills needs it. */
+interface BillLineLike {
+  customerCode?: string;
+  documentNumber?: string;
+  date: string | null;
+  openBalance: number;
+}
+
+/**
+ * Bills in the newer report that the older one did not have, by billing date.
+ *
+ * Matched on customer, document number and billing date: the same invoice in
+ * two exports carries the same three, whatever its balance did in between. A
+ * line with no document number is matched on the other two and its amount,
+ * which is the best a line with no number allows. Bills only - a credit note
+ * or payment is not a new bill.
+ */
+export function newBills(
+  before: readonly BillLineLike[],
+  after: readonly BillLineLike[],
+): { lines: number; dates: { billedOn: string; lines: number }[] } {
+  const key = (l: BillLineLike) =>
+    `${(l.customerCode ?? "").toUpperCase()}|${l.date}|${l.documentNumber || `#${round2(l.openBalance)}`}`;
+  const had = new Set(before.filter((l) => l.date).map(key));
+  const by = new Map<string, number>();
+  let lines = 0;
+  for (const l of after) {
+    if (!l.date || !(l.openBalance > 0) || had.has(key(l))) continue;
+    lines += 1;
+    by.set(l.date, (by.get(l.date) ?? 0) + 1);
+  }
+  const dates = Array.from(by, ([billedOn, n]) => ({ billedOn, lines: n })).sort((a, b) =>
+    b.billedOn.localeCompare(a.billedOn),
+  );
+  return { lines, dates };
+}

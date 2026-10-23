@@ -20,7 +20,7 @@ import {
   round2,
   withoutCode,
 } from "../src/lib/aging-detail.ts";
-import { billingCycles, billingForTenant, cycleStage, CREDIT_DAYS } from "../src/lib/billing-cycles.ts";
+import { billingCycles, billingForTenant, cycleStage, CREDIT_DAYS, feeBillsOf, isAdHoc } from "../src/lib/billing-cycles.ts";
 import {
   brokenPromises,
   dueTheLetter,
@@ -54,10 +54,13 @@ import { feeCountsByTenant, settledFees } from "../src/lib/store.ts";
 import { deliveredOnly } from "../src/lib/store.ts";
 import { letterDelivery, runNeedsAttention } from "../src/lib/schedule.ts";
 import { callListOn, calledThisRound } from "../src/lib/call-list.ts";
-import { letterPosition } from "../src/lib/reminder-timing.ts";
+import { letterCovers, letterPosition, sentReminders } from "../src/lib/reminder-timing.ts";
 import { DEFAULT_PACING, pacingFromEnv, sendPaced } from "../src/lib/mail/pacing.ts";
 import { invoicesForAccount } from "../src/lib/data.ts";
 import { chasedToTheEnd } from "../src/lib/chased.ts";
+import { newBills } from "../src/lib/movement.ts";
+import { DEFAULT_RULES, saneRules } from "../src/lib/rules.ts";
+import { feeAge } from "../src/lib/billing-cycles.ts";
 import { revenueType, isOneFm, matchRule } from "../src/lib/revenue-rules.ts";
 import {
   buildLateFeeListing, buildRevenueTab, giroEnrolled, recurringDefaulters,
@@ -397,9 +400,9 @@ for (const c of ["send-reminders", "log-calls", "raise-late-fees", "upload-repor
 }
 check("nor can Management", mgmtCanAct, 0);
 
-check("super admin is the only one who manages users",
+check("super admin and admin are the only ones who manage logins",
   (["super-admin", "admin", "CSD", "RM", "Management"] as const)
-    .filter((r) => can(r, "manage-users")).length, 1);
+    .filter((r) => can(r, "manage-users")).length, 2);
 
 /* ==================================== 13. PARSING: awkward document numbers */
 
@@ -1750,6 +1753,139 @@ const dates = reminderDatesFor("2026-08-15", { first: 23, final: 37 })!;
 check("billing + 23 is the 7th, which is MES's first reminder day", dates.first, "2026-09-07");
 check("and billing + 37 is the 21st, their final notice day", dates.final, "2026-09-21");
 
+/* ============================ each billing date has its own reminders === */
+
+/*
+ * Agreed 23 October. A tenant's invoices are grouped by billing date and each
+ * date is chased on its own: a new ad hoc bill no longer restarts the clock
+ * for an old one, the letter lists that date's invoices and asks for their
+ * total, and dates due the same morning for the same letter share one email.
+ */
+section("Each billing date is chased on its own, in one email per letter per day");
+
+const W37 = { first: 23, final: 37 };
+const twoBills = () =>
+  [
+    { date: "2026-09-15", dueDate: "2026-09-30", openBalance: 1200, documentNumber: "INV-1", description: "Rent October" },
+    { date: "2026-09-15", dueDate: "2026-09-30", openBalance: 300, documentNumber: "INV-2", description: "Maintenance" },
+    { date: "2026-09-24", dueDate: "2026-10-09", openBalance: 80, documentNumber: "INV-3", description: "1FM repair" },
+    /* A credit note: dated, but not a bill anybody is chased for. */
+    { date: "2026-09-20", dueDate: null, openBalance: -50, documentNumber: "CM-1", description: "Credit" },
+  ] as never;
+const tenant = { id: "t", companyName: "T", total: 1530 } as never;
+
+const on8Oct = remindersDueOn([tenant], twoBills, "2026-10-08", W37);
+check("on 8 October only the bill of the 15th has reached 23 days", on8Oct.map((d) => d.billedOn).join(), "2026-09-15");
+check("its letter asks for that date's invoices, not the whole balance", on8Oct[0]?.amount, 1500);
+check("and carries both of its invoices", on8Oct[0]?.invoices.map((i) => i.documentNumber).join(), "INV-1,INV-2");
+check("the credit note is not a billing date", remindersDueOn([tenant], twoBills, "2026-10-13", W37).length, 1);
+
+const on17Oct = remindersDueOn([tenant], twoBills, "2026-10-17", W37);
+check("on 17 October the ad hoc bill of the 24th is due too, on its own clock",
+      on17Oct.map((d) => `${d.billedOn}:${d.stage}`).join(), "2026-09-15:first-reminder,2026-09-24:first-reminder");
+
+const firstFor15th = { tenantId: "t", stage: "first-reminder" as const, sentAt: "2026-10-08T01:00:00Z", billedOn: ["2026-09-15"] };
+const plan17 = lettersToWrite(on17Oct, [firstFor15th], W37);
+check("the 15th's reminder does not count for the 24th's bill",
+      plan17.write.map((l) => `${l.billedOn}:${l.stage}:${l.amount}`).join(), "2026-09-24:first-reminder:80");
+check("and the 15th's bill, on day 32, is sent nothing",
+      lettersToWrite(on17Oct, [], W37).write.map((l) => l.billedOn).join(), "2026-09-24");
+
+const on22Oct = remindersDueOn([tenant], twoBills, "2026-10-22", W37);
+const plan22 = lettersToWrite(on22Oct, [firstFor15th], W37);
+check("on day 37 the 15th's bill has its final notice; the 24th's, on day 28, nothing",
+      plan22.write.map((l) => `${l.billedOn}:${l.stage}`).join(), "2026-09-15:final-notice");
+
+check("a letter from before bills were recorded counts for every bill raised before it",
+      letterCovers({ sentAt: "2026-10-08T01:00:00Z", billedOn: null }, "2026-09-24"), true);
+check("but not for a bill raised after it",
+      letterCovers({ sentAt: "2026-10-08T01:00:00Z", billedOn: null }, "2026-10-15"), false);
+check("sent emails carry their billing dates into the decision",
+      sentReminders([{ accountId: "t", templateId: "reminder-7th", at: "2026-10-08", billedOn: ["2026-09-15"] }])[0]?.billedOn?.join(),
+      "2026-09-15");
+
+const letterText = renderLetter("first-reminder", { companyName: "T", grandTotal: on8Oct[0]!.amount, sentOn: "2026-10-08" }).body;
+check("the letter states that billing date's total", letterText.includes("stands at $1,500.00"), true);
+check("and does not list the invoices", letterText.includes("INV-1") || letterText.includes("Invoices billed on"), false);
+
+/* ============================ which bills a late fee is for, and ad hoc == */
+
+section("A late fee names the bills it is for, and marks ad hoc ones");
+
+const feeLines = [
+  { date: "2026-08-15", age: 32, openBalance: 500 },
+  { date: "2026-08-15", age: 32, openBalance: 100 },
+  { date: "2026-08-24", age: 23, openBalance: 80 },
+  /* Not yet 14 days past due: not part of the fee. */
+  { date: "2026-09-15", age: 1, openBalance: 900 },
+  /* A credit is not a bill anybody is charged for. */
+  { date: "2026-08-30", age: 20, openBalance: -40 },
+] as never;
+const fb = feeBillsOf(feeLines, 14);
+check("only billing dates more than 14 days past due", fb.map((b) => b.billedOn).join(), "2026-08-15,2026-08-24");
+check("with what is overdue on each", fb.map((b) => b.amount).join(), "600,80");
+check("a bill on the 15th is the regular cycle", isAdHoc("2026-08-15"), false);
+check("a bill on any other day is ad hoc", isAdHoc("2026-08-24"), true);
+
+/* ===================== what is new in an upload, against the last one == */
+
+section("An upload says which bills are new since the report in use");
+
+const nbBefore = [
+  { customerCode: "DORM-1", documentNumber: "INV-1", date: "2026-09-15", openBalance: 500 },
+  { customerCode: "DORM-1", documentNumber: "INV-2", date: "2026-09-15", openBalance: 100 },
+] as never;
+const nbAfter = [
+  /* The same invoice, part paid: not new. */
+  { customerCode: "DORM-1", documentNumber: "INV-1", date: "2026-09-15", openBalance: 200 },
+  { customerCode: "DORM-1", documentNumber: "INV-3", date: "2026-10-15", openBalance: 500 },
+  { customerCode: "DORM-2", documentNumber: "INV-9", date: "2026-10-24", openBalance: 80 },
+  /* A credit note is not a bill. */
+  { customerCode: "DORM-1", documentNumber: "CM-1", date: "2026-10-20", openBalance: -50 },
+] as never;
+const nb = newBills(nbBefore, nbAfter);
+check("an invoice already there, part paid, is not new", nb.lines, 2);
+check("new bills are grouped by billing date, newest first",
+      nb.dates.map((d) => `${d.billedOn}:${d.lines}`).join(), "2026-10-24:1,2026-10-15:1");
+
+/* ============================================ the choices, as settings == */
+
+section("Each choice made in October can be changed in Settings");
+
+const SW = { first: 23, final: 37 };
+const twoBillsS = () =>
+  [
+    { date: "2026-09-15", dueDate: "2026-09-30", openBalance: 1200 },
+    { date: "2026-09-24", dueDate: "2026-10-09", openBalance: 80 },
+  ] as never;
+const tenantS = { id: "t", companyName: "T", total: 1280 } as never;
+check("by default every billing date is chased on its own",
+      remindersDueOn([tenantS], twoBillsS, "2026-10-17", SW).length, 2);
+const newestOnly = remindersDueOn([tenantS], twoBillsS, "2026-10-17", { ...SW, countFrom: "newest" });
+check("'newest bill only' chases just the newest", newestOnly.map((d) => d.billedOn).join(), "2026-09-24");
+check("and asks for the whole balance, as before", newestOnly[0]?.amount, 1280);
+
+const lateBill = () => [{ date: "2026-09-15", dueDate: null, openBalance: 100 }] as never;
+const lateOn = (today: string, w: object) =>
+  lettersToWrite(remindersDueOn([tenantS], lateBill, today, { ...SW, ...w }), [], { ...SW, ...w }).write.length;
+check("by default a missed first reminder is not sent the next day", lateOn("2026-10-09", {}), 0);
+check("with 2 late days it still goes the next day", lateOn("2026-10-09", { lateDays: 2 }), 1);
+check("but not 3 days late", lateOn("2026-10-11", { lateDays: 2 }), 0);
+check("the final notice goes without a first by default", lateOn("2026-10-22", {}), 1);
+check("and not when Settings say no", lateOn("2026-10-22", { finalWithoutFirst: false }), 0);
+check("the status card agrees: no email for this bill",
+      (() => { const x = letterPosition("2026-09-15", [], "2026-10-22", { ...SW, finalWithoutFirst: false });
+        return x.kind === "first-missed" ? x.finalComing : x.kind; })(), false);
+
+check("the fee rules default to what MES agreed", JSON.stringify(saneRules(undefined)), JSON.stringify(DEFAULT_RULES));
+check("nonsense is put back to sensible", saneRules({ feeDays: -3, regularBillingDay: 40, feeFrom: "x" }).feeDays, 14);
+check("stopping for an old report is off unless set", saneRules({}).stopReportAfter, null);
+check("and can be set", saneRules({ stopReportAfter: 21 }).stopReportAfter, 21);
+const feeLine = { date: "2026-09-15", dueDate: "2026-09-30", age: 10 } as never;
+check("a fee counted from the due date uses days past due", feeAge(feeLine, "due"), 10);
+check("counted from the billing date it adds the credit period", feeAge(feeLine, "billing"), 25);
+check("the regular billing day can move", isAdHoc("2026-09-01", 1), false);
+
 /* ================================== a file without Date is refused ====== */
 
 /*
@@ -1803,7 +1939,6 @@ const decide = (billed: string, today: string, sentLetters: { stage: "first-remi
   lettersToWrite(
     remindersDueOn([tenantOwing], bill(billed), today, W),
     sentLetters.map((x) => ({ tenantId: "t", ...x })),
-    today,
     W,
   );
 
@@ -1812,8 +1947,8 @@ check("day 23 of a bill, nothing sent: the first reminder goes",
       decide("2026-08-15", "2026-09-07", []).write[0]?.stage, "first-reminder");
 check("the next morning, already sent: nothing goes",
       decide("2026-08-15", "2026-09-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write.length, 0);
-check("and it says why",
-      decide("2026-08-15", "2026-09-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).held[0]?.why.includes("already had the first reminder"), true);
+check("sent earlier the same morning: held, and it says why",
+      decide("2026-08-15", "2026-09-07", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).held[0]?.why.includes("already had the first reminder"), true);
 check("day 37, the first sent on day 23: the final notice goes",
       decide("2026-08-15", "2026-09-21", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write[0]?.stage, "final-notice");
 check("after the final, nothing more for that bill",
@@ -1826,20 +1961,21 @@ check("after the final, nothing more for that bill",
 check("last month's reminder does not count for this month's bill",
       decide("2026-09-15", "2026-10-08", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write[0]?.stage,
       "first-reminder");
-check("a letter sent on the 30th still counts on the 1st",
-      decide("2026-09-07", "2026-10-01", [{ stage: "first-reminder", sentAt: "2026-09-30T01:00:00Z" }]).write.length, 0);
+check("a letter already sent that morning is not sent again",
+      decide("2026-09-07", "2026-09-30", [{ stage: "first-reminder", sentAt: "2026-09-30T01:00:00Z" }]).write.length, 0);
 
-/* Order. */
-const lateFirst = decide("2026-08-15", "2026-10-01", []);
-check("past the final point but never reminded: the FIRST goes, not the final",
-      lateFirst.write[0]?.stage, "first-reminder");
-check("and the diary says why it is late",
-      lateFirst.write[0]?.note?.includes("never sent the first reminder") ?? false, true);
-check("the final waits the full gap after a late first, not the next day",
-      decide("2026-08-15", "2026-10-02", [{ stage: "first-reminder", sentAt: "2026-10-01T01:00:00Z" }]).write.length, 0);
-check("and goes once the gap has passed",
-      decide("2026-08-15", "2026-10-15", [{ stage: "first-reminder", sentAt: "2026-10-01T01:00:00Z" }]).write[0]?.stage,
-      "final-notice");
+/* One day each, no catching up. Agreed 23 October. */
+check("the morning after day 23, a first reminder that never went is not sent late",
+      decide("2026-08-15", "2026-09-08", []).write.length, 0);
+check("a bill already past both days when first seen is sent nothing",
+      decide("2026-08-15", "2026-10-01", []).write.length, 0);
+const finalNoFirst = decide("2026-08-15", "2026-09-21", []);
+check("on day 37 the final notice goes even though no first reminder was sent",
+      finalNoFirst.write[0]?.stage, "final-notice");
+check("and the diary says the first was not sent from here",
+      finalNoFirst.write[0]?.note?.includes("no first reminder was sent from this system") ?? false, true);
+check("a final notice missed on day 37 is not sent on day 38",
+      decide("2026-08-15", "2026-09-22", [{ stage: "first-reminder", sentAt: "2026-09-07T01:00:00Z" }]).write.length, 0);
 
 /* How it was sent does not matter: a hand-sent letter from the Reminders
    screen is a real letter with the same template id, and counts. */
@@ -2206,28 +2342,28 @@ check("a line with no code still falls back to the name",
  */
 section("Each tenant's standing follows the letters really sent");
 
-const LW = { first: 23, final: 27 };
-const BILL = "2026-09-15"; // first reminder 8 Oct, final 12 Oct
+const LW = { first: 23, final: 37 };
+const BILL = "2026-09-15"; // first reminder 8 Oct, final 22 Oct
+const sentFirst = (on: string) => ({ tenantId: "t", stage: "first-reminder" as const, sentAt: `${on}T01:08:00Z` });
 check("before the first reminder date: not yet", letterPosition(BILL, [], "2026-10-07", LW).kind, "not-yet");
-check("past both dates but never written to: the first reminder is due, not the final",
-      letterPosition(BILL, [], "2026-10-14", LW).kind, "first-due");
-const firstOn14 = letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" }], "2026-10-14", LW);
+check("on the day: the first reminder is due", letterPosition(BILL, [], "2026-10-08", LW).kind, "first-due");
+check("the day after, never sent: its day has passed, the final notice still to come",
+      letterPosition(BILL, [], "2026-10-09", LW).kind, "first-missed");
+check("on day 37 with no first reminder, the final notice is due",
+      letterPosition(BILL, [], "2026-10-22", LW).kind, "final-due");
+const firstOn8 = letterPosition(BILL, [sentFirst("2026-10-08")], "2026-10-08", LW);
 check("the day the first reminder goes, it says so, with the date",
-      firstOn14.kind === "first-sent" ? firstOn14.firstSentOn : firstOn14.kind, "2026-10-14");
-check("and the final notice waits four days after it, not the billing date's 12 October",
-      firstOn14.kind === "first-sent" ? firstOn14.finalDueOn : firstOn14.kind, "2026-10-18");
-check("four days on, the final notice is due",
-      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" }], "2026-10-18", LW).kind,
-      "final-due");
+      firstOn8.kind === "first-sent" ? firstOn8.firstSentOn : firstOn8.kind, "2026-10-08");
+check("and the final notice is due on the billing date's day 37",
+      firstOn8.kind === "first-sent" ? firstOn8.finalDueOn : firstOn8.kind, "2026-10-22");
+check("on day 37 the final notice is due", letterPosition(BILL, [sentFirst("2026-10-08")], "2026-10-22", LW).kind, "final-due");
+check("the day after, not sent: its day has passed",
+      letterPosition(BILL, [sentFirst("2026-10-08")], "2026-10-23", LW).kind, "final-missed");
 check("once it goes, it says final notice sent",
-      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-14T01:08:00Z" },
-        { tenantId: "t", stage: "final-notice", sentAt: "2026-10-18T01:08:00Z" }], "2026-10-20", LW).kind, "final-sent");
+      letterPosition(BILL, [sentFirst("2026-10-08"),
+        { tenantId: "t", stage: "final-notice", sentAt: "2026-10-22T01:08:00Z" }], "2026-10-25", LW).kind, "final-sent");
 check("a letter about an older bill does not count for this one",
-      letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-08-10T01:08:00Z" }], "2026-10-14", LW).kind,
-      "first-due");
-check("sent on time, the final keeps the billing date's own day",
-      (() => { const x = letterPosition(BILL, [{ tenantId: "t", stage: "first-reminder", sentAt: "2026-10-08T01:08:00Z" }], "2026-10-09", LW);
-        return x.kind === "first-sent" ? x.finalDueOn : x.kind; })(), "2026-10-12");
+      letterPosition(BILL, [sentFirst("2026-08-10")], "2026-10-08", LW).kind, "first-due");
 
 /* ================================ sending in batches, with a pause between == */
 

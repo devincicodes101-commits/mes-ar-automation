@@ -29,6 +29,59 @@ import { round2 } from "./aging-detail.ts";
  * assume one cycle a month.
  */
 
+/**
+ * The day of the month MES bill on. A bill raised on any other day is ad hoc
+ * - a 1FM repair, a one-off charge - and the Late Payment Fees screen marks
+ * it, so an officer can see which bill a $100 fee was for. MES's cycle sheet:
+ * "15th: billing date. Ad hoc billing can also run on other dates." Taken as
+ * the definition on 24 October; MES can change the day on Settings.
+ */
+export const REGULAR_BILLING_DAY = 15;
+
+export function isAdHoc(billedOn: string, regularDay: number = REGULAR_BILLING_DAY): boolean {
+  return Number(billedOn.slice(8, 10)) !== regularDay;
+}
+
+/**
+ * How old a line is for the late fee: days past its due date (agreed 24
+ * October), or days since it was billed, as Settings say. A line with no dates
+ * to count from keeps the age the file gave it.
+ */
+export function feeAge(
+  l: Pick<BillingLine, "age" | "date" | "dueDate">,
+  from: "due" | "billing" = "due",
+): number | null {
+  if (from === "due" || l.age === null || !l.date || !l.dueDate) return l.age;
+  return l.age + (daysBetween(l.date, l.dueDate) ?? 0);
+}
+
+/** One billing date a late fee is charged on, and what is overdue on it. */
+export interface FeeBill {
+  billedOn: string;
+  amount: number;
+}
+
+/**
+ * The billing dates behind a late fee: each date with a line at least
+ * `minimumAgeDays` past due and still owing, oldest first. Shared by the 9am
+ * run's listing and the Late Payment Fees screen, so both name the same bills.
+ */
+export function feeBillsOf(
+  lines: readonly BillingLine[],
+  minimumAgeDays: number,
+  from: "due" | "billing" = "due",
+): FeeBill[] {
+  const by = new Map<string, number>();
+  for (const l of lines) {
+    const age = feeAge(l, from);
+    if (!l.date || age === null || age < minimumAgeDays || !(l.openBalance > 0)) continue;
+    by.set(l.date, round2((by.get(l.date) ?? 0) + l.openBalance));
+  }
+  return Array.from(by, ([billedOn, amount]) => ({ billedOn, amount })).sort((a, b) =>
+    a.billedOn.localeCompare(b.billedOn),
+  );
+}
+
 /** MES give 14 calendar days from the billing date before payment is late. */
 export const CREDIT_DAYS = 14;
 

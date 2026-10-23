@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { SentEmail } from "@/lib/store";
 import { useToast } from "@/lib/session";
 import { ScrollPanel, StatusBadge, Tag } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * One sent letter, shown in full.
@@ -40,12 +41,17 @@ export function LetterView({
   return (
     <div className="min-w-0">
       {!compact ? (
-        <div className="border-b border-line-hair px-5 py-3.5">
+        <div className="border-b border-line-hair px-4 py-3.5 sm:px-5">
           <div className="flex flex-wrap items-center gap-2">
             <Tag>{email.templateName}</Tag>
             <span className="text-[11px] text-ink-muted">
-              {new Date(email.at).toLocaleString("en-SG")}
+              {formatDateTime(email.at)}
             </span>
+            {email.simulated ? (
+              <StatusBadge kind="critical" label="Not sent" />
+            ) : (
+              <StatusBadge kind="good" label="Sent" />
+            )}
             <CopyButton email={email} notify={notify} />
           </div>
           <Header email={email} />
@@ -55,8 +61,13 @@ export function LetterView({
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Tag>{email.templateName}</Tag>
             <span className="text-[11px] text-ink-muted">
-              {new Date(email.at).toLocaleString("en-SG")}
+              {formatDateTime(email.at)}
             </span>
+            {email.simulated ? (
+              <StatusBadge kind="critical" label="Not sent" />
+            ) : (
+              <StatusBadge kind="good" label="Sent" />
+            )}
             <CopyButton email={email} notify={notify} />
           </div>
           <Header email={email} />
@@ -77,22 +88,22 @@ export function LetterView({
           />
           {notCaptured ? (
             <p className="mt-1.5 text-[11px] text-ink-muted">
-              Nothing is wrong with this send. Earlier versions recorded only
-              the subject and recipients, so there is no letter to show. Send
-              another and the full text will appear here.
+              Only the subject and recipients were kept for this letter.
             </p>
           ) : null}
         </div>
       ) : null}
 
-      <ScrollPanel max={compact ? 440 : 400}>
-        <pre className="tabular whitespace-pre-wrap px-5 py-4 text-[12px] leading-relaxed text-ink-secondary">
-          {notCaptured
-            ? "(this send predates letter capture)"
-            : sentEmpty
-              ? "(the letter really was empty)"
-              : email.body}
-        </pre>
+      <ScrollPanel max={compact ? 440 : 420} className="bg-surface-alt p-3 sm:p-5">
+        <div className="mx-auto max-w-2xl rounded-md border border-line-hair bg-surface px-5 py-5 shadow-sm sm:px-7 sm:py-6">
+          <div className="whitespace-pre-wrap break-words font-sans text-[13px] leading-relaxed text-ink">
+            {notCaptured
+              ? "The text of this letter was not kept."
+              : sentEmpty
+                ? "(the letter was sent with no text)"
+                : email.body}
+          </div>
+        </div>
       </ScrollPanel>
     </div>
   );

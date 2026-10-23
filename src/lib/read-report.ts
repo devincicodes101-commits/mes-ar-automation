@@ -45,6 +45,15 @@ import type { Manager } from "./dataset.ts";
  */
 const PAGE = 1000;
 
+/*
+ * Every paged read is ordered on a unique column as well.
+ *
+ * Without one, Postgres may hand back the rows in a different order for each
+ * page, so a walk of six pages repeats some lines and skips others. On 23
+ * October that made the same report read as 246 tenants to chase on one load
+ * and 202 on the next, with no error anywhere. A unique tie-breaker makes the
+ * pages a partition of the table.
+ */
 interface Pageable {
   range: (from: number, to: number) => PromiseLike<{ data: unknown; error: unknown }>;
 }
@@ -171,10 +180,10 @@ export async function reportDates(
 ): Promise<{ ok: true; dates: string[] } | { ok: false; error: string }> {
   const [snapshotDates, uploadDates] = await Promise.all([
     everything<{ report_date: string }>(() =>
-      db.from("account_snapshots").select("report_date").order("report_date", { ascending: false }),
+      db.from("account_snapshots").select("report_date").order("report_date", { ascending: false }).order("id", { ascending: true }),
     ),
     everything<{ report_date: string }>(() =>
-      db.from("uploads").select("report_date").order("report_date", { ascending: false }),
+      db.from("uploads").select("report_date").order("report_date", { ascending: false }).order("id", { ascending: true }),
     ),
   ]);
 
@@ -223,10 +232,9 @@ export async function reportDates(
  * reach is that the upload is broken.
  *
  * Uploading a file is somebody saying "use this one". So it is used. If the
- * file is older than it should be, the schedule already refuses to act on it
- * — see tooOldToAct — which is the protection the date rule was reaching for,
- * done in the place where a stale figure could actually cost a tenant $100
- * rather than in the place where it only decides what is on screen.
+ * file is older than it should be, the run still acts on it and says so on
+ * The Schedule - see reportAgeWarning. Keeping the report
+ * current is MES's to do, agreed 24 October.
  *
  * Falls back to the highest report_date where there is no upload row to go
  * on, which is the case for anything imported before uploads were recorded.
@@ -262,7 +270,7 @@ export async function reportOn(
    * show a tenant's charges twice.
    */
   const snapshotIds = await everything<{ id: string }>(() =>
-    db.from("account_snapshots").select("id").eq("report_date", reportDate),
+    db.from("account_snapshots").select("id").eq("report_date", reportDate).order("id", { ascending: true }),
   );
   if (snapshotIds.error) {
     return { ok: false, error: "Could not read the report.", detail: why(snapshotIds.error) };
@@ -286,7 +294,8 @@ export async function reportOn(
             "bucket_90,bucket_90_plus,total,is_onefm,late_fee_count,legacy_note," +
             "tenants(customer_code,company_name,property_code,industry,entity,rm_key)",
         )
-        .eq("report_date", reportDate),
+        .eq("report_date", reportDate)
+        .order("id", { ascending: true }),
     ),
     ids.length === 0
       ? Promise.resolve(noLines)
@@ -298,10 +307,13 @@ export async function reportOn(
                 "due_on,age_days,bucket,description,revenue_type,is_onefm,open_balance," +
                 "category,tenants(customer_code,company_name,property_code)",
             )
-            .in("snapshot_id", ids),
+            .in("snapshot_id", ids)
+            .order("id", { ascending: true }),
         ),
-    everything<ContactRow>(() => db.from("contacts").select("customer_code,email")),
-    everything<{ key: string; name: string }>(() => db.from("managers").select("key,name")),
+    everything<ContactRow>(() => db.from("contacts").select("customer_code,email").order("id", { ascending: true })),
+    everything<{ key: string; name: string }>(() =>
+      db.from("managers").select("key,name").order("key", { ascending: true }),
+    ),
     db
       .from("uploads")
       .select("ar_filename,report_date,period")

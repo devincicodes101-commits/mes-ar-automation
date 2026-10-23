@@ -8,11 +8,13 @@ import {
   PromiseRecord,
   PromiseState,
   promiseState,
+  hydrateActivity,
   markPromiseConfirmed,
-  recordEmail,
   recordPromise,
   useStore,
 } from "@/lib/store";
+import { describe, sendLetters } from "@/lib/send-letters";
+import { currentPeriod, inSingapore } from "@/lib/schedule";
 import { useSession, useToast } from "@/lib/session";
 import {
   Card,
@@ -23,7 +25,10 @@ import {
   StatusBadge,
   Tag,
   TenantLink,
+  Pagination,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
+import { formatDate } from "@/lib/format";
 
 const ORDER: PromiseState[] = ["broken", "due-today", "upcoming"];
 
@@ -67,26 +72,58 @@ export default function PromisesPage() {
    * to the tenant. It is still approved rather than fired automatically, in
    * keeping with the human in the loop rule for everything else.
    */
-  function sendConfirmation(p: (typeof store.promises)[number]) {
+  /*
+   * Sent, not just written down.
+   *
+   * This recorded the email in the browser and marked the promise confirmed
+   * without ever calling the mail server, so the button said "sent" and
+   * nothing arrived. It also filled {{amount}} and {{dueBy}}, which the
+   * template does not use: it says {{promiseAmount}}, {{promiseDate}} and
+   * {{code}}. Now it goes through /api/send like every other letter, and the
+   * promise is marked confirmed only when the server says it went.
+   */
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  async function sendConfirmation(p: (typeof store.promises)[number]) {
     const account = accountById(p.accountId);
-    if (!template) return;
-    recordEmail({
-      accountId: p.accountId,
-      companyName: p.companyName,
-      templateId: template.id,
-      templateName: template.name,
-      subject: template.subject.replaceAll("{{company}}", p.companyName),
-      body: template.body
+    if (!template || !account) return;
+    const fill = (text: string) =>
+      text
         .replaceAll("{{company}}", p.companyName)
+        .replaceAll("{{code}}", account.customerCode)
+        .replaceAll("{{promiseAmount}}", formatSgd(p.amount))
         .replaceAll("{{amount}}", formatSgd(p.amount))
-        .replaceAll("{{dueBy}}", p.promisedFor),
-      to: account?.emails ?? [],
-    });
-    markPromiseConfirmed(p.id);
-    notify(
-      `Confirmation sent to ${p.companyName}`,
-      `Confirming SGD ${formatSgd(p.amount)} by ${p.promisedFor}`,
-    );
+        .replaceAll("{{promiseDate}}", formatDate(p.promisedFor))
+        .replaceAll("{{dueBy}}", formatDate(p.promisedFor))
+        /* The wording assumes a call; a promise made by email was a reply. */
+        .replace(
+          "Thank you for speaking with us today.",
+          p.source === "email" ? "Thank you for your reply." : "Thank you for speaking with us today.",
+        );
+    setSendingId(p.id);
+    const report = await sendLetters([
+      {
+        tenantId: p.accountId,
+        companyName: p.companyName,
+        to: account.emails,
+        subject: fill(template.subject),
+        body: fill(template.body),
+        templateId: template.id,
+        templateName: template.name,
+        period: currentPeriod(),
+      },
+    ]);
+    setSendingId(null);
+    if (report.sent > 0) {
+      markPromiseConfirmed(p.id);
+      notify(
+        `Confirmation sent to ${p.companyName}`,
+        `Confirming SGD ${formatSgd(p.amount)} by ${formatDate(p.promisedFor)}`,
+      );
+    } else {
+      const said = describe(report, template.name);
+      notify(said.title, said.detail);
+    }
+    await hydrateActivity(true);
   }
 
   const grouped = useMemo(() => {
@@ -119,39 +156,30 @@ export default function PromisesPage() {
 
   const total = store.promises.reduce((s, p) => s + p.amount, 0);
   const brokenValue = grouped.broken.reduce((s, p) => s + p.amount, 0);
+  const promisePage = usePaged(shown, `${state}|${query}`);
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Promises on record"
-          value={String(store.promises.length)}
-          note="Each one has a date attached"
-        />
+      {/* The money only: how many, and how many are past their date, are the
+          counts on the filter below. */}
+      <div className="grid grid-cols-2 gap-3">
         <StatTile
           label="Value promised"
           prefix="SGD"
           value={formatSgd(total)}
-          note="What tenants said they would pay"
-        />
-        <StatTile
-          label="Date passed, unpaid"
-          value={String(grouped.broken.length)}
-          note="These need chasing again"
-          emphasis
         />
         <StatTile
           label="Value at risk"
           prefix="SGD"
           value={formatSgd(brokenValue)}
-          note="Promised but not honoured"
+          note="Date passed, unpaid"
+          emphasis={brokenValue > 0}
         />
       </div>
 
       <Card>
         <CardHeader
           title="Every promise to pay"
-          hint="From a phone call, or from a reply the officer read in her inbox."
           right={
             <button
               type="button"
@@ -165,8 +193,8 @@ export default function PromisesPage() {
         />
 
         {store.promises.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-line-hair px-5 py-2.5">
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Which promises">
+          <div className="flex flex-col gap-2 border-b border-line-hair px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
+            <div className="flex gap-1 overflow-x-auto rounded-md bg-surface-alt p-1" role="group" aria-label="Which promises">
               {(
                 [
                   ["all", "All", store.promises.length],
@@ -180,13 +208,13 @@ export default function PromisesPage() {
                   type="button"
                   onClick={() => setState(key)}
                   aria-pressed={state === key}
-                  className={`rounded px-2.5 py-1 text-xs ${
+                  className={`flex-1 whitespace-nowrap rounded px-3 py-1.5 text-xs lg:flex-none ${
                     state === key
-                      ? "bg-accent-wash font-medium text-ink"
-                      : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                      ? "bg-surface font-medium text-accent-text shadow-sm"
+                      : "text-ink-muted hover:text-ink-secondary"
                   }`}
                 >
-                  {label} ({count})
+                  {label} <span className="tabular opacity-70">{count}</span>
                 </button>
               ))}
             </div>
@@ -196,7 +224,7 @@ export default function PromisesPage() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Find a tenant"
               aria-label="Find a tenant"
-              className="ml-auto w-52 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+              className="w-full rounded-md border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted sm:text-xs lg:ml-auto lg:w-60"
             />
           </div>
         ) : null}
@@ -213,10 +241,10 @@ export default function PromisesPage() {
           />
         ) : (
           <ul className="divide-y divide-line-grid">
-            {shown.map((p) => (
+            {promisePage.shown.map((p) => (
                     <li
                       key={p.id}
-                      className="flex flex-wrap items-center gap-4 px-5 py-3"
+                      className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-ink">
@@ -229,31 +257,32 @@ export default function PromisesPage() {
                           />
                           <span>
                             Promised on{" "}
-                            {new Date(p.createdAt).toLocaleDateString("en-SG")}{" "}
-                            during a phone call
+                            {formatDate(p.createdAt)}{" "}
+                            {p.source === "email" ? "in a reply to a reminder" : "during a phone call"}
                           </span>
                         </p>
                       </div>
-                      <div className="shrink-0 text-right">
+                      <div className="shrink-0 sm:text-right">
                         <div className="tabular text-sm font-medium text-ink">
                           SGD {formatSgd(p.amount)}
                         </div>
                         <div className="mt-0.5 text-[11px] text-ink-muted">
-                          due {p.promisedFor}
+                          due {formatDate(p.promisedFor)}
                         </div>
                       </div>
 
-                      <div className="shrink-0">
+                      <div className="shrink-0 self-start sm:self-auto">
                         {p.confirmationSentAt ? (
                           <StatusBadge kind="good" label="Confirmed to tenant" />
                         ) : accountById(p.accountId)?.hasContact ? (
                           canAct ? (
                             <button
                               type="button"
-                              onClick={() => sendConfirmation(p)}
+                              disabled={sendingId !== null}
+                              onClick={() => void sendConfirmation(p)}
                               className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
                             >
-                              Send confirmation
+                              {sendingId === p.id ? "Sending..." : "Send confirmation"}
                             </button>
                           ) : (
                             <span className="text-[11px] text-ink-muted">View only</span>
@@ -266,7 +295,7 @@ export default function PromisesPage() {
             ))}
           </ul>
         )}
-
+        <Pagination {...promisePage.pager} />
       </Card>
 
       {/* Until now a promise could only exist as a by-product of the call
@@ -284,14 +313,29 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
   const { notify } = useToast();
   /* The tenants in the uploaded report, and only the ones this role may see:
      useDataset is already narrowed, so a manager is offered their own book. */
-  const accounts = useDataset().accounts;
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
+  const all = useDataset().accounts;
+  /* Those who owe, by name. Nothing is chosen for you: starting on the first
+     tenant in the file meant a promise could be filed against the wrong one
+     by somebody who never opened the list. */
+  const accounts = useMemo(
+    () => all.filter((a) => a.total > 0).sort((x, y) => x.companyName.localeCompare(y.companyName)),
+    [all],
+  );
+  const [find, setFind] = useState("");
+  const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [source, setSource] = useState<"email" | "call">("email");
+  const today = inSingapore().iso;
 
+  const q = find.trim().toLowerCase();
+  const options = q
+    ? accounts.filter(
+        (a) => a.companyName.toLowerCase().includes(q) || a.customerCode.toLowerCase().includes(q),
+      )
+    : accounts;
   const account = accounts.find((a) => a.id === accountId);
-  const ready = account && date !== "" && Number(amount) > 0;
+  const ready = account && date !== "" && date >= today && Number(amount) > 0;
 
   return (
     <Modal title="Record a promise to pay" onClose={onClose}>
@@ -306,14 +350,39 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
           <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
             Tenant
           </span>
+          <input
+            type="search"
+            value={find}
+            onChange={(e) => {
+              setFind(e.target.value);
+              const q2 = e.target.value.trim().toLowerCase();
+              const hits = accounts.filter(
+                (a) => a.companyName.toLowerCase().includes(q2) || a.customerCode.toLowerCase().includes(q2),
+              );
+              /* An exact code, or the only match, is the tenant meant. */
+              const exact = hits.find((a) => a.customerCode.toLowerCase() === q2);
+              if (exact) setAccountId(exact.id);
+              else if (q2 && hits.length === 1) setAccountId(hits[0].id);
+            }}
+            placeholder="Type a name or code to narrow the list"
+            aria-label="Find a tenant"
+            className="mb-2 w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
+          />
           <select
             value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            onChange={(e) => {
+              setAccountId(e.target.value);
+              const a = accounts.find((x) => x.id === e.target.value);
+              if (a && amount === "") setAmount(String(a.total.toFixed(2)));
+            }}
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
           >
-            {accounts.map((a) => (
+            <option value="">
+              {options.length === 0 ? "No tenant matches" : `Choose a tenant (${options.length})`}
+            </option>
+            {options.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.companyName} · {a.customerCode} · {a.property}
+                {a.companyName} · {a.customerCode}
               </option>
             ))}
           </select>
@@ -329,7 +398,7 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={account ? formatSgd(account.total) : ""}
-            className="tabular w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="tabular w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
 
@@ -339,9 +408,10 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
           </span>
           <input
             type="date"
+            min={today}
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
 
@@ -352,7 +422,7 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
           <select
             value={source}
             onChange={(e) => setSource(e.target.value as "email" | "call")}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink"
           >
             <option value="email">A reply to a reminder</option>
             <option value="call">A phone call</option>
@@ -375,7 +445,7 @@ function RecordPromise({ onClose }: { onClose: () => void }) {
             });
             notify(
               `Promise recorded for ${account.companyName}`,
-              `SGD ${formatSgd(Number(amount))} by ${date}`,
+              `SGD ${formatSgd(Number(amount))} by ${formatDate(date)}`,
             );
             onClose();
           }}

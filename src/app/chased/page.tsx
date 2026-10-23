@@ -67,7 +67,7 @@ export default function ChasedPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Been round the cycle"
           value={String(rows.length)}
@@ -86,8 +86,8 @@ export default function ChasedPage() {
         />
         <StatTile
           label="Worst run"
-          value={worst ? `${worst.inARow} months` : "—"}
-          note={worst ? worst.account.companyName : "—"}
+          value={worst ? `${worst.inARow} months` : "-"}
+          note={worst ? worst.account.companyName : "-"}
         />
       </div>
 
@@ -102,7 +102,7 @@ export default function ChasedPage() {
         <p className="mt-2 max-w-prose text-xs leading-relaxed text-ink-muted">
           Read the run, not the count. MES&rsquo;s own note puts it this way: a
           tenant who pays late every month is a different conversation from one
-          who forgot once. Nobody needs closing by hand &mdash; a client drops
+          who forgot once. Nobody needs closing by hand: a client drops
           off this list the moment a report shows they have paid.
         </p>
       </Card>
@@ -205,7 +205,7 @@ function Row({ row }: { row: ChasedRow }) {
 
       <td className="px-3 py-3">
         <span className="text-ink-secondary">
-          {row.lastMonth ? shortMonth(row.lastMonth) : "—"}
+          {row.lastMonth ? shortMonth(row.lastMonth) : "-"}
         </span>
         {row.monthsSince !== null ? (
           <span className="mt-0.5 block text-[11px] text-ink-muted">

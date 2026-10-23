@@ -54,9 +54,42 @@ export const DEFAULT_RECIPIENTS: Recipient[] = [
   { id: "ar-team", name: "Accounts Receivable", kind: "ar-team", email: null },
   { id: "csd", name: "CSD", kind: "csd", email: null },
   { id: "management", name: "Management", kind: "management", email: null },
-  { id: "rm-harry", name: "Harry Tan", kind: "rm", email: null },
-  { id: "rm-ray", name: "Ray Ang", kind: "rm", email: null },
 ];
+
+/** "2611 Ray Ang" as a person's name: the NetSuite code before it dropped. */
+export function managerDisplayName(key: string): string {
+  return key.replace(/^\d+\s+/, "").trim() || key;
+}
+
+/**
+ * The report recipients, with one manager row per manager in the report.
+ *
+ * The managers were two fixed rows, Harry Tan and Ray Ang, from MES's early
+ * mock-ups. The report names its own: each tenant's sales rep. So the rows
+ * come from there, and an address somebody typed is kept against the manager
+ * it was typed for, including one typed against the old fixed row of the same
+ * name. NetSuite's system account ("DO NOT DELETE OR REVOKE") is not a person
+ * and is left out.
+ */
+export function recipientsWithManagers(
+  stored: readonly Recipient[],
+  managerKeys: readonly (string | null | undefined)[],
+): Recipient[] {
+  const fixed = stored.filter((r) => r.kind !== "rm");
+  const storedRms = stored.filter((r) => r.kind === "rm");
+  const keys = Array.from(
+    new Set(managerKeys.filter((k): k is string => Boolean(k) && !/do not delete/i.test(k!))),
+  ).sort((a, b) => managerDisplayName(a).localeCompare(managerDisplayName(b)));
+  const rms = keys.map((key): Recipient => {
+    const id = `rm-${key}`;
+    const name = managerDisplayName(key);
+    const was =
+      storedRms.find((r) => r.id === id) ??
+      storedRms.find((r) => r.name.toLowerCase() === name.toLowerCase());
+    return { id, name, kind: "rm", email: was?.email ?? null };
+  });
+  return [...fixed, ...rms];
+}
 
 /* ------------------------------------------------------------- the send */
 

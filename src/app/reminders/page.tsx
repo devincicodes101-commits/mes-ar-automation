@@ -1,8 +1,8 @@
 "use client";
 
 import { useReminderWindow } from "@/lib/use-reminder-window";
-import { exactOverdue, sumExact } from "@/lib/money";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   formatSgd,
   overdueTotal,
@@ -18,7 +18,13 @@ import { sendLetters, sendLettersPaced, describe, type Outgoing } from "@/lib/se
 import { useSession, useToast } from "@/lib/session";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { currentPeriod, inSingapore } from "@/lib/schedule";
-import { linesByAccount, lettersToWrite, remindersDueOn, type SentLetter } from "@/lib/reminder-timing";
+import {
+  linesByAccount,
+  lettersToWrite,
+  remindersDueOn,
+  sentReminders,
+  type PlannedLetter,
+} from "@/lib/reminder-timing";
 import { LetterView } from "@/components/LetterView";
 import {
   DEADLINE_DAYS,
@@ -34,9 +40,15 @@ import {
   Modal,
   StatusBadge,
   Tag,
+  TenantLink,
+  PageSkeleton,
+  Pagination,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { MailboxStrip } from "@/components/MailAccounts";
 import { LetterEditor } from "@/components/LetterEditor";
+import { ChaseTimeline } from "@/components/ChaseTimeline";
 import { savedKey, useLetterEdits, type SavedEdit } from "@/lib/use-letter-edits";
 
 /**
@@ -63,6 +75,12 @@ function merge(
   a: Account,
   asOf: string,
   templateId: string,
+  /*
+   * The billing dates a reminder is about. Its amount is their invoices'
+   * total, not the tenant's whole balance. Absent for letters that are not
+   * about one bill.
+   */
+  letter?: PlannedLetter,
 ): string {
   const id: LetterId | null =
     templateId === "reminder-7th"
@@ -81,12 +99,22 @@ function merge(
     company: a.companyName,
     code: a.customerCode,
     property: a.propertyName,
-    amount: a.total,
+    amount: letter?.amount ?? a.total,
     overdue: overdueTotal(a),
     today: fmt.today(asOf),
     dueBy: fmt.dueBy(addDays(asOf, days)),
   });
 }
+
+/** One letter due today: the tenant, and which of their bills it is about. */
+type Pending = QueueItem & { letter: PlannedLetter };
+
+/** "15 Sep 2026", "15 Aug 2026 and 15 Sep 2026", or for more than two,
+    "on 12 dates, 15 Mar 2026 to 15 Sep 2026" rather than all twelve. */
+const billedDates = (l: PlannedLetter) =>
+  l.bills.length <= 2
+    ? l.bills.map((b) => formatDate(b.billedOn)).join(" and ")
+    : `on ${l.bills.length} dates, ${formatDate(l.bills[0]!.billedOn)} to ${formatDate(l.bills[l.bills.length - 1]!.billedOn)}`;
 
 /**
  * One letter, built once.
@@ -96,7 +124,7 @@ function merge(
  * different from the one an officer reads on screen before approving it.
  */
 function letterFor(
-  account: Account,
+  { account, letter }: Pending,
   template: Template,
   asOf: string,
   /* A letter somebody edited and saved: sent as edited, in this screen's
@@ -107,10 +135,11 @@ function letterFor(
     tenantId: account.id,
     companyName: account.companyName,
     to: account.emails,
-    subject: merge(edit?.subject ?? template.subject, account, asOf, template.id),
-    body: merge(edit?.body ?? template.body, account, asOf, template.id),
+    subject: merge(edit?.subject ?? template.subject, account, asOf, template.id, letter),
+    body: merge(edit?.body ?? template.body, account, asOf, template.id, letter),
     templateId: template.id,
     templateName: template.name,
+    billedOn: letter.bills.map((b) => b.billedOn),
     /* Which month's letter this is — from the calendar, not from asOf. The
        7th's reminder is November's reminder because it is November. */
     period: currentPeriod(),
@@ -125,11 +154,11 @@ export default function RemindersPage() {
   const timing = useReminderWindow();
   const ds = withManualEmails(useDataset(), store.manualEmails);
   const [templateId, setTemplateId] = useState("reminder-7th");
-  const [drafting, setDrafting] = useState<Account | null>(null);
+  const [drafting, setDrafting] = useState<Pending | null>(null);
   /* Letters somebody has edited by hand and saved. The 9am run sends those as
      saved, so this screen says so and sends them the same way. */
-  const { edits, reload: reloadEdits } = useLetterEdits();
-  const [editingLetter, setEditingLetter] = useState<Account | null>(null);
+  const { edits, loaded: editsLoaded, reload: reloadEdits } = useLetterEdits();
+  const [editingLetter, setEditingLetter] = useState<Pending | null>(null);
   // Which sent letter is open. The Sent list below is the only place an
   // officer can see what actually went out to a tenant.
   const [opened, setOpened] = useState<string | null>(null);
@@ -151,36 +180,29 @@ export default function RemindersPage() {
   const plan = useMemo(() => {
     const owing = scope(ds.accounts).filter((a) => a.total > 0);
     const due = remindersDueOn(owing, linesByAccount(owing, ds.invoices), todayIso, timing.window);
-    const sent: SentLetter[] = store.emails
-      .filter((e) => !e.simulated && (e.templateId === "reminder-7th" || e.templateId === "final-21st"))
-      .map((e) => ({
-        tenantId: e.accountId,
-        stage: e.templateId === "final-21st" ? ("final-notice" as const) : ("first-reminder" as const),
-        sentAt: e.at,
-      }));
-    const decided = lettersToWrite(due, sent, todayIso, timing.window);
+    const sent = sentReminders(store.emails);
+    const decided = lettersToWrite(due, sent, timing.window);
     const promised = new Set(
       store.promises.filter((pr) => pr.promisedFor >= todayIso).map((pr) => pr.accountId),
     );
     const byId = new Map(owing.map((a) => [a.id, a]));
-    const item = (a: Account): QueueItem => ({ account: a, reasons: [], priority: 0, overdue: overdueTotal(a) });
-    const first: QueueItem[] = [];
-    const final: QueueItem[] = [];
-    const noEmail: QueueItem[] = [];
+    /* overdue is what this letter asks for: its invoices' total. */
+    const item = (a: Account, l: PlannedLetter): Pending => ({ account: a, reasons: [], priority: 0, overdue: l.amount, letter: l });
+    const first: Pending[] = [];
+    const final: Pending[] = [];
+    /* Tenants, not letters: one tenant can be due two letters today. */
+    const noEmail = new Map<string, Account>();
     for (const l of decided.write) {
       const a = byId.get(l.accountId);
       if (!a || promised.has(a.id)) continue;
-      if (!a.hasContact) noEmail.push(item(a));
-      else (l.stage === "final-notice" ? final : first).push(item(a));
+      if (!a.hasContact) noEmail.set(a.id, a);
+      else (l.stage === "final-notice" ? final : first).push(item(a, l));
     }
     const byOverdue = (x: QueueItem, y: QueueItem) => y.overdue - x.overdue;
-    /* Which bill each letter is about: a saved edit belongs to one bill. */
-    const billedOnById = new Map(decided.write.map((l) => [l.accountId, l.billedOn]));
     return {
       first: first.sort(byOverdue),
       final: final.sort(byOverdue),
-      noEmail: noEmail.sort(byOverdue),
-      billedOnById,
+      noEmail: Array.from(noEmail.values()),
     };
   }, [ds, scope, store.emails, store.promises, timing.window, todayIso]);
 
@@ -230,7 +252,7 @@ export default function RemindersPage() {
    * made three places for one job. They are tabs now and those entries are
    * hidden; the pages still answer on their own URLs.
    */
-  const [view, setView] = useState<"first" | "final" | "byhand" | "sent">("first");
+  const [view, setView] = useState<"first" | "final" | "sent" | "all">("first");
 
   /* Finding one tenant, which is how an officer actually uses this: somebody
      rings up asking whether their reminder went out. */
@@ -247,20 +269,16 @@ export default function RemindersPage() {
   const [sending, setSending] = useState(false);
   /* How far a paced "Send all" has got, for the button. */
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const cannotEmail = plan.noEmail.filter((q) =>
-    matches([q.account.companyName, q.account.customerCode]),
-  );
 
   const pending = (view === "final" ? plan.final : plan.first).filter((q) =>
     matches([q.account.companyName, q.account.customerCode, ...q.account.emails]),
   );
 
   const stage: LetterId = view === "final" ? "final-notice" : "first-reminder";
-  const editFor = (a: Account): SavedEdit | undefined => {
-    const billedOn = plan.billedOnById.get(a.id);
-    return billedOn ? edits.get(savedKey(a.id, stage, billedOn)) : undefined;
-  };
-  const editedPending = pending.filter((q) => editFor(q.account)).length;
+  /* A saved edit belongs to one tenant, one letter and one bill. */
+  const editFor = (q: Pending): SavedEdit | undefined =>
+    edits.get(savedKey(q.account.id, q.letter.stage, q.letter.billedOn));
+  const editedPending = pending.filter((q) => editFor(q)).length;
 
   /* Tab counts, from the same plan the lists use, so a number on a tab and
      the list behind it can never disagree - and neither can disagree with
@@ -271,6 +289,15 @@ export default function RemindersPage() {
   const sentShown = store.emails.filter((e) =>
     matches([e.companyName, e.subject, e.templateName]),
   );
+
+  /* A page at a time: a month's first reminders run to a few hundred. */
+  const listKey = `${view}|${find}`;
+  const pendingPage = usePaged(pending, listKey);
+  const sentPage = usePaged(sentShown, listKey);
+
+  /* Until the reminder timing has arrived, the page's shape rather than a
+     list worked out from the built-in default days. */
+  if (timing.source === "loading") return <PageSkeleton />;
 
   return (
     <div className="space-y-5">
@@ -284,15 +311,17 @@ export default function RemindersPage() {
           twice on one screen is a figure somebody has to reconcile. */}
 
       {/* One row to pick the part of the job, and one box to find a tenant. */}
-      <Card className="flex flex-wrap items-center gap-3 px-5 py-3">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Which reminders to show">
+      <Card className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center">
+        <div className="flex gap-1 overflow-x-auto rounded-lg bg-surface-alt p-1" role="tablist" aria-label="Which reminders to show">
           {([
             ["first", "First reminder", pendingFirst],
             ["final", "Final notice", pendingFinal],
-            ["byhand", "By hand", cannotEmail.length],
             /* Delivered only. The list below still shows the rest, marked
                "not delivered", so a letter that did not go is findable. */
             ["sent", "Sent", deliveredOnly(store.emails).length],
+            /* Every tenant and where they stand, which used to sit on The
+               Schedule and repeat these tabs there. */
+            ["all", "All tenants", null],
           ] as const).map(([key, label, count]) => (
             <button
               key={key}
@@ -304,19 +333,20 @@ export default function RemindersPage() {
                 if (key === "first") setTemplateId("reminder-7th");
                 if (key === "final") setTemplateId("final-21st");
               }}
-              className={
+              className={`flex-1 whitespace-nowrap rounded-md px-3.5 py-1.5 text-[13px] lg:flex-none ${
                 view === key
-                  ? "rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink"
-                  : "rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong"
-              }
+                  ? "bg-surface font-medium text-accent-text shadow-sm"
+                  : "text-ink-muted hover:text-ink-secondary"
+              }`}
             >
               {label}
-              <span className="ml-1.5 tabular opacity-70">{count}</span>
+              {count !== null ? <span className="ml-1.5 tabular opacity-70">{count}</span> : null}
             </button>
           ))}
         </div>
 
-        <label className="ml-auto flex items-center gap-2">
+        {view !== "all" ? (
+        <label className="flex items-center gap-2 lg:ml-auto">
           <span className="sr-only">Find a tenant</span>
           <input
             id="reminder-find"
@@ -324,16 +354,38 @@ export default function RemindersPage() {
             value={find}
             onChange={(e) => setFind(e.target.value)}
             placeholder="Find a tenant or email address"
-            className="w-60 rounded border border-line-hair bg-surface px-3 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted sm:py-1.5 sm:text-xs lg:w-64"
           />
         </label>
+        ) : null}
       </Card>
+
+      {/* The tenants due a letter with no address to send it to. Their list
+          is on Send By Hand; one line here rather than the same list twice. */}
+      {(view === "first" || view === "final") && plan.noEmail.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-line-hair bg-surface px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <span className="text-ink-secondary">
+            <b className="text-ink">
+              {plan.noEmail.length} {plan.noEmail.length === 1 ? "tenant" : "tenants"}
+            </b>{" "}
+            due a letter today {plan.noEmail.length === 1 ? "has" : "have"} no email address.
+          </span>
+          <Link
+            href="/no-email"
+            className="self-start rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary sm:self-auto"
+          >
+            Send theirs by hand
+          </Link>
+        </div>
+      ) : null}
 
       {view === "first" || view === "final" ? (
       <Card>
         <CardHeader
-          title="Choose the wording, then approve the batch"
-          hint={`The 9am run sends the first reminder ${timing.window.first} days after each tenant's billing date and the final notice ${timing.window.final} days after it. You can send any of these early from here.`}
+          title={view === "final" ? "Final notices due" : "First reminders due"}
+          hint={`The 9am run sends these ${
+            view === "final" ? timing.window.final : timing.window.first
+          } days after each tenant's billing date. You can send them early from here.`}
           right={
             <div className="flex flex-wrap items-center gap-2">
               {/* The wording follows the tab. A dropdown here as well was a
@@ -345,28 +397,20 @@ export default function RemindersPage() {
                 type="button"
                 onClick={() => setBulk(true)}
                 disabled={pending.length === 0 || !canAct}
-                className="rounded border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-accent bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-ink"
               >
-                Send all {pending.length}
+                {pending.length === 0 ? "Nothing to send" : `Send all ${pending.length}`}
               </button>
             </div>
           }
         />
 
-        <div className="border-b border-line-hair bg-surface-alt px-5 py-2.5">
-          <p className="text-[11px] text-ink-muted">
-            <span className="text-ink-secondary">{template.name}</span> · goes{" "}
-            {view === "final" ? timing.window.final : timing.window.first} days
-            after each tenant&rsquo;s billing date · {pending.length}{" "}
-            {pending.length === 1 ? "tenant" : "tenants"} in this group
-          </p>
-        </div>
-
         {editedPending > 0 ? (
-          <div className="border-b border-line-hair bg-amber-50 px-5 py-2.5 text-[11px] leading-relaxed text-amber-900">
-            <b>{editedPending} of these {editedPending === 1 ? "letter has" : "letters have"} been edited by hand.</b>{" "}
-            The automatic 9am run, and Send all here, use the edited wording for them. The rest go
-            as the standard letter.
+          <div className="border-b border-line-hair bg-accent-wash px-4 py-2.5 text-xs leading-relaxed text-ink-secondary sm:px-5">
+            <b className="text-ink">
+              {editedPending} {editedPending === 1 ? "letter has" : "letters have"} been edited.
+            </b>{" "}
+            They go out as edited, both from here and from the 9am run.
           </div>
         ) : null}
 
@@ -375,45 +419,50 @@ export default function RemindersPage() {
             title={`No tenants for the ${template.name.toLowerCase()}`}
             body={
               view === "final"
-                ? "Nobody is due a final notice today. It goes once a tenant's bill is past the final-notice date and their first reminder went out long enough ago."
-                : "Nobody is due a first reminder today, counted from each tenant's billing date."
+                ? "Nobody is due a final notice today."
+                : "Nobody is due a first reminder today."
             }
           />
         ) : (
           <ul className="divide-y divide-line-grid">
-            {pending.map((item) => (
+            {pendingPage.shown.map((item) => (
               <li
                 key={item.account.id}
-                className="flex flex-wrap items-center gap-4 px-5 py-3.5 hover:bg-surface-alt"
+                className="flex flex-col gap-2 px-4 py-3.5 hover:bg-surface-alt sm:flex-row sm:items-center sm:gap-4 sm:px-5"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium text-ink">
-                      {item.account.companyName}
-                    </span>
+                    <TenantLink
+                      id={item.account.id}
+                      name={item.account.companyName}
+                      className="font-medium text-ink"
+                    />
                     {item.account.isOneFm ? <Tag>1FM</Tag> : null}
-                    {editFor(item.account) ? <Tag>Edited: sent as saved</Tag> : null}
+                    {editFor(item) ? <StatusBadge kind="neutral" label="Edited" /> : null}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                     {item.account.emails.join(", ")}
                   </p>
                 </div>
-                <div className="tabular shrink-0 text-right text-xs text-ink-secondary">
-                  SGD {formatSgd(item.overdue)} overdue
+                <div className="tabular shrink-0 text-xs text-ink-secondary sm:text-right">
+                  SGD {formatSgd(item.overdue)}
+                  <div className="text-[11px] text-ink-muted">
+                    {item.letter.bills.reduce((n, b) => n + b.invoices.length, 0)} invoices billed {billedDates(item.letter)}
+                  </div>
                 </div>
                 {canAct ? (
                   <div className="flex shrink-0 gap-2">
                     <button
                       type="button"
-                      onClick={() => setEditingLetter(item.account)}
-                      className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                      onClick={() => setEditingLetter(item)}
+                      className="rounded-md border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-accent hover:text-accent-text"
                     >
                       Edit letter
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDrafting(item.account)}
-                      className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink hover:border-line-strong"
+                      onClick={() => setDrafting(item)}
+                      className="rounded-md border border-accent px-3 py-1.5 text-xs font-medium text-accent-text hover:bg-accent-wash"
                     >
                       Read and send
                     </button>
@@ -427,49 +476,8 @@ export default function RemindersPage() {
             ))}
           </ul>
         )}
+        <Pagination {...pendingPage.pager} />
       </Card>
-      ) : null}
-
-      {/* A tenant with no address is not simply skipped. They are still owed
-          money and still need chasing, so they are named, their balance is
-          shown, and they are pointed at the phone. Listing them as bare tags
-          made them read as an inconvenience rather than as work. */}
-      {view === "byhand" ? (
-        <Card>
-          <CardHeader
-            title="No email address, so phone these instead"
-            hint="They stay on the call list. Add an address on Outstanding Balances and they join the next send."
-            right={
-              <StatusBadge
-                kind="warning"
-                label={`SGD ${formatSgd(
-                  sumExact(cannotEmail.map((q) => q.account), exactOverdue),
-                )} unreachable`}
-              />
-            }
-          />
-          <ul className="divide-y divide-line-grid">
-            {cannotEmail.map((q) => (
-              <li
-                key={q.account.id}
-                className="flex flex-wrap items-center gap-4 px-5 py-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium text-ink">
-                    {q.account.companyName}
-                  </span>
-                  <span className="ml-2 text-[11px] text-ink-muted">
-                    {q.account.customerCode} · {q.account.propertyName}
-                  </span>
-                </div>
-                <span className="tabular shrink-0 text-xs text-ink-secondary">
-                  overdue SGD {formatSgd(q.overdue)}
-                </span>
-                <StatusBadge kind="warning" label="Phone only" />
-              </li>
-            ))}
-          </ul>
-        </Card>
       ) : null}
 
       {view === "sent" ? (
@@ -478,17 +486,23 @@ export default function RemindersPage() {
             title="Sent"
             hint={
               store.emails.length > deliveredOnly(store.emails).length
-                ? `${deliveredOnly(store.emails).length} delivered. The other ${store.emails.length - deliveredOnly(store.emails).length} were written but not delivered, and are marked so below.`
-                : "Every one recorded with a timestamp."
+                ? `${deliveredOnly(store.emails).length} delivered · ${store.emails.length - deliveredOnly(store.emails).length} not sent, marked below`
+                : "Newest first. Open one to read the letter."
             }
           />
+          {sentShown.length === 0 ? (
+            <EmptyState
+              title="Nothing sent yet"
+              body="Letters appear here as soon as they go out."
+            />
+          ) : null}
           <ul className="divide-y divide-line-grid">
-            {sentShown.map((e) => (
+            {sentPage.shown.map((e) => (
               <li key={e.id}>
                 <button
                   type="button"
                   onClick={() => setOpened(e.id)}
-                  className="flex w-full flex-wrap gap-4 px-5 py-3 text-left hover:bg-surface-alt"
+                  className="flex w-full flex-col gap-2 px-4 py-3 text-left hover:bg-surface-alt sm:flex-row sm:gap-4 sm:px-5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-ink">
@@ -497,25 +511,26 @@ export default function RemindersPage() {
                     <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                       {e.subject}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-accent">
-                      {e.simulated ? "Read the letter (written, not delivered)" : "Read the letter that went out"}
+                    <p className="mt-0.5 text-[11px] font-medium text-accent-text">
+                      Read the letter
                     </p>
                   </div>
-                  <div className="shrink-0 text-right text-[11px] text-ink-muted">
+                  <div className="shrink-0 text-[11px] text-ink-muted sm:text-right">
                     <StatusBadge
-                      kind={e.simulated ? "warning" : "good"}
-                      label={e.simulated ? `${e.templateName} · not delivered` : e.templateName}
+                      kind={e.simulated ? "critical" : "good"}
+                      label={e.simulated ? `${e.templateName} · not sent` : e.templateName}
                     />
-                    <div className="mt-1">
-                      {new Date(e.at).toLocaleString("en-SG")}
-                    </div>
+                    <div className="mt-1">{formatDateTime(e.at)}</div>
                   </div>
                 </button>
               </li>
             ))}
           </ul>
+          <Pagination {...sentPage.pager} />
         </Card>
       ) : null}
+
+      {view === "all" ? <ChaseTimeline /> : null}
 
       {opened ? (
         (() => {
@@ -535,7 +550,7 @@ export default function RemindersPage() {
 
       {drafting ? (
         <Draft
-          account={drafting}
+          item={drafting}
           template={template}
           asOf={ds.asOf}
           edit={editFor(drafting)}
@@ -543,15 +558,16 @@ export default function RemindersPage() {
         />
       ) : null}
 
-      {editingLetter && plan.billedOnById.get(editingLetter.id) ? (
+      {editingLetter ? (
         <LetterEditor
-          tenantId={editingLetter.id}
-          companyName={editingLetter.companyName}
-          billedOn={plan.billedOnById.get(editingLetter.id)!}
-          owed={editingLetter.total}
+          tenantId={editingLetter.account.id}
+          companyName={editingLetter.account.companyName}
+          billedOn={editingLetter.letter.billedOn}
+          owed={editingLetter.letter.amount}
           sendOn={{ "first-reminder": todayIso, "final-notice": todayIso }}
           startAt={stage}
           edits={edits}
+          editsLoaded={editsLoaded}
           canEdit={canAct}
           onSaved={reloadEdits}
           onClose={() => setEditingLetter(null)}
@@ -566,14 +582,14 @@ export default function RemindersPage() {
         >
           <p className="text-xs leading-relaxed text-ink-secondary">
             The same wording goes to everyone below, with each tenant&apos;s own
-            name and balance filled in
+            name and the total for that billing date filled in
             {editedPending > 0
               ? `, except the ${editedPending} whose letter was edited and saved: they get the edited version`
               : ""}
             . Nothing has been sent yet.
           </p>
 
-          <div className="mt-3 max-h-[42vh] overflow-auto rounded border border-line-hair">
+          <div className="mt-3 max-h-[42vh] overflow-auto rounded-md border border-line-hair">
             <table className="w-full border-collapse text-xs">
               <thead className="sticky top-0 bg-surface-alt">
                 <tr className="text-left">
@@ -584,13 +600,13 @@ export default function RemindersPage() {
                     Going to
                   </th>
                   <th className="border-b border-line-grid px-3 py-2 text-right font-medium text-ink-muted">
-                    Owes
+                    Asked for
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {pending.map((q) => (
-                  <tr key={q.account.id} className="border-b border-line-grid">
+                  <tr key={`${q.account.id}|${q.letter.billedOn}`} className="border-b border-line-grid">
                     <td className="px-3 py-1.5 text-ink">
                       {q.account.companyName}
                     </td>
@@ -598,7 +614,7 @@ export default function RemindersPage() {
                       {q.account.emails.join(", ")}
                     </td>
                     <td className="tabular px-3 py-1.5 text-right text-ink">
-                      {formatSgd(q.account.total)}
+                      {formatSgd(q.letter.amount)}
                     </td>
                   </tr>
                 ))}
@@ -617,7 +633,7 @@ export default function RemindersPage() {
                    run, so a long list cannot outrun the route or the inbox
                    providers. See sendLettersPaced. */
                 const report = await sendLettersPaced(
-                  pending.map((q) => letterFor(q.account, template, ds.asOf, editFor(q.account))),
+                  pending.map((q) => letterFor(q, template, ds.asOf, editFor(q))),
                   (done, total) => setProgress({ done, total }),
                 );
                 setSending(false);
@@ -629,7 +645,7 @@ export default function RemindersPage() {
                    go are still in front of the person who pressed it. */
                 if (report.sent > 0 && report.blocked + report.failed === 0) setBulk(false);
               }}
-              className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90"
+              className="rounded-md border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
             >
               {sending
                 ? progress
@@ -656,13 +672,14 @@ export default function RemindersPage() {
 }
 
 function Draft({
-  account,
+  item,
   template,
   asOf,
   edit,
   onClose,
 }: {
-  account: Account;
+  /** The tenant, and the bills this letter is about. */
+  item: Pending;
   template: Template;
   /** The uploaded report's date, which is what the letter dates itself by. */
   asOf: string;
@@ -671,11 +688,12 @@ function Draft({
   onClose: () => void;
 }) {
   const { notify } = useToast();
+  const { account, letter } = item;
   const [subject, setSubject] = useState(
-    merge(edit?.subject ?? template.subject, account, asOf, template.id),
+    merge(edit?.subject ?? template.subject, account, asOf, template.id, letter),
   );
   const [body, setBody] = useState(
-    merge(edit?.body ?? template.body, account, asOf, template.id),
+    merge(edit?.body ?? template.body, account, asOf, template.id, letter),
   );
 
   const [sending, setSending] = useState(false);
@@ -699,6 +717,7 @@ function Draft({
         templateId: template.id,
         templateName: template.name,
         period: currentPeriod(),
+        billedOn: letter.bills.map((b) => b.billedOn),
       },
     ]);
     setSending(false);
@@ -726,9 +745,9 @@ function Draft({
     >
       <div className="space-y-4">
         {edit ? (
-          <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <b>This letter was edited and saved.</b> What you see below is the saved version, and
-            the automatic 9am run will send it too.
+          <div className="rounded-md border border-line-hair bg-accent-wash px-3 py-2 text-xs text-ink-secondary">
+            <b className="text-ink">This letter was edited.</b> Below is the saved version, which
+            the 9am run will also send.
           </div>
         ) : null}
         <div className="rounded border border-line-hair bg-surface-alt px-3 py-2">
@@ -745,7 +764,7 @@ function Draft({
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink"
           />
         </label>
 
@@ -757,7 +776,7 @@ function Draft({
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={14}
-            className="w-full rounded border border-line-hair bg-surface px-3 py-2 font-mono text-xs leading-relaxed text-ink"
+            className="w-full rounded-md border bg-surface px-3 py-2 text-sm leading-relaxed text-ink"
           />
         </label>
 
@@ -766,7 +785,7 @@ function Draft({
             type="button"
             onClick={send}
             disabled={sending}
-            className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
           >
             {sending ? "Sending..." : "Send this email"}
           </button>

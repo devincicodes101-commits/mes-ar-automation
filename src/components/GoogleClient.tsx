@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useSession, useToast } from "@/lib/session";
-import { Card, CardHeader, Spinner, StatusBadge } from "@/components/ui";
+import { Card, CardHeader, Skeleton, Spinner, StatusBadge } from "@/components/ui";
 
 interface ClientState {
   clientId: string | null;
@@ -49,7 +49,8 @@ export function GoogleClient() {
   const [secret, setSecret] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const admin = role === "admin" || role === "super-admin";
+  /* A one-off setup for whoever runs the system, not daily work. */
+  const admin = role === "super-admin";
 
   const load = useCallback(async () => {
     try {
@@ -92,10 +93,25 @@ export function GoogleClient() {
     }
   };
 
-  if (loading || !state) return null;
   // Not an administrator's business, and showing a form they cannot submit is
   // just a way of telling somebody off for reading.
   if (!admin) return null;
+  if (loading) {
+    return (
+      <Card>
+        <div className="border-b border-line-hair px-4 py-4 sm:px-5" role="status" aria-label="Loading">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="mt-2 h-3 w-72 max-w-full" />
+        </div>
+        <div className="space-y-3 px-4 py-4 sm:px-5">
+          <Skeleton className="h-3.5 w-80 max-w-full" />
+          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-9 w-48 rounded-lg" />
+        </div>
+      </Card>
+    );
+  }
+  if (!state) return null;
 
   const ready = state.stored || state.usingEnvironment;
 
@@ -103,7 +119,6 @@ export function GoogleClient() {
     <Card>
       <CardHeader
         title="Google sign in"
-        hint="One setup for the whole system. After this, everybody just presses the button."
         right={
           <StatusBadge
             kind={ready ? "good" : "warning"}
@@ -114,9 +129,9 @@ export function GoogleClient() {
 
       <div className="space-y-3 px-5 py-4">
         {state.tableMissing ? (
-          <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            This database does not have 0016_oauth_client.sql applied yet, so
-            nothing can be saved here.
+          <p className="rounded border border-warn-line bg-warn-wash px-3 py-2 text-sm text-warn-ink">
+            This setting cannot be saved yet. Please contact your system
+            administrator.
           </p>
         ) : null}
 
@@ -128,8 +143,7 @@ export function GoogleClient() {
                 <span className="font-mono text-xs text-ink">{state.clientId}</span>
               </>
             ) : (
-              "Signing in using the client set in the environment. Saving one here " +
-              "replaces it, and means MES can change it without a deploy."
+              "Google sign-in is set up for this system."
             )}
           </p>
         ) : (
@@ -160,7 +174,7 @@ export function GoogleClient() {
                 setCopied(true);
                 window.setTimeout(() => setCopied(false), 1500);
               }}
-              className="shrink-0 rounded border border-line-hair bg-surface px-2.5 py-1 text-xs text-ink hover:border-line-strong"
+              className="shrink-0 rounded-md border border-line-strong bg-surface px-2.5 py-1 text-xs text-ink hover:border-line-strong"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -201,7 +215,7 @@ export function GoogleClient() {
                 type="button"
                 disabled={busy || !id.trim() || !secret.trim()}
                 onClick={() => void save()}
-                className="rounded bg-ink px-3 py-2 text-sm font-medium text-white disabled:opacity-40"
+                className="rounded-md border border-accent bg-accent px-3 py-2 text-sm font-medium text-accent-ink"
               >
                 {busy ? <Spinner /> : "Save"}
               </button>

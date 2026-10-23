@@ -17,6 +17,7 @@ import {
   TenantLink,
 } from "@/components/ui";
 import { MailboxStrip } from "@/components/MailAccounts";
+import { formatDateTime } from "@/lib/format";
 
 /**
  * Sent Mail.
@@ -43,6 +44,17 @@ export default function OutboxPage() {
     store.emails[0]?.id ?? null,
   );
   const [filter, setFilter] = useState<string>("all");
+  /*
+   * Sent or not sent. The count above has always left out letters that never
+   * left - sending switched off, a failed send - but the list did not, so a
+   * morning with three failures and three retries read as six letters sent.
+   */
+  const [which, setWhich] = useState<"sent" | "unsent">("sent");
+  const delivered = useMemo(() => deliveredOnly(store.emails), [store.emails]);
+  const unsent = useMemo(
+    () => store.emails.filter((e) => e.simulated),
+    [store.emails],
+  );
 
   const accounts = useMemo(() => scope(ds.accounts), [ds, scope]);
 
@@ -60,16 +72,13 @@ export default function OutboxPage() {
     [store.emails],
   );
 
-  const shown = useMemo(
-    () =>
-      filter === "all"
-        ? store.emails
-        : store.emails.filter((e) => e.templateName === filter),
-    [store.emails, filter],
-  );
+  const shown = useMemo(() => {
+    const list = which === "sent" ? delivered : unsent;
+    return filter === "all" ? list : list.filter((e) => e.templateName === filter);
+  }, [delivered, unsent, which, filter]);
 
-  const open = store.emails.find((e) => e.id === openId) ?? shown[0] ?? null;
-  const recipients = new Set(store.emails.flatMap((e) => e.to)).size;
+  const open = shown.find((e) => e.id === openId) ?? shown[0] ?? null;
+  const recipients = new Set(delivered.flatMap((e) => e.to)).size;
 
   return (
     <div className="space-y-5">
@@ -77,42 +86,60 @@ export default function OutboxPage() {
           and the button are here rather than a screen away. */}
       <MailboxStrip />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Emails sent"
-          value={String(deliveredOnly(store.emails).length)}
-          note="This period"
+          value={String(delivered.length)}
           emphasis
         />
         <StatTile
-          label="Distinct recipients"
+          label="Recipients"
           value={String(recipients)}
-          note="Addresses reached"
         />
         <StatTile
-          label="Could not be sent"
+          label="Not sent"
+          value={String(unsent.length)}
+        />
+        <StatTile
+          label="No address"
           value={String(unreachable.length)}
-          note="No address on file"
-        />
-        <StatTile
-          label="Wordings used"
-          value={String(templates.length)}
-          note="First reminder, final notice, etc."
         />
       </div>
 
       {/* ------------------------------------------------------- sent mail */}
       <Card>
         <CardHeader
-          title="Sent mail"
-          hint="The letter exactly as it went out, so a merge fault is visible before the next send."
+          title="Letters"
           right={
-            templates.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1 rounded-md bg-surface-alt p-1" role="group" aria-label="Sent or not sent">
+                {(
+                  [
+                    ["sent", "Sent", delivered.length],
+                    ["unsent", "Not sent", unsent.length],
+                  ] as const
+                ).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setWhich(key)}
+                    aria-pressed={which === key}
+                    className={`whitespace-nowrap rounded px-3 py-1 text-xs ${
+                      which === key
+                        ? "bg-surface font-medium text-accent-text shadow-sm"
+                        : "text-ink-muted hover:text-ink-secondary"
+                    }`}
+                  >
+                    {label} <span className="tabular opacity-70">{count}</span>
+                  </button>
+                ))}
+              </div>
+            {templates.length > 1 ? (
               <select
                 aria-label="Filter by wording"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
+                className="rounded-md border bg-surface px-2.5 py-1.5 text-xs text-ink-secondary"
               >
                 <option value="all">Every wording</option>
                 {templates.map((t) => (
@@ -121,19 +148,24 @@ export default function OutboxPage() {
                   </option>
                 ))}
               </select>
-            ) : null
+            ) : null}
+            </div>
           }
         />
 
-        {store.emails.length === 0 ? (
+        {shown.length === 0 ? (
           <EmptyState
-            title="Nothing has been sent yet"
-            body="Send a reminder from the Reminder Emails screen and it will appear here, with the full letter."
+            title={which === "sent" ? "Nothing has been sent yet" : "Every letter went out"}
+            body={
+              which === "sent"
+                ? "Reminders appear here with the full letter once they go out."
+                : "No letter has failed or been held back."
+            }
           />
         ) : (
           <div className="grid lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
             {/* the list */}
-            <ScrollPanel max={460} className="border-r border-line-hair">
+            <ScrollPanel max={460} className="border-b border-line-hair lg:border-b-0 lg:border-r">
               <ul className="divide-y divide-line-grid">
                 {shown.map((e) => {
                   const active = open?.id === e.id;
@@ -147,11 +179,16 @@ export default function OutboxPage() {
                           active ? "bg-surface-alt" : ""
                         }`}
                       >
-                        <p className="truncate text-[13px] font-medium text-ink">
-                          <TenantLink id={e.accountId} name={e.companyName} />
+                        <p className="flex items-center gap-2 text-[13px] font-medium text-ink">
+                          <span className="min-w-0 truncate">{e.companyName}</span>
+                          {e.simulated ? (
+                            <span className="ml-auto shrink-0">
+                              <StatusBadge kind="critical" label="Not sent" />
+                            </span>
+                          ) : null}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-ink-muted">
-                          {e.templateName} · {e.at.slice(0, 16).replace("T", " ")}
+                          {e.templateName} · {formatDateTime(e.at)}
                         </p>
                         <p className="mt-0.5 truncate text-[11px] text-ink-muted">
                           {e.to.length === 0 ? "no recipients" : e.to.join(", ")}
@@ -172,8 +209,7 @@ export default function OutboxPage() {
       {/* ------------------------------------------------------ not reached */}
       <Card>
         <CardHeader
-          title="Owed money, but no address"
-          hint="These tenants cannot receive a reminder at all. They stay on the call list."
+          title="Owe money, no email address"
           right={
             <StatusBadge
               kind={unreachable.length === 0 ? "good" : "warning"}
@@ -206,13 +242,13 @@ export default function OutboxPage() {
                 {unreachable.map((a) => (
                   <tr key={a.id} className="border-b border-line-grid">
                     <td className="px-5 py-2.5">
-                      <span className="text-ink">{a.companyName}</span>
+                      <TenantLink id={a.id} name={a.companyName} className="text-ink" />
                       <span className="ml-2 text-[11px] text-ink-muted">
                         {a.customerCode}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 text-ink-secondary">
-                      {a.property}
+                      {a.propertyName}
                     </td>
                     <td className="tabular px-5 py-2.5 text-right text-ink">
                       {formatSgd(a.total)}

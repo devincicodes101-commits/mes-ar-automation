@@ -25,6 +25,7 @@
  * Newest first, because the useful end of a chase is the recent end.
  */
 import type { CallLog, PromiseRecord, RaisedFee, SentEmail } from "./store.ts";
+import { formatDate } from "./format.ts";
 
 export type HistoryKind = "letter" | "call" | "promise" | "fee";
 
@@ -95,7 +96,7 @@ export function historyFor(
       id: c.id,
       kind: "call",
       at: c.at,
-      title: c.reached === "yes" ? `Spoke to them — ${said}` : `Called — ${said}`,
+      title: c.reached === "yes" ? `Spoke to them: ${said}` : `Called: ${said}`,
       detail: c.notes || "No note was left.",
       amount: c.promisedAmount,
       reachedTheTenant: false,
@@ -109,7 +110,7 @@ export function historyFor(
       kind: "promise",
       at: p.createdAt,
       title: `Promised ${money(p.amount)}`,
-      detail: `Due ${p.promisedFor}${p.source === "call" ? ", taken on a call" : ", from a reply"}`,
+      detail: `Due ${formatDate(p.promisedFor)}${p.source === "call" ? ", taken on a call" : ", from a reply"}`,
       amount: p.amount,
       reachedTheTenant: false,
     });

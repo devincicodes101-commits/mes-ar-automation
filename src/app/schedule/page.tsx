@@ -1,18 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { useSession, useToast } from "@/lib/session";
-import { hydrateActivity, useStore } from "@/lib/store";
-import { inSingapore, letterDelivery, runNeedsAttention, runNeedsLookingAt, type RunLetterSummary } from "@/lib/schedule";
-import { useDataset } from "@/lib/dataset";
-import { formatDate, formatSgd, invoicesForAccount, overdueTotal } from "@/lib/data";
-import { billingForTenant } from "@/lib/billing-cycles";
-import { letterPosition, reminderDatesFor, type LetterPosition, type SentLetter } from "@/lib/reminder-timing";
-import { useReminderWindow } from "@/lib/use-reminder-window";
-import { Card, CardHeader, EmptyState, ScrollPanel, StatTile, StatusBadge, Tag } from "@/components/ui";
-import { LetterEditor } from "@/components/LetterEditor";
-import { savedKey, useLetterEdits } from "@/lib/use-letter-edits";
+import { hydrateActivity } from "@/lib/store";
+import {
+  inSingapore,
+  letterDelivery,
+  needsAttention,
+  runNeedsLookingAt,
+  type AttentionItem,
+  type RunLetterSummary,
+} from "@/lib/schedule";
+import { formatDate } from "@/lib/data";
+import { usePaged } from "@/lib/use-paged";
+import { Card, CardHeader, EmptyState, Modal, Pagination, Skeleton, StatusBadge, TableSkeleton, Tag } from "@/components/ui";
+import { formatMonth, formatTime } from "@/lib/format";
 
 /**
  * What the schedule has done, and a way to watch it do one.
@@ -77,7 +82,8 @@ export default function SchedulePage() {
   const [history, setHistory] = useState<History | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
-  const [when, setWhen] = useState("");
+  /* The item whose button was pressed, waiting for "are you sure". */
+  const [asking, setAsking] = useState<AttentionItem | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,13 +103,13 @@ export default function SchedulePage() {
     void load();
   }, [load]);
 
-  async function runDay() {
+  async function runDay(when: string) {
     setRunning(true);
     try {
       const r = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify({ for: when || undefined }),
+        body: JSON.stringify({ for: when }),
       });
       const body = (await r.json()) as {
         ok?: boolean; error?: string; ranFor?: string; cycleDay?: number | null;
@@ -115,7 +121,7 @@ export default function SchedulePage() {
       } else {
         const s = body.summary ?? {};
         notify(
-          `Ran the 9am job for ${body.ranFor}`,
+          `Ran the 9am job for ${formatDate(body.ranFor ?? null)}`,
           [
             s.title ?? null,
             s.feesRaised ? `${s.feesRaised} fees raised` : null,
@@ -127,149 +133,98 @@ export default function SchedulePage() {
       notify("The schedule did not run", (e as Error).message);
     }
     setRunning(false);
+    setAsking(null);
     await load();
     /* The run may have written fees and letters, so the shared log is stale. */
     await hydrateActivity(true);
   }
 
   const runs = history?.runs ?? [];
-  /* The newest 16th the run has done, for the late-fee row below. Runs come
-     newest first. */
+  /* The run history only grows; two weeks at a time. */
+  const runPage = usePaged(runs, null, 14);
+  /* The newest 16th the run has done, for the status line. Runs come newest
+     first. */
   const lastFeeDay = runs.find((r) => r.cycle_day === 16)?.ran_for ?? null;
-  const { window: reminderWindow } = useReminderWindow();
-  const totalFees = runs.reduce((n, r) => n + (r.summary?.feesRaised ?? 0), 0);
-  /* A morning in several parts records once, carrying the earlier parts'
-     letters in sentEarlier - so both are counted. */
-  const totalLetters = runs.reduce(
-    (n, r) => n + (r.summary?.lettersSent ?? 0) + (r.summary?.sentEarlier ?? 0),
-    0,
-  );
-  // A quiet day is not a failure, and neither is a letter test mode held
-  // back. A letter that failed to send is. See runNeedsAttention.
-  const failures = runs.filter(runNeedsAttention).length;
+  /* What needs a hand, worked out from the history rather than asked for. */
+  const attention = history?.ok ? needsAttention(runs, inSingapore()) : [];
+  const mayRun = Boolean(history?.canRun && canAct);
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label="Runs recorded"
-          value={String(runs.length)}
-          note="Every wake-up, whether it acted or not"
-        />
-        <StatTile label="Fees raised" value={String(totalFees)} note="By the schedule, on the 16th" />
-        <StatTile label="Letters sent" value={String(totalLetters)} note="Reminders, from each tenant's billing date" />
-        <StatTile
-          label="Runs that need looking at"
-          value={String(failures)}
-          note={failures === 0 ? "None so far" : "Failed, or letters did not send"}
-          emphasis={failures > 0}
-        />
-      </div>
-
-      <WhenEachTenantIsChased />
-
-      {/*
-        * What the run does, as it does it now.
-        *
-        * This was "The six days" - the 1st, 4th, 7th, 15th, 16th and 21st,
-        * MES's original calendar. Reminders left that calendar on 4 October
-        * and follow each tenant's billing date on any morning, so four of the
-        * six said "was the reminder day" or described work the run does not
-        * do. What is left is two things: the reminders, every morning, and
-        * the late fee, on the 16th.
-        */}
-      <Card>
-        <CardHeader
-          title="What the 9am run does"
-          hint="Every morning at nine, Singapore time, the schedule reads the newest uploaded report and does the work below on its own."
-        />
-        <div className="grid gap-px bg-line-hair sm:grid-cols-2">
-          <div className="bg-surface px-5 py-3.5">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-ink">Every morning: reminder emails</div>
-                <p className="mt-0.5 text-xs text-ink-secondary">
-                  Counted from each tenant&rsquo;s billing date: the first reminder{" "}
-                  {reminderWindow.first} days after, the final notice{" "}
-                  {reminderWindow.final} days after.
-                </p>
-              </div>
-              {history?.lastRun ? (
-                <StatusBadge kind="good" label={`last ran for ${history.lastRun}`} />
-              ) : (
-                <StatusBadge kind="warning" label="never run" />
-              )}
-            </div>
-          </div>
-          <div className="bg-surface px-5 py-3.5">
-            <div className="flex items-start gap-3">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-ink">The 16th: late payment fees</div>
-                <p className="mt-0.5 text-xs text-ink-secondary">
-                  The S$100 fee on anything unpaid 14 days past its due date.
-                  Tenants on GIRO are held back.
-                </p>
-              </div>
-              {lastFeeDay ? (
-                <StatusBadge kind="good" label={`last ran ${lastFeeDay}`} />
-              ) : (
-                <span className="text-[11px] text-ink-muted">not yet</span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* When each of the run's two jobs last happened. What they do is in
+          the user manual; the day counts are in Settings, Reminder timing. */}
+      <Card className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:px-5">
+        {loading ? (
+          <>
+            <Skeleton className="h-4 w-56" />
+            <Skeleton className="h-4 w-56" />
+          </>
+        ) : (
+          <>
+            <LastRan label="Reminder emails" on={history?.lastRun ?? null} />
+            <LastRan label="Late fees (16th)" on={lastFeeDay} />
+          </>
+        )}
       </Card>
 
-      {history?.canRun && canAct ? (
-        <Card className="px-5 py-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-ink-secondary">
-                Run a missed morning
-              </span>
-              {/*
-                * A date, and nothing chosen for you.
-                *
-                * There were shortcut buttons for "the 1st", "the 4th" and "the
-                * 7th", which read as filters and belonged to the old calendar,
-                * and an empty date ran today - which is how a 2am press on 13
-                * October replaced that day's record. Now nothing runs until a
-                * day is picked, and only a day that has already begun.
-                */}
-              <input
-                id="schedule-run-date"
-                type="date"
-                value={when}
-                max={history.today || undefined}
-                onChange={(e) => setWhen(e.target.value)}
-                className="rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink"
+      {/* Only when something is wrong, and only what is. Replaces a date
+          picker that asked the officer to know which morning had failed. */}
+      {!loading && attention.length > 0 ? (
+        <Card>
+          <CardHeader title="Needs attention" />
+          <ul className="divide-y divide-line-grid">
+            {attention.map((item) => (
+              <AttentionRow
+                key={item.kind + ("date" in item ? item.date : item.dates.join())}
+                item={item}
+                mayRun={mayRun}
+                running={running}
+                onRun={() => setAsking(item)}
               />
-            </label>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {asking && "date" in asking ? (
+        <Modal title={confirmTitle(asking)} onClose={() => (running ? null : setAsking(null))}>
+          <p className="text-sm leading-relaxed text-ink-secondary">{confirmBody(asking)}</p>
+          {asking.kind === "fee-day" ? (
+            <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
+              To see who that is first, open{" "}
+              <Link href="/late-fees" className="font-medium text-accent-text underline underline-offset-4">
+                Late Payment Fees
+              </Link>
+              .
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
             <button
               type="button"
-              onClick={runDay}
-              disabled={running || !when}
-              className="rounded border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={running}
+              onClick={() => runDay(asking.date)}
+              className="rounded-md border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
             >
-              {running ? "Running..." : when ? `Run ${when}` : "Choose a date"}
+              {running ? "Running..." : actionLabel(asking)}
             </button>
-            <p className="max-w-[52ch] text-[11px] leading-relaxed text-ink-muted">
-              Only for a morning the 9am run missed. This is the real run, not a
-              rehearsal: it sends whatever the mail settings allow and, on the
-              16th, raises the late fees. It replaces that day&rsquo;s line
-              below. Running a day twice cannot charge a tenant twice.
-            </p>
+            <button
+              type="button"
+              disabled={running}
+              onClick={() => setAsking(null)}
+              className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary"
+            >
+              Cancel
+            </button>
           </div>
-        </Card>
+        </Modal>
       ) : null}
 
       <Card>
         <CardHeader
           title="What it has done"
-          hint="Newest first. A day that caught up late is marked, because a missed 16th is a fee that was never charged."
         />
         {loading ? (
-          <EmptyState title="Reading the record" body="One moment." />
+          <TableSkeleton rows={6} />
         ) : history && !history.ok ? (
           <EmptyState
             title="Could not read the schedule's history"
@@ -278,87 +233,300 @@ export default function SchedulePage() {
         ) : runs.length === 0 ? (
           <EmptyState
             title="The schedule has not run yet"
-            body="It runs at nine each morning, Singapore time. Nothing here means nothing has fired."
+            body="It runs at 9am each morning, Singapore time."
           />
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm md:min-w-[640px]">
               <thead>
                 <tr className="border-b border-line-hair text-left text-xs text-ink-muted">
-                  <th className="px-5 py-2 font-medium">Ran for</th>
-                  <th className="px-3 py-2 font-medium">Day</th>
+                  <th className="px-4 py-2 font-medium sm:px-5">Ran for</th>
+                  <th className="hidden px-3 py-2 font-medium md:table-cell">Day</th>
                   <th className="px-3 py-2 font-medium">What it did</th>
-                  <th className="px-3 py-2 text-right font-medium">Fees</th>
-                  <th className="px-3 py-2 text-right font-medium">Letters</th>
-                  <th className="px-5 py-2 font-medium">Finished</th>
+                  <th className="hidden px-3 py-2 text-right font-medium md:table-cell">Fees</th>
+                  <th className="hidden px-3 py-2 text-right font-medium md:table-cell">Letters</th>
+                  <th className="hidden px-5 py-2 font-medium md:table-cell">Finished</th>
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r) => (
-                  <tr key={r.ran_for} className="border-b border-line-hair last:border-0">
-                    <td className="tabular px-5 py-3 text-ink">{r.ran_for}</td>
-                    <td className="px-3 py-3">
+                {runPage.shown.map((r) => (
+                  <tr key={r.ran_for} className="border-b border-line-hair align-top last:border-0">
+                    <td className="px-4 py-3 text-ink sm:whitespace-nowrap sm:px-5">
+                      {formatDate(r.ran_for)}
+                      {/* On a phone the counts fold in here. */}
+                      <span className="mt-1 block text-[11px] text-ink-muted md:hidden">
+                        {r.cycle_day === 16 ? "16th · " : ""}
+                        {r.summary?.lettersSent ?? 0} sent
+                        {r.summary?.feesRaised ? ` · ${r.summary.feesRaised} fees` : ""}
+                      </span>
+                    </td>
+                    <td className="hidden px-3 py-3 md:table-cell">
                       {r.cycle_day === 16 ? (
-                        <span className="text-xs font-medium text-ink">16th · fees</span>
+                        <StatusBadge kind="neutral" label="16th · fees" />
                       ) : (
                         <span className="text-xs text-ink-muted">daily</span>
                       )}
                     </td>
                     <td className="px-3 py-3 text-ink-secondary">
-                      <div>{r.summary?.title ?? (r.cycle_day ? "—" : "Nothing to do")}</div>
+                      <div>{r.summary?.title ?? (r.cycle_day ? "-" : "Nothing to do")}</div>
                       {r.missed && r.missed.length > 0 ? (
-                        <Tag>caught up {r.missed.length} missed</Tag>
+                        <Tag>
+                          {r.missed.length} {r.missed.length === 1 ? "morning" : "mornings"} missed before this
+                        </Tag>
                       ) : null}
                       {runNeedsLookingAt(r.status) ? (
-                        <StatusBadge kind="critical" label={r.error ?? r.status} />
+                        <p className="mt-1 max-w-[70ch] text-xs leading-relaxed text-crit-ink">
+                          {r.error ?? r.status}
+                        </p>
                       ) : null}
                       <Delivery summary={r.summary} />
 
                       {/* Named, because a number is not checkable. Somebody
                           holding an inbox open wants to know whether these
                           are the four they received. */}
+                      {/* Named, but folded: a morning can write to two hundred
+                          tenants, and the list is for checking, not reading. */}
                       {(r.summary?.wrote ?? []).length > 0 ? (
-                        <div className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
-                          <span className="text-ink-secondary">Written to: </span>
-                          {r.summary!.wrote!.map((t) => t.name).join(", ")}
-                        </div>
+                        <Names label="Written to" names={r.summary!.wrote!.map((t) => t.name)} />
                       ) : null}
                       {(r.summary?.chargedTo ?? []).length > 0 ? (
-                        <div className="mt-1 text-[11px] leading-relaxed text-ink-muted">
-                          <span className="text-ink-secondary">Charged: </span>
-                          {r.summary!.chargedTo!.map((t) => t.name).join(", ")}
-                        </div>
+                        <Names label="Charged" names={r.summary!.chargedTo!.map((t) => t.name)} />
                       ) : null}
                       {/* The more useful half. A tenant the schedule chose not
                           to write to, and the reason, is what turns "it sent
                           four" into something anybody can agree with. */}
                       {(r.summary?.heldBack ?? []).length > 0 ? (
-                        <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-ink-muted">
-                          {r.summary!.heldBack!.map((t) => (
-                            <li key={t.code}>
-                              <span className="text-ink-secondary">{t.name}</span> — {t.why}
-                            </li>
-                          ))}
-                        </ul>
+                        <HeldBack held={r.summary!.heldBack!} />
                       ) : null}
                     </td>
-                    <td className="tabular px-3 py-3 text-right text-ink-secondary">
+                    <td className="tabular hidden px-3 py-3 text-right text-ink-secondary md:table-cell">
                       {r.summary?.feesRaised ?? 0}
                     </td>
-                    <td className="tabular px-3 py-3 text-right text-ink-secondary">
+                    <td className="tabular hidden px-3 py-3 text-right text-ink-secondary md:table-cell">
                       {r.summary?.lettersSent ?? 0}
                     </td>
-                    <td className="tabular px-5 py-3 text-xs text-ink-muted">
-                      {r.finished_at.slice(0, 16).replace("T", " ")}
+                    <td className="hidden whitespace-nowrap px-5 py-3 text-xs text-ink-muted md:table-cell">
+                      {formatTime(r.finished_at)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <Pagination {...runPage.pager} />
+          </>
         )}
       </Card>
     </div>
+  );
+}
+
+/** One thing that needs a hand: what happened, and the button, if one helps. */
+function AttentionRow({
+  item,
+  mayRun,
+  running,
+  onRun,
+}: {
+  item: AttentionItem;
+  mayRun: boolean;
+  running: boolean;
+  onRun: () => void;
+}) {
+  const router = useRouter();
+  const [title, detail] = describeItem(item);
+  const action = item.kind === "gap" ? null : actionLabel(item);
+  /* Stopped for the report: the fix is an upload, then the run is offered. */
+  if ((item.kind === "failed" || item.kind === "fee-day") && item.needsUpload) {
+    return (
+      <li className="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+        <span aria-hidden="true" className="hidden h-2 w-2 shrink-0 rounded-full bg-warn-ink sm:block" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-ink">{title}</p>
+          {detail ? <p className="mt-0.5 text-xs leading-relaxed text-ink-secondary">{detail}</p> : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/upload")}
+          className="w-full shrink-0 rounded-md border border-accent bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-ink sm:w-auto"
+        >
+          Upload the current report
+        </button>
+      </li>
+    );
+  }
+  return (
+    <li className="flex flex-col gap-2 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+      <span
+        aria-hidden="true"
+        className={`hidden h-2 w-2 shrink-0 rounded-full sm:block ${item.kind === "gap" ? "bg-line-strong" : "bg-warn-ink"}`}
+      />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-ink">{title}</p>
+        {detail ? <p className="mt-0.5 text-xs leading-relaxed text-ink-secondary">{detail}</p> : null}
+      </div>
+      {action ? (
+        mayRun ? (
+          <button
+            type="button"
+            disabled={running}
+            onClick={onRun}
+            className="w-full shrink-0 rounded-md border border-accent bg-accent px-3.5 py-1.5 text-xs font-medium text-accent-ink sm:w-auto"
+          >
+            {action}
+          </button>
+        ) : (
+          <span className="shrink-0 text-[11px] text-ink-muted">An administrator can fix this</span>
+        )
+      ) : null}
+    </li>
+  );
+}
+
+function listDates(dates: string[]): string {
+  const said = dates.map((d) => formatDate(d));
+  if (said.length > 3) return `${said.length} mornings between ${said[0]} and ${said[said.length - 1]}`;
+  return said.length <= 2 ? said.join(" and ") : `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}`;
+}
+
+function describeItem(item: AttentionItem): [string, string | null] {
+  switch (item.kind) {
+    case "fee-day":
+      return [
+        `Late fees for ${formatMonth(item.date)} were not raised`,
+        item.error
+          ? `The run on ${formatDate(item.date)} stopped: ${item.error}`
+          : `The 9am run did not run on ${formatDate(item.date)}, and later mornings do not raise the 16th's fees.`,
+      ];
+    case "unfinished":
+      return [
+        `${item.notSent} of ${item.written} reminders on ${formatDate(item.date)} were not sent`,
+        item.why ?? "The run ran out of time before it reached them.",
+      ];
+    case "failed":
+      return [`The run on ${formatDate(item.date)} stopped`, item.error];
+    case "not-today":
+      return [
+        "The 9am run has not run today",
+        `It last ran on ${formatDate(item.lastRan)}. Today's reminders have not gone out.`,
+      ];
+    case "gap":
+      return [
+        `No run on ${listDates(item.dates)}`,
+        "Reminders due on those mornings were not sent, and a later morning does not send them. Run a morning again to send its reminders.",
+      ];
+  }
+}
+
+function actionLabel(item: AttentionItem): string {
+  switch (item.kind) {
+    case "fee-day":
+      return `Raise ${formatMonth(item.date)}'s late fees`;
+    case "unfinished":
+      return `Send the remaining ${item.notSent}`;
+    case "failed":
+      return `Run ${formatDate(item.date)} again`;
+    case "not-today":
+      return "Run this morning now";
+    case "gap":
+      return "";
+  }
+}
+
+function confirmTitle(item: AttentionItem): string {
+  switch (item.kind) {
+    case "fee-day":
+      return `Raise the late fees for ${formatMonth(item.date)}?`;
+    case "unfinished":
+      return `Send the remaining ${item.notSent} reminders?`;
+    case "failed":
+      return `Run ${formatDate(item.date)} again?`;
+    default:
+      return "Run this morning now?";
+  }
+}
+
+function confirmBody(item: AttentionItem): string {
+  const real = "This sends for real, to tenants.";
+  switch (item.kind) {
+    case "fee-day":
+      return (
+        `This raises the S$100 late payment fee for ${formatMonth(item.date)} on every ` +
+        "tenant the rule catches, as the 16th would have, and sends any reminders due " +
+        `that day. A tenant already charged for ${formatMonth(item.date)} is not charged again. ${real}`
+      );
+    case "unfinished":
+      return (
+        `This sends the reminders from ${formatDate(item.date)} that did not go. ` +
+        `Tenants who already had their letter are skipped. ${real}`
+      );
+    case "failed":
+      return (
+        `This runs the 9am job for ${formatDate(item.date)} again. Nothing already sent ` +
+        `or charged is repeated. ${real}`
+      );
+    default:
+      return `This does this morning's 9am job now: the reminders due today. ${real}`;
+  }
+}
+
+/** One of the run's jobs, and the morning it last ran. */
+function LastRan({ label, on }: { label: string; on: string | null }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span
+        aria-hidden="true"
+        className={`h-2 w-2 shrink-0 rounded-full ${on ? "bg-good-ink" : "bg-warn-ink"}`}
+      />
+      <span className="font-medium text-ink">{label}</span>
+      <span className="text-ink-muted">·</span>
+      <span className="text-ink-secondary">{on ? `last ran ${formatDate(on)}` : "not run yet"}</span>
+    </div>
+  );
+}
+
+/** Who a morning held back and why, drawn only once it is opened. */
+function HeldBack({ held }: { held: { code: string; name: string; why: string }[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="mt-1 text-[11px] leading-relaxed text-ink-muted"
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="cursor-pointer text-accent-text">
+        {held.length} held back, and why
+      </summary>
+      {open ? (
+        <ul className="mt-1 space-y-0.5">
+          {held.map((t) => (
+            <li key={t.code}>
+              <span className="text-ink-secondary">{t.name}</span>: {t.why}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </details>
+  );
+}
+
+/** A list of tenant names, folded behind its count. */
+function Names({ label, names }: { label: string; names: string[] }) {
+  if (names.length <= 3) {
+    return (
+      <div className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
+        <span className="text-ink-secondary">{label}: </span>
+        {names.join(", ")}
+      </div>
+    );
+  }
+  return (
+    <details className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
+      <summary className="cursor-pointer text-accent-text">
+        {label} {names.length} tenants
+      </summary>
+      <p className="mt-1">{names.join(", ")}</p>
+    </details>
   );
 }
 
@@ -422,312 +590,4 @@ function Delivery({ summary }: { summary: Run["summary"] }) {
       ) : null}
     </div>
   );
-}
-
-
-/**
- * Every tenant's own two reminder dates, worked out from their billing date.
- *
- * The reminder clock moved off the calendar and onto each tenant's billing
- * date, and nothing showed the result. The settings screen does the sum for
- * one made-up tenant billed on the 15th; this does it for the ones actually in
- * the uploaded report, which is the only way to tell whether the rule behaves
- * on real data - MES's export carries 28 different billing dates and some of
- * them are years old.
- *
- * Read only. Since 4 October this is what the nine o'clock run acts on: the
- * same window, read from the same place, judged against the same day. It
- * shows the rule's timing; whether a letter has already gone for a bill is
- * the run's to decide, from what was really sent, and is in its diary.
- */
-function WhenEachTenantIsChased() {
-  const ds = useDataset();
-  const store = useStore();
-  const { canAct } = useSession();
-  const [all, setAll] = useState(false);
-  /* Letters somebody has edited by hand: the 9am run sends those as edited. */
-  const { edits, reload: reloadEdits } = useLetterEdits();
-  const [editing, setEditing] = useState<string | null>(null);
-
-  /* The window the nine o'clock run uses, read from the same place it reads
-     it. This card once read the browser's copy and could disagree with the
-     run about every date it showed. */
-  const { window } = useReminderWindow();
-
-  /*
-   * Today in Singapore, not the report's date. This judged against the report
-   * while it was only a preview; the run judges against the day it runs on,
-   * because twenty-three days after a bill is a fact about the calendar, and a
-   * preview that disagreed with the run about who is due would be no use.
-   */
-  const asOf = ds.asOf ? inSingapore().iso : null;
-
-  /*
-   * The letters that really left, by tenant - the same record the 9am run and
-   * Reminder Emails read. A letter written while sending was off or blocked
-   * is not here, so it does not count as sent.
-   */
-  const sentBy = useMemo(() => {
-    const m = new Map<string, SentLetter[]>();
-    for (const e of store.emails) {
-      if (e.simulated || (e.templateId !== "reminder-7th" && e.templateId !== "final-21st")) continue;
-      const letter: SentLetter = {
-        tenantId: e.accountId,
-        stage: e.templateId === "final-21st" ? "final-notice" : "first-reminder",
-        sentAt: e.at,
-      };
-      m.set(e.accountId, [...(m.get(e.accountId) ?? []), letter]);
-    }
-    return m;
-  }, [store.emails]);
-
-  /* A promise to pay that has not fallen due holds the letters, as in the run. */
-  const promisedFor = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const pr of store.promises) {
-      if (asOf && pr.promisedFor >= asOf) m.set(pr.accountId, pr.promisedFor);
-    }
-    return m;
-  }, [store.promises, asOf]);
-
-  const rows = useMemo(() => {
-    if (!asOf) return [];
-    /*
-     * Every tenant, not only those who owe. MES asked to see all of them:
-     * a tenant in credit or owing nothing is not chased, and the card says so
-     * against their name rather than leaving them off the list.
-     */
-    return ds.accounts
-      .map((a) => {
-        const billing = billingForTenant(invoicesForAccount(a, ds.invoices), asOf);
-        /* No reminder dates for a tenant who is not chased. */
-        const dates = a.total > 0 && billing.billedOn ? reminderDatesFor(billing.billedOn, window) : null;
-        return {
-          id: a.id,
-          name: a.companyName,
-          code: a.customerCode,
-          owed: overdueTotal(a) || a.total,
-          total: a.total,
-          billedOn: billing.billedOn,
-          runs: billing.runs,
-          first: dates?.first ?? null,
-          final: dates?.final ?? null,
-          /* Where they stand: the dates, and what has really been sent. */
-          position:
-            a.total > 0 && billing.billedOn
-              ? letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)
-              : null,
-          promised: promisedFor.get(a.id) ?? null,
-        };
-      })
-      .sort((x, y) => (x.first ?? "9999").localeCompare(y.first ?? "9999"));
-  }, [ds.accounts, ds.invoices, asOf, window, sentBy, promisedFor]);
-
-  if (rows.length === 0) return null;
-
-  const isEdited = (r: (typeof rows)[number]) =>
-    r.billedOn !== null &&
-    (edits.has(savedKey(r.id, "first-reminder", r.billedOn)) ||
-      edits.has(savedKey(r.id, "final-notice", r.billedOn)));
-  const editedCount = rows.filter((r) => r.total > 0 && isEdited(r)).length;
-  const editingRow = editing ? rows.find((r) => r.id === editing) ?? null : null;
-
-  const count = (kind: LetterPosition["kind"]) =>
-    rows.filter((r) => r.total > 0 && !r.promised && r.position?.kind === kind).length;
-  const missing = rows.filter((r) => r.total > 0 && r.position === null).length;
-  const owingCount = rows.filter((r) => r.total > 0).length;
-  const inCredit = rows.filter((r) => r.total < 0).length;
-  const nothingOwed = rows.filter((r) => r.total === 0).length;
-  const promisedCount = rows.filter((r) => r.promised).length;
-  const shown = all ? rows : rows.slice(0, 12);
-
-  return (
-    <Card>
-      <CardHeader
-        title="When each tenant would be chased"
-        hint={`Counted from each tenant's own billing date: first reminder after ${window.first} days, final notice after ${window.final}. Judged against today, ${asOf}, as the 9am run does.`}
-        right={
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge kind="good" label="What the 9am run follows" />
-            {rows.length > 12 ? (
-              <button
-                type="button"
-                onClick={() => setAll((v) => !v)}
-                className="rounded border border-line-hair px-2.5 py-1 text-xs text-ink-secondary hover:border-line-grid"
-              >
-                {all ? "Show fewer" : `Show all ${rows.length}`}
-              </button>
-            ) : null}
-          </div>
-        }
-      />
-
-      <div className="border-b border-line-hair bg-surface-alt px-5 py-3 text-[11px] leading-relaxed text-ink-secondary">
-        All {rows.length} tenants. Of the {owingCount} who owe: {count("first-due")} due their first
-        reminder, {count("first-sent")} sent it and waiting for the final
-        notice, {count("final-due")} due the final notice, {count("final-sent")}{" "}
-        sent the final notice, {count("not-yet")} not yet due
-        {promisedCount > 0 ? `, ${promisedCount} holding a promise to pay` : ""}.
-        {inCredit + nothingOwed > 0
-          ? ` The other ${inCredit + nothingOwed} are not chased: ${inCredit} in credit, ${nothingOwed} owing nothing.`
-          : ""}{" "}
-        Only letters that really left count as sent.{" "}
-        {missing > 0
-          ? `${missing} carry no billing date in this file, so the rule cannot place them.`
-          : "Every tenant who owes carries a billing date."}{" "}
-        Change the two numbers on the Settings screen and these dates move with
-        them.
-      </div>
-
-      {editedCount > 0 ? (
-        <div className="border-b border-line-hair bg-amber-50 px-5 py-2.5 text-[11px] leading-relaxed text-amber-900">
-          <b>{editedCount} tenant{editedCount === 1 ? " has" : "s have"} an edited letter.</b> The
-          automatic 9am run sends those tenants the wording that was saved, not the standard
-          letter. Every other tenant gets the standard wording.
-        </div>
-      ) : null}
-
-      <ScrollPanel max={420}>
-        <table className="w-full min-w-[720px] border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-surface">
-            <tr className="border-b border-line-grid text-left text-xs font-medium text-ink-muted">
-              <th className="px-5 py-2.5">Tenant</th>
-              <th className="px-3 py-2.5">Billed</th>
-              <th className="px-3 py-2.5">First reminder</th>
-              <th className="px-3 py-2.5">Final notice</th>
-              <th className="px-3 py-2.5 text-right">Owed</th>
-              <th className="px-3 py-2.5">Today</th>
-              <th className="px-5 py-2.5">Letter</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((r) => (
-              <tr key={r.id} className="border-b border-line-hair last:border-0">
-                <td className="px-5 py-2.5">
-                  <div className="text-ink">{r.name}</div>
-                  <div className="mono text-[11px] text-ink-muted">{r.code}</div>
-                </td>
-                <td className="px-3 py-2.5 text-xs text-ink-secondary">
-                  {r.billedOn ? formatDate(r.billedOn) : "—"}
-                  {r.runs > 1 ? (
-                    <span className="block text-[11px] text-ink-muted">
-                      newest of {r.runs}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2.5 text-xs text-ink-secondary">
-                  {r.first ? formatDate(r.first) : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-xs text-ink-secondary">
-                  {r.final ? formatDate(r.final) : "—"}
-                </td>
-                <td className="tabular px-3 py-2.5 text-right text-ink">
-                  {formatSgd(r.owed)}
-                </td>
-                <td className="px-3 py-2.5">
-                  <Standing position={r.position} promised={r.promised} total={r.total} />
-                </td>
-                <td className="px-5 py-2.5">
-                  {r.total > 0 && r.billedOn ? (
-                    <div className="flex flex-col items-start gap-1">
-                      {/* Said here, not only inside the editor: an edited letter
-                          is sent as edited without anybody pressing send. */}
-                      {isEdited(r) ? (
-                        <span className="rounded border border-accent px-1.5 py-0.5 text-[11px] text-ink">
-                          Edited: sent as saved
-                        </span>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => setEditing(r.id)}
-                        className="rounded border border-line-hair px-2.5 py-1 text-xs text-ink hover:border-line-strong"
-                      >
-                        {canAct ? "Edit letter" : "View"}
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-[11px] text-ink-muted">—</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollPanel>
-
-      {editingRow && editingRow.billedOn ? (
-        <LetterEditor
-          tenantId={editingRow.id}
-          companyName={editingRow.name}
-          billedOn={editingRow.billedOn}
-          owed={editingRow.total}
-          sendOn={{ "first-reminder": editingRow.first, "final-notice": editingRow.final }}
-          startAt={
-            editingRow.position &&
-            (editingRow.position.kind === "first-sent" ||
-              editingRow.position.kind === "final-due" ||
-              editingRow.position.kind === "final-sent")
-              ? "final-notice"
-              : "first-reminder"
-          }
-          edits={edits}
-          canEdit={canAct}
-          onSaved={reloadEdits}
-          onClose={() => setEditing(null)}
-        />
-      ) : null}
-    </Card>
-  );
-}
-
-/**
- * One tenant's standing, said the way the 9am run will act on it.
- *
- * "Final notice due" against every tenant, when none had had a first
- * reminder, contradicted the run on the same screen. Now it says which letter
- * is next and which have really gone, with the date.
- */
-function Standing({
-  position,
-  promised,
-  total,
-}: {
-  position: LetterPosition | null;
-  promised: string | null;
-  /** What the tenant owes. In credit or owing nothing, they are not chased. */
-  total: number;
-}) {
-  if (total < 0) return <StatusBadge kind="good" label="in credit, not chased" />;
-  if (total === 0) return <StatusBadge kind="neutral" label="nothing owed" />;
-  if (promised) {
-    return <StatusBadge kind="neutral" label={`promised to pay by ${formatDate(promised)}`} />;
-  }
-  if (!position) return <StatusBadge kind="critical" label="no billing date" />;
-
-  switch (position.kind) {
-    case "not-yet":
-      return <StatusBadge kind="neutral" label="not yet" />;
-    case "first-due":
-      return <StatusBadge kind="warning" label="first reminder due" />;
-    case "first-sent":
-      return (
-        <div>
-          <StatusBadge kind="good" label={`first reminder sent ${formatDate(position.firstSentOn)}`} />
-          <div className="mt-1 text-[11px] text-ink-muted">
-            final notice due {formatDate(position.finalDueOn)}
-          </div>
-        </div>
-      );
-    case "final-due":
-      return (
-        <div>
-          <StatusBadge kind="serious" label="final notice due" />
-          <div className="mt-1 text-[11px] text-ink-muted">
-            first reminder sent {formatDate(position.firstSentOn)}
-          </div>
-        </div>
-      );
-    case "final-sent":
-      return <StatusBadge kind="good" label={`final notice sent ${formatDate(position.finalSentOn)}`} />;
-  }
 }

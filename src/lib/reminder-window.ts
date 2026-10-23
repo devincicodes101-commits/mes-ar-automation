@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { DEFAULT_REMINDER_DAYS, sane, type ReminderWindow } from "./reminder-timing.ts";
+import { DEFAULT_REMINDER_DAYS, sane, type FullWindow, type ReminderWindow } from "./reminder-timing.ts";
 
 /**
  * The two reminder numbers, as the database holds them.
@@ -16,7 +16,7 @@ import { DEFAULT_REMINDER_DAYS, sane, type ReminderWindow } from "./reminder-tim
 const KEY = "reminder_window";
 
 export interface StoredWindow {
-  window: ReminderWindow;
+  window: FullWindow;
   /**
    * Where it came from. "default" is not an error - it is a database that has
    * not had 0022 applied, or a row nobody has written yet - but it is worth
@@ -28,13 +28,21 @@ export interface StoredWindow {
   problem: string | null;
 }
 
-function fromJson(value: unknown): ReminderWindow | null {
+function fromJson(value: unknown): FullWindow | null {
   if (!value || typeof value !== "object") return null;
-  const v = value as { first?: unknown; final?: unknown };
+  const v = value as Record<string, unknown>;
   const first = Number(v.first);
   const final = Number(v.final);
   if (!Number.isFinite(first) || !Number.isFinite(final)) return null;
-  return sane({ first, final });
+  /* The three later choices are optional: a window stored before them gets
+     the defaults agreed on 23 October. */
+  return sane({
+    first,
+    final,
+    countFrom: v.countFrom === "newest" ? "newest" : "each",
+    lateDays: v.lateDays === undefined ? undefined : Number(v.lateDays),
+    finalWithoutFirst: typeof v.finalWithoutFirst === "boolean" ? v.finalWithoutFirst : undefined,
+  });
 }
 
 /**
@@ -78,7 +86,7 @@ export async function writeReminderWindow(
   db: SupabaseClient,
   window: ReminderWindow,
   actor: { userId: string; name: string },
-): Promise<{ ok: true; window: ReminderWindow } | { ok: false; error: string }> {
+): Promise<{ ok: true; window: FullWindow } | { ok: false; error: string }> {
   const clean = sane(window);
 
   const w = await db.from("app_settings").upsert(
@@ -105,7 +113,11 @@ export async function writeReminderWindow(
     actor: actor.userId,
     actor_name: actor.name,
     action: "settings.reminder_window",
-    subject: `first ${clean.first} days, final ${clean.final} days after billing`,
+    subject:
+      `first ${clean.first} days, final ${clean.final} days after billing` +
+      `; ${clean.countFrom === "each" ? "each billing date" : "newest bill only"}` +
+      `; up to ${clean.lateDays} days late` +
+      `; final ${clean.finalWithoutFirst ? "even" : "only"} with a first`,
     meta: clean,
   });
 

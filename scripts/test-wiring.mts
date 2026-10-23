@@ -71,10 +71,10 @@ check("late fees imports the GIRO check", lateFees.includes("giroEnrolled"), tru
 check("and actually calls it", /giroEnrolled\(/.test(lateFees), true);
 check("it splits the listing in two", lateFees.includes("excluded"), true);
 check("and shows who was held back, rather than only filtering",
-  lateFees.includes("Held back because they are on GIRO"), true);
+  lateFees.includes("Left out: on GIRO"), true);
 
 const upload = page("upload");
-check("upload offers a drop zone for the AR report", upload.includes('title="AR Report"'), true);
+check("upload offers a drop zone for the AR report", upload.includes('title="AR report"'), true);
 check("and one for the contact list", upload.includes('title="Client contact list"'), true);
 check("both files are passed to the parser",
   /\[arFile, contactFile\]/.test(upload), true);
@@ -92,7 +92,7 @@ const outbox = page("outbox");
 const letterView = read(path.join(HERE, "..", "src", "components", "LetterView.tsx"));
 check("the outbox exists", outbox.length > 0, true);
 check("and lists who could not be reached",
-  outbox.includes("Owed money, but no address"), true);
+  outbox.includes("Owe money, no email address"), true);
 
 // The letter itself is one component, used by both screens that show a sent
 // email. Two copies would drift, and the thing they would drift on is the
@@ -106,7 +106,7 @@ check("the outbox uses it", outbox.includes("<LetterView"), true);
 check("and so does the reminders screen",
   page("reminders").includes("<LetterView"), true);
 check("the sent list on reminders is clickable",
-  page("reminders").includes("Read the letter that went out"), true);
+  page("reminders").includes("Read the letter"), true);
 check("neither screen keeps its own copy of the letter markup",
   (outbox + page("reminders")).includes("this send predates letter capture"), false);
 
@@ -351,10 +351,10 @@ check("it does not claim to be the gate",
 section("The reports screen reads the upload, not the sample data");
 
 const REP = page("reports");
-check("the scheduled report is built from the uploaded lines",
-      /buildReport\(r\.id, accounts, ds\.invoices\)/.test(REP), true);
+check("the scheduled report is built from the uploaded lines and managers",
+      /buildReport\(r\.id, accounts, ds\.invoices, ds\.managers\)/.test(REP), true);
 check("and so is the preview of it",
-      /buildReport\(report\.id, accounts, invoices\)/.test(REP), true);
+      /buildReport\(report\.id, accounts, invoices, managers\)/.test(REP), true);
 check("buildReport requires them rather than defaulting",
       REP.includes("invoices: Invoice[],"), true);
 check("no call is left without them",
@@ -1089,7 +1089,7 @@ check("an already-applied file is stated, not silently hidden",
 check("and it no longer renders nothing",
       !UPLOAD.includes("if (alreadyApplied) return null;"), true);
 check("saving it again is still possible",
-      UPLOAD.includes("Save to the database again"), true);
+      UPLOAD.includes("Save again"), true);
 check("both paths save through one function",
       UPLOAD.includes("async function save(") &&
         UPLOAD.split("storeDataset(").length === 2, true);
@@ -1286,8 +1286,13 @@ check("a tenant charged this month is left out of the batch",
  * Any future rename passes; actually hiding a charged tenant does not.
  */
 const feeTableAt = FEES_PAGE.indexOf("No fees would be charged");
-const feeTableSource =
-  /\{(\w+)\.map\(\(l\) => \(/.exec(FEES_PAGE.slice(feeTableAt))?.[1] ?? "";
+const feeTableRendered =
+  /\{([\w.]+)\.map\(\(l\) => \(/.exec(FEES_PAGE.slice(feeTableAt))?.[1] ?? "";
+/* A paged table renders `x.shown`; the list behind it is what usePaged was given. */
+const feeTableSource = feeTableRendered.endsWith(".shown")
+  ? new RegExp(`const ${feeTableRendered.slice(0, -".shown".length)} = usePaged\\((\\w+)`)
+      .exec(FEES_PAGE)?.[1] ?? ""
+  : feeTableRendered;
 const feeSourceDecl =
   /*
    * Ends at the dependency array. Ending it at a line reading "  );" overshot
@@ -1410,7 +1415,7 @@ const REMINDERS_PAGE = read("src/app/reminders/page.tsx");
    MES's September file the monthly screen said 150 while the run wrote 242. */
 check("the screen asks per bill, exactly as the run does",
       REMINDERS_PAGE.includes("remindersDueOn(owing, linesByAccount(owing, ds.invoices), todayIso, timing.window)") &&
-        REMINDERS_PAGE.includes("lettersToWrite(due, sent, todayIso, timing.window)"), true);
+        REMINDERS_PAGE.includes("lettersToWrite(due, sent, timing.window)"), true);
 /*
  * And the month comes from the calendar, which is a correction of the first
  * answer here rather than a new rule.
@@ -1468,7 +1473,8 @@ check("and the activity log reads it back",
 /* A letter that was written but never left told the tenant nothing. The run
    ignores it; the screen now does too, and says so in the Sent list. */
 check("a letter that never left does not count as sent",
-      REMINDERS_CODE.includes("!e.simulated") &&
+      REMINDERS_CODE.includes("sentReminders(store.emails)") &&
+        read("src/lib/reminder-timing.ts").includes("!e.simulated &&") &&
         read("src/lib/activity-db.ts").includes("simulated: r.was_simulated"), true);
 
 /* ---------------------------- the schedule has a face, and one lock ------ */
@@ -1510,8 +1516,8 @@ check("the date is checked before a letter can go for the wrong month",
 
 check("a screen finally reads cron_runs",
       SCHED_ROUTE.includes('from("cron_runs")') && SCHED_PAGE.includes("/api/schedule"), true);
-check("and it says which runs caught up late",
-      SCHED_PAGE.includes("caught up"), true);
+check("and it says which runs came after missed mornings",
+      SCHED_PAGE.includes("missed before this"), true);
 check("the screen is in the navigation",
       read("src/components/Shell.tsx").includes('href: "/schedule"'), true);
 
@@ -1584,7 +1590,7 @@ check("a failed read stops the run instead of resending",
    this tenant's current bill", asked of every letter that really left. */
 check("only letters not already sent for this bill are written",
       CRON_CODE.includes("await lettersSince(db, oldestBill)") &&
-        CRON_CODE.includes("lettersToWrite(due, sent.letters, today.iso, days)") &&
+        CRON_CODE.includes("lettersToWrite(due, sent.letters, days)") &&
         /const written = letters\.map\(/.test(CRON_CODE), true);
 check("and the letters come from the billing date, not the calendar",
       CRON_CODE.includes("remindersDueOn(") &&
@@ -1812,13 +1818,14 @@ check("and the fee screen offers it",
    to somebody who paid a fortnight ago. */
 /* Any day can write now, so the run tells the gate whether it does, and
    letters are part of that answer - not only the 16th's fee. */
-check("a day that writes checks how far behind the report is",
-      /tooOldToAct\(day \?\? 0, ageDays, writesToday\)/.test(CRON_CODE) &&
-        /const writesToday = day === 16 \|\| letters\.length > 0;/.test(CRON_CODE), true);
-check("and stops rather than acting on it",
-      CRON_CODE.includes('status: "report-too-old"'), true);
-check("an ageing but usable report is flagged in the run's notes",
-      CRON_CODE.includes("wrote.notes.unshift(freshness.warn)"), true);
+check("the run works out how far behind the report is",
+      CRON_CODE.includes("reportAgeWarning(ageDays, rules.warnReportAfter)"), true);
+check("and stops for an old report only when Settings say so (off since 24 October)",
+      CRON_CODE.includes("rules.stopReportAfter !== null && ageDays !== null && ageDays > rules.stopReportAfter"), true);
+check("the run reads the fee rule from Settings",
+      CRON_CODE.includes("{ minimumAgeDays: rules.feeDays, from: rules.feeFrom }"), true);
+check("an old report is flagged in the run's notes",
+      CRON_CODE.includes("wrote.notes.unshift(ageWarning)"), true);
 check("every run writes a line-by-line diary",
       CRON_CODE.includes("runLog(db, today.iso)"), true);
 check("the report it read is in it",
@@ -1929,9 +1936,9 @@ check("preview and send are different buttons",
 const UPLOAD_PAGE = code("src/app/upload/page.tsx");
 check("the email tile counts the uploaded contact list first",
       UPLOAD_PAGE.includes("const emailCount = contactList")
-        && UPLOAD_PAGE.includes("? contactList.contacts.length"), true);
-check("and the badge below it reads the same source",
-      UPLOAD_PAGE.includes("contactList.contacts.length} companies with an email address"), true);
+        && UPLOAD_PAGE.includes("listCodes!.has(a.customerCode.toUpperCase())"), true);
+check("and the count is said once, not again in a badge below it",
+      UPLOAD_PAGE.includes("companies with an email address"), false);
 
 /* ------------------ the checks verdict actually reaches the schedule */
 
@@ -1982,7 +1989,7 @@ check("the pages whose figures are not the report are named",
       SHELL_W.includes("NOT_FROM_THE_REPORT") &&
         SHELL_W.includes('"/schedule"') && SHELL_W.includes('"/activity"'), true);
 check("and both banners are gated on it",
-      SHELL_W.includes("!figuresAreFromTheReport ? null :"), true);
+      SHELL_W.includes("!figuresAreFromTheReport || dataset.loading ? null :"), true);
 
 /* Every screen that reads the shared dataset must still be warned. Read the
    list itself, not the file: every route appears in Shell's nav as well. */
@@ -2067,10 +2074,12 @@ const REM_W = code("src/app/reminders/page.tsx");
 const SHELL_N = code("src/components/Shell.tsx");
 
 check("the reminders screen shows one part at a time",
-      REM_W.includes('useState<"first" | "final" | "byhand" | "sent">'), true);
-check("with a tab for each", 
+      REM_W.includes('useState<"first" | "final" | "sent" | "all">'), true);
+check("with a tab for each",
       REM_W.includes('"First reminder"') && REM_W.includes('"Final notice"') &&
-        REM_W.includes('"By hand"') && REM_W.includes('"Sent"'), true);
+        REM_W.includes('"Sent"') && REM_W.includes('"All tenants"'), true);
+check("the tenants with no address are listed on Send By Hand only, and linked to",
+      !REM_W.includes('"By hand"') && REM_W.includes('href="/no-email"'), true);
 check("and the tab picks the wording, so there is one way to choose",
       REM_W.includes('setTemplateId("reminder-7th")') &&
         REM_W.includes('setTemplateId("final-21st")') &&
@@ -2137,7 +2146,10 @@ check("a call logged before the field existed still lands in a round",
       /export function stageOfCall/.test(STORE_CODE) &&
         /c\.stage \?\? stageForToday/.test(STORE_CODE), true);
 check("the log can be read one round at a time",
-      CALLS_CODE.includes("stageOfCall(c) === stage"), true);
+      CALLS_CODE.includes("roundOf(c) === stage"), true);
+check("a call read back from the database is put in its round by the letters sent, not the day of the month",
+      CALLS_CODE.includes("if (c.stage) return c.stage;") &&
+        CALLS_CODE.includes('l.stage === "final-notice" && l.sentAt <= c.at'), true);
 
 check("the tenant's billing date is worked out, not guessed",
       /export function billingForTenant/.test(CYCLES_LIB), true);
@@ -2181,8 +2193,8 @@ check("the Settings screen saves them to the server",
 check("and saves on a button, not on every keystroke",
       /onChange=\{\(e\) => set\(e\.target\.value\)\}/.test(SETTINGS_CODE) &&
         !/onChange=[^\n]*held\.save/.test(SETTINGS_CODE), true);
-check("the Schedule screen reads the same window",
-      SCHEDULE_CODE.includes("useReminderWindow()"), true);
+check("the chase timeline reads the same window",
+      code("src/components/ChaseTimeline.tsx").includes("useReminderWindow()"), true);
 check("and the Reminders screen too",
       REMINDERS_CODE.includes("useReminderWindow()"), true);
 check("only somebody who may edit settings can change it",
@@ -2235,6 +2247,8 @@ section("A letter that did not leave is never counted as sent");
 
 const REPORTS_SCREEN = code(path.join(APP, "reports", "page.tsx"));
 const SCHEDULE_SCREEN = code(path.join(APP, "schedule", "page.tsx"));
+/* "When each tenant would be chased", now the All tenants tab on Reminder Emails. */
+const CHASE_CARD = code("src/components/ChaseTimeline.tsx");
 const REMINDERS_SCREEN = code(path.join(APP, "reminders", "page.tsx"));
 
 check("Reports counts delivered letters only",
@@ -2251,7 +2265,8 @@ check("each schedule line says what became of its letters",
       SCHEDULE_SCREEN.includes("<Delivery summary={r.summary} />") &&
         SCHEDULE_SCREEN.includes("const d = letterDelivery(summary);"), true);
 check("and a run whose letters failed counts as needing a look",
-      SCHEDULE_SCREEN.includes("runs.filter(runNeedsAttention).length"), true);
+      SCHEDULE_SCREEN.includes("needsAttention(runs, inSingapore())") &&
+        lib("schedule.ts").includes("(d?.failed ?? 0) + (d?.deferred ?? 0)"), true);
 
 /*
  * 13 October: the 9am run wrote 242 letters, then looked the mailbox up
@@ -2284,15 +2299,15 @@ check("the Call List is built by callListOn, not from the aging buckets",
       CALLS_SCREEN.includes("callListOn(accounts, linesByAccount(accounts, ds.invoices), todayIso, window") &&
         !CALLS_SCREEN.includes("buildQueue("), true);
 check("with the reminder window the letters use",
-      CALLS_SCREEN.includes("const { window } = useReminderWindow();"), true);
+      CALLS_SCREEN.includes("const { window, source: timingSource } = useReminderWindow();"), true);
 check("and a call is done for its own round only",
       CALLS_SCREEN.includes("calledThisRound(q, roundCalls)"), true);
 
 section("The schedule card says what was really sent");
 
 check("each tenant's standing comes from letterPosition, with delivered letters only",
-      SCHEDULE_SCREEN.includes("letterPosition(billing.billedOn, sentBy.get(a.id) ?? [], asOf, window)") &&
-        SCHEDULE_SCREEN.includes("if (e.simulated ||"), true);
+      CHASE_CARD.includes("letterPosition(bill.billedOn, sentBy.get(a.id) ?? [], asOf, window)") &&
+        CHASE_CARD.includes("sentReminders(store.emails)"), true);
 check("and the dates-only badge is gone",
       SCHEDULE_SCREEN.includes('label={r.stage}'), false);
 
@@ -2300,10 +2315,11 @@ section("The Schedule screen describes the run as it works now");
 
 check("no 1st / 4th / 7th shortcut buttons from the old calendar",
       SCHEDULE_SCREEN.includes("cycleDatesSoFar") || SCHEDULE_SCREEN.includes("The six days"), false);
-check("nothing runs until a date is chosen, and only a day already begun",
-      SCHEDULE_SCREEN.includes("disabled={running || !when}") && SCHEDULE_SCREEN.includes("max={history.today || undefined}"), true);
-check("the run is described as daily reminders plus the 16th",
-      SCHEDULE_SCREEN.includes("Every morning: reminder emails") && SCHEDULE_SCREEN.includes("The 16th: late payment fees"), true);
+check("a morning is only offered to run where the history says it needs it, and asks first",
+      SCHEDULE_SCREEN.includes("needsAttention(") && SCHEDULE_SCREEN.includes("confirmBody(asking)") &&
+        !SCHEDULE_SCREEN.includes('type="date"'), true);
+check("the run is shown as daily reminders plus the 16th",
+      SCHEDULE_SCREEN.includes('label="Reminder emails"') && SCHEDULE_SCREEN.includes('label="Late fees (16th)"'), true);
 
 section("How late uses MES's own group names");
 
@@ -2327,14 +2343,14 @@ section("Every tenant is listed, not only those who owe");
 
 check("Outstanding Balances opens on All tenants, with Everyone who owes and Overdue only",
       DASHBOARD.includes('useState<"all" | "owing" | "overdue">("all")') &&
-        DASHBOARD.includes('["all", "All tenants", plain.length]') &&
-        DASHBOARD.includes('["overdue", "Overdue only", overdueOnly.length]'), true);
+        DASHBOARD.includes('["all", "All", plain.length]') &&
+        DASHBOARD.includes('["overdue", "Overdue", overdueOnly.length]'), true);
 check("and the plain list no longer drops moved-out tenants through the Live tab",
       /const plain = useMemo\(\(\) => \{[\s\S]{0,200}scope\(ds\.accounts\)\s*\.filter\(\(a\) => \(property/.test(DASHBOARD) &&
         !/const plain[\s\S]{0,400}a\.status === status/.test(DASHBOARD), true);
-check("the Schedule card lists every tenant, marking those not chased",
-      SCHEDULE_SCREEN.includes("a.total > 0 && billing.billedOn") &&
-        SCHEDULE_SCREEN.includes('label="in credit, not chased"') && SCHEDULE_SCREEN.includes('label="nothing owed"'), true);
+check("the chase timeline lists every tenant, marking those not chased",
+      CHASE_CARD.includes("bills.length > 0 ? bills.map((b) => row(a, b)) : [row(a, null)]") &&
+        CHASE_CARD.includes('label="In credit, not chased"') && CHASE_CARD.includes('label="Nothing owed"'), true);
 
 section("Letters go out in batches, paced, and a long morning carries on");
 
@@ -2386,9 +2402,9 @@ check("Send all on Reminder Emails sends in the same paced batches",
 section("The Late Payment Fees screen shows each tenant's billing date");
 
 const LATEFEES_SCREEN = code(path.join(APP, "late-fees", "page.tsx"));
-check("the fee screen shows the billing date, to flag adhoc billing",
-      LATEFEES_SCREEN.includes("billingForTenant(invoicesForAccount(a, ds.invoices), ds.asOf)") &&
+check("the fee screen names the bills each fee is for, and marks ad hoc ones",
+      LATEFEES_SCREEN.includes("<BilledOn bills={l.feeBills} regularDay={rules.regularBillingDay} />") &&
         LATEFEES_SCREEN.includes("function BilledOn(") &&
-        LATEFEES_SCREEN.includes("Billed {formatDate(billing.billedOn)}"), true);
+        LATEFEES_SCREEN.includes('isAdHoc(b.billedOn, regularDay) ? <Tag>Ad hoc</Tag> : null'), true);
 
 process.exit(failures === 0 ? 0 : 1);

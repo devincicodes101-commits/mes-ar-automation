@@ -20,10 +20,13 @@ import {
   CardHeader,
   EmptyState,
   Modal,
-  ScrollPanel,
   StatTile,
   StatusBadge,
+  Pagination,
+  TenantLink,
 } from "@/components/ui";
+import { usePaged } from "@/lib/use-paged";
+import { formatDate } from "@/lib/format";
 
 /**
  * Tenants the system cannot email, and the letter each of them should get.
@@ -108,6 +111,9 @@ export default function NoEmailPage() {
   }, [missing, show, handSent]);
 
   const doneCount = missing.filter((a) => handSent.has(a.id)).length;
+  /* One dormitory in the report: a column saying so on every row says nothing. */
+  const manyDorms = new Set(missing.map((a) => a.property)).size > 1;
+  const rowPage = usePaged(rows, `${show}|${query}`);
 
   const reachable = useMemo(
     () => scope(ds.accounts).filter((a) => a.hasContact && a.status === "Live").length,
@@ -118,7 +124,7 @@ export default function NoEmailPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <StatTile
           label="Cannot be emailed"
           value={String(missing.length)}
@@ -129,24 +135,16 @@ export default function NoEmailPage() {
           label="Overdue we cannot chase"
           prefix="SGD"
           value={formatSgd(owed)}
-          note="These letters have to go by hand"
         />
         <StatTile
           label="We can email"
           value={String(reachable)}
-          note="Sent by the 9am run when their reminder is due"
-        />
-        <StatTile
-          label="Share of tenants"
-          value={total > 0 ? `${Math.round((missing.length / total) * 100)}%` : "0%"}
-          note="Needing a manual send"
         />
       </div>
 
       <Card>
         <CardHeader
           title="Tenants with no email address"
-          hint="The letter is written for each of them. Open one, copy it, and send it from Outlook. Adding an address here removes the tenant from this list and puts them back into the automatic send."
           right={
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -165,10 +163,9 @@ export default function NoEmailPage() {
                   // and Email Address or it will not be recognised.
                   downloadCsv(
                     `exceptions-no-email-${ds.asOf ?? "latest"}.csv`,
-                    ["Company Name", "Status", "Dormitory", "Outstanding", "Email Address"],
+                    ["Company Name", "Dormitory", "Outstanding", "Email Address"],
                     missing.map((a) => [
                       `${a.customerCode} ${a.companyName}`,
-                      a.status,
                       a.propertyName,
                       overdueTotal(a).toFixed(2),
                       "",
@@ -186,7 +183,7 @@ export default function NoEmailPage() {
               <select
                 value={letter}
                 onChange={(e) => setLetter(e.target.value as LetterId)}
-                className="rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink"
+                className="rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink"
               >
                 <option value="first-reminder">First reminder</option>
                 <option value="final-notice">Final notice</option>
@@ -195,7 +192,7 @@ export default function NoEmailPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Find a tenant"
-                className="w-44 rounded border border-line-hair bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
+                className="w-44 rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-ink placeholder:text-ink-muted"
               />
             </div>
           }
@@ -206,8 +203,9 @@ export default function NoEmailPage() {
           * the buttons because "Sent by hand" reading 0 answers the question
           * without anybody having to click it.
           */}
+        <div className="border-b border-line-hair px-4 py-3 sm:px-5">
         <div
-          className="flex flex-wrap items-center gap-1 border-b border-line-hair px-5 py-2.5"
+          className="flex gap-1 overflow-x-auto rounded-md bg-surface-alt p-1 sm:inline-flex"
           role="group"
           aria-label="Which tenants to show"
         >
@@ -223,15 +221,16 @@ export default function NoEmailPage() {
               type="button"
               onClick={() => setShow(key)}
               aria-pressed={show === key}
-              className={`rounded px-2.5 py-1 text-xs ${
+              className={`flex-1 whitespace-nowrap rounded px-3 py-1.5 text-xs sm:flex-none ${
                 show === key
-                  ? "bg-accent-wash font-medium text-ink"
-                  : "text-ink-muted hover:bg-surface-alt hover:text-ink-secondary"
+                  ? "bg-surface font-medium text-accent-text shadow-sm"
+                  : "text-ink-muted hover:text-ink-secondary"
               }`}
             >
-              {label} ({count})
+              {label} <span className="tabular opacity-70">{count}</span>
             </button>
           ))}
+        </div>
         </div>
 
         {rows.length === 0 ? (
@@ -252,45 +251,54 @@ export default function NoEmailPage() {
             }
           />
         ) : (
-          <ScrollPanel>
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm sm:min-w-[640px]">
               <thead>
                 <tr className="border-b border-line-grid text-left">
-                  <th className="px-5 py-2.5 text-xs font-medium text-ink-muted">Tenant</th>
-                  <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Dormitory</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Owed</th>
-                  <th className="px-3 py-2.5 text-right text-xs font-medium text-ink-muted">Overdue</th>
-                  <th className="px-3 py-2.5 text-xs font-medium text-ink-muted">Sent by hand</th>
-                  <th className="px-5 py-2.5 text-right text-xs font-medium text-ink-muted">Letter</th>
+                  <th className="px-4 py-2.5 text-xs font-medium text-ink-muted sm:px-5">Tenant</th>
+                  {manyDorms ? (
+                    <th className="hidden px-3 py-2.5 text-xs font-medium text-ink-muted md:table-cell">Dormitory</th>
+                  ) : null}
+                  <th className="hidden px-3 py-2.5 text-right text-xs font-medium text-ink-muted sm:table-cell">Owed</th>
+                  <th className="hidden px-3 py-2.5 text-right text-xs font-medium text-ink-muted sm:table-cell">Overdue</th>
+                  <th className="hidden px-3 py-2.5 text-xs font-medium text-ink-muted sm:table-cell">Sent by hand</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-ink-muted sm:px-5">Letter</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((a) => (
+                {rowPage.shown.map((a) => (
                   <tr key={a.id} className="border-b border-line-hair last:border-0">
-                    <td className="px-5 py-2.5">
-                      <div className="text-ink">{a.companyName}</div>
+                    <td className="px-4 py-2.5 sm:px-5">
+                      <TenantLink id={a.id} name={a.companyName} className="text-ink" />
                       <div className="mono text-[11px] text-ink-muted">{a.customerCode}</div>
+                      {/* On a phone the figures fold in under the name. */}
+                      <div className="tabular mt-1 text-[11px] text-ink-secondary sm:hidden">
+                        Overdue {formatSgd(overdueTotal(a))} of {formatSgd(a.total)}
+                        {handSent.has(a.id) ? ` · sent by hand ${formatDate(handSent.get(a.id)!.at)}` : ""}
+                      </div>
                     </td>
-                    <td className="px-3 py-2.5 text-ink-secondary">{a.propertyName}</td>
-                    <td className="tabular px-3 py-2.5 text-right text-ink-secondary">
+                    {manyDorms ? (
+                      <td className="hidden px-3 py-2.5 text-ink-secondary md:table-cell">{a.propertyName}</td>
+                    ) : null}
+                    <td className="tabular hidden px-3 py-2.5 text-right text-ink-secondary sm:table-cell">
                       {formatSgd(a.total)}
                     </td>
-                    <td className="tabular px-3 py-2.5 text-right font-medium text-ink">
+                    <td className="tabular hidden px-3 py-2.5 text-right font-medium text-ink sm:table-cell">
                       {formatSgd(overdueTotal(a))}
                     </td>
-                    <td className="px-3 py-2.5 text-[11px]">
+                    <td className="hidden px-3 py-2.5 text-[11px] sm:table-cell">
                       {handSent.has(a.id) ? (
                         <span className="text-ink-secondary">
                           {handSent.get(a.id)!.templateName.replace(" (by hand)", "")}
                           <span className="block text-ink-muted">
-                            {handSent.get(a.id)!.at.slice(0, 10)}
+                            {formatDate(handSent.get(a.id)!.at)}
                           </span>
                         </span>
                       ) : (
                         <span className="text-ink-muted">Not yet</span>
                       )}
                     </td>
-                    <td className="px-5 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-right align-top sm:px-5 sm:align-middle">
                       {/*
                         * The wording's name is on the button, not just in the
                         * dropdown above. The dropdown chose which letter gets
@@ -310,18 +318,9 @@ export default function NoEmailPage() {
                 ))}
               </tbody>
             </table>
-          </ScrollPanel>
+          </div>
         )}
-
-        <div className="border-t border-line-hair px-5 py-3 text-[11px] leading-relaxed text-ink-muted">
-          MES&rsquo;s own process for these: send to everyone who has an
-          address, list the rest, fill the addresses in, and re-upload only
-          those. <b className="text-ink-secondary">Download the list</b> gives
-          you that file with an empty Email Address column. Fill it in and
-          upload it on the Upload screen as a contact list: it adds those
-          addresses and leaves every other tenant alone. Until they arrive,
-          each letter here is written and waiting and has to be sent by hand.
-        </div>
+        <Pagination {...rowPage.pager} />
       </Card>
 
       {open ? (
@@ -519,7 +518,7 @@ function LetterModal({
               onChange={(e) => setTyped(e.target.value)}
               placeholder="name@company.com, second@company.com"
               disabled={!canAct}
-              className="min-w-[260px] flex-1 rounded border border-line-hair bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted disabled:opacity-50"
+              className="min-w-[260px] flex-1 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted disabled:opacity-50"
             />
             <button
               type="button"

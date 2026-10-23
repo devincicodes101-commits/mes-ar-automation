@@ -124,6 +124,9 @@ export interface SentEmail {
    * Undefined for letters stored before the column existed.
    */
   period?: string;
+  /** For a reminder, the billing dates of the invoices it listed. Undefined
+      for letters sent before they were recorded. */
+  billedOn?: string[];
   templateId: string;
   templateName: string;
   subject: string;
@@ -238,6 +241,8 @@ export const DEFAULT_SETTINGS: Settings = {
 export interface RaisedFee {
   id: string;
   tenantId: string;
+  /** From the tenant row, so a fee can be named after the tenant leaves the report. */
+  companyName?: string;
   period: string;
   amount: number;
   raisedAt: string;
@@ -345,7 +350,7 @@ export const DEFAULT_TEMPLATES: Template[] = [
   {
     id: "final-21st",
     name: "Final notice",
-    trigger: "27 days after billing",
+    trigger: "37 days after billing",
     triggerDay: 21,
     subject: "Final reminder, outstanding rental payment for {{company}}",
     body: LETTER_BODIES["final-notice"],
@@ -496,7 +501,9 @@ export interface SyncState {
   loading: boolean;
 }
 
-let sync: SyncState = { unsaved: 0, lastError: null, loading: false };
+/* Loading from the start: until the server has answered, a browser with no
+   copy of its own has nothing true to show. */
+let sync: SyncState = { unsaved: 0, lastError: null, loading: true };
 const syncListeners = new Set<() => void>();
 
 /*
@@ -526,6 +533,9 @@ function setSync(next: Partial<SyncState>) {
   syncListeners.forEach((l) => l());
 }
 
+/* One object, so React sees the same snapshot on every server render. */
+const SERVER_SYNC: SyncState = { unsaved: 0, lastError: null, loading: true };
+
 export function useSync(): SyncState {
   return useSyncExternalStore(
     (l) => {
@@ -533,7 +543,7 @@ export function useSync(): SyncState {
       return () => syncListeners.delete(l);
     },
     () => sync,
-    () => ({ unsaved: 0, lastError: null, loading: false }),
+    () => SERVER_SYNC,
   );
 }
 
@@ -553,10 +563,18 @@ async function authHeader(): Promise<Record<string, string>> {
  * Deliberately not awaited by the callers: the officer's next click must not
  * wait on this. The count is the honesty, not the timing.
  */
+/*
+ * Saves still on their way to the server. A refresh waits for them: read
+ * before they land, the server's older copy replaced this browser's newer
+ * one - a promise confirmed a moment ago went back to "Send confirmation",
+ * inviting a second email to the same tenant.
+ */
+const inflight = new Set<Promise<void>>();
+
 function mirror(kind: "call" | "promise" | "email", record: unknown): void {
   if (typeof window === "undefined") return;
 
-  void (async () => {
+  const saving = (async () => {
     try {
       const r = await fetch("/api/activity", {
         method: "POST",
@@ -587,6 +605,8 @@ function mirror(kind: "call" | "promise" | "email", record: unknown): void {
       );
     }
   })();
+  inflight.add(saving);
+  void saving.finally(() => inflight.delete(saving));
 }
 
 let activityLoaded = false;
@@ -617,6 +637,7 @@ export async function hydrateActivity(force = false): Promise<void> {
   setSync({ loading: true });
 
   try {
+    await Promise.allSettled(Array.from(inflight));
     const r = await fetch("/api/activity", { headers: await authHeader() });
     const body = (await r.json()) as {
       ok?: boolean;
@@ -624,6 +645,7 @@ export async function hydrateActivity(force = false): Promise<void> {
       promises?: PromiseRecord[];
       emails?: SentEmail[];
       fees?: RaisedFee[];
+      audit?: AuditEntry[];
       unreadableCalls?: number;
       error?: string;
       hint?: string;
@@ -645,6 +667,7 @@ export async function hydrateActivity(force = false): Promise<void> {
       promises: body.promises ?? state.promises,
       emails: body.emails ?? state.emails,
       fees: body.fees ?? state.fees,
+      audit: body.audit ?? state.audit,
     });
 
     /*

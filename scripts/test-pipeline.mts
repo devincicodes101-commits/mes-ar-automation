@@ -53,6 +53,7 @@ import { runPipeline } from "../src/lib/pipeline.ts";
 import { stillOwing, emptyState } from "../src/lib/cycle.ts";
 import {
   DEFAULT_RECIPIENTS,
+  recipientsWithManagers,
   simulateReportSend,
   type Recipient,
 } from "../src/lib/dispatch.ts";
@@ -589,7 +590,16 @@ const toAr = simulateReportSend(
 check("the late payment listing uses its own covering note", toAr.subject, "August late payment admin fee");
 check("which repeats the GIRO exclusion instruction", toAr.body.includes("giro clients"), true);
 
-check("the default recipient list covers MES's named parties", DEFAULT_RECIPIENTS.length, 5);
+check("the default recipient list covers MES's named parties", DEFAULT_RECIPIENTS.map((r) => r.id).join(","), "ar-team,csd,management");
+/* The managers come from the report, one row each, not two fixed names. */
+const withRms = recipientsWithManagers(
+  [...DEFAULT_RECIPIENTS, { id: "rm-ray", name: "Ray Ang", kind: "rm", email: "ray@mes.example" }],
+  ["2611 Ray Ang", "3333 Harry Tan", "2611 Ray Ang", "PS Muhamad Aditya [DO NOT DELETE OR REVOKE]", null],
+);
+check("one manager row per manager in the report, without the system account",
+      withRms.filter((r) => r.kind === "rm").map((r) => r.name).join(","), "Harry Tan,Ray Ang");
+check("an address typed against the old fixed row is kept",
+      withRms.find((r) => r.name === "Ray Ang")?.email, "ray@mes.example");
 check("and none of them has an invented address", DEFAULT_RECIPIENTS.every((r) => r.email === null), true);
 
 /* ============================ one copy of MES's wording, not two */

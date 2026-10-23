@@ -246,7 +246,7 @@ export default function SimulationPage() {
 
       {pipeline && snap ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatTile
               label="Still owing"
               value={String(snap.owing)}
@@ -495,7 +495,7 @@ function MeanwhileCard({
           value={by}
           onChange={(e) => setBy(e.target.value)}
           placeholder="Promised by when, e.g. 30 September"
-          className="w-full rounded border border-line-hair bg-surface px-2.5 py-1.5 text-[11px] text-ink placeholder:text-ink-muted"
+          className="w-full rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-[11px] text-ink placeholder:text-ink-muted"
         />
         <p className="mt-1.5 text-[10px] leading-relaxed text-ink-muted">
           Paid settles the debt. Promised only holds it: the final notice stays
@@ -777,7 +777,7 @@ function RmPicker({
 
       <p className="mt-1.5 text-[11px] leading-relaxed text-ink-muted">
         Each manager gets their own sheet, covering only their tenants. The
-        $100 fees are raised either way &mdash; choosing here decides who is
+        $100 fees are raised either way. Choosing here decides who is
         told, not who is charged.
       </p>
     </div>

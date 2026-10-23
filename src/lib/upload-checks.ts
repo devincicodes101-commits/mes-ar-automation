@@ -215,8 +215,7 @@ export function checkUpload(
       title: "No contact list in this upload",
       detail:
         "Addresses already in the system are kept, so this is only a problem " +
-        "if none were loaded before. Without them the bulk reminders on the " +
-        "7th and the 21st have nobody to send to.",
+        "if none were loaded before. Without them no reminder can be emailed.",
     });
   } else {
     const codes = new Set(contacts.contacts.map((c) => c.customerCode.toUpperCase()));
