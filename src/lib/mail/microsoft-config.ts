@@ -132,6 +132,16 @@ export function plainMicrosoftError(code: string | undefined, description: strin
       "MICROSOFT_CLIENT_SECRET."
     );
   }
+  /* A personal Outlook account that sent a run of automated mail can be
+     locked by Microsoft as suspected spam (seen 25 October). Only its owner
+     can unlock it, by signing in and verifying; reconnecting alone will not. */
+  if (/AADSTS70000|service abuse|abuse mode/i.test(text)) {
+    return (
+      "Microsoft has locked this account as suspected spam. Its owner must sign in at " +
+      "outlook.com and verify the account to unlock it, then reconnect it here. A Microsoft 365 " +
+      "work mailbox is far less likely to be locked than a personal one."
+    );
+  }
   if (/invalid_grant|AADSTS70008|AADSTS700082|AADSTS50173|AADSTS50076/i.test(text)) {
     return "Microsoft will no longer send as this account. Reconnect it under Settings.";
   }
@@ -157,7 +167,11 @@ export function plainGraphError(status: number, code: string | undefined, messag
     return "This mailbox cannot send through Microsoft Graph. It may be a mailbox that is not hosted in Microsoft 365.";
   }
   if (status === 403 || /ErrorAccessDenied|Authorization_RequestDenied/i.test(code ?? "")) {
-    return "Microsoft says this account is not allowed to send mail through the app. An administrator may have blocked it.";
+    return (
+      "Microsoft refused to send from this account. A personal Outlook account can be blocked for " +
+      "suspected spam (sign in at outlook.com to check), and a work account can be blocked by its " +
+      "administrator."
+    );
   }
   if (/ErrorQuotaExceeded|ErrorSendQuotaExceeded|SendAsDenied|MessageSubmissionBlocked/i.test(code ?? "")) {
     return "This mailbox has hit Microsoft's sending limit or been blocked from sending. " + (message ?? "");
