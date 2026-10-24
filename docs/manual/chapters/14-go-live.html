@@ -1,0 +1,85 @@
+<h1>Going live checklist</h1>
+
+<p class="lead">These are the steps to move from testing to sending real letters to real tenants, in
+order. Some are done in the system by an MES Admin. Others are done once by the system administrator
+in the hosting settings, and are marked as such. Do not switch sending on (step 5.1) until every
+step before it is done.</p>
+
+<h2>Before anything else</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
+  <tr><td>1.1</td><td>Set sending to "Nothing is sent" while everything else is set up.</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>1.2</td><td>Make sure the Microsoft connection is in place, so Sign in with Microsoft works. Settings,
+    Mailbox must not say "Microsoft sign in has not been set up".</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>1.3</td><td>If MES's Microsoft 365 only lets IT approve new apps, have MES's IT administrator approve
+    MES AR Automation for the organisation.</td><td>MES IT</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Clearing the test data</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
+  <tr><td>2.1</td><td>Clear the test letters, calls, promises, fees, edited letters and 9am run history, so the
+    first live month starts clean.</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>2.2</td><td>Switch off or remove the test logins on User Management.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>2.3</td><td>Create a login for each person at MES, with the right role. Relationship Managers need their
+    manager chosen (chapter 10).</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Connecting MES's mailbox</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
+  <tr><td>3.1</td><td>Sign in, open Settings, Mailbox, press Sign in with Microsoft, and sign in as the AR team
+    mailbox (section 9.3).</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>3.2</td><td>Press Use for 9am reminders on that mailbox, so it is marked "Sends the 9am
+    reminders".</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>3.3</td><td>Press Disconnect on every test mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>3.4</td><td>Set sending to "Test addresses only", with a few MES staff addresses as the test list.</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>3.5</td><td>Send a test to one of those addresses and reply to it. The test arrives from MES Group AR,
+    and the reply reaches the AR mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Loading the real data</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
+  <tr><td>4.1</td><td>Upload the current AR report from NetSuite and the real client contact list, read the
+    checks, and press Use this report (chapter 3).</td><td>MES Admin or CSD</td><td><span class="box"></span></td></tr>
+  <tr><td>4.2</td><td>Fill in every address on Settings, Report recipients.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>4.3</td><td>Check Reminder timing and Fees and reports hold the numbers MES wants.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>4.4</td><td>Open Reminder Emails, All tenants, and check the reminder dates of a few tenants you
+    know.</td><td>MES Admin or CSD</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Switching sending on</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
+  <tr><td>5.1</td><td>Set sending to "Sending to real tenants".</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>5.2</td><td>Check Settings, Mailbox reads "Sending to real tenants", with the AR mailbox as the
+    sender and no problem line.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>5.3</td><td>The next morning, after 9am, open Activity Log, 9am runs, and Reminder Emails, Sent.
+    The letters due that day went, from the AR mailbox.</td><td>MES Admin or CSD</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>The first live month</h2>
+
+<ul>
+  <li>Check the 9am runs tab each morning for the first week, and Needs attention every day.</li>
+  <li>Watch the AR mailbox for replies and bounced emails. A bounce usually means an address in the
+    contact list is wrong: correct it and upload the list again.</li>
+  <li>On the 16th, check the fees raised on Late Payment Fees and download the listing for the AR
+    team.</li>
+  <li>Upload a new report after each billing run, as in chapter 3.</li>
+</ul>
+
+<div class="note"><span class="label">For the system administrator</span>
+<p>The sending mode is the hosting setting <code>MAIL_MODE</code>: <code>off</code>,
+<code>allowed</code> (test addresses only, listed in <code>MAIL_ALLOWLIST</code>) or
+<code>everyone</code>. The Microsoft connection is <code>MICROSOFT_CLIENT_ID</code>,
+<code>MICROSOFT_CLIENT_SECRET</code> and <code>MICROSOFT_TENANT</code>, with
+<code>https://mes-ar-automation.vercel.app/api/mail/microsoft/callback</code> registered as the
+redirect address. A change to any of these takes effect after the site is redeployed.</p>
+</div>

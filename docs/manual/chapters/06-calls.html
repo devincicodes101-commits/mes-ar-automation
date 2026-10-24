@@ -1,0 +1,162 @@
+<h1>Call List and payment promises</h1>
+
+<p class="lead">MES chases with a letter and then a phone call. The Call List says who to phone
+today and why, and records what came of each call. When a tenant agrees to pay, the promise is
+kept on the Payment promises tab until the date comes.</p>
+
+<h2>Who to phone</h2>
+
+<p>A tenant joins the list once their first reminder date has passed and they still owe. They are
+due a first call after the first reminder, and a second call after the final notice. Worst cases
+come first.</p>
+
+<figure class="shot" id="calls" data-path="/calls" data-clip="window" data-height="860">
+  <figcaption>The Call List, on the Who to phone tab.</figcaption>
+  <ol>
+    <li data-find="main [role='tablist']"><b>Who to phone</b>, or <b>Payment promises</b> (section 6.5).</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Who to phone')) div[role='group'] >> nth=0"><b>Everyone</b>,
+      <b>Not called yet</b>, <b>Already called</b>, or <b>Promised to pay</b>.</li>
+    <li data-find="main select:has(option:has-text('Any number of calls'))">Narrow by how many times
+      the tenant has been called, for example Never called.</li>
+    <li data-find="main ol > li >> nth=0 >> span.rounded-full >> nth=0">Which call this is, and why:
+      "1st call, first reminder was due 8 Oct 2026", with the billing date.</li>
+    <li data-find="main ol > li >> nth=0 >> div.min-w-0.flex-1">What they owe, how much is overdue
+      and over 90 days, any late fees, and their oldest unpaid bill.</li>
+    <li data-find="role=button[name='Log this call'] >> nth=0"><b>Log this call</b> when you hang up.</li>
+  </ol>
+</figure>
+
+<p>A tenant billed on several dates is on the list once. The call is about everything they owe and
+follows their latest letter.</p>
+
+<h2>Logging a call</h2>
+
+<ol>
+  <li>Phone the tenant. Their account details are at the top of the call window, so you do not need
+    to look anything up.</li>
+  <li>Press <b>Log this call</b> on their row.</li>
+  <li>Check which reminder the call is about. It is filled in for you from the list.</li>
+  <li>Type who you spoke to, for example "Serene, accounts".</li>
+  <li>Choose what happened. Nothing is chosen for you.</li>
+  <li>If they agreed to pay, check the amount, which starts as what they have overdue, and type the
+    date they said they would pay by. The date cannot be in the past.</li>
+  <li>Set a date to check back if you want a reminder to call again, and add any note worth
+    keeping.</li>
+  <li>Press <b>Save this call</b>.</li>
+</ol>
+
+<figure class="shot" id="call-form" data-path="/calls" data-height="1200"
+  data-steps="click: role=button[name='Log this call'] >> nth=0 ;; fill: div[role='dialog'] input[placeholder^='Name and role'] => Serene, accounts ;; select: div[role='dialog'] select:has(option:has-text('Choose what happened')) => promised-to-pay"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>The call window, with Agreed to pay chosen.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] dl">The tenant's account, dormitory, how overdue they are, what
+      they owe, and when their bill was raised and fell due.</li>
+    <li data-find="div[role='dialog'] label:has-text('Which reminder is this call about')">Which
+      reminder the call follows.</li>
+    <li data-find="div[role='dialog'] label:has-text('What happened')">What happened: Agreed to pay,
+      Said they would call back, Disagrees with the amount, Nobody answered, or Wrong number.</li>
+    <li data-find="div[role='dialog'] label:has-text('How much they agreed to pay') >> xpath=..">Only
+      for Agreed to pay: how much, and by when. This becomes a payment promise.</li>
+    <li data-find="div[role='dialog'] label:has-text('When to check back')">A date to come back to
+      this tenant.</li>
+    <li data-find="div[role='dialog'] button:has-text('Save this call')"><b>Save this call.</b></li>
+  </ol>
+</figure>
+
+<p>The notice after saving says where the call went: "Recorded in the activity log and the
+NetSuite export", or, for a promise, "added to Payment Promises".</p>
+
+<h2>Calls already logged</h2>
+
+<p>Below the list of who to phone, the Calls logged box keeps every call, newest first.</p>
+
+<figure class="shot" id="calls-logged" data-path="/calls"
+  data-steps="scroll: main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged'))"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged'))">
+  <figcaption>Calls logged.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged')) > div.border-b >> nth=0">Narrow
+      by reminder or by what happened, or search for a tenant or a word in the notes.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged')) ul > li >> nth=0">One
+      call: the tenant, what happened, their bill, who was spoken to and when, and any promise.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged')) button:has-text('View the call') >> nth=0"><b>View
+      the call</b> opens the form as it was filled in.</li>
+  </ol>
+</figure>
+
+<h2>Reading a logged call</h2>
+
+<p>View the call shows every answer from the call form, read only, including the date to check
+back, which is not shown in the list.</p>
+
+<figure class="shot" id="call-view" data-path="/calls"
+  data-steps="scroll: main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged')) ;; click: main div.rounded-lg.bg-surface:has(h2:has-text('Calls logged')) li:has-text('Agreed to pay') button:has-text('View the call') >> nth=0"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>A logged call, opened.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] dl">Each question from the form and the answer given, with how
+      overdue the tenant was and their bill at the time.</li>
+  </ol>
+</figure>
+
+<h2>Payment promises</h2>
+
+<p>The Payment promises tab lists every promise to pay, whether it came from a call or from a
+tenant replying to a reminder.</p>
+
+<figure class="shot" id="promises" data-path="/calls?tab=promises" data-clip="window" data-height="860">
+  <figcaption>The Payment promises tab.</figcaption>
+  <ol>
+    <li data-find="main div.grid.grid-cols-2 >> nth=0"><b>Value promised</b>, the total of promises
+      not yet paid. <b>Value at risk</b>, promises whose date has passed unpaid.</li>
+    <li data-find="role=button[name='Record a promise']"><b>Record a promise</b> that did not come from a
+      call, for example a reply to a reminder.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Every promise to pay')) div[role='group'] >> nth=0">Date
+      passed, still unpaid. Due today. Coming up. Paid, no longer owing.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Every promise to pay')) ul > li >> nth=0">One
+      promise: how much, by when, when it was made and how.</li>
+    <li data-find="role=button[name='Send confirmation'] >> nth=0"><b>Send
+      confirmation</b> emails the tenant a short note of what they promised. Once sent it reads
+      "Confirmed to tenant".</li>
+  </ol>
+</figure>
+
+<h3>Recording a promise by hand</h3>
+
+<ol>
+  <li>Press <b>Record a promise</b>.</li>
+  <li>Find the tenant by typing part of their name or code, and choose them.</li>
+  <li>Type the amount and the date they promised to pay by.</li>
+  <li>Choose where it came from: a reply to a reminder, or a phone call.</li>
+  <li>Press <b>Record it</b>.</li>
+</ol>
+
+<figure class="shot" id="promise-form" data-path="/calls?tab=promises" data-height="900"
+  data-steps="click: role=button[name='Record a promise']"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>Recording a promise that did not come from a call.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] input[aria-label='Find a tenant']">Type to narrow the list of
+      tenants, then choose one below.</li>
+    <li data-find="div[role='dialog'] button:has-text('Record it')"><b>Record it</b> becomes available
+      once the tenant, amount and date are filled in.</li>
+  </ol>
+</figure>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>The list follows the letters.</b> The first call is due once the first reminder date has
+    passed. The second call is due once the final notice has really gone. For a tenant with no
+    email address, the second call waits for the first call instead.</li>
+  <li><b>A promise takes the tenant off the list</b> until its date, and holds their letters too.
+    They stay visible under Promised to pay so nobody rings them by mistake.</li>
+  <li><b>A promise that passes unpaid</b> moves to "Date passed, still unpaid" and counts towards
+    Value at risk. The tenant comes back onto the list to phone.</li>
+  <li><b>A promise from a tenant who has since paid</b>, meaning they are gone from a newer report
+    or owe nothing, is marked "Paid, no longer owing" and is not counted as money promised.</li>
+  <li><b>Every call and promise</b> is written to the Activity Log and goes into the NetSuite file on
+    Reports and Export.</li>
+  <li><b>A Relationship Manager</b> sees and logs calls for their own tenants only.</li>
+</ul>

@@ -1,0 +1,241 @@
+<section class="part" data-part="Testing and going live"></section>
+<h1>How to test the system</h1>
+
+<p class="lead">Use these checks to confirm the system works before trusting it with real tenants,
+and again after any change to the system or its settings. Each test says what to do and what you
+should see. Tick the box when it matches. If it does not, write down what you saw and when, and send
+it to the system administrator.</p>
+
+<h2>Before you start</h2>
+
+<p>Testing must never reach a real tenant. Check all of these first.</p>
+
+<ol>
+  <li><b>Sending is on test addresses only.</b> On Settings, Mailbox, the label reads "Test addresses
+    only" and the line below lists the test inboxes. If it reads "Sending to real tenants", stop and
+    ask the system administrator to switch it back.</li>
+  <li><b>Use the test files</b> kept with this manual in <code>docs/manual/samples</code>: a shortened
+    AR report of 15 tenants, a contact list whose addresses are all test inboxes, and a file that is
+    not a report.</li>
+  <li><b>Have a login for each role:</b> Admin, CSD Officer, Relationship Manager and Management.</li>
+  <li><b>Note the report in use</b> on Upload Reports before you start, so you can put it back.</li>
+</ol>
+
+<div class="note"><span class="label">Careful</span>
+<p>Saving a test report replaces the report everyone sees, and a raised fee is real. Test on a day
+nobody else is working in the system, and upload the current NetSuite report again when you finish
+(test U10).</p>
+</div>
+
+<h2>Signing in and roles</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>S1</td><td>Sign in with a wrong password.</td><td>You stay on the sign-in page, with a message
+    under the boxes.</td><td><span class="box"></span></td></tr>
+  <tr><td>S2</td><td>Sign in as Admin.</td><td>Outstanding Balances. The menu has The cycle, Review and
+    Admin, and your name and role are at the bottom.</td><td><span class="box"></span></td></tr>
+  <tr><td>S3</td><td>Sign in as CSD Officer.</td><td>The same menu without Settings and User
+    Management.</td><td><span class="box"></span></td></tr>
+  <tr><td>S4</td><td>Sign in as Relationship Manager.</td><td>Only Outstanding Balances and Call List,
+    showing only that manager's tenants. No email addresses anywhere.</td><td><span class="box"></span></td></tr>
+  <tr><td>S5</td><td>As Relationship Manager, type the address of Settings into the browser.</td><td>You are
+    taken back to Outstanding Balances.</td><td><span class="box"></span></td></tr>
+  <tr><td>S6</td><td>Sign in as Management.</td><td>Outstanding Balances, Reports and Export and the Activity
+    Log only. Nothing can be sent or changed.</td><td><span class="box"></span></td></tr>
+  <tr><td>S7</td><td>Press the moon button, then press it again.</td><td>The screens switch to dark and
+    back to light.</td><td><span class="box"></span></td></tr>
+  <tr><td>S8</td><td>Sign out.</td><td>The sign-in page.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Uploading a report</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>U1</td><td>Open Upload Reports.</td><td>The Report in use box gives the month, the number of
+    tenants and invoice lines, and the report date.</td><td><span class="box"></span></td></tr>
+  <tr><td>U2</td><td>Choose <code>not-a-report.csv</code> as the AR report and press Read the file.</td>
+    <td>"Nothing usable. Neither file could be read as an AR report." The checks say "Do not use
+    this data", and there is no Use this report button.</td><td><span class="box"></span></td></tr>
+  <tr><td>U3</td><td>Press Remove file. Choose the sample AR report and press Read the file.</td>
+    <td>Billing month October 2026. The totals show 15 tenant accounts with 1 in credit, SGD
+    195,443.08 owed and 135 invoice lines.</td><td><span class="box"></span></td></tr>
+  <tr><td>U4</td><td>Read Checks on this upload.</td><td>"Usable, but read these first", with "No contact
+    list in this upload" among the warnings.</td><td><span class="box"></span></td></tr>
+  <tr><td>U5</td><td>Add the sample contact list and press Read the file again.</td><td>The contact list
+    warning is gone and Can be emailed is above 0.</td><td><span class="box"></span></td></tr>
+  <tr><td>U6</td><td>In Compared with the report of, open New bills.</td><td>The new invoices, grouped by
+    billing date. Dates other than the 15th are marked Ad hoc.</td><td><span class="box"></span></td></tr>
+  <tr><td>U7</td><td>Go to another screen and come back to Upload Reports.</td><td>The files and the
+    comparison are still there. Nothing was saved.</td><td><span class="box"></span></td></tr>
+  <tr><td>U8</td><td>Press Use this report.</td><td>"Saved. Everyone signed in now sees this report."
+    Report in use and the menu show the new month.</td><td><span class="box"></span></td></tr>
+  <tr><td>U9</td><td>Open the Activity Log.</td><td>"Uploaded a report", with your name, the file and the
+    time.</td><td><span class="box"></span></td></tr>
+  <tr><td>U10</td><td>Upload the current NetSuite report and press Use this report.</td><td>The real report
+    is in use again. Calls and promises from before are still there.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Outstanding Balances</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>B1</td><td>Open Outstanding Balances.</td><td>The four totals, and tenants listed most overdue
+    first, with the report date under Tenants.</td><td><span class="box"></span></td></tr>
+  <tr><td>B2</td><td>Type part of a tenant's name in the search box.</td><td>Only matching tenants.</td><td><span class="box"></span></td></tr>
+  <tr><td>B3</td><td>Press Overdue, then All.</td><td>The count on each matches the list.</td><td><span class="box"></span></td></tr>
+  <tr><td>B4</td><td>Press Aging columns, then click the 90 days heading twice.</td><td>The list sorts by
+    that column, then the other way round.</td><td><span class="box"></span></td></tr>
+  <tr><td>B5</td><td>Press + on a row.</td><td>That tenant's invoice lines open under the row.</td><td><span class="box"></span></td></tr>
+  <tr><td>B6</td><td>Open Show charge types and billing runs.</td><td>The total at the foot of By charge
+    type equals Total owed at the top.</td><td><span class="box"></span></td></tr>
+  <tr><td>B7</td><td>On a test tenant with no email, press No email, add one, type a test inbox and press
+    Enter.</td><td>"Email saved". The tenant leaves the By hand list on Reminder Emails.</td><td><span class="box"></span></td></tr>
+  <tr><td>B8</td><td>Click a tenant's name.</td><td>Their page: totals, everything done for them, and every
+    charge line.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Reminder Emails</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>R1</td><td>Open Reminder Emails.</td><td>Five tabs. The counts on First reminder and Final notice
+    match their lists.</td><td><span class="box"></span></td></tr>
+  <tr><td>R2</td><td>Open All tenants. Pick a tenant billed on the 15th of last month.</td><td>First reminder
+    23 days after billing and final notice 37 days after, as in Settings.</td><td><span class="box"></span></td></tr>
+  <tr><td>R3</td><td>Click one of the Where they stand filters.</td><td>Only those bills, and the count
+    matches.</td><td><span class="box"></span></td></tr>
+  <tr><td>R4</td><td>Press Edit letter on a test tenant. Change a sentence, open the preview, and press
+    Save for the automatic send.</td><td>The preview shows the change with the amount filled in. The row
+    is marked Edited.</td><td><span class="box"></span></td></tr>
+  <tr><td>R5</td><td>Edit the letter again and change {{amount}} to {{amont}}.</td><td>Save stays greyed out,
+    and a message lists the words it fills in.</td><td><span class="box"></span></td></tr>
+  <tr><td>R6</td><td>Press Back to the standard wording.</td><td>The Edited mark is gone.</td><td><span class="box"></span></td></tr>
+  <tr><td>R7</td><td>On a day a letter is due to a test tenant, open First reminder and press Read and send,
+    then Send this email.</td><td>The letter arrives in the test inbox, from MES Group AR, asking for that
+    billing date's total. It moves to the Sent tab.</td><td><span class="box"></span></td></tr>
+  <tr><td>R8</td><td>Open the Sent tab and click a letter.</td><td>The letter exactly as sent, with who it
+    went to and when.</td><td><span class="box"></span></td></tr>
+  <tr><td>R9</td><td>Open By hand and press Download the list.</td><td>A spreadsheet of the tenants with no
+    address.</td><td><span class="box"></span></td></tr>
+  <tr><td>R10</td><td>On a day a by-hand letter is due, open it, press Copy, then I have sent this by
+    hand.</td><td>The letter is copied. The tenant moves to Sent by hand with today's date.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>The 9am run</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>N1</td><td>The morning after setting up a test tenant whose bill is 23 days old, open Activity
+    Log, 9am runs.</td><td>A row for today saying how many first reminders were written and sent.</td><td><span class="box"></span></td></tr>
+  <tr><td>N2</td><td>Check the test inbox.</td><td>The first reminder arrived around 9am.</td><td><span class="box"></span></td></tr>
+  <tr><td>N3</td><td>Look for real tenants in that row.</td><td>Any letters to addresses not on the test list are
+    "held back" with the reason test mode.</td><td><span class="box"></span></td></tr>
+  <tr><td>N4</td><td>Open Reminder Emails, All tenants, for that test tenant.</td><td>"First reminder sent" with
+    today's date.</td><td><span class="box"></span></td></tr>
+  <tr><td>N5</td><td>If Needs attention shows a missed morning, press its button and confirm.</td><td>The missed
+    letters go, and tenants who already had theirs are skipped.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Call List and promises</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>C1</td><td>Open Call List.</td><td>Tenants past their first reminder date, each saying which call it
+    is and why.</td><td><span class="box"></span></td></tr>
+  <tr><td>C2</td><td>Press Log this call on a test tenant and try to save without choosing what
+    happened.</td><td>It will not save until an outcome is chosen.</td><td><span class="box"></span></td></tr>
+  <tr><td>C3</td><td>Choose Nobody answered and save.</td><td>"Call with ... saved". The tenant shows under
+    Already called, and in Calls logged.</td><td><span class="box"></span></td></tr>
+  <tr><td>C4</td><td>Press View the call on it.</td><td>Every answer as it was entered.</td><td><span class="box"></span></td></tr>
+  <tr><td>C5</td><td>Log another call, choose Agreed to pay, and try a date in the past.</td><td>The date is
+    refused.</td><td><span class="box"></span></td></tr>
+  <tr><td>C6</td><td>Choose a date next week and save.</td><td>"added to Payment Promises". The tenant shows
+    under Promised to pay.</td><td><span class="box"></span></td></tr>
+  <tr><td>C7</td><td>Open Payment promises.</td><td>The promise under Coming up, and Value promised includes
+    it.</td><td><span class="box"></span></td></tr>
+  <tr><td>C8</td><td>Press Send confirmation on it.</td><td>The test inbox gets a short confirmation. The
+    promise reads "Confirmed to tenant".</td><td><span class="box"></span></td></tr>
+  <tr><td>C9</td><td>Press Record a promise, choose a tenant, an amount, a date and "A reply to a
+    reminder", and press Record it.</td><td>The promise is listed, made "in a reply to a reminder".</td><td><span class="box"></span></td></tr>
+  <tr><td>C10</td><td>Open Reminder Emails, All tenants, for that tenant.</td><td>"Promised to pay by" the
+    date. No letter goes before it.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Late Payment Fees</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>F1</td><td>Open Late Payment Fees.</td><td>Accounts to be charged times SGD 100 equals Fees to raise,
+    less any already charged this month.</td><td><span class="box"></span></td></tr>
+  <tr><td>F2</td><td>Find a tenant whose only unpaid bill is less than 14 days past due.</td><td>They are not on
+    the list.</td><td><span class="box"></span></td></tr>
+  <tr><td>F3</td><td>Look at Left out: on GIRO.</td><td>Each tenant there has a Rejected GIRO Fee in the
+    report.</td><td><span class="box"></span></td></tr>
+  <tr><td>F4</td><td>Press Download the listing.</td><td>A spreadsheet of the fees, including the GIRO
+    tenants left out.</td><td><span class="box"></span></td></tr>
+  <tr><td>F5</td><td>Press Review and raise, then Cancel.</td><td>The window shows the count and total, and
+    nothing is raised.</td><td><span class="box"></span></td></tr>
+  <tr><td>F6</td><td>After the 16th, open Activity Log, 9am runs.</td><td>A 16th row, "Charged" with the
+    tenants named. Late Payment Fees now says they have been charged this month.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Reports and Export</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>X1</td><td>Open Reports and Export.</td><td>The counts of emails, calls and promises match what
+    was done in the tests above.</td><td><span class="box"></span></td></tr>
+  <tr><td>X2</td><td>Press Preview the export, then Download as CSV.</td><td>One row per action, and the file
+    downloads.</td><td><span class="box"></span></td></tr>
+  <tr><td>X3</td><td>Press Generate now on a regular report.</td><td>A spreadsheet downloads, and the notice
+    gives the number of rows.</td><td><span class="box"></span></td></tr>
+  <tr><td>X4</td><td>Open the sheet for one manager.</td><td>Only that manager's tenants, by dormitory.</td><td><span class="box"></span></td></tr>
+  <tr><td>X5</td><td>In Email a report, tick a recipient with a test address and press Send with the
+    workbook.</td><td>The email and its spreadsheet arrive. The Activity Log shows "Sent a report".</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>Settings</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>G1</td><td>Open Settings, Mailbox.</td><td>"Test addresses only". One mailbox marked "Sends the 9am
+    reminders", and no red problem line.</td><td><span class="box"></span></td></tr>
+  <tr><td>G2</td><td>Send a test to a test inbox.</td><td>"Test sent", and it arrives from MES Group AR.</td><td><span class="box"></span></td></tr>
+  <tr><td>G3</td><td>Send a test to an address that is not a test inbox.</td><td>"Nothing was sent", with the
+    reason. Nothing arrives.</td><td><span class="box"></span></td></tr>
+  <tr><td>G4</td><td>On Reminder timing, type 30 as the first reminder without saving.</td><td>The worked
+    example changes. Change it back.</td><td><span class="box"></span></td></tr>
+  <tr><td>G5</td><td>Type a final notice smaller than the first reminder.</td><td>"Cannot save".</td><td><span class="box"></span></td></tr>
+  <tr><td>G6</td><td>Change a setting, save, then change it back and save.</td><td>Two entries in the Activity
+    Log, each with your name.</td><td><span class="box"></span></td></tr>
+  <tr><td>G7</td><td>On Report recipients, type a test address for one recipient and press Enter.</td><td>"Ready"
+    beside it, and the same address on Reports and Export.</td><td><span class="box"></span></td></tr>
+  <tr><td>G8</td><td>Open Charge types.</td><td>The rules, read only, ending with Other Charges.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>User Management and the Activity Log</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>A1</td><td>Add a login for a test person as CSD Officer.</td><td>"Login created for" their name. They can sign
+    in with the first password.</td><td><span class="box"></span></td></tr>
+  <tr><td>A2</td><td>Change their role to Relationship Manager and choose a manager.</td><td>"is now
+    Relationship Manager". Signed in, they see only that manager's tenants.</td><td><span class="box"></span></td></tr>
+  <tr><td>A3</td><td>Try to change your own role.</td><td>The role drop-down on your own row is greyed
+    out.</td><td><span class="box"></span></td></tr>
+  <tr><td>A4</td><td>Switch the test login off.</td><td>"Switched off". They can no longer sign in.</td><td><span class="box"></span></td></tr>
+  <tr><td>L1</td><td>Open the Activity Log and press each filter in turn.</td><td>Only that kind of entry each
+    time.</td><td><span class="box"></span></td></tr>
+  <tr><td>L2</td><td>Find the actions from these tests.</td><td>Each one, with who did it and when.</td><td><span class="box"></span></td></tr>
+</table>
+
+<h2>On a phone</h2>
+
+<table class="tests">
+  <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
+  <tr><td>P1</td><td>Sign in on a phone and open the menu.</td><td>The full menu for your role.</td><td><span class="box"></span></td></tr>
+  <tr><td>P2</td><td>Open Call List and log a call.</td><td>The call window fits the screen and saves.</td><td><span class="box"></span></td></tr>
+  <tr><td>P3</td><td>Open Outstanding Balances and a tenant's page.</td><td>Nothing runs off the side of the
+    screen.</td><td><span class="box"></span></td></tr>
+</table>

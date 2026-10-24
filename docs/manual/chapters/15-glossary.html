@@ -1,0 +1,70 @@
+<section class="part" data-part="Reference"></section>
+<h1>Glossary and common questions</h1>
+
+<h2>Glossary</h2>
+
+<table>
+  <tr><th style="width:28%">Term</th><th>Meaning</th></tr>
+  <tr><td>9am run</td><td>The work the system does on its own every morning at 9am Singapore time: letters due
+    that day, and the late fees on the 16th.</td></tr>
+  <tr><td>Ad hoc</td><td>A bill dated on any day other than MES's regular billing day, the 15th.</td></tr>
+  <tr><td>AR report</td><td>The accounts receivable export from NetSuite that everything is worked out from.</td></tr>
+  <tr><td>Aging</td><td>Money grouped by how old it is: Current, 30 days, 60 days, 90 days, More than 90 days.</td></tr>
+  <tr><td>Billing date</td><td>The date a bill was raised, from the Date column of the AR report. Each one starts
+    its own reminder clock.</td></tr>
+  <tr><td>By hand</td><td>A letter for a tenant with no email address, posted from Outlook by an officer.</td></tr>
+  <tr><td>Chaseable</td><td>Money more than 15 days past its due date.</td></tr>
+  <tr><td>Due date</td><td>When payment was due: from the report, or 14 days after billing.</td></tr>
+  <tr><td>Final notice</td><td>The second letter, 37 days after billing as standard.</td></tr>
+  <tr><td>First reminder</td><td>The first letter, 23 days after billing as standard.</td></tr>
+  <tr><td>GIRO tenant</td><td>A tenant who pays by GIRO, recognised by a Rejected GIRO Fee line in the report.
+    Never charged the late fee.</td></tr>
+  <tr><td>Held back</td><td>A letter written but not sent, for example in test mode. It is recorded with the
+    reason.</td></tr>
+  <tr><td>In credit</td><td>A tenant who has paid more than they owe. Never chased.</td></tr>
+  <tr><td>Late payment fee</td><td>S$100 before GST, raised on the 16th for bills more than 14 days past due.</td></tr>
+  <tr><td>Overdue</td><td>Money 30 days old or more.</td></tr>
+  <tr><td>Promise to pay</td><td>A tenant's commitment to pay an amount by a date. Holds their letters until then.</td></tr>
+  <tr><td>Report in use</td><td>The AR report every screen and the 9am run are reading.</td></tr>
+  <tr><td>Words in double braces</td><td>Parts of a letter filled in on the day it goes: {{company}},
+    {{code}}, {{property}}, {{amount}}, {{overdue}}, {{today}} and {{dueBy}}.</td></tr>
+</table>
+
+<h2>Common questions</h2>
+
+<h3>A tenant says they never got their reminder.</h3>
+<p>Open Reminder Emails, Sent, and search for the tenant. If the letter is there, open it to see the
+address it went to and when. If it says "not sent", the Activity Log, 9am runs tab has the reason.
+If there is no letter, check All tenants: the bill may not have reached its day yet, or the tenant
+may have a promise or no email address.</p>
+
+<h3>Nothing went out this morning.</h3>
+<p>Open Settings, Mailbox. The line at the top says why: sending is off, the mailbox needs
+reconnecting, or no mailbox is connected. Then look at Needs attention on the Activity Log, which
+has a button to send the missed letters once the cause is fixed.</p>
+
+<h3>A tenant has paid but is still being chased.</h3>
+<p>The system knows a tenant has paid only from a newer AR report. Upload the current report from
+NetSuite and they drop off the letters and the Call List.</p>
+
+<h3>A tenant was charged a late fee they should not have been.</h3>
+<p>Check Late Payment Fees and the tenant's page for the bills the fee was for. Fees are billed in
+NetSuite from the listing, so correct it there. If the cause is a GIRO tenant without a Rejected GIRO
+Fee line, tell the system administrator.</p>
+
+<h3>The numbers look wrong after an upload.</h3>
+<p>Check Report in use on Upload Reports is the file you meant, and its date. If not, upload the right
+file. It replaces the wrong one and nothing else is lost.</p>
+
+<h3>Someone has forgotten their password.</h3>
+<p>Ask the system administrator to reset it.</p>
+
+<h3>Someone has left MES.</h3>
+<p>Switch their login off on User Management. If their mailbox was the one sending the 9am
+reminders, connect another mailbox and press Use for 9am reminders first.</p>
+
+<h2>Getting help</h2>
+
+<p>When reporting a problem, say what you were doing, which screen, the tenant if there was one, the
+time, and what you saw. A screenshot helps. Most problems can be traced from the Activity Log, so
+the time matters most.</p>

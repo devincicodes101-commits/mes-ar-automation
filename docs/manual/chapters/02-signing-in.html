@@ -1,0 +1,113 @@
+<h1>Signing in, the menu and who can do what</h1>
+
+<p class="lead">Everyone at MES who uses the system has their own login. What you see in the menu
+depends on your role, so two people can open the system and see different screens. This chapter
+covers signing in, finding your way around, and what each role is allowed to do.</p>
+
+<h2>Signing in and out</h2>
+
+<p>Open <b>mes-ar-automation.vercel.app</b> in any browser. It works the same in Chrome, Edge and
+Safari, on a computer or a phone.</p>
+
+<figure class="shot" id="login" data-path="/login" data-as="none" data-height="620" data-clip="window">
+  <figcaption>The sign-in page.</figcaption>
+  <ol>
+    <li data-find="input[name='username']">Your email address. This is your username.</li>
+    <li data-find="input[name='password']">Your password.</li>
+    <li data-find="button[type='submit']">Press <b>Sign in</b>. You land on Outstanding Balances.</li>
+  </ol>
+</figure>
+
+<p>If you have forgotten your password, ask an administrator. Passwords are never sent by email.</p>
+
+<p>To sign out, press the arrow button at the bottom of the menu, next to your name. Sign out when
+you finish on a shared computer.</p>
+
+<h2>The menu</h2>
+
+<p>The menu on the left is grouped the way the month runs. The cycle holds the screens you use
+every month, Review holds the reports, and Admin holds the settings.</p>
+
+<figure class="shot" id="menu" data-path="/" data-clip="window">
+  <figcaption>The menu, as an Admin sees it.</figcaption>
+  <ol>
+    <li data-find="aside div.rounded-md:has-text('Report loaded')">The month of the AR report every
+      screen is reading. If it is not the month you expect, upload the newest report.</li>
+    <li data-find="aside nav div.mb-5 >> nth=0">The cycle: Upload Reports, Outstanding Balances,
+      Reminder Emails, Call List and Late Payment Fees.</li>
+    <li data-find="aside nav div.mb-5 >> nth=1">Review: Reports and Export.</li>
+    <li data-find="aside nav div.mb-5 >> nth=2">Admin: Settings, User Management and the Activity
+      Log.</li>
+    <li data-find="aside div.border-t:has(button[aria-label='Sign out'])">Who is signed in and their
+      role. The moon button switches between light and dark, and the arrow signs you out.</li>
+  </ol>
+</figure>
+
+<p>Hover over a menu item to see a one-line description of the screen. A tenant's name anywhere in
+the system is a link to that tenant's own page.</p>
+
+<h2>The roles</h2>
+
+<p>There are five roles. An administrator gives each person one when creating their login
+(chapter 10).</p>
+
+<table>
+  <tr><th style="width:24%">Role</th><th>What they do</th><th style="width:30%">Menu they see</th></tr>
+  <tr><td><b>Super Admin</b></td><td>Everything, including managing other administrators.</td><td>Everything</td></tr>
+  <tr><td><b>Admin</b></td><td>The full monthly cycle: upload, send, call, raise fees, export. Changes
+    settings and manages logins, but not a Super Admin's.</td><td>Everything</td></tr>
+  <tr><td><b>CSD Officer</b></td><td>The daily collections work: upload, send, call, record promises,
+    raise fees, reports. Cannot change settings or manage logins.</td><td>Everything except Settings
+    and User Management</td></tr>
+  <tr><td><b>Relationship Manager</b></td><td>Only the tenants assigned to them. They can log a call and
+    record a promise, and nothing else. They never see tenant email addresses.</td><td>Outstanding
+    Balances and Call List, showing their own tenants only</td></tr>
+  <tr><td><b>Management</b></td><td>Totals and reports across every property. Read only.</td><td>Outstanding
+    Balances, Reports and Export, Activity Log</td></tr>
+</table>
+
+<p>The full list of what each role can do is on User Management, under the tab "What each role can
+do".</p>
+
+<figure class="shot" id="roles" data-path="/users"
+  data-steps="click: role=tab[name='What each role can do'] ;; wait: text=What each role is allowed to do"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('What each role is allowed to do'))">
+  <figcaption>What each role is allowed to do. A tick means the role can.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each role is allowed to do')) thead">One
+      column per role.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each role is allowed to do')) tbody tr >> nth=2">For
+      example, a Relationship Manager cannot see tenant email addresses.</li>
+  </ol>
+</figure>
+
+<figure class="shot" id="rm-view" data-path="/calls" data-as="rm" data-clip="window" data-height="700">
+  <figcaption>The Call List as a Relationship Manager sees it.</figcaption>
+  <ol>
+    <li data-find="aside nav div.mb-5 >> nth=0">Only Outstanding Balances and Call List in the menu.</li>
+    <li data-find="text=Signed in as Relationship Manager >> xpath=..">A line at the top of every screen
+      says which role you are signed in as, and what it allows.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Who to phone')) div[role='group'] >> nth=0">Only
+      the tenants this manager looks after, so the counts are smaller.</li>
+  </ol>
+</figure>
+
+<div class="note"><span class="label">Good to know</span>
+<p>The roles are enforced by the system itself, not only by hiding menu items. A Relationship
+Manager who types the address of another screen is refused, and the system checks every tenant
+they ask for is one of their own.</p>
+</div>
+
+<h2>Using it on a phone</h2>
+
+<p>Every screen works on a phone. The menu folds away behind the button at the top left, and
+tables become lists you scroll down.</p>
+
+<figure class="shot" id="phone-menu" data-path="/" data-device="phone" data-width="300" data-clip="window"
+  data-steps="click: button[aria-label='Open menu']">
+  <figcaption>On a phone, with the menu open.</figcaption>
+  <ol>
+    <li data-find="button[aria-label='Close menu'] >> visible=true">The same menu as on a computer. Press a screen to
+      go to it, or press the cross to close the menu.</li>
+  </ol>
+</figure>

@@ -1,0 +1,138 @@
+<h1>Outstanding Balances</h1>
+
+<p class="lead">Outstanding Balances is the first screen after signing in. It lists every tenant in
+the report in use, with what they owe and how late it is, most overdue first. Use it to answer
+"how much is outstanding and who owes it", and to open any tenant's own page.</p>
+
+<h2>The screen</h2>
+
+<figure class="shot" id="balances" data-path="/" data-clip="window" data-height="800">
+  <figcaption>Outstanding Balances.</figcaption>
+  <ol>
+    <li data-find="main div.grid.grid-cols-2 >> nth=0"><b>The four totals.</b> Overdue is money 30
+      days old or more, with how many tenants that is. Total owed is everything in the report. Over
+      90 days is the hardest money to recover. In credit counts tenants who have paid more than they
+      owe.</li>
+    <li data-find="input[aria-label='Find a tenant']">Find a tenant by name or account code.</li>
+    <li data-find="[aria-label='Which tenants']"><b>All</b>, only those who <b>Owe</b>, or only those
+      who are <b>Overdue</b>.</li>
+    <li data-find="role=button[name='Aging columns']"><b>Aging columns</b> splits each tenant's money by
+      age (section 4.2).</li>
+    <li data-find="main tbody tr >> nth=0">One tenant: name, account code, what they owe in total and
+      how much of it is overdue. Click the name to open their page.</li>
+    <li data-find="main tbody tr >> nth=0 >> span.rounded-full >> visible=true"><b>How late</b> their
+      oldest unpaid money is.</li>
+  </ol>
+</figure>
+
+<p>The list shows 25 tenants at a time. Use Previous and Next at the bottom to move through it.</p>
+
+<h2>Money by age</h2>
+
+<p>Press <b>Aging columns</b> to see each tenant's money split into Current, 30 days, 60 days, 90
+days and More than 90 days. Click any column heading to sort by it, and click again to reverse the
+order. Everything to the right of the thicker line, 30 days and older, needs chasing.</p>
+
+<figure class="shot" id="balances-aging" data-path="/" data-clip="window" data-height="800" data-vw="1440"
+  data-steps="click: role=button[name='Aging columns'] ;; scroll: main table">
+  <figcaption>The same list with the aging columns showing.</figcaption>
+  <ol>
+    <li data-find="main thead">The age columns, as in MES's own aging report. Click a heading to sort.</li>
+    <li data-find="main tbody tr >> nth=0 >> td >> nth=0">Press + at the start of a row to see that
+      tenant's invoice lines without leaving the list.</li>
+    <li data-find="main tbody tr >> nth=3 >> span.rounded-full:has-text('late fees')">Marks on a row: 1FM
+      for 1FM Maintenance tenants, and the number of late fees charged when there have been three or
+      more.</li>
+  </ol>
+</figure>
+
+<h2>Adding an email address</h2>
+
+<p>A tenant with no email address cannot be sent reminders. In the aging columns view their row
+shows <b>No email, add one</b>.</p>
+
+<ol>
+  <li>Press <b>No email, add one</b> on the tenant's row.</li>
+  <li>Type the address. For more than one, separate them with commas.</li>
+  <li>Press Enter. The notice "Email saved" confirms it, and the tenant gets their reminders from
+    now on.</li>
+</ol>
+
+<figure class="shot" id="balances-add-email" data-path="/" data-vw="1440"
+  data-steps="click: role=button[name='Aging columns'] ;; fill: input[aria-label='Find a tenant'] => ONG BROTHERS ;; wait: 1500 ;; click: role=button[name=/No email, add one/]"
+  data-clip="main table">
+  <figcaption>Typing in an address for a tenant who has none.</figcaption>
+  <ol>
+    <li data-find="main input[type='email']">Type the address and press Enter to save it. Press the
+      cross to cancel.</li>
+  </ol>
+</figure>
+
+<p>To add many addresses at once, use the contact list on Upload Reports instead. An address typed
+in here is kept when a new contact list or report is uploaded.</p>
+
+<h2>Charge types and billing runs</h2>
+
+<p>At the bottom of the screen, <b>Show charge types and billing runs</b> opens two more tables.</p>
+
+<figure class="shot" id="balances-types" data-path="/" data-vw="1440"
+  data-steps="click: text=Show charge types and billing runs ;; scroll: main div.rounded-lg.bg-surface:has(h2:has-text('By charge type'))"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('By charge type'))">
+  <figcaption>What is owed, by charge type. The total at the foot of the table matches Total owed at
+    the top of the screen.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('By charge type')) tbody tr >> nth=0">One
+      charge type, with how many invoices and tenants it covers, and the money in it by age.</li>
+  </ol>
+</figure>
+
+<figure class="shot" id="balances-runs" data-path="/" data-vw="1440"
+  data-steps="click: text=Show charge types and billing runs ;; scroll: main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed'))"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed'))">
+  <figcaption>What each billing run is still owed, newest first.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) thead">One
+      row per billing date: when it was billed, when payment was due, how long since billing, who it
+      covers, and what is still owed.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=7 >> td >> nth=2">The
+      credit clock, counted from the billing date: within credit, past 14 days, or past 30 days.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=0 >> td >> nth=-1">Of
+      that, chaseable: the part more than 15 days past its due date, which is where MES's aging
+      stops calling a charge Current.</li>
+  </ol>
+</figure>
+
+<h2>One tenant's page</h2>
+
+<p>Click a tenant's name anywhere in the system to open their page. It shows everything about that
+tenant in one place.</p>
+
+<figure class="shot" id="tenant" data-path="/tenant/dorm-1352-jpd1" data-clip="window" data-height="900">
+  <figcaption>A tenant's page.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface >> nth=0">The tenant, their account code and dormitory, their email
+      address, and how many letters and calls there have been.</li>
+    <li data-find="main div.grid >> nth=0">What they owe, how much is overdue, how much is over 90
+      days old, and the age of their oldest money.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Everything we have done'))">Everything
+      done for this tenant, newest first: letters, calls, promises and fees. Each says whether it
+      reached the tenant or is an internal record.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What they are being charged for')) >> div.border-b >> nth=0">Every
+      charge line from the report, with its billing date, due date, what it is and how overdue it
+      is. Search by charge, document or date.</li>
+  </ol>
+</figure>
+
+<p><b>Back to Outstanding Balances</b> at the top returns you to the screen you came from.</p>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>Every figure comes from the report in use.</b> The date under Tenants, "Report of 15 Sep
+    2026" for example, is that report's own date, not today's.</li>
+  <li><b>Overdue follows MES's aging.</b> Money is overdue once it reaches the 30 days column.
+    Current covers anything up to 15 days past its due date.</li>
+  <li><b>A tenant in credit is never chased.</b> They get no letters and no late fee.</li>
+  <li><b>A Relationship Manager sees only their own tenants</b> on this screen, and the totals at the
+    top are for those tenants only.</li>
+</ul>

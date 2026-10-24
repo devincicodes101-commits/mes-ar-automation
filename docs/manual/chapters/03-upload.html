@@ -1,0 +1,181 @@
+<section class="part" data-part="The monthly cycle"></section>
+<h1>Upload Reports</h1>
+
+<p class="lead">Everything the system knows about who owes what comes from the AR report you
+upload here. Upload a new one after each billing run and whenever payments have been posted in
+NetSuite. Every screen, and the next 9am run, then works from it.</p>
+
+<h2>The two files</h2>
+
+<table>
+  <tr><th style="width:24%">File</th><th>Where it comes from</th><th style="width:28%">How often</th></tr>
+  <tr>
+    <td><b>AR report</b><br>required</td>
+    <td>NetSuite, Finance AR Download, from the Detailed AR report. The Custom A/R Aging Detail
+      export also works. Save it as Excel and do not change it.</td>
+    <td>After each billing run, and when payments are posted. At least once a month.</td>
+  </tr>
+  <tr>
+    <td><b>Client contact list</b><br>optional</td>
+    <td>MES's contact workbook. It needs a column headed Email Address next to the company names.
+      Excel or CSV.</td>
+    <td>Only when addresses change. The last one uploaded is kept.</td>
+  </tr>
+</table>
+
+<h2>The screen</h2>
+
+<p>Open Upload Reports, the first item in the menu. The top of the screen shows which report every
+screen is using now. Below it are the three things to fill in.</p>
+
+<figure class="shot" id="upload-page" data-path="/upload" data-height="720" data-clip="window"
+  data-steps="wait: role=button[name='Read the file']">
+  <figcaption>Upload Reports, before a file is chosen.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('Report in use')"><b>Report in use.</b>
+      The report every screen is reading now: its month, how many tenants and invoice lines it has,
+      and its date. <b>View report</b> opens it.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('AR report'))"><b>AR report.</b>
+      Click the box, or drag the NetSuite file onto it.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Client contact list'))"><b>Client
+      contact list</b>, if the addresses have changed. Leave it empty otherwise.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(label:has-text('Billing month'))"><b>Billing
+      month.</b> Filled in from the file once it is read. Change it only if it is wrong.</li>
+    <li data-find="role=button[name='Read the file']"><b>Read the file</b> checks the files. Nothing
+      is saved yet.</li>
+  </ol>
+</figure>
+
+<div class="note"><span class="label">Good to know</span>
+<p>Choosing the wrong file does no harm until you press <b>Use this report</b>. Even after that,
+you can upload the right file and it replaces the wrong one. Calls, promises and addresses typed in
+by hand are always kept.</p>
+</div>
+
+<h2>Reading the file</h2>
+
+<ol>
+  <li>Click the AR report box and choose the file exported from NetSuite. Its name appears in the
+    box. To change your mind, press <b>Remove file</b>.</li>
+  <li>If the addresses have changed, choose the contact list in the second box.</li>
+  <li>Press <b>Read the file</b>. A large report takes a few seconds.</li>
+  <li>Check the billing month. The system suggests the month most tenants were last billed in,
+    and says why, for example "7 of 15 tenants were last billed in October 2026".</li>
+</ol>
+
+<div class="note"><span class="label">Careful</span>
+<p>The billing month is a label for the month the report belongs to. It does not change any
+billing date, because every charge carries its own. A wrong month files the figures under the
+wrong month, and fees and reminders are counted against it.</p>
+</div>
+
+<h2>Checking what was found</h2>
+
+<p>The system lists what it read from the file and anything worth a second look. Read the checks
+before saving.</p>
+
+<figure class="shot" id="upload-checks" data-path="/upload"
+  data-steps="file: input[type=file] => samples/QA AR report - as of 23 Oct 2026.xlsx ;; click: role=button[name='Read the file'] ;; wait: text=Checks on this upload"
+  data-clip="main div.rounded-lg.bg-surface:has-text('What we found in your files')">
+  <figcaption>What was found in the file, and the checks on it. The figures come from a shortened
+    test file.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('What we found in your files') > div.border-b div.shrink-0"><b>Whether
+      the file could be read.</b> "Read cleanly" means every line was understood.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('What we found in your files') > dl.grid" data-pad="-4"><b>The
+      totals</b>: tenant accounts and how many are in credit, total owed, invoice lines and charge
+      types, and how many tenants have an email address.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('What we found in your files') > div.border-t:has-text('Every charge was classified')" data-pad="-4"><b>Charge
+      types.</b> Every charge description is sorted into a type. Any description the rules do not
+      recognise is listed here by name.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('What we found in your files') > div.border-t:has-text('Checks on this upload')" data-pad="-4"><b>Checks
+      on this upload.</b> The verdict is "Nothing of concern", "Usable, but read these first" or
+      "Do not use this data". Each warning says what it means for you.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('What we found in your files') > div.border-t:has-text('Rows that need a look')" data-pad="-4"><b>Rows
+      that need a look.</b> Lines that could not be read, and lines worth checking, each with the
+      reason.</li>
+  </ol>
+</figure>
+
+<p>The warnings you are most likely to see:</p>
+<table>
+  <tr><th style="width:38%">Warning</th><th>What it means</th></tr>
+  <tr><td>No contact list in this upload</td><td>Not a problem if addresses were loaded before,
+    because they are kept. Without any, no reminder can be emailed and every tenant goes to the By
+    hand list.</td></tr>
+  <tr><td>No "Transaction Type" column</td><td>The export is missing a column, so credit notes
+    cannot be told apart from invoices. Export again from the Detailed AR report.</td></tr>
+  <tr><td>No "Categories" column</td><td>Charge types are worked out from the description alone,
+    which is less reliable.</td></tr>
+  <tr><td>No "Status" column</td><td>Every tenant is treated as still renting.</td></tr>
+  <tr><td>A file could not be read at all</td><td>It is not an AR report or a contact list. Nothing
+    from it is used, and there is no Use this report button.</td></tr>
+</table>
+
+<h2>Comparing with the report in use</h2>
+
+<p>Before you save, the system compares the new file with the report every screen is using. This
+is the quickest way to spot the wrong file.</p>
+
+<figure class="shot" id="upload-review" data-path="/upload"
+  data-steps="file: input[type=file] => samples/QA AR report - as of 23 Oct 2026.xlsx ;; click: role=button[name='Read the file'] ;; wait: text=Compared with the report of"
+  data-clip="main div.rounded-lg.bg-surface:has-text('Use this report for')">
+  <figcaption>The question before saving, and what would change. The test file is much shorter
+    than the report in use, which is why so many tenants show as paid.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has-text('Use this report for') p:has-text('Use this report for')"><b>The
+      question</b>: use this report for the month shown?</li>
+    <li data-find="role=button[name='Use this report']"><b>Use this report</b> saves it for everyone.
+      Nothing is saved until you press it.</li>
+    <li data-find="main div.basis-full:has-text('Compared with the report of') ul"><b>What would
+      change.</b> Each line opens to list the tenants or invoices in it.</li>
+  </ol>
+</figure>
+
+<table>
+  <tr><th style="width:36%">Line</th><th>Means</th></tr>
+  <tr><td>Paid in full, no longer in the report</td><td>The tenant was in the old report and is not
+    in the new one. The system treats them as paid, so no more letters or calls.</td></tr>
+  <tr><td>Paid part, balance went down</td><td>Still owing, but less.</td></tr>
+  <tr><td>Owe more, balance went up</td><td>New charges since the last report.</td></tr>
+  <tr><td>New tenants</td><td>In the new report only.</td></tr>
+  <tr><td>New bills</td><td>Invoices not in the old report, grouped by billing date. Dates other than
+    the 15th are marked Ad hoc.</td></tr>
+  <tr><td>Total owed</td><td>The old total, then the new one.</td></tr>
+</table>
+
+<div class="note"><span class="label">If the comparison looks wrong</span>
+<p>If almost every tenant shows as paid in full, or the new report is older than the one in use,
+you have probably chosen the wrong file or a partial export, and the screen warns you. Do not press
+Use this report. Choose the right file and read it again.</p>
+</div>
+
+<h2>Saving</h2>
+
+<p>Press <b>Use this report</b>. The screen confirms "Saved. Everyone signed in now sees this
+report." The Report in use box changes to the new report, and the upload is recorded in the
+Activity Log as "Uploaded a report", with your name.</p>
+
+<p>If you leave the screen before saving, the file and the comparison are kept until you come back,
+as long as you do not refresh the browser.</p>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>Billing dates start the clocks.</b> Each invoice line's Date is its billing date. The lines
+    are grouped by tenant and billing date. Each group gets its own first reminder 23 days later and
+    its own final notice 37 days later, and the next 9am run picks them up.</li>
+  <li><b>Due dates come from the report.</b> If a group's lines carry one due date, that date is
+    used. If not, the due date is 14 days after billing. The late fee counts from the due date.</li>
+  <li><b>Tenants who have gone have paid.</b> They drop off Reminder Emails, the Call List and the
+    fee list, and their promises to pay are marked "Paid, no longer owing".</li>
+  <li><b>Charges are sorted by type</b> from their description, using the rules under Settings,
+    Charge types. A tenant with a Rejected GIRO Fee line is treated as paying by GIRO and is not
+    charged the late fee.</li>
+  <li><b>Addresses are matched by company name.</b> A contact list adds or updates addresses.
+    Addresses typed in by hand are kept.</li>
+  <li><b>A corrected export replaces, it does not add.</b> Saving a report with the same report date
+    as an earlier one replaces that day's figures.</li>
+  <li><b>The report's age is watched.</b> If no newer report has been saved for more than 16 days,
+    the 9am run still runs and the Activity Log shows a warning.</li>
+</ul>

@@ -1,0 +1,158 @@
+<section class="part" data-part="Behind the scenes"></section>
+<h1>What happens in the background</h1>
+
+<p class="lead">This chapter explains how the system turns an AR report into letters, calls and
+fees. None of it needs doing by hand. It is here so you can answer "why did this tenant get that
+letter" and check the system is doing what MES expects.</p>
+
+<h2>The 9am run, step by step</h2>
+
+<p>Every morning at 9am Singapore time the system runs on its own, whether or not anyone is signed
+in. In order, it:</p>
+
+<ol>
+  <li>Reads the newest saved AR report, the settings, every letter already sent, every promise to
+    pay, and any letters edited for a tenant.</li>
+  <li>Checks how old the report is. If it is more than 16 days old, it carries on and notes a
+    warning. If Settings says to stop on an old report, it stops here.</li>
+  <li>Works out which letters fall due today, one bill at a time (section 12.2).</li>
+  <li>Leaves out tenants who have already had that letter for that bill, tenants with a promise to pay
+    that has not fallen due, and tenants who owe nothing or are in credit.</li>
+  <li>Puts each tenant's letters for the day into one email, using the edited wording where someone
+    has saved an edit.</li>
+  <li>Sends the tenants with no email address to the By hand list instead.</li>
+  <li>Records each letter as written, then sends it from the nominated mailbox, in small batches.
+    A letter is marked sent only once the mail server accepts it.</li>
+  <li>On the 16th, raises the late payment fees (section 12.3).</li>
+  <li>Records what it did on the 9am runs tab of the Activity Log. Anything it could not do appears in
+    Needs attention.</li>
+</ol>
+
+<p>If there is more to send than fits in one go, follow-up runs at 10am, 11am and noon carry on from
+where it stopped.</p>
+
+<h2>How a reminder date is worked out</h2>
+
+<p>Each billing date has its own clock. The first reminder goes 23 days after the billing date, and the
+final notice 37 days after it. Here is one tenant with two bills.</p>
+
+<table>
+  <tr><th>Bill</th><th>Billed</th><th>Amount</th><th>First reminder</th><th>Final notice</th></tr>
+  <tr><td>Monthly bill</td><td>15 Aug</td><td>S$5,000</td><td>7 Sep, asks for S$5,000</td><td>21 Sep, asks for S$5,000</td></tr>
+  <tr><td>Ad hoc bill</td><td>3 Sep</td><td>S$200</td><td>26 Sep, asks for S$200</td><td>10 Oct, asks for S$200</td></tr>
+</table>
+
+<p>If both bills fell due the same letter on the same day, the tenant would get one email asking for
+S$5,200. If the tenant pays the August bill, the next report no longer has it, and the September
+letters ask only for what is left.</p>
+
+<figure class="diagram">
+<svg viewBox="0 0 650 420" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif" font-size="11">
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b6b6b"/></marker></defs>
+  <rect x="40" y="10" width="280" height="44" rx="4" fill="#fff" stroke="#1a1a1a" stroke-width="1.2"/>
+  <text x="180" y="36" text-anchor="middle" font-weight="700" fill="#1a1a1a">Is the bill 23 or 37 days old today?</text>
+  <path d="M320 32 H386" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="334" y="26" fill="#3a3a3a">no</text>
+  <rect x="390" y="10" width="240" height="44" rx="4" fill="#f3f3f3" stroke="#bdbdbd"/>
+  <text x="510" y="36" text-anchor="middle" fill="#1a1a1a">Nothing today</text>
+  <path d="M180 54 V98" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="188" y="80" fill="#3a3a3a">yes</text>
+  <rect x="40" y="100" width="280" height="44" rx="4" fill="#fff" stroke="#1a1a1a" stroke-width="1.2"/>
+  <text x="180" y="126" text-anchor="middle" font-weight="700" fill="#1a1a1a">Has this letter already gone for this bill?</text>
+  <path d="M320 122 H386" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="334" y="116" fill="#3a3a3a">yes</text>
+  <rect x="390" y="100" width="240" height="44" rx="4" fill="#f3f3f3" stroke="#bdbdbd"/>
+  <text x="510" y="126" text-anchor="middle" fill="#1a1a1a">Nothing more. A letter is never sent twice.</text>
+  <path d="M180 144 V188" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="188" y="170" fill="#3a3a3a">no</text>
+  <rect x="40" y="190" width="280" height="44" rx="4" fill="#fff" stroke="#1a1a1a" stroke-width="1.2"/>
+  <text x="180" y="216" text-anchor="middle" font-weight="700" fill="#1a1a1a">Has the tenant promised to pay by a later date?</text>
+  <path d="M320 212 H386" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="334" y="206" fill="#3a3a3a">yes</text>
+  <rect x="390" y="190" width="240" height="44" rx="4" fill="#f3f3f3" stroke="#bdbdbd"/>
+  <text x="510" y="216" text-anchor="middle" fill="#1a1a1a">Held until the promise date</text>
+  <path d="M180 234 V278" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="188" y="260" fill="#3a3a3a">no</text>
+  <rect x="40" y="280" width="280" height="44" rx="4" fill="#fff" stroke="#1a1a1a" stroke-width="1.2"/>
+  <text x="180" y="306" text-anchor="middle" font-weight="700" fill="#1a1a1a">Does the tenant have an email address?</text>
+  <path d="M320 302 H386" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="334" y="296" fill="#3a3a3a">no</text>
+  <rect x="390" y="280" width="240" height="44" rx="4" fill="#f3f3f3" stroke="#bdbdbd"/>
+  <text x="510" y="306" text-anchor="middle" fill="#1a1a1a">On the By hand list, to post from Outlook</text>
+  <path d="M180 324 V368" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
+  <text x="188" y="350" fill="#3a3a3a">yes</text>
+  <rect x="40" y="370" width="280" height="44" rx="4" fill="#1a1a1a"/>
+  <text x="180" y="396" text-anchor="middle" font-weight="700" fill="#fff">Emailed from the 9am mailbox</text>
+</svg>
+<figcaption><b>Figure 12.1</b> How the 9am run decides, for one bill, whether a letter goes today.</figcaption>
+</figure>
+
+<p>Three settings change the picture (Settings, Reminder timing):</p>
+<ul>
+  <li><b>Count from the newest bill only.</b> Instead of one clock per billing date, only the tenant's
+    newest bill starts the clock, and the letter asks for the whole balance.</li>
+  <li><b>Days of grace.</b> Normally a letter goes on its day only. With grace days set, a letter the
+    run missed still goes on the days after.</li>
+  <li><b>Final notice without a first reminder.</b> On by standard, so a bill first seen after its first
+    reminder day still gets its final notice. Turned off, the final notice waits for a first reminder
+    that was really sent.</li>
+</ul>
+
+<h2>How the late fee is worked out</h2>
+
+<p>On the 16th, every tenant with a bill more than 14 days past its due date, and still unpaid, is
+charged S$100 before GST, once. The due date is the one in the report, or 14 days after billing if the
+report has none.</p>
+
+<table>
+  <tr><th>Bill</th><th>Due</th><th>On 16 September</th></tr>
+  <tr><td>Billed 15 August</td><td>29 August</td><td>18 days past due, so charged</td></tr>
+  <tr><td>Billed 1 September</td><td>15 September</td><td>1 day past due, so not yet. Charged on 16 October if
+    still unpaid.</td></tr>
+</table>
+
+<p>A tenant is not charged if they pay by GIRO (they have a Rejected GIRO Fee line in the report), if
+they are in credit, or if they have already been charged this month. Settings can count the 14 days
+from the billing date instead of the due date.</p>
+
+<h2>How charges are sorted into types</h2>
+
+<p>Each line of the AR report has a description, such as "Service &amp; Conservancy Charges". The
+rules under Settings, Charge types are checked in order, and the first that matches decides the
+type. A line that matches none is Other Charges. After every upload, any description that landed in
+Other Charges is listed by name, so a new kind of charge is noticed straight away. The types are used
+for the charge type table on Outstanding Balances, the reports, and to recognise GIRO tenants and 1FM
+Maintenance tenants.</p>
+
+<h2>What happens when a report is replaced</h2>
+
+<ul>
+  <li><b>Everything is recalculated from the new report:</b> balances, aging, who is due a letter or a
+    call, and the fee list.</li>
+  <li><b>A tenant not in the new report has paid in full.</b> Their letters stop and their promises are
+    marked paid.</li>
+  <li><b>Work already done is kept:</b> letters sent, calls, promises, fees raised and addresses typed in
+    by hand.</li>
+  <li><b>A letter already sent for a bill is not sent again</b> because a new report still has that
+    bill.</li>
+  <li><b>The same report date replaces.</b> A corrected export with the same date takes the place of
+    the first one.</li>
+</ul>
+
+<h2>Sending safely</h2>
+
+<p>A letter reaches a tenant only when three things are true: a mailbox is connected, Microsoft still
+accepts it, and sending is switched on. Each one is shown on Settings, Mailbox. Sending has three
+modes, set by the system administrator:</p>
+
+<table>
+  <tr><th style="width:30%">Mode</th><th>What happens</th></tr>
+  <tr><td>Nothing is sent</td><td>Letters are written and recorded, and no email leaves.</td></tr>
+  <tr><td>Test addresses only</td><td>Only addresses on the test list receive mail. Letters to anyone else
+    are written, held back, and recorded as held back.</td></tr>
+  <tr><td>Sending to real tenants</td><td>Letters go to the tenants' own addresses. This is the live
+    setting.</td></tr>
+</table>
+
+<p>Every letter is recorded before it is sent and marked sent only afterwards, so the Activity Log
+always shows exactly what went and what did not.</p>

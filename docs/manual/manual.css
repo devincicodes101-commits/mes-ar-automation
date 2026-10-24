@@ -1,0 +1,131 @@
+/* The manual's look. Printed to A4 by build.mjs.
+
+   Kept plain on purpose: black text, grey rules, one neutral box style. The
+   only colour inside the chapters is the red of the marks on the screenshots,
+   so the eye goes where the marks are. MES blue is on the cover only. */
+
+:root {
+  --blue: #05539b;
+  --ink: #1a1a1a;
+  --ink-2: #3a3a3a;
+  --ink-3: #6b6b6b;
+  --line: #dcdcdc;
+  --line-soft: #ececec;
+  --mark: #d6262d;
+}
+
+@page { size: A4; }
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 10.3pt;
+  line-height: 1.6;
+  color: var(--ink);
+  background: #fff;
+}
+
+/* ------------------------------------------------------------ cover */
+.cover-page { width: 210mm; height: 297mm; overflow: hidden; }
+.cover { position: relative; width: 210mm; height: 297mm; }
+.cover-band { position: absolute; inset: 0 0 auto 0; height: 92mm; background: var(--blue); }
+.cover-body { position: absolute; top: 34mm; left: 22mm; right: 22mm; }
+.cover-logo { height: 26mm; background: #fff; padding: 4mm 6mm; border-radius: 2mm; }
+.cover-kicker {
+  margin-top: 48mm; font-size: 10.5pt; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 600;
+}
+.cover-title {
+  margin: 3mm 0 0; padding-bottom: 5mm; border-bottom: 1px solid var(--line);
+  font-size: 34pt; line-height: 1.1; font-weight: 700; color: var(--ink);
+}
+.cover-sub { margin: 6mm 0 0; font-size: 12.5pt; line-height: 1.55; color: var(--ink-2); max-width: 150mm; }
+.cover-meta { margin-top: 40mm; border-top: 1px solid var(--line); padding-top: 6mm; display: grid; gap: 3mm; font-size: 10pt; color: var(--ink-2); }
+.cover-meta span { display: inline-block; width: 32mm; color: var(--ink-3); text-transform: uppercase; font-size: 8pt; letter-spacing: .08em; }
+
+/* ------------------------------------------------------------ contents */
+.toc-title { font-size: 20pt; margin: 0 0 6mm; padding-bottom: 3mm; border-bottom: 1px solid var(--line); }
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc a { display: flex; align-items: baseline; gap: 2.5mm; color: inherit; text-decoration: none; }
+.toc .dots { flex: 1; border-bottom: 1px dotted #bdbdbd; transform: translateY(-1.2mm); }
+.toc .p { font-variant-numeric: tabular-nums; min-width: 8mm; text-align: right; }
+.toc-part {
+  margin: 5mm 0 1.5mm; font-size: 8pt; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 700;
+}
+.toc-ch { margin-top: 2mm; font-weight: 600; font-size: 10.5pt; }
+.toc-ch .n { width: 7mm; }
+.toc-sec { font-size: 9.5pt; color: var(--ink-2); padding-left: 7mm; }
+.toc-sec .n { width: 9mm; color: var(--ink-3); }
+.toc .planned { color: #a3a3a3; }
+
+/* ------------------------------------------------------------ chapters */
+.chapter { break-before: page; }
+.part-label {
+  font-size: 8pt; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+  font-weight: 700; margin-bottom: 2mm;
+}
+h1 {
+  margin: 0 0 5mm; font-size: 20pt; line-height: 1.2; color: var(--ink);
+  padding-bottom: 3mm; border-bottom: 1px solid var(--line);
+}
+h1 .num { display: inline-block; min-width: 10mm; color: var(--ink-3); font-weight: 600; }
+h2 { margin: 8mm 0 2mm; font-size: 13pt; color: var(--ink); break-after: avoid; }
+h2 .num { display: inline-block; min-width: 11mm; color: var(--ink-3); font-weight: 600; font-size: 11pt; }
+h3 { margin: 5mm 0 1.5mm; font-size: 10.8pt; color: var(--ink); break-after: avoid; }
+p { margin: 0 0 2.8mm; }
+ul, ol { margin: 0 0 3mm; padding-left: 6mm; }
+li { margin: 0 0 1.2mm; }
+code { font-family: Consolas, monospace; font-size: 9pt; background: #f3f3f3; padding: 0 1mm; border-radius: .8mm; }
+.lead { font-size: 10.8pt; color: var(--ink-2); }
+b, strong { font-weight: 600; }
+
+/* ------------------------------------------------------------ figures */
+.figure { margin: 4mm 0 5mm; }
+/* The picture and its caption stay together; the numbered notes may run on. */
+.figure .frame { break-inside: avoid; }
+.figure figcaption { break-before: avoid; }
+.frame { position: relative; max-width: 100%; border: 1px solid #cfcfcf; border-radius: 1.5mm; overflow: hidden; }
+.frame img { display: block; width: 100%; }
+.frame svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ring { fill: none; stroke: var(--mark); }
+.badge { fill: var(--mark); stroke: #fff; stroke-width: 1.5px; }
+.badge-n { fill: #fff; font-family: "Segoe UI", sans-serif; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.figure figcaption { margin-top: 2mm; font-size: 8.8pt; color: var(--ink-3); }
+.figure figcaption b { color: var(--ink-2); margin-right: 1.5mm; }
+.callouts { margin: 2.5mm 0 0; padding: 0; list-style: none; counter-reset: c; font-size: 9.5pt; }
+.callouts li { counter-increment: c; position: relative; padding-left: 8mm; margin-bottom: 1.6mm; }
+.callouts li::before {
+  content: counter(c); position: absolute; left: 0; top: .4mm; width: 5mm; height: 5mm; border-radius: 50%;
+  background: var(--mark); color: #fff; font-size: 7.5pt; font-weight: 700; text-align: center; line-height: 5mm;
+}
+.nopic { border: 1px dashed #bdbdbd; border-radius: 1.5mm; padding: 10mm; text-align: center; color: var(--ink-3); font-size: 9pt; }
+
+/* ------------------------------------------------------------ the one box */
+/* "Good to know", "Careful", "Behind the scenes": the same plain box, and the
+   label says which. */
+.note {
+  break-inside: avoid; border: 1px solid var(--line); border-radius: 1.5mm;
+  padding: 3mm 4mm; margin: 3mm 0 4mm; font-size: 9.7pt; background: #fff;
+}
+.note > .label {
+  display: block; font-size: 7.8pt; letter-spacing: .12em; text-transform: uppercase;
+  font-weight: 700; color: var(--ink-3); margin-bottom: 1mm;
+}
+.note p:last-child, .note ul:last-child, .note ol:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------ tables */
+table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.3pt; break-inside: auto; }
+th { text-align: left; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid #bdbdbd; padding: 1.8mm 2.2mm; }
+td { border-bottom: 1px solid var(--line-soft); padding: 1.8mm 2.2mm; vertical-align: top; }
+tr { break-inside: avoid; }
+table.tests td:first-child, table.tests th:first-child { width: 11mm; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+table.tests td:last-child, table.tests th:last-child { width: 12mm; text-align: center; }
+.box { display: inline-block; width: 4mm; height: 4mm; border: 1px solid #8c8c8c; border-radius: .6mm; }
+
+/* ------------------------------------------------------------ diagram */
+.diagram { margin: 3mm 0 5mm; break-inside: avoid; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram figcaption { margin-top: 1.5mm; font-size: 8.8pt; color: var(--ink-3); }

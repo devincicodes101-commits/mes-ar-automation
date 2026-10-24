@@ -1,0 +1,80 @@
+<h1>User Management</h1>
+
+<p class="lead">User Management is where an administrator gives people a login, sets their role,
+and switches a login off when someone leaves. Only an Admin or Super Admin can open it.</p>
+
+<h2>The screen</h2>
+
+<figure class="shot" id="users" data-path="/users" data-clip="window" data-height="860">
+  <figcaption>User Management, on the Logins tab.</figcaption>
+  <ol>
+    <li data-find="main [role='tablist']"><b>Logins</b>, or <b>What each role can do</b> (chapter 2,
+      figure 2.3).</li>
+    <li data-find="role=button[name='Add a login']"><b>Add a login</b> for a new person.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('People who can use the system')) li >> nth=0 >> div.min-w-0 >> nth=0">The
+      person's name, their email address, when they last signed in, and what their role allows.</li>
+    <li data-find="select[aria-label^='Role for'] >> nth=0">Their role. Choosing another one changes it
+      straight away.</li>
+    <li data-find="role=button[name='Switch off'] >> nth=0"><b>Switch off</b> stops them signing in.</li>
+  </ol>
+</figure>
+
+<h2>Adding a login</h2>
+
+<ol>
+  <li>Press <b>Add a login</b>.</li>
+  <li>Type the person's full name and their email address. The email address is their username.</li>
+  <li>Choose their role. The line below the role says what it allows.</li>
+  <li>For a Relationship Manager, choose whose tenants they see. The list is the managers named in the
+    AR report.</li>
+  <li>A first password is filled in for you. You can type your own instead, of at least 10
+    characters.</li>
+  <li>Press <b>Create the login</b>.</li>
+  <li>Give the person their email address and first password yourself. Nothing is emailed to them.</li>
+</ol>
+
+<figure class="shot" id="add-login" data-path="/users" data-height="980"
+  data-steps="click: role=button[name='Add a login'] ;; wait: div[role='dialog']"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>Adding a login.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] label:has-text('Role')">The role, with what it allows written
+      beneath.</li>
+    <li data-find="div[role='dialog'] label:has-text('First password')">The first password. <b>New</b>
+      makes another one. It avoids letters that are easy to misread, such as 0 and O.</li>
+    <li data-find="div[role='dialog'] button:has-text('Create the login')"><b>Create the login.</b> It
+      becomes available once the name, email and password are filled in.</li>
+  </ol>
+</figure>
+
+<h2>Changing a role</h2>
+
+<p>Choose the new role in the drop-down on the person's row. The change is saved at once, and the
+notice says what they are now. For a Relationship Manager, a second drop-down chooses whose tenants
+they see.</p>
+
+<p>Two limits apply. Nobody can change their own role, and an Admin cannot change, or switch off, a
+Super Admin.</p>
+
+<h2>Switching a login off</h2>
+
+<p>When someone leaves, press <b>Switch off</b> on their row. They can no longer sign in, and the row
+is marked "Switched off". Their name stays on everything they did, so the history is still readable.
+Press <b>Switch on</b> to let them back in.</p>
+
+<div class="note"><span class="label">Good to know</span>
+<p>Logins are never deleted, only switched off. That way the Activity Log can always say who did
+what.</p>
+</div>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>Passwords are kept by the sign-in service</b>, never by the system itself, and are never
+    emailed.</li>
+  <li><b>A role is checked on every action</b>, not only on what the menu shows.</li>
+  <li><b>A Relationship Manager's tenants</b> are the ones the AR report names them as manager for.
+    If the report moves a tenant to another manager, the tenant moves with it.</li>
+  <li><b>Every login added, changed or switched off</b> is recorded in the Activity Log with who did
+    it.</li>
+</ul>

@@ -1,0 +1,84 @@
+<h1>Activity Log and the 9am runs</h1>
+
+<p class="lead">The Activity Log records everything that has been done, by a person or by the 9am
+run, with who did it and when. Nothing in it can be edited or deleted. Its second tab shows what
+each morning's run did, and anything that needs a hand is shown at the top.</p>
+
+<h2>Everything that has been done</h2>
+
+<figure class="shot" id="activity" data-path="/activity" data-clip="window" data-height="860">
+  <figcaption>The Activity Log.</figcaption>
+  <ol>
+    <li data-find="main [role='tablist']"><b>Everything that has been done</b>, or <b>9am runs</b>.</li>
+    <li data-find="main button:text-is('Late fees') >> xpath=..">Show
+      everything, or only emails, calls, promises, late fees or admin actions. The box beside it
+      finds a tenant, a person or an action.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Everything that has been done')) li >> nth=0">One
+      entry: when, what kind, what was done and to whom, and who did it.</li>
+  </ol>
+</figure>
+
+<p>Admin entries include uploading a report, changing a setting or the report recipients, adding or
+switching off a login, and sending a report. Entries are newest first, and the number at the top says
+how many there are in all.</p>
+
+<h2>Needs attention</h2>
+
+<p>When a 9am run has missed something, a Needs attention box appears above the log. Each item says
+what was missed and has a button to put it right.</p>
+
+<table>
+  <tr><th style="width:42%">It says</th><th>Press</th></tr>
+  <tr><td>Today's reminders have not gone out</td><td>Run this morning now</td></tr>
+  <tr><td>No run on certain dates</td><td>Run that date again, to send the letters due that day</td></tr>
+  <tr><td>The run stopped, or ran out of time before some letters</td><td>Send the remaining letters</td></tr>
+  <tr><td>Late fees for a month were not raised</td><td>Raise that month's late fees</td></tr>
+</table>
+
+<p>Each button asks you to confirm first and says what it will do. These send real letters to
+tenants and raise real fees. Tenants who already had their letter are skipped, and no fee is charged
+twice.</p>
+
+<h2>The 9am runs tab</h2>
+
+<figure class="shot" id="activity-runs" data-path="/activity?tab=runs" data-clip="window" data-height="860" data-vw="1440">
+  <figcaption>What each morning's run did.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface >> nth=1">When the reminders last ran, and when the
+      16th's late fees last ran.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What it has done')) thead">One row per
+      morning: the date, which day of the cycle it was, what it did, how many fees and letters, and
+      when it finished.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What it has done')) tbody tr >> nth=0 >> td >> nth=2">What
+      it did, in words. Open a row's details to see who was written to, who was held back and
+      why.</li>
+  </ol>
+</figure>
+
+<p>What the "What it did" column can say:</p>
+
+<table>
+  <tr><th style="width:42%">It says</th><th>Meaning</th></tr>
+  <tr><td>Nothing to do</td><td>No letters fell due and it was not the 16th.</td></tr>
+  <tr><td>No reminders fall due today</td><td>As above, sometimes with tenants held back by a promise.</td></tr>
+  <tr><td>N first reminders and N final notices</td><td>The letters written that morning, then how many
+    were sent, held back or failed, with the reason.</td></tr>
+  <tr><td>Held back: test mode</td><td>Sending was on test addresses only, so letters to real tenants
+    were written but not sent.</td></tr>
+  <tr><td>Not sent: the connection was revoked</td><td>The mailbox needs reconnecting (chapter 9).</td></tr>
+  <tr><td>In N parts</td><td>A long list was sent in parts, at 9am and the follow-up runs after it.</td></tr>
+  <tr><td>Late payment fees, Charged N tenants</td><td>The 16th's fees were raised.</td></tr>
+  <tr><td>The report is too far behind to act on</td><td>Shown only when Settings is set to stop on an old
+    report. Upload the current report and run that day again.</td></tr>
+</table>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>The log is permanent.</b> Entries can be added but never changed or deleted, by anyone.</li>
+  <li><b>The 9am run starts by itself</b> at 9am Singapore time. If it has more to send than fits in
+    one go, follow-up runs at 10am, 11am and noon carry on from where it stopped.</li>
+  <li><b>Running a day twice is safe.</b> Letters already sent are skipped and fees already raised are
+    not raised again.</li>
+  <li><b>Management can read the log</b>, and so can CSD officers. Relationship Managers cannot.</li>
+</ul>

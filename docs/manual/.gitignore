@@ -1,0 +1,4 @@
+node_modules/
+.env
+out/*
+!out/MES-AR-User-Manual.pdf

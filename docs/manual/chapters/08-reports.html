@@ -1,0 +1,127 @@
+<section class="part" data-part="Review and admin"></section>
+<h1>Reports and Export</h1>
+
+<p class="lead">Reports and Export is where information leaves the system: the file that takes calls,
+letters and promises back into NetSuite, the regular reports for CSD, management and each
+relationship manager, and any report emailed with its workbook attached.</p>
+
+<h2>The screen</h2>
+
+<figure class="shot" id="reports" data-path="/reports" data-clip="window" data-height="860">
+  <figcaption>Reports and Export.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('File to load back into NetSuite'))"><b>The
+      file for NetSuite</b>, with how many emails, calls and promises it holds.</li>
+    <li data-find="role=button[name='Preview the export']"><b>Preview the export</b> to read it and
+      download it (section 8.2).</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Regular reports')) ul > li >> nth=0">One
+      regular report: who it is for and how often. Draft means MES has not yet confirmed its
+      layout.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Regular reports')) button:has-text('Generate now') >> nth=0"><b>Preview</b>
+      shows what it contains. <b>Generate now</b> downloads it as a spreadsheet.</li>
+  </ol>
+</figure>
+
+<h2>The file for NetSuite</h2>
+
+<p>Everything the team has done, one row per action: each email that was delivered, each call and
+each promise. Load it back into NetSuite so the tenant's record there shows the
+chase.</p>
+
+<ol>
+  <li>Press <b>Preview the export</b>.</li>
+  <li>Read the rows: date, tenant, what kind of action, what it was, and any amount.</li>
+  <li>Press <b>Download as CSV</b> and import the file into NetSuite.</li>
+</ol>
+
+<figure class="shot" id="export-preview" data-path="/reports" data-height="1150"
+  data-steps="click: role=button[name='Preview the export'] ;; wait: div[role='dialog']"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>The NetSuite export, before it is downloaded.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] thead">Date, tenant, type (Email, Call or Promise to pay),
+      what it was, and the amount.</li>
+    <li data-find="div[role='dialog'] button:has-text('Download as CSV')"><b>Download as CSV</b>, the
+      format NetSuite imports.</li>
+  </ol>
+</figure>
+
+<p>Letters that were written but never delivered are left out of the file, and the screen says how
+many. Late fees are not in this file. The AR team bills them in NetSuite from the listing on Late
+Payment Fees.</p>
+
+<h2>Regular reports</h2>
+
+<table>
+  <tr><th style="width:32%">Report</th><th style="width:20%">For</th><th>What it shows</th></tr>
+  <tr><td>Security deposit report</td><td>CSD, every Monday</td><td>Deposits held, and any being used to
+    offset an outstanding balance.</td></tr>
+  <tr><td>Relationship manager balances</td><td>Each manager</td><td>One list per manager, covering only
+    their own tenants.</td></tr>
+  <tr><td>Industry breakdown</td><td>Management, first working day of the month</td><td>Balances grouped
+    by the tenant's line of business. Shown only when the report has an industry column.</td></tr>
+</table>
+
+<p>The system does not send these by itself. On the day, press <b>Generate now</b> to download the
+spreadsheet, or email it from Email a report.</p>
+
+<h3>Each manager's sheet</h3>
+
+<p>The Relationship manager balances box lists each manager with their number of tenants, what they
+owe and how much is overdue. <b>Open the sheet</b> shows that manager's tenants in MES's own layout,
+dormitory by dormitory.</p>
+
+<figure class="shot" id="rm-balances" data-path="/reports" data-vw="1440"
+  data-steps="scroll: main div.rounded-lg.bg-surface:has(button:has-text('Open the sheet'))"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Relationship manager balances')):has(button:has-text('Open the sheet'))">
+  <figcaption>Each manager's book.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Relationship manager balances')):has(button:has-text('Open the sheet')) ul > li >> nth=0">One
+      manager: their tenants, what they owe in total and how much is overdue.</li>
+    <li data-find="main button:has-text('Open the sheet') >> nth=0"><b>Open
+      the sheet</b> to read it.</li>
+  </ol>
+</figure>
+
+<p>Tenants with no manager in the report are grouped under "No manager assigned". "NetSuite system
+account" is NetSuite's own internal account, not a person.</p>
+
+<h2>Emailing a report</h2>
+
+<figure class="shot" id="email-report" data-path="/reports" data-vw="1440"
+  data-steps="scroll: main div.rounded-lg.bg-surface:has(h2:has-text('Email a report'))"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Email a report'))">
+  <figcaption>Email a report.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Email a report')) select">Which
+      report: the whole dormitory, one charge type, or one manager's tenants.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Email a report')) fieldset">Who to
+      send it to. Tick one or more. "No address" means the address has not been filled in under
+      Settings, Report recipients.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Email a report')) button:has-text('View the report')"><b>View
+      the report</b> to check the figures. <b>Preview</b> shows the covering email.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Email a report')) button:has-text('Send with the workbook')"><b>Send
+      with the workbook</b> emails it, with the spreadsheet attached.</li>
+  </ol>
+</figure>
+
+<ol>
+  <li>Choose the report.</li>
+  <li>Tick who it goes to.</li>
+  <li>Press <b>View the report</b> and check it.</li>
+  <li>Press <b>Send with the workbook</b>. The notice says who it went to.</li>
+</ol>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>Reports use the report in use.</b> Every figure is from the AR report on Upload Reports, laid
+    out by dormitory and then by charge type, the order MES asked for.</li>
+  <li><b>What you preview is what is sent.</b> The workbook attached to an email is built by the same
+    step as the download.</li>
+  <li><b>Recipients' addresses</b> come from Settings, Report recipients. The managers listed are the
+    ones named in the report, so a new manager appears there on their own.</li>
+  <li><b>Every export and every report sent</b> is recorded in the Activity Log.</li>
+  <li><b>Nothing goes into NetSuite automatically.</b> The file only reaches NetSuite when someone
+    imports it.</li>
+</ul>

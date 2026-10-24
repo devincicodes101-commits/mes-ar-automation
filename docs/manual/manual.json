@@ -1,0 +1,8 @@
+{
+  "title": "MES AR Automation User Manual",
+  "subtitle": "How to run the monthly accounts receivable cycle, what the system does on its own, and how to test it",
+  "audience": "The MES Group Accounts Receivable, CSD and management teams",
+  "version": "Edition 1, October 2026",
+  "site": "mes-ar-automation.vercel.app",
+  "file": "MES-AR-User-Manual.pdf"
+}

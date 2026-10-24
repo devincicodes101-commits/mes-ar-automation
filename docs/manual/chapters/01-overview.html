@@ -1,0 +1,136 @@
+<section class="part" data-part="Getting started"></section>
+<h1>What the system does</h1>
+
+<p class="lead">MES AR Automation chases unpaid rent and charges for MES Group. You upload the
+accounts receivable report from NetSuite, and the system works out who owes what and since when.
+It sends each tenant the right reminder on the right day, tells you who to phone, and works out
+the late payment fee. Most of this happens on its own, every morning at 9am Singapore time.</p>
+
+<h2>The monthly cycle in one picture</h2>
+
+<p>Every bill has its own clock. The clock starts on the bill's billing date, which is the Date
+column of the AR report. The picture follows one bill raised on 15 August. A bill raised on any
+other day goes through the same steps, counted from its own date.</p>
+
+<figure class="diagram">
+<svg viewBox="0 0 650 215" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8c8c8c"/>
+    </marker>
+  </defs>
+  <line x1="30" y1="112" x2="628" y2="112" stroke="#8c8c8c" stroke-width="1.6" marker-end="url(#arr)"/>
+  <g fill="#1a1a1a" text-anchor="middle">
+    <circle cx="40" cy="112" r="6"/>
+    <text x="40" y="86" font-size="11.5" font-weight="700">Billed</text>
+    <text x="40" y="100" font-size="9.5" fill="#6b6b6b">the clock starts</text>
+    <text x="40" y="134" font-size="10.5" font-weight="600">15 Aug</text>
+    <text x="40" y="148" font-size="9.5" fill="#6b6b6b">day 0</text>
+  </g>
+  <g text-anchor="middle">
+    <circle cx="231" cy="112" r="5.5" fill="#fff" stroke="#1a1a1a" stroke-width="1.6"/>
+    <text x="231" y="86" font-size="11.5" font-weight="700" fill="#1a1a1a">Due</text>
+    <text x="231" y="100" font-size="9.5" fill="#6b6b6b">14 days' credit</text>
+    <text x="231" y="134" font-size="10.5" font-weight="600" fill="#1a1a1a">29 Aug</text>
+    <text x="231" y="148" font-size="9.5" fill="#6b6b6b">day 14</text>
+  </g>
+  <g text-anchor="middle">
+    <rect x="300" y="24" width="108" height="42" rx="4" fill="#fff" stroke="#1a1a1a"/>
+    <text x="354" y="41" font-size="11.5" font-weight="700" fill="#1a1a1a">First reminder</text>
+    <text x="354" y="56" font-size="9.5" fill="#3a3a3a">email, then first call</text>
+    <line x1="354" y1="66" x2="354" y2="105" stroke="#1a1a1a" stroke-width="1.2"/>
+    <circle cx="354" cy="112" r="6" fill="#1a1a1a"/>
+    <text x="354" y="134" font-size="10.5" font-weight="600" fill="#1a1a1a">7 Sep</text>
+    <text x="354" y="148" font-size="9.5" fill="#6b6b6b">day 23</text>
+  </g>
+  <g text-anchor="middle">
+    <rect x="420" y="164" width="116" height="42" rx="4" fill="#fff" stroke="#1a1a1a" stroke-dasharray="3 2"/>
+    <text x="478" y="181" font-size="11.5" font-weight="700" fill="#1a1a1a">Late fee, S$100</text>
+    <text x="478" y="196" font-size="9.5" fill="#3a3a3a">on the 16th, if unpaid</text>
+    <line x1="477" y1="119" x2="477" y2="164" stroke="#1a1a1a" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <rect x="471" y="106" width="12" height="12" fill="#fff" stroke="#1a1a1a" stroke-width="1.6"/>
+    <text x="477" y="98" font-size="10.5" font-weight="600" fill="#1a1a1a">16 Sep</text>
+  </g>
+  <g text-anchor="middle">
+    <rect x="494" y="24" width="112" height="42" rx="4" fill="#1a1a1a"/>
+    <text x="550" y="41" font-size="11.5" font-weight="700" fill="#fff">Final notice</text>
+    <text x="550" y="56" font-size="9.5" fill="#e6e6e6">email, then second call</text>
+    <line x1="550" y1="66" x2="550" y2="105" stroke="#1a1a1a" stroke-width="1.2"/>
+    <circle cx="550" cy="112" r="6" fill="#1a1a1a"/>
+    <text x="550" y="134" font-size="10.5" font-weight="600" fill="#1a1a1a">21 Sep</text>
+    <text x="550" y="148" font-size="9.5" fill="#6b6b6b">day 37</text>
+  </g>
+</svg>
+<figcaption><b>Figure 1.1</b> One bill's journey. The 23 and 37 days, the 14 days and the S$100
+are the standard settings, and an administrator can change each of them under Settings.</figcaption>
+</figure>
+
+<h2>What you do, and what the system does</h2>
+
+<table>
+  <tr><th style="width:36%">You</th><th>The system, on its own</th></tr>
+  <tr>
+    <td>Upload the AR report from NetSuite after each billing run and when payments are posted.</td>
+    <td>Reads every invoice line and groups each tenant's bills by billing date. A tenant who has
+      gone from the report is treated as paid.</td>
+  </tr>
+  <tr>
+    <td>Upload the client contact list when addresses change.</td>
+    <td>Matches each address to its tenant by company name, so reminders can be emailed.</td>
+  </tr>
+  <tr>
+    <td>Nothing. The 9am run starts by itself every day.</td>
+    <td>Sends the first reminder for every bill that is 23 days old that morning, and the final
+      notice for every bill that is 37 days old. A tenant due two letters on the same day gets one
+      email.</td>
+  </tr>
+  <tr>
+    <td>Phone the tenants on the Call List and log each call.</td>
+    <td>Lists who is due a first call (after the first reminder) and a second call (after the final
+      notice). Keeps any promise to pay and flags it if the date passes unpaid.</td>
+  </tr>
+  <tr>
+    <td>Check Late Payment Fees after the 16th and download the listing for the AR team.</td>
+    <td>On the 16th, raises S$100 (before GST) once per tenant on bills more than 14 days past
+      their due date. Tenants on GIRO are left out.</td>
+  </tr>
+  <tr>
+    <td>Email the month's reports and download the NetSuite file from Reports and Export.</td>
+    <td>Builds the reports and the file from the same figures every screen uses.</td>
+  </tr>
+  <tr>
+    <td>Read the Activity Log when something looks wrong.</td>
+    <td>Records every letter, call, promise, fee, upload and change of setting, with who did it and
+      when, and what each 9am run did.</td>
+  </tr>
+</table>
+
+<h2>The rules it follows</h2>
+
+<p>These rules hold on every screen and in the 9am run. Chapter 12 explains each one in more
+detail.</p>
+
+<ul>
+  <li><b>Each billing date is chased on its own.</b> A tenant billed on 15 August and again on
+    1 September gets letters for both. Each letter asks for that date's total and does not list
+    the invoices.</li>
+  <li><b>A letter goes on its day.</b> If the 9am run could not send on day 23, for example
+    because no mailbox was connected, the letter is not sent late. Settings can allow a few days'
+    grace.</li>
+  <li><b>A tenant missing from a newer report has paid.</b> They stop getting letters, leave the
+    Call List, and any promise they made is marked "Paid, no longer owing".</li>
+  <li><b>A promise to pay holds the letters.</b> While a promise date has not passed, the tenant
+    gets no reminder and is not on the list to phone.</li>
+  <li><b>Ad hoc bills</b> are bills dated on any day other than the 15th, MES's regular billing
+    day. They are chased the same way and marked Ad hoc so you can tell them apart.</li>
+  <li><b>An old report still runs.</b> If the newest report is more than 16 days old, the 9am run
+    carries on and the Activity Log shows a warning.</li>
+  <li><b>Nothing reaches a tenant unless sending is switched on and a mailbox is connected.</b>
+    Settings, Mailbox shows which is the case.</li>
+</ul>
+
+<div class="note"><span class="label">Good to know</span>
+<p>The system never changes NetSuite and never takes money from a bank account. Letters, calls and
+promises go back into NetSuite through the file on Reports and Export, and late fees through the
+listing on Late Payment Fees.</p>
+</div>

@@ -1,0 +1,209 @@
+<h1>Reminder Emails</h1>
+
+<p class="lead">Reminder Emails is where the letters live: the ones due today, every letter that has
+gone, where each tenant's bills stand, and the tenants who can only be written to by hand. The 9am
+run sends the letters on its own, so most days you come here to check, not to send.</p>
+
+<h2>The screen</h2>
+
+<p>The screen has five tabs. The number beside a tab is how many letters are in it.</p>
+
+<figure class="shot" id="reminders" data-path="/reminders" data-clip="window" data-height="640">
+  <figcaption>Reminder Emails, on the First reminder tab.</figcaption>
+  <ol>
+    <li data-find="[role='tablist'][aria-label='Which reminders to show']"><b>First reminder</b> and
+      <b>Final notice</b>: the letters due today that have not gone yet. <b>Sent</b>: every letter
+      that has gone. <b>All tenants</b>: when each bill is chased. <b>By hand</b>: tenants with no
+      email address.</li>
+    <li data-find="input#reminder-find">Find a tenant by name or email address.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('First reminders due')) > div.border-b >> nth=0">How
+      many days after billing this letter goes, as set in Settings.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('First reminders due')) button >> nth=0"><b>Send
+      all</b> sends every letter in the list. When the list is empty it reads "Nothing to send".</li>
+  </ol>
+</figure>
+
+<h2>The letters due today</h2>
+
+<p>The First reminder and Final notice tabs list the same letters the 9am run sends today. On a
+normal day the run has sent them by the time you look, and both lists are empty, as in figure 5.1.
+A letter stays on the list when it could not go, for example because no mailbox was connected.
+You can then send it from here.</p>
+
+<p>Each row shows the tenant, the addresses the letter goes to, and the amount it asks for, which is
+the total of the bills on that billing date. Each row has two buttons.</p>
+
+<ul>
+  <li><b>Read and send</b> opens the letter as the tenant will get it. You can change the subject or
+    the wording for this one letter, then press <b>Send this email</b>.</li>
+  <li><b>Edit letter</b> changes what the 9am run sends to this tenant for this bill (section 5.4).</li>
+</ul>
+
+<p>To send the whole list at once, press <b>Send all</b>. A window lists every tenant, the
+addresses and the amount asked for. Press <b>Send all</b> again in that window to send them. They go
+in small batches with a short pause between, the same pace as the 9am run, and the button counts
+them as they go. If any are refused, the window stays open so you can see which.</p>
+
+<div class="note"><span class="label">Good to know</span>
+<p>Sending a letter yourself counts the same as the 9am run sending it. The run will not send the
+same letter again for that bill.</p>
+</div>
+
+<h2>Where each tenant stands</h2>
+
+<p>The All tenants tab shows every tenant's bills, one row per tenant per billing date, with the day
+each letter falls due and what has happened so far.</p>
+
+<figure class="shot" id="reminders-all" data-path="/reminders?tab=all" data-clip="window" data-vw="1440" data-height="760">
+  <figcaption>All tenants: when each bill is chased.</figcaption>
+  <ol>
+    <li data-find="[aria-label='Where they stand']"><b>Where they stand.</b> Click one to show only
+      those bills, for example Final notice day passed or Promised to pay.</li>
+    <li data-find="main thead">For each bill: the tenant, when it was billed and how many invoices it
+      has, the day of the first reminder and of the final notice, and what is owed.</li>
+    <li data-find="main tbody tr >> nth=0 >> td >> nth=5"><b>Today</b>: what has happened to this
+      bill and what happens next.</li>
+    <li data-find="role=button[name='Edit letter'] >> nth=0"><b>Edit letter</b> for this tenant and this
+      bill.</li>
+  </ol>
+</figure>
+
+<p>What the Today column can say:</p>
+
+<table>
+  <tr><th style="width:40%">It says</th><th>Meaning</th></tr>
+  <tr><td>Not yet due</td><td>The first reminder day has not come.</td></tr>
+  <tr><td>First reminder due, Final notice due</td><td>The letter goes today.</td></tr>
+  <tr><td>First reminder sent, with a date</td><td>Waiting for the final notice day.</td></tr>
+  <tr><td>Final notice sent, with a date</td><td>Both letters have gone. The tenant is on the Call List
+    for a second call.</td></tr>
+  <tr><td>First reminder day passed</td><td>The day went by without a letter. The final notice still goes
+    on its day, unless Settings says otherwise.</td></tr>
+  <tr><td>No more emails for this bill</td><td>The final notice day has passed too. Chase this bill by
+    phone.</td></tr>
+  <tr><td>Promised to pay by, with a date</td><td>Letters are held until that date.</td></tr>
+  <tr><td>In credit, or Nothing owed</td><td>Not chased.</td></tr>
+  <tr><td>No billing date</td><td>The report gave this bill no date, so it cannot be timed. Check the
+    report.</td></tr>
+</table>
+
+<h2>Editing one tenant's letter</h2>
+
+<p>Sometimes one tenant needs different wording, for example when an arrangement has been agreed.
+Edit letter changes what the 9am run sends to that tenant, for that bill only. Everyone else still
+gets MES's standard letter.</p>
+
+<figure class="shot" id="letter-editor" data-path="/reminders?tab=all" data-height="1150"
+  data-steps="click: role=button[name='Edit letter'] >> nth=0 ;; wait: text=Save for the automatic send"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>Editing the automatic letter for one tenant.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] > div.rounded-lg p:has-text('Once you save')">What saving
+      does, said before anything else: the 9am run will send this wording to this tenant, for this
+      bill only.</li>
+    <li data-find="div[role='dialog'] [role='tablist']">Which letter you are editing, the first
+      reminder or the final notice, and the day it goes.</li>
+    <li data-find="div[role='dialog'] textarea">The wording. Leave the words in double braces, such as
+      {{amount}}, as they are. They are filled in on the day the letter goes.</li>
+    <li data-find="div[role='dialog'] details">Open the preview to read the letter exactly as the
+      tenant will get it.</li>
+    <li data-find="div[role='dialog'] button:has-text('Save for the automatic send')"><b>Save for the
+      automatic send.</b> It stays greyed out until you change something.</li>
+  </ol>
+</figure>
+
+<ol>
+  <li>Find the tenant on the All tenants tab, or on the First reminder or Final notice tab, and press
+    <b>Edit letter</b>.</li>
+  <li>Choose the letter at the top: First reminder or Final notice.</li>
+  <li>Change the subject or the wording.</li>
+  <li>Open the preview and read it through.</li>
+  <li>Press <b>Save for the automatic send</b>. The tenant's row is then marked Edited.</li>
+</ol>
+
+<p>To undo an edit, open the letter again and press <b>Back to the standard wording</b>.</p>
+
+<div class="note"><span class="label">Careful</span>
+<p>An edit changes what a tenant is told about money, and it goes out without anyone pressing send.
+Read the preview before saving. If a word in double braces is misspelt, the system refuses to
+save and lists the ones it fills in, so a tenant never receives a letter with {{amont}} where the
+amount should be.</p>
+</div>
+
+<h2>The Sent tab</h2>
+
+<p>The Sent tab lists every letter the system has sent, newest first. This is the place to look when
+a tenant asks whether their reminder went out.</p>
+
+<figure class="shot" id="reminders-sent" data-path="/reminders?tab=sent" data-clip="window" data-height="760">
+  <figcaption>The Sent tab.</figcaption>
+  <ol>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Sent')) > div.border-b >> nth=0">How
+      many were delivered, and how many were written but not sent.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Sent')) li >> nth=0">One letter: the
+      tenant, the subject, which letter it was and when it went. Click it to read the letter.</li>
+  </ol>
+</figure>
+
+<p>A letter marked "not sent" in red was written but did not leave, usually because sending was off
+or the mailbox needed reconnecting. The Activity Log has the reason.</p>
+
+<figure class="shot" id="sent-letter" data-path="/reminders?tab=sent" data-height="1000"
+  data-steps="click: main div.rounded-lg.bg-surface:has(h2:has-text('Sent')) li button >> nth=1 ;; wait: div[role='dialog']"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>A sent letter, opened.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] > div.rounded-lg > div >> nth=1">Who it went to, when, the subject
+      and the letter exactly as it was sent.</li>
+  </ol>
+</figure>
+
+<h2>Tenants with no email address</h2>
+
+<p>The By hand tab is for tenants the system cannot email. Their letters are written on the same
+day as everyone else's, and you post them yourself from Outlook.</p>
+
+<figure class="shot" id="byhand" data-path="/reminders?tab=byhand" data-clip="window" data-height="760">
+  <figcaption>The By hand tab.</figcaption>
+  <ol>
+    <li data-find="main div.grid >> nth=0">How many tenants have no address, the overdue money that
+      cannot be chased by email, and how many tenants can be emailed.</li>
+    <li data-find="role=button[name='Download the list']"><b>Download the list</b> of tenants with no
+      address, as a spreadsheet.</li>
+    <li data-find="[aria-label='Which tenants to show']"><b>Due today</b>: letters to post today.
+      <b>Sent by hand</b>: those marked as posted. <b>All</b>: every tenant with no address.</li>
+  </ol>
+</figure>
+
+<ol>
+  <li>On Due today, open a tenant's letter.</li>
+  <li>Press <b>Copy</b> beside the subject and paste it into a new email in Outlook. Do the same for
+    the letter.</li>
+  <li>Send it from Outlook to the address you have for them.</li>
+  <li>Back in the system, press <b>I have sent this by hand</b>. This records the letter against the
+    tenant, so the system knows it went.</li>
+</ol>
+
+<p>If you find their address, type it into the box at the bottom of the letter window. They then
+get their letters automatically like everyone else. To fill in many addresses at once, download
+the list, add the addresses in the Email Address column, and upload it as a contact list on Upload
+Reports.</p>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>Who is due a letter today</b> is worked out exactly as the 9am run works it out: each bill
+    that reaches 23 days old today gets a first reminder, and each that reaches 37 days gets a final
+    notice.</li>
+  <li><b>Several bills, one email.</b> A tenant with several bills due the same letter on the same day
+    gets one email asking for their combined total.</li>
+  <li><b>The amount in a letter</b> is that billing date's total, not the tenant's whole balance. The
+    letter does not list the invoices.</li>
+  <li><b>The date in a letter</b> is the date of the report in use, and the deadline to pay is counted
+    from it, so the letter never quotes a balance for a day it does not have.</li>
+  <li><b>Promises hold letters.</b> A tenant who has promised to pay by a date that has not passed is
+    left out.</li>
+  <li><b>Sent means sent.</b> A letter counts as sent only once the mail server has accepted it. One
+    that was refused is kept and marked "not sent", and stays on that day's list to be sent
+    again.</li>
+</ul>

@@ -1,0 +1,103 @@
+<h1>Late Payment Fees</h1>
+
+<p class="lead">MES charges a late payment fee of S$100, before GST, on bills left unpaid more than
+14 days past their due date. The 9am run raises the fees on the 16th of each month. This screen
+shows who is charged and why, gives you the listing for the AR team, and lets you raise the fees
+yourself if the run could not.</p>
+
+<h2>The screen</h2>
+
+<figure class="shot" id="fees" data-path="/late-fees" data-clip="window" data-height="900">
+  <figcaption>Late Payment Fees.</figcaption>
+  <ol>
+    <li data-find="main div.grid >> nth=0">How many accounts would be charged, the total in fees, how
+      many have been charged before, and the fee per account.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('How the fee is worked out'))">The
+      rule being applied, in one line.</li>
+    <li data-find="role=button[name='Download the listing']"><b>Download the listing</b>: the
+      spreadsheet for the AR team, including the GIRO tenants left out.</li>
+    <li data-find="role=button[name='Review and raise']"><b>Review and raise</b> the fees yourself
+      (section 7.3).</li>
+    <li data-find="[role='group'][aria-label='Manager']">Show every manager's tenants, or one
+      manager's only.</li>
+  </ol>
+</figure>
+
+<h2>Who is charged, and why</h2>
+
+<p>Each row in "Fees that would be raised this month" is one tenant.</p>
+
+<figure class="shot" id="fees-list" data-path="/late-fees" data-vw="1440" data-maxh="620"
+  data-steps="scroll: main div.rounded-lg.bg-surface:has(h2:has-text('Fees that would be raised this month')) tbody"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Fees that would be raised this month')) table">
+  <figcaption>The tenants who would be charged.</figcaption>
+  <ol>
+    <li data-find="main tbody tr >> nth=0 >> td >> nth=0">The tenant, and the bills the fee is for. A
+      bill dated on any day other than the 15th is marked Ad hoc. Only the newest three dates are
+      listed, with how many more there are.</li>
+    <li data-find="main tbody tr >> nth=0 >> td >> nth=1">What they have overdue.</li>
+    <li data-find="main tbody tr >> nth=1 >> td >> nth=2">Fees charged before: "first time", or how
+      many are already billed in NetSuite.</li>
+    <li data-find="main tbody tr >> nth=0 >> td >> nth=-1">The fee this month, and their balance once
+      it is added.</li>
+  </ol>
+</figure>
+
+<p>Below the list, two more boxes may appear.</p>
+<ul>
+  <li><b>Left out: on GIRO.</b> Tenants who have a Rejected GIRO Fee in the report. A bounced GIRO
+    deduction is the bank's failure, not theirs, so they are not charged.</li>
+  <li><b>Settled: these tenants have since paid.</b> Tenants charged earlier who no longer owe.
+    Press <b>Show</b> to list them.</li>
+</ul>
+
+<h2>Raising the fees yourself</h2>
+
+<p>Normally there is nothing to do: the 9am run raises the fees on the 16th. Raise them here only
+if the run did not, for example if the Activity Log shows the 16th was missed.</p>
+
+<ol>
+  <li>Check the list. Use the search box to find a tenant you are unsure about.</li>
+  <li>Press <b>Review and raise</b>. A window says how many fee notices will be raised and the total,
+    and repeats the rule.</li>
+  <li>Press <b>Raise the fees</b>. The notice confirms how many were raised.</li>
+</ol>
+
+<figure class="shot" id="fees-raise" data-path="/late-fees" data-height="800"
+  data-steps="click: role=button[name='Review and raise'] ;; wait: div[role='dialog']"
+  data-clip="div[role='dialog'] > div.rounded-lg">
+  <figcaption>The last check before raising. Nothing is charged until Raise the fees is pressed.</figcaption>
+  <ol>
+    <li data-find="div[role='dialog'] p >> nth=0">How many fee notices will be raised, and the total.</li>
+    <li data-find="div[role='dialog'] button:has-text('Raise the fees')"><b>Raise the fees.</b> Press
+      Cancel to leave without charging anyone.</li>
+  </ol>
+</figure>
+
+<div class="note"><span class="label">Good to know</span>
+<p>A tenant can be charged only once a month. If some fees were already raised this month, by the
+9am run or by someone else, the screen says how many and leaves them out, so pressing Raise the fees
+twice never charges anyone twice.</p>
+</div>
+
+<h3>Changing the fee for one run</h3>
+
+<p><b>Change for this run</b> lets you charge a different fixed amount or a percentage of what is
+overdue, or charge only tenants who owe more than a set amount. The change applies to fees raised
+from this screen, this time. It does not change the 9am run. To change when the 9am run charges,
+use Settings, Fees and reports (section 9.7).</p>
+
+<h2>What happens in the background</h2>
+
+<ul>
+  <li><b>The rule.</b> On the 16th, a tenant is charged when they have a bill more than 14 days past
+    its due date that is still unpaid. Settings can count from the billing date instead.</li>
+  <li><b>Invoice dates decide, not the aging columns.</b> MES counts anything up to 15 days past due
+    as Current. On the 16th the month that has just gone unpaid is still in Current, so the system
+    looks at each bill's own dates rather than the columns.</li>
+  <li><b>Once per tenant per month.</b> However many bills are late, the fee is S$100 once.</li>
+  <li><b>GIRO tenants are left out</b>, and tenants in credit are never charged.</li>
+  <li><b>Where a fee goes.</b> A raised fee is recorded against the tenant and appears on their page
+    and in the Activity Log. The system does not change NetSuite itself: the AR team bills the fees
+    there from the downloaded listing.</li>
+</ul>

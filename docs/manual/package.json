@@ -1,0 +1,13 @@
+{
+  "name": "mes-user-manual",
+  "private": true,
+  "type": "module",
+  "description": "Builds the MES AR Automation user manual (PDF) from chapters/*.html and screenshots of the running app.",
+  "scripts": {
+    "shots": "node shots.mjs",
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.48.2"
+  }
+}
