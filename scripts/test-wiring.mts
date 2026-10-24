@@ -1002,10 +1002,11 @@ console.log("\nThe tiles and the billing runs agree about what is overdue");
 check("a run reads the line's own bucket rather than recomputing the boundary",
       lib("billing-cycles.ts").includes('inv.bucket.trim().toLowerCase() !== "current"'), true);
 
-// The credit clock is still shown, and must not be labelled as the same thing.
-check("the two clocks are labelled differently on screen",
-      read("src/components/BillingCycles.tsx").includes("Credit clock, from billing") &&
-        read("src/components/BillingCycles.tsx").includes("Of that, chaseable"), true);
+// Simplified on 25 October to what is owed and when it is chased. The
+// reminder days come from Settings, not from numbers written in the table.
+check("the billing runs table shows each run's two reminder days, from Settings",
+      read("src/components/BillingCycles.tsx").includes("reminderDatesFor(c.billedOn, days)") &&
+        read("src/components/BillingCycles.tsx").includes("useReminderWindow()"), true);
 
 
 /* -------------------------------------- a month where everybody paid ----- */
@@ -1138,15 +1139,12 @@ check("nor the reason shown against a queued tenant",
  * "past due" and printed a dash against a run five days past its due date,
  * two columns from the due date itself.
  */
-check("the billing runs column is named for what it counts",
-      CYCLES.includes("Of that, chaseable") && !CYCLES.includes("Of that, past due"), true);
+check("the billing runs table no longer says past due",
+      !CYCLES.includes("Of that, past due"), true);
 
-/*
- * The credit clock is measured from the billing date against MES's own 14 and
- * 30 day deadlines, so "past 30 days" is correct there and must stay.
- */
-check("the credit clock keeps its own 14 and 30 day stages",
-      CYCLES.includes('stage === "past 30 days"'), true);
+check("the billing runs table has five columns, the reminder days among them",
+      CYCLES.includes(">First reminder<") && CYCLES.includes(">Final notice<") &&
+        !CYCLES.includes("Credit clock"), true);
 
 /* ------------------- the month everybody paid, all the way to the screen -- */
 
@@ -2162,8 +2160,9 @@ check("a call logged before the field existed still lands in a round",
 check("the log can be read one round at a time",
       CALLS_CODE.includes("roundOf(c) === stage"), true);
 check("a call read back from the database is put in its round by the letters sent, not the day of the month",
-      CALLS_CODE.includes("if (c.stage) return c.stage;") &&
-        CALLS_CODE.includes('l.stage === "final-notice" && l.sentAt <= c.at'), true);
+      CALLS_CODE.includes("roundOfCall(c, sent, store.calls)") &&
+        read("src/lib/call-list.ts").includes("if (c.stage) return c.stage;") &&
+        read("src/lib/call-list.ts").includes('l.stage === "final-notice" && l.sentAt <= c.at'), true);
 
 check("the tenant's billing date is worked out, not guessed",
       /export function billingForTenant/.test(CYCLES_LIB), true);

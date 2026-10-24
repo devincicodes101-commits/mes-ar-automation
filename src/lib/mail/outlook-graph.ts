@@ -3,7 +3,7 @@ import "server-only";
 import crypto from "node:crypto";
 
 import {
-  allowlistFromEnv,
+  testAllowlist,
   mayLeave,
   modeFromEnv,
   type Letter,
@@ -77,7 +77,7 @@ export function outlookGraphConnector(
     async send(letter: Letter): Promise<SendOutcome> {
       const allowed = mayLeave(letter, {
         mode: modeFromEnv(),
-        allowlist: allowlistFromEnv(),
+        allowlist: testAllowlist(),
       });
       if (!allowed.ok) {
         return { sent: false, reason: allowed.reason, blocked: true };

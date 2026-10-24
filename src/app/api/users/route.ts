@@ -151,13 +151,13 @@ export async function POST(request: Request) {
   return NextResponse.json({ ok: true, id: made.data.user.id });
 }
 
-/** Change a login's name, role or manager, or switch it off and on. */
+/** Change a login's name, role or manager, switch it off and on, or set a new password. */
 export async function PATCH(request: Request) {
   const g = await gate(request);
   if ("error" in g) return g.error;
   const { db, who } = g;
 
-  let body: { id?: unknown; name?: unknown; role?: unknown; manager?: unknown; off?: unknown };
+  let body: { id?: unknown; name?: unknown; role?: unknown; manager?: unknown; off?: unknown; password?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -170,6 +170,28 @@ export async function PATCH(request: Request) {
 
   if (theirRole === "super-admin" && who.role !== "super-admin") {
     return bad("Only a super admin can change a super admin.", 403);
+  }
+
+  /*
+   * A new password, set by an administrator (25 October). The sign-in page
+   * tells somebody who has forgotten theirs to ask an administrator, and until
+   * now there was nothing an administrator could press. The limits above
+   * apply: an admin cannot reset a super admin's password. Nothing is emailed;
+   * the administrator gives it to the person, as with the first password.
+   */
+  if (body.password !== undefined) {
+    const password = String(body.password ?? "");
+    if (password.length < 10) return bad("The new password must be at least 10 characters.");
+    const r = await db.auth.admin.updateUserById(id, { password });
+    if (r.error) return bad(r.error.message, 502);
+    await db.from("audit_log").insert({
+      actor: who.userId,
+      actor_name: who.email ?? who.role,
+      action: "user.password",
+      subject: current.data.full_name as string,
+      meta: { id },
+    });
+    return NextResponse.json({ ok: true });
   }
 
   if (typeof body.off === "boolean") {

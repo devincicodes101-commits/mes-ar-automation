@@ -102,6 +102,31 @@ centre under Enterprise applications. Then try again.</p>
   <li>Tenants see the sender's name as MES Group AR.</li>
 </ul>
 
+<h2>The test list</h2>
+
+<p>The Test addresses box on the Mailbox tab is a second safety check for testing. While sending is
+set to test addresses only, a letter goes out only if every address it is going to is on this list.
+Any other letter is written, held back and recorded with the reason "not on the test list". So
+even if a real tenant's address finds its way into the system during a test, that tenant is never
+written to.</p>
+
+<figure class="shot" id="settings-test-list" data-path="/settings"
+  data-steps="wait: text=Test addresses"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Sending mailbox')) div.border-b:has(h3:has-text('Test addresses'))">
+  <figcaption>The test list on Settings, Mailbox.</figcaption>
+  <ol>
+    <li data-find="main div.border-b:has(h3:has-text('Test addresses')) span.text-ink-muted >> nth=0">Whether
+      the list is in use now. It is used only while sending is set to test addresses only.</li>
+    <li data-find="main div.border-b:has(h3:has-text('Test addresses')) ul">The addresses that can
+      receive a letter. Press the cross beside one to remove it.</li>
+    <li data-find="input[aria-label='Add a test address'] >> xpath=..">Type an address and press
+      <b>Add</b>, or Enter. Several can be added at once, separated by commas.</li>
+  </ol>
+</figure>
+
+<p>Every change to the list is recorded in the Activity Log, with who made it. If the list is empty
+while testing, nothing can be sent at all. Only an Admin or Super Admin can see or change it.</p>
+
 <h2>Sending a test letter</h2>
 
 <ol>
@@ -122,7 +147,8 @@ again. Nothing else changes.</p>
 <div class="note"><span class="label">Set outside this screen</span>
 <p>Two things are set once by the system administrator in the hosting settings, not on this tab:
 the sending mode (off, test addresses only, or real tenants), and the connection to Microsoft that
-makes Sign in with Microsoft work. If that connection is missing, the tab says "Microsoft sign in
+makes Sign in with Microsoft work. Keeping the mode outside the system means switching to real
+tenants is always a deliberate step. If that connection is missing, the tab says "Microsoft sign in
 has not been set up for this system yet". Chapter 14 covers both.</p>
 </div>
 

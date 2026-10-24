@@ -348,6 +348,10 @@ function plainAudit(action: string, subject: string, names: Map<string, string>)
     }
     case "settings.report_recipients":
       return { text: `Report recipients saved, ${subject}`, subject: "Changed the report recipients" };
+    case "settings.test_addresses":
+      return { text: `Test list: ${subject}`, subject: "Changed the test addresses" };
+    case "settings.business_rules":
+      return { text: tidy(subject), subject: "Changed the fee and report rules" };
     case "contacts.upload":
       return { text: "Uploaded a contact list", subject: tidy(subject) };
     case "report.upload":
@@ -362,6 +366,8 @@ function plainAudit(action: string, subject: string, names: Map<string, string>)
       return { text: "Switched a login off", subject: tidy(subject) };
     case "user.on":
       return { text: "Switched a login back on", subject: tidy(subject) };
+    case "user.password":
+      return { text: "Reset a password", subject: tidy(subject) };
     default:
       return { text: tidy(action), subject: tidy(subject) };
   }

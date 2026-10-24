@@ -3,7 +3,7 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 
 import {
-  allowlistFromEnv,
+  testAllowlist,
   mayLeave,
   modeFromEnv,
   type Letter,
@@ -97,7 +97,7 @@ export function gmailConnector(config: GmailConfig): MailConnector {
        */
       const allowed = mayLeave(letter, {
         mode: modeFromEnv(),
-        allowlist: allowlistFromEnv(),
+        allowlist: testAllowlist(),
       });
 
       if (!allowed.ok) {

@@ -143,3 +143,25 @@ export function calledThisRound(
       c.at.slice(0, 10) >= item.billedOn,
   );
 }
+
+/**
+ * Which round a logged call belongs to: the one stored with it, or, for calls
+ * logged before the form asked, what really happened. A call after the
+ * tenant's final notice went is the second call, before it the first; a
+ * tenant with no letters at all counts an earlier call instead. Shared by the
+ * Call List and the tenant page, so the two never label one call differently.
+ */
+export function roundOfCall(
+  c: { accountId: string; at: string; stage?: CallRound },
+  sent: readonly SentLetter[],
+  calls: readonly { accountId: string; at: string }[],
+): CallRound {
+  if (c.stage) return c.stage;
+  const anyLetter = sent.some((l) => l.tenantId === c.accountId);
+  if (anyLetter) {
+    return sent.some((l) => l.tenantId === c.accountId && l.stage === "final-notice" && l.sentAt <= c.at)
+      ? "final-notice"
+      : "first-reminder";
+  }
+  return calls.some((o) => o.accountId === c.accountId && o.at < c.at) ? "final-notice" : "first-reminder";
+}

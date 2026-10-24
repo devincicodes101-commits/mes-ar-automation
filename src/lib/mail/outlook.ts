@@ -3,7 +3,7 @@ import "server-only";
 import nodemailer, { type Transporter } from "nodemailer";
 
 import {
-  allowlistFromEnv,
+  testAllowlist,
   mayLeave,
   modeFromEnv,
   type Letter,
@@ -52,7 +52,7 @@ export function outlookConnector(config: OutlookConfig): MailConnector {
     async send(letter: Letter): Promise<SendOutcome> {
       const allowed = mayLeave(letter, {
         mode: modeFromEnv(),
-        allowlist: allowlistFromEnv(),
+        allowlist: testAllowlist(),
       });
       if (!allowed.ok) {
         return { sent: false, reason: allowed.reason, blocked: true };

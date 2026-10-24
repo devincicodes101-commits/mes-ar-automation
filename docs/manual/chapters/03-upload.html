@@ -17,7 +17,7 @@ NetSuite. Every screen, and the next 9am run, then works from it.</p>
   </tr>
   <tr>
     <td><b>Client contact list</b><br>optional</td>
-    <td>MES's contact workbook. It needs a column headed Email Address next to the company names.
+    <td>MES's contact workbook. It needs a column headed Email Address next to each tenant's account code.
       Excel or CSV.</td>
     <td>Only when addresses change. The last one uploaded is kept.</td>
   </tr>
@@ -172,8 +172,9 @@ as long as you do not refresh the browser.</p>
   <li><b>Charges are sorted by type</b> from their description, using the rules under Settings,
     Charge types. A tenant with a Rejected GIRO Fee line is treated as paying by GIRO and is not
     charged the late fee.</li>
-  <li><b>Addresses are matched by company name.</b> A contact list adds or updates addresses.
-    Addresses typed in by hand are kept.</li>
+  <li><b>Addresses are matched by account code.</b> A contact list adds addresses to the ones already
+    held; it never removes any. The NetSuite Finance AR Download carries tenants' own addresses in its
+    Contact Details tab, and those are read too. Addresses typed in by hand are kept.</li>
   <li><b>A corrected export replaces, it does not add.</b> Saving a report with the same report date
     as an earlier one replaces that day's figures.</li>
   <li><b>The report's age is watched.</b> If no newer report has been saved for more than 16 days,

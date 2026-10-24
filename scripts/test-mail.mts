@@ -12,7 +12,14 @@
  * list, a letter that did not merge. All of those should refuse, and none of
  * them should quietly let a letter through.
  */
-import { allowlistFromEnv, mayLeave, modeFromEnv, type Letter } from "../src/lib/mail/connector.ts";
+import {
+  allowlistFromEnv,
+  mayLeave,
+  modeFromEnv,
+  testAllowlist,
+  useSavedAllowlist,
+  type Letter,
+} from "../src/lib/mail/connector.ts";
 import { gmailConfigFromEnv } from "../src/lib/mail/gmail-config.ts";
 import { checkEdit, editKey, renderEdited } from "../src/lib/letter-edits.ts";
 import { LETTER_BODIES, renderLetter, letterById, type LetterId } from "../src/lib/letters.ts";
@@ -107,6 +114,19 @@ check("the list is read from the environment",
       ["a@b.com", "c@d.com"]);
 check("and an unset list is empty rather than everything",
       allowlistFromEnv({} as NodeJS.ProcessEnv), []);
+
+/* The test list saved on Settings, Mailbox, since 25 October. */
+const hosting = { MAIL_ALLOWLIST: "a@b.com" } as NodeJS.ProcessEnv;
+check("with nothing saved, the hosting list is the test list", testAllowlist(hosting), ["a@b.com"]);
+useSavedAllowlist([" Tester@MES.com ", "tester@mes.com"]);
+check("a saved list takes its place, tidied", testAllowlist(hosting), ["tester@mes.com", "tester@mes.com"]);
+check("and a letter to an address only on the hosting list is held back",
+      passes(letter({ to: ["a@b.com"] }), "allowed", testAllowlist(hosting)), false);
+useSavedAllowlist([]);
+check("a saved empty list holds everything back, rather than falling back",
+      testAllowlist(hosting), []);
+useSavedAllowlist(null);
+check("and clearing it returns to the hosting list", testAllowlist(hosting), ["a@b.com"]);
 
 /* ----------------------------------------------- faults in the letter --- */
 

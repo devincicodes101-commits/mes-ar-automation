@@ -12,8 +12,11 @@ it to the system administrator.</p>
 
 <ol>
   <li><b>Sending is on test addresses only.</b> On Settings, Mailbox, the label reads "Test addresses
-    only" and the line below lists the test inboxes. If it reads "Sending to real tenants", stop and
-    ask the system administrator to switch it back.</li>
+    only". If it reads "Sending to real tenants", stop and ask the system administrator to switch it
+    back.</li>
+  <li><b>The test list holds only test inboxes.</b> Check the Test addresses box on the same tab. This
+    is the second check: a letter to any address not on the list is held back, whatever the contact
+    list says.</li>
   <li><b>Use the test files</b> kept with this manual in <code>docs/manual/samples</code>: a shortened
     AR report of 15 tenants, a contact list whose addresses are all test inboxes, and a file that is
     not a report.</li>
@@ -204,6 +207,13 @@ nobody else is working in the system, and upload the current NetSuite report aga
   <tr><td>G2</td><td>Send a test to a test inbox.</td><td>"Test sent", and it arrives from MES Group AR.</td><td><span class="box"></span></td></tr>
   <tr><td>G3</td><td>Send a test to an address that is not a test inbox.</td><td>"Nothing was sent", with the
     reason. Nothing arrives.</td><td><span class="box"></span></td></tr>
+  <tr><td>G3a</td><td>Add your own address to Test addresses, send a test to it, then remove it and send
+    another.</td><td>The first arrives. The second says "Nothing was sent", not on the test list. Both
+    changes to the list are in the Activity Log.</td><td><span class="box"></span></td></tr>
+  <tr><td>G3b</td><td>On a tenant used for testing, type an address that is not on the test list, and send
+    that tenant's letter from Reminder Emails on a day one is due.</td><td>The letter is held back and
+    marked "not sent", with the reason. Nothing arrives at that address. Remove the address
+    afterwards.</td><td><span class="box"></span></td></tr>
   <tr><td>G4</td><td>On Reminder timing, type 30 as the first reminder without saving.</td><td>The worked
     example changes. Change it back.</td><td><span class="box"></span></td></tr>
   <tr><td>G5</td><td>Type a final notice smaller than the first reminder.</td><td>"Cannot save".</td><td><span class="box"></span></td></tr>
@@ -222,6 +232,8 @@ nobody else is working in the system, and upload the current NetSuite report aga
     in with the first password.</td><td><span class="box"></span></td></tr>
   <tr><td>A2</td><td>Change their role to Relationship Manager and choose a manager.</td><td>"is now
     Relationship Manager". Signed in, they see only that manager's tenants.</td><td><span class="box"></span></td></tr>
+  <tr><td>A2a</td><td>Press Reset password on the test login and set a new password.</td><td>The old password
+    no longer signs in. The new one does. The Activity Log shows "Reset a password".</td><td><span class="box"></span></td></tr>
   <tr><td>A3</td><td>Try to change your own role.</td><td>The role drop-down on your own row is greyed
     out.</td><td><span class="box"></span></td></tr>
   <tr><td>A4</td><td>Switch the test login off.</td><td>"Switched off". They can no longer sign in.</td><td><span class="box"></span></td></tr>

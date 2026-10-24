@@ -9,7 +9,7 @@ import { useDataset } from "@/lib/dataset";
 import { useToast } from "@/lib/session";
 import { formatDateTime } from "@/lib/format";
 import { managerDisplayName } from "@/lib/dispatch";
-import { Card, CardHeader, EmptyState, StatusBadge, TableSkeleton, Tag } from "@/components/ui";
+import { Card, CardHeader, EmptyState, Modal, StatusBadge, TableSkeleton, Tag } from "@/components/ui";
 
 interface Login {
   id: string;
@@ -62,6 +62,8 @@ function Logins() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  /* Whose password is being reset, if anybody's. */
+  const [resetting, setResetting] = useState<Login | null>(null);
 
   /* The managers the report names, which is what an RM's login must match. */
   const ds = useDataset();
@@ -92,7 +94,11 @@ function Logins() {
     void load();
   }, [load]);
 
-  async function change(u: Login, patch: Partial<{ role: Role; manager: string | null; off: boolean }>, said: string) {
+  async function change(
+    u: Login,
+    patch: Partial<{ role: Role; manager: string | null; off: boolean; password: string }>,
+    said: string,
+  ): Promise<boolean> {
     setBusy(u.id);
     try {
       const r = await fetch("/api/users", {
@@ -101,13 +107,17 @@ function Logins() {
         body: JSON.stringify({ id: u.id, ...patch }),
       });
       const body = (await r.json()) as { ok?: boolean; error?: string };
-      if (!r.ok || !body.ok) notify("Not changed", body.error ?? `The server answered ${r.status}.`);
+      const ok = r.ok && Boolean(body.ok);
+      if (!ok) notify("Not changed", body.error ?? `The server answered ${r.status}.`);
       else notify(said);
+      setBusy(null);
+      await load();
+      return ok;
     } catch (e) {
       notify("Not changed", (e as Error).message);
+      setBusy(null);
+      return false;
     }
-    setBusy(null);
-    await load();
   }
 
   const roles = ROLES.filter((r) => r !== "super-admin" || mayGrantSuper);
@@ -191,6 +201,17 @@ function Logins() {
                         ))}
                       </select>
                     ) : null}
+                    {/* Anybody's but a super admin's, unless you are one. */}
+                    {u.role !== "super-admin" || mayGrantSuper ? (
+                      <button
+                        type="button"
+                        disabled={busy === u.id}
+                        onClick={() => setResetting(u)}
+                        className="rounded border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-line-strong hover:text-ink"
+                      >
+                        Reset password
+                      </button>
+                    ) : null}
                     {!locked ? (
                       <button
                         type="button"
@@ -211,6 +232,21 @@ function Logins() {
         )}
       </Card>
 
+      {resetting ? (
+        <ResetPassword
+          login={resetting}
+          busy={busy === resetting.id}
+          onClose={() => setResetting(null)}
+          onSet={async (password) => {
+            const ok = await change(
+              resetting,
+              { password },
+              `New password set for ${resetting.name}. Give it to them yourself; nothing is emailed.`,
+            );
+            if (ok) setResetting(null);
+          }}
+        />
+      ) : null}
       {adding ? (
         <AddLogin
           roles={roles}
@@ -351,6 +387,70 @@ function AddLogin({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A new password for somebody who has forgotten theirs (25 October). The
+ * sign-in page sends them to an administrator, and this is what the
+ * administrator presses. Their old password stops working at once.
+ */
+function ResetPassword({
+  login,
+  busy,
+  onClose,
+  onSet,
+}: {
+  login: Login;
+  busy: boolean;
+  onClose: () => void;
+  onSet: (password: string) => Promise<void>;
+}) {
+  const [password, setPassword] = useState(() => makePassword());
+  const input = "w-full rounded-md border bg-surface px-3 py-2 text-sm text-ink font-mono";
+  return (
+    <Modal title={`Reset the password for ${login.name}`} onClose={onClose}>
+      <p className="text-xs leading-relaxed text-ink-secondary">
+        Their old password stops working straight away. Give them the new one yourself; nothing is
+        emailed.
+      </p>
+      <label className="mt-4 block">
+        <span className="mb-1.5 block text-xs font-medium text-ink-secondary">New password</span>
+        <span className="flex gap-2">
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={input}
+            aria-label="New password"
+          />
+          <button
+            type="button"
+            onClick={() => setPassword(makePassword())}
+            className="shrink-0 rounded border border-line-hair px-3 text-xs text-ink-secondary hover:border-line-strong"
+          >
+            New
+          </button>
+        </span>
+        <span className="mt-1 block text-[11px] text-ink-muted">At least 10 characters.</span>
+      </label>
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line-hair pt-4">
+        <button
+          type="button"
+          disabled={busy || password.length < 10}
+          onClick={() => void onSet(password)}
+          className="rounded-md border border-accent bg-accent px-4 py-2 text-sm font-medium text-accent-ink"
+        >
+          {busy ? "Saving..." : "Set the new password"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border border-line-hair px-4 py-2 text-sm text-ink-secondary hover:border-line-strong hover:text-ink"
+        >
+          Cancel
+        </button>
+      </div>
+    </Modal>
   );
 }
 

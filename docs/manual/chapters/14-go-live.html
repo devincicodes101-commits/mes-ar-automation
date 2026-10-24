@@ -36,7 +36,8 @@ step before it is done.</p>
   <tr><td>3.2</td><td>Press Use for 9am reminders on that mailbox, so it is marked "Sends the 9am
     reminders".</td><td>MES Admin</td><td><span class="box"></span></td></tr>
   <tr><td>3.3</td><td>Press Disconnect on every test mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
-  <tr><td>3.4</td><td>Set sending to "Test addresses only", with a few MES staff addresses as the test list.</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>3.4</td><td>Set sending to "Test addresses only", and put a few MES staff addresses on the test list on
+    Settings, Mailbox.</td><td>System administrator, then MES Admin</td><td><span class="box"></span></td></tr>
   <tr><td>3.5</td><td>Send a test to one of those addresses and reply to it. The test arrives from MES Group AR,
     and the reply reaches the AR mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
 </table>
@@ -77,8 +78,9 @@ step before it is done.</p>
 
 <div class="note"><span class="label">For the system administrator</span>
 <p>The sending mode is the hosting setting <code>MAIL_MODE</code>: <code>off</code>,
-<code>allowed</code> (test addresses only, listed in <code>MAIL_ALLOWLIST</code>) or
-<code>everyone</code>. The Microsoft connection is <code>MICROSOFT_CLIENT_ID</code>,
+<code>allowed</code> (test addresses only) or
+<code>everyone</code>. The test list is kept on Settings, Mailbox; <code>MAIL_ALLOWLIST</code> is used
+only until an Admin first saves one there. The Microsoft connection is <code>MICROSOFT_CLIENT_ID</code>,
 <code>MICROSOFT_CLIENT_SECRET</code> and <code>MICROSOFT_TENANT</code>, with
 <code>https://mes-ar-automation.vercel.app/api/mail/microsoft/callback</code> registered as the
 redirect address. A change to any of these takes effect after the site is redeployed.</p>

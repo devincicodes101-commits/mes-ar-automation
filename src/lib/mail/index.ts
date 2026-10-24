@@ -9,17 +9,31 @@ import { outlookGraphConnector } from "./outlook-graph.ts";
 import { microsoftConfig } from "./microsoft-config.ts";
 import { clientFor } from "./google-oauth.ts";
 import { note, updateRefreshToken, withToken } from "./accounts.ts";
+import { readTestAddresses } from "./test-addresses.ts";
 import {
-  allowlistFromEnv,
   mayLeave,
   modeFromEnv,
+  testAllowlist,
+  useSavedAllowlist,
   type Letter,
   type MailConnector,
   type SendOutcome,
 } from "./connector.ts";
 
 export type { Letter, MailConnector, SendOutcome } from "./connector.ts";
-export { mayLeave, modeFromEnv, allowlistFromEnv } from "./connector.ts";
+export { mayLeave, modeFromEnv, allowlistFromEnv, testAllowlist } from "./connector.ts";
+
+/**
+ * Loads the test list saved on Settings into the gate, before anything that
+ * can send. Read afresh on every call, because a warm server would otherwise
+ * keep the list from before somebody changed it.
+ */
+async function refreshTestList(db: SupabaseClient | null): Promise<void> {
+  if (!db) return;
+  const r = await readTestAddresses(db);
+  if (r.problem) return; // keep what is in force; MAIL_ALLOWLIST if nothing was ever read
+  useSavedAllowlist(r.stored ? r.addresses : null);
+}
 
 /**
  * Which mailbox is carrying letters, and on whose behalf.
@@ -54,6 +68,7 @@ export async function connector(
   asUser: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Chosen> {
+  await refreshTestList(db);
   /*
    * MAIL_PROVIDER=outlook sends everything through the one Outlook mailbox in
    * the environment, ahead of any connected Google account. Everything past
@@ -163,7 +178,8 @@ export async function senderFor(
   asUser: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<(letter: Letter) => Promise<SendResult>> {
-  const gate = { mode: modeFromEnv(env), allowlist: allowlistFromEnv(env) };
+  await refreshTestList(db);
+  const gate = { mode: modeFromEnv(env), allowlist: testAllowlist(env) };
   let chosen: Chosen | null = null;
 
   return async (letter) => {
@@ -204,8 +220,9 @@ export async function sendingStatus(
   explanation: string;
   problem: string | null;
 }> {
+  await refreshTestList(db);
   const mode = modeFromEnv(env);
-  const allowlist = allowlistFromEnv(env);
+  const allowlist = testAllowlist(env);
   const google = await clientFor(db, env);
   const chosen = await connector(db, asUser, env);
 
@@ -219,7 +236,9 @@ export async function sendingStatus(
         ? allowlist.length === 0
           ? "Sending is limited to a test list and the list is empty, so nothing " +
             "can go out. Ask your administrator to add test addresses."
-          : `Only these addresses can be written to: ${allowlist.join(", ")}.`
+          : /* The addresses are listed on Settings only, not in this sentence,
+               which also shows on Reminder Emails. */
+            `Test mode: only the ${allowlist.length} ${allowlist.length === 1 ? "address" : "addresses"} on the test list can be written to.`
         : "Letters go to real tenants at the addresses on their account.";
 
   return {

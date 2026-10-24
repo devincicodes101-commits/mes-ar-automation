@@ -360,6 +360,8 @@ export function MailAccounts() {
         </div>
       ) : null}
 
+      {admin && status ? <TestAddresses mode={status.mode} onChanged={load} /> : null}
+
       {!status?.googleReady && !status?.microsoftReady ? (
         <div className="border-b border-line-hair bg-warn-wash px-4 py-3 text-sm text-warn-ink sm:px-5">
           Mailbox sign-in has not been set up yet, so no account can be
@@ -493,5 +495,133 @@ function MicrosoftMark() {
       <path fill="#00A4EF" d="M1 12h10v10H1z" />
       <path fill="#FFB900" d="M12 12h10v10H12z" />
     </svg>
+  );
+}
+
+/**
+ * The test list (25 October). While sending is set to test addresses only,
+ * these are the only addresses a letter can reach, whatever the contact list
+ * says, so a real tenant's address that slips into a test is held back. Kept
+ * here so MES can change it without the hosting settings, and every change is
+ * in the Activity Log.
+ */
+function TestAddresses({ mode, onChanged }: { mode: Status["mode"]; onChanged: () => Promise<void> }) {
+  const { notify } = useToast();
+  const [list, setList] = useState<string[] | null>(null);
+  const [typed, setTyped] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await fetch("/api/settings/test-addresses", { headers: await authHeader() });
+        const body = (await r.json()) as { ok?: boolean; addresses?: string[]; error?: string };
+        if (body.ok) setList(body.addresses ?? []);
+        else setProblem(body.error ?? "The test list could not be read.");
+      } catch {
+        setProblem("The test list could not be read.");
+      }
+    })();
+  }, []);
+
+  async function save(next: string[], said: string) {
+    setSaving(true);
+    setProblem(null);
+    try {
+      const r = await fetch("/api/settings/test-addresses", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({ addresses: next }),
+      });
+      const body = (await r.json()) as { ok?: boolean; addresses?: string[]; error?: string };
+      if (!body.ok) {
+        setProblem(body.error ?? "Not saved.");
+        return;
+      }
+      setList(body.addresses ?? next);
+      setTyped("");
+      notify(said);
+      await onChanged();
+    } catch {
+      setProblem("Not saved. The server may be unreachable.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const add = () => {
+    const found = typed.split(/[\s,;]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (!list || found.length === 0) return;
+    void save(Array.from(new Set([...list, ...found])), found.length === 1 ? `${found[0]} added to the test list` : `${found.length} addresses added to the test list`);
+  };
+
+  return (
+    <div className="border-b border-line-hair px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-medium text-ink">Test addresses</h3>
+        <span className="text-[11px] text-ink-muted">
+          {mode === "allowed"
+            ? "In use now: only these addresses can receive a letter."
+            : mode === "everyone"
+              ? "Not in use: sending is set to real tenants."
+              : "Not in use: sending is off."}
+        </span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
+        While sending is set to test addresses only, a letter goes out only if every address it is
+        going to is on this list. Anything else is held back and recorded, so a real tenant is never
+        written to by mistake.
+      </p>
+
+      {list === null && !problem ? (
+        <Skeleton className="mt-3 h-8 w-full max-w-md rounded-md" />
+      ) : null}
+
+      {list ? (
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {list.length === 0 ? (
+            <li className="text-xs text-ink-muted">No test addresses. Nothing can be sent while testing.</li>
+          ) : null}
+          {list.map((a) => (
+            <li key={a} className="inline-flex items-center gap-1.5 rounded-full border border-line-hair bg-surface-alt py-1 pl-3 pr-1.5 text-xs text-ink">
+              <span className="break-all">{a}</span>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => void save(list.filter((x) => x !== a), `${a} removed from the test list`)}
+                aria-label={`Remove ${a}`}
+                className="rounded-full px-1.5 text-ink-muted hover:text-crit-ink disabled:opacity-40"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="email"
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") add();
+          }}
+          placeholder="name@mesgroup.com"
+          aria-label="Add a test address"
+          className="min-w-0 flex-1 rounded-md border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted sm:max-w-sm"
+        />
+        <button
+          type="button"
+          disabled={saving || !typed.trim() || list === null}
+          onClick={add}
+          className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
+        >
+          {saving ? <Spinner /> : "Add"}
+        </button>
+      </div>
+      {problem ? <p className="mt-2 text-[11px] text-crit-ink">{problem}</p> : null}
+    </div>
   );
 }

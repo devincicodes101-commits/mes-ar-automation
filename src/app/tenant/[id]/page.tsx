@@ -6,7 +6,11 @@ import { useParams } from "next/navigation";
 
 import { BUCKETS, type BucketKey } from "@/lib/types";
 import { formatSgd, invoicesForAccount, overdueTotal, severeTotal } from "@/lib/data";
-import { useStore } from "@/lib/store";
+import { CALL_STAGES, useStore, type CallLog } from "@/lib/store";
+import { billingForTenant, NO_BILLING } from "@/lib/billing-cycles";
+import { roundOfCall } from "@/lib/call-list";
+import { sentReminders } from "@/lib/reminder-timing";
+import { CallView } from "@/components/CallView";
 import { formatDate } from "@/lib/format";
 import { useDataset, withManualEmails } from "@/lib/dataset";
 import { useSession } from "@/lib/session";
@@ -76,6 +80,24 @@ export default function TenantPage() {
     [id, store],
   );
 
+  /* A call in the history opens the form as it was filled in, as on the
+     Call List (25 October). */
+  const [viewing, setViewing] = useState<CallLog | null>(null);
+  const sent = useMemo(() => sentReminders(store.emails), [store.emails]);
+  const billing = useMemo(
+    () => (account ? billingForTenant(invoicesForAccount(account, ds.invoices), ds.asOf) : NO_BILLING),
+    [account, ds.invoices, ds.asOf],
+  );
+  const openCall = (eventId: string) => setViewing(store.calls.find((c) => c.id === eventId) ?? null);
+  const callWindow = viewing ? (
+    <CallView
+      call={viewing}
+      round={CALL_STAGES.find((x) => x.value === roundOfCall(viewing, sent, store.calls))?.label ?? "-"}
+      billing={billing}
+      onClose={() => setViewing(null)}
+    />
+  ) : null;
+
   /* Matched through invoicesForAccount, which joins on the company name, so
      this page groups charges exactly as every other screen does rather than
      inventing a second rule that could disagree with them. */
@@ -120,7 +142,8 @@ export default function TenantPage() {
             }
           />
         </Card>
-        {events.length > 0 ? <Timeline events={events} /> : null}
+        {events.length > 0 ? <Timeline events={events} onViewCall={openCall} /> : null}
+        {callWindow}
       </div>
     );
   }
@@ -185,7 +208,8 @@ export default function TenantPage() {
         <StatTile label="Oldest money" value={oldestBucket(account.buckets)} />
       </div>
 
-      <Timeline events={events} />
+      <Timeline events={events} onViewCall={openCall} />
+      {callWindow}
 
       <Card>
         <CardHeader
@@ -251,7 +275,13 @@ export default function TenantPage() {
   );
 }
 
-function Timeline({ events }: { events: ReturnType<typeof historyFor> }) {
+function Timeline({
+  events,
+  onViewCall,
+}: {
+  events: ReturnType<typeof historyFor>;
+  onViewCall: (eventId: string) => void;
+}) {
   const { shown, pager } = usePaged(events);
   return (
     <Card>
@@ -278,6 +308,15 @@ function Timeline({ events }: { events: ReturnType<typeof historyFor> }) {
                 <p className="text-[11px] text-ink-muted">
                   {e.reachedTheTenant ? "Sent to the tenant" : "Internal record"}
                 </p>
+                {e.kind === "call" ? (
+                  <button
+                    type="button"
+                    onClick={() => onViewCall(e.id)}
+                    className="mt-1.5 rounded border border-line-hair px-2.5 py-1 text-[11px] text-ink-secondary hover:border-line-strong hover:text-ink"
+                  >
+                    View the call
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

@@ -91,14 +91,14 @@ in here is kept when a new contact list or report is uploaded.</p>
   data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed'))">
   <figcaption>What each billing run is still owed, newest first.</figcaption>
   <ol>
-    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) thead">One
-      row per billing date: when it was billed, when payment was due, how long since billing, who it
-      covers, and what is still owed.</li>
-    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=7 >> td >> nth=2">The
-      credit clock, counted from the billing date: within credit, past 14 days, or past 30 days.</li>
-    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=0 >> td >> nth=-1">Of
-      that, chaseable: the part more than 15 days past its due date, which is where MES's aging
-      stops calling a charge Current.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=0 >> td >> nth=0">The
+      billing date. Each one is chased on its own.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=0 >> td >> nth=2">How
+      many tenants it covers, and what they still owe from it. Hover over the number of tenants to
+      see their names.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What each billing run is still owed')) tbody tr >> nth=0 >> td >> nth=3">The
+      days the first reminder and the final notice go for this bill, from the days set in
+      Settings.</li>
   </ol>
 </figure>
 
@@ -116,7 +116,8 @@ tenant in one place.</p>
       days old, and the age of their oldest money.</li>
     <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Everything we have done'))">Everything
       done for this tenant, newest first: letters, calls, promises and fees. Each says whether it
-      reached the tenant or is an internal record.</li>
+      reached the tenant or is an internal record. A call has a <b>View the call</b> button, which
+      opens the call form as it was filled in.</li>
     <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('What they are being charged for')) >> div.border-b >> nth=0">Every
       charge line from the report, with its billing date, due date, what it is and how overdue it
       is. Search by charge, document or date.</li>

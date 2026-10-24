@@ -17,7 +17,7 @@ import {
 } from "@/lib/reminder-timing";
 import { runLog, type RunLog } from "@/lib/run-log";
 import type { Pipeline } from "@/lib/pipeline";
-import { allowlistFromEnv, mayLeave, modeFromEnv, senderFor } from "@/lib/mail";
+import { mayLeave, modeFromEnv, senderFor, testAllowlist } from "@/lib/mail";
 import { pacingFromEnv, sendPaced } from "@/lib/mail/pacing";
 import { renderLetter } from "@/lib/letters";
 import { editKey, loadLetterEdits, renderEdited } from "@/lib/letter-edits";
@@ -1004,7 +1004,8 @@ async function persist(
        * gate holds back (test mode, sending off) never leaves this server, so
        * there is nothing to space out and it is recorded straight away.
        */
-      const gate = { mode: modeFromEnv(), allowlist: allowlistFromEnv() };
+      /* senderFor above has loaded the test list saved on Settings. */
+      const gate = { mode: modeFromEnv(), allowlist: testAllowlist() };
       const letterOf = (row: (typeof rows)[number], companyName: string) => ({
         to: row.recipients,
         subject: row.subject,

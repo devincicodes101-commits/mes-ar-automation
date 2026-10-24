@@ -106,6 +106,24 @@ export function allowlistFromEnv(env: NodeJS.ProcessEnv = process.env): string[]
     .filter((s) => s.length > 0);
 }
 
+/*
+ * The test list saved on Settings, Mailbox (25 October), which takes the
+ * place of MAIL_ALLOWLIST once an administrator has saved one. Loaded from
+ * the database by the server at the start of each request that can send
+ * (lib/mail/index.ts), so the gate, the status line and every connector's own
+ * check read the same list. Null: nothing saved, so MAIL_ALLOWLIST applies.
+ */
+let saved: string[] | null = null;
+
+export function useSavedAllowlist(list: readonly string[] | null): void {
+  saved = list === null ? null : list.map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
+}
+
+/** The test list in force: the one saved on Settings, or MAIL_ALLOWLIST. */
+export function testAllowlist(env: NodeJS.ProcessEnv = process.env): string[] {
+  return saved ?? allowlistFromEnv(env);
+}
+
 export interface Gate {
   mode: SendingMode;
   allowlist: string[];
@@ -166,7 +184,7 @@ export function mayLeave(letter: Letter, gate: Gate): { ok: true } | { ok: false
         ok: false,
         reason:
           `${outside.join(", ")} is not on the test list, so this was not sent. ` +
-          "While MAIL_MODE is allowed, only MAIL_ALLOWLIST addresses can be written to.",
+          "While sending is set to test addresses only, only the test list on Settings, Mailbox can be written to.",
       };
     }
   }
