@@ -115,7 +115,7 @@ export function allowlistFromEnv(env: NodeJS.ProcessEnv = process.env): string[]
  */
 let saved: string[] | null = null;
 
-export function useSavedAllowlist(list: readonly string[] | null): void {
+export function applySavedAllowlist(list: readonly string[] | null): void {
   saved = list === null ? null : list.map((s) => s.trim().toLowerCase()).filter((s) => s.length > 0);
 }
 

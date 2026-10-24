@@ -17,7 +17,7 @@ import {
   mayLeave,
   modeFromEnv,
   testAllowlist,
-  useSavedAllowlist,
+  applySavedAllowlist,
   type Letter,
 } from "../src/lib/mail/connector.ts";
 import { gmailConfigFromEnv } from "../src/lib/mail/gmail-config.ts";
@@ -118,14 +118,14 @@ check("and an unset list is empty rather than everything",
 /* The test list saved on Settings, Mailbox, since 25 October. */
 const hosting = { MAIL_ALLOWLIST: "a@b.com" } as NodeJS.ProcessEnv;
 check("with nothing saved, the hosting list is the test list", testAllowlist(hosting), ["a@b.com"]);
-useSavedAllowlist([" Tester@MES.com ", "tester@mes.com"]);
+applySavedAllowlist([" Tester@MES.com ", "tester@mes.com"]);
 check("a saved list takes its place, tidied", testAllowlist(hosting), ["tester@mes.com", "tester@mes.com"]);
 check("and a letter to an address only on the hosting list is held back",
       passes(letter({ to: ["a@b.com"] }), "allowed", testAllowlist(hosting)), false);
-useSavedAllowlist([]);
+applySavedAllowlist([]);
 check("a saved empty list holds everything back, rather than falling back",
       testAllowlist(hosting), []);
-useSavedAllowlist(null);
+applySavedAllowlist(null);
 check("and clearing it returns to the hosting list", testAllowlist(hosting), ["a@b.com"]);
 
 /* ----------------------------------------------- faults in the letter --- */

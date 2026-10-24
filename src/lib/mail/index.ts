@@ -14,7 +14,7 @@ import {
   mayLeave,
   modeFromEnv,
   testAllowlist,
-  useSavedAllowlist,
+  applySavedAllowlist,
   type Letter,
   type MailConnector,
   type SendOutcome,
@@ -32,7 +32,7 @@ async function refreshTestList(db: SupabaseClient | null): Promise<void> {
   if (!db) return;
   const r = await readTestAddresses(db);
   if (r.problem) return; // keep what is in force; MAIL_ALLOWLIST if nothing was ever read
-  useSavedAllowlist(r.stored ? r.addresses : null);
+  applySavedAllowlist(r.stored ? r.addresses : null);
 }
 
 /**
