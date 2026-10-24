@@ -1,4 +1,4 @@
-# MES AR Automations
+# MES AR Automation
 
 GUI prototype for MES Group's dormitory accounts receivable process.
 
