@@ -54,18 +54,19 @@ async function refreshTestList(db: SupabaseClient | null): Promise<void> {
  */
 
 export type Chosen =
-  | { ok: true; connector: MailConnector; via: "connected" | "shared"; userId: string | null; from: string }
+  | { ok: true; connector: MailConnector; via: "connected" | "shared"; accountId: string | null; from: string }
   | { ok: false; error: string };
 
 /**
  * Picks a mailbox.
  *
- * `asUser` is the person doing it, where a person is doing it. Null means the
- * schedule, which takes the nominated account.
+ * Always the active mailbox on Settings, whoever is sending (25 October).
+ * `_asUser` is kept for the callers that pass it, and no longer changes which
+ * mailbox is used.
  */
 export async function connector(
   db: SupabaseClient | null,
-  asUser: string | null,
+  _asUser: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<Chosen> {
   await refreshTestList(db);
@@ -82,7 +83,7 @@ export async function connector(
     return {
       ok: true,
       via: "shared",
-      userId: null,
+      accountId: null,
       from: outlook.user,
       connector: outlookConnector(outlook),
     };
@@ -92,15 +93,15 @@ export async function connector(
   const microsoft = microsoftConfig(env);
 
   if (db && (!("error" in google) || !("error" in microsoft))) {
-    const found = await withToken(db, asUser);
+    const found = await withToken(db);
     if (found.ok) {
       if (found.account.provider === "microsoft") {
         if ("error" in microsoft) return { ok: false, error: microsoft.error };
-        const userId = found.account.user_id;
+        const accountId = found.account.id;
         return {
           ok: true,
           via: "connected",
-          userId,
+          accountId,
           from: found.account.email,
           connector: outlookGraphConnector(
             microsoft,
@@ -109,7 +110,7 @@ export async function connector(
               displayName: found.account.display_name,
               refreshToken: found.account.refresh_token,
             },
-            (token) => updateRefreshToken(db, userId, token),
+            (token) => updateRefreshToken(db, accountId, token),
           ),
         };
       }
@@ -117,7 +118,7 @@ export async function connector(
       return {
         ok: true,
         via: "connected",
-        userId: found.account.user_id,
+        accountId: found.account.id,
         from: found.account.email,
         connector: gmailOAuthConnector(
           google,
@@ -153,7 +154,7 @@ export async function connector(
   return {
     ok: true,
     via: "shared",
-    userId: null,
+    accountId: null,
     from: shared.user,
     connector: gmailConnector(shared),
   };
@@ -190,9 +191,9 @@ export async function senderFor(
     if (!chosen.ok) return { sent: false, reason: chosen.error, blocked: true };
 
     const outcome = await chosen.connector.send(letter);
-    if (db && chosen.userId) {
-      if (outcome.sent) await note(db, chosen.userId, null);
-      else if (!outcome.blocked) await note(db, chosen.userId, outcome.reason);
+    if (db && chosen.accountId) {
+      if (outcome.sent) await note(db, chosen.accountId, null);
+      else if (!outcome.blocked) await note(db, chosen.accountId, outcome.reason);
     }
     return { ...outcome, from: chosen.from };
   };
@@ -286,11 +287,11 @@ export async function send(
 
   const outcome = await chosen.connector.send(letter);
 
-  if (db && chosen.userId) {
+  if (db && chosen.accountId) {
     // A blocked letter says nothing about the mailbox, so only a real attempt
     // is recorded against it.
-    if (outcome.sent) await note(db, chosen.userId, null);
-    else if (!outcome.blocked) await note(db, chosen.userId, outcome.reason);
+    if (outcome.sent) await note(db, chosen.accountId, null);
+    else if (!outcome.blocked) await note(db, chosen.accountId, outcome.reason);
   }
 
   return { ...outcome, from: chosen.from };

@@ -26,16 +26,18 @@ import { formatDate } from "@/lib/format";
 
 type Provider = "google" | "microsoft";
 
+/* One mailbox on the shared list (25 October): any number can be connected,
+   one is active and sends every letter. */
 interface Account {
-  userId: string;
+  id: string;
   provider: Provider;
   email: string;
   displayName: string | null;
   isDefault: boolean;
   connectedAt: string;
+  connectedBy: string | null;
   lastUsedAt: string | null;
   lastError: string | null;
-  isMine: boolean;
 }
 
 interface Status {
@@ -123,8 +125,8 @@ function useMailbox() {
       notify(
         `Connected ${q.get("as") ?? "the account"}`,
         q.get("scheduled") === "1"
-          ? "Letters the schedule sends will come from this account."
-          : "Letters you send by hand will come from this account.",
+          ? "It is the active mailbox: every letter goes out from it."
+          : "It is on the list. Press Make active to send from it.",
       );
     } else if (outcome === "cancelled") {
       notify("Not connected", q.get("detail") ?? "The connection was not approved.");
@@ -168,74 +170,53 @@ export function MailboxStrip() {
 
   if (loading || !status) return null;
 
-  const mine = accounts.find((a) => a.isMine);
+  const active = accounts.find((a) => a.isDefault) ?? null;
   const connected = accounts.length > 0;
 
-  // Nothing to say when it is working and sending is on. A banner that is
-  // always there is a banner nobody reads.
-  if (connected && status.ready && !mine?.lastError) return null;
+  // Nothing to say when it is working. A banner that is always there is a
+  // banner nobody reads.
+  if (active && status.ready && !active.lastError) return null;
 
-  const tone = !connected || mine?.lastError ? "amber" : "slate";
+  /* Said for the person reading it, not for whoever set the system up: the
+     setup detail is on Settings, for the administrator. */
+  const notSetUp = !status.microsoftReady && !status.googleReady;
+  const line = notSetUp
+    ? "Email sending is not set up yet. Ask your system administrator."
+    : !connected
+      ? "No mailbox is connected, so nothing can be sent."
+      : !active
+        ? "No mailbox is active, so nothing can be sent. Make one active on Settings, Mailbox."
+        : active.lastError
+          ? `The active mailbox, ${active.email}, needs reconnecting.`
+          : status.mode === "off"
+            ? "Sending is switched off. Letters are written and recorded, and nothing is sent."
+            : status.explanation;
+  const reconnect = active?.lastError ? active.provider : null;
+  const can = (p: Provider) => (p === "microsoft" ? status.microsoftReady : status.googleReady);
+  const offer: Provider[] = reconnect
+    ? can(reconnect)
+      ? [reconnect]
+      : []
+    : !connected
+      ? (["microsoft", "google"] as Provider[]).filter(can)
+      : [];
 
   return (
-    <div
-      className={`flex flex-col gap-3 rounded-lg border px-4 py-3 lg:flex-row lg:items-center lg:justify-between ${
-        tone === "amber"
-          ? "border-warn-line bg-warn-wash text-warn-ink"
-          : "border-line-hair bg-surface-alt text-ink-secondary"
-      }`}
-    >
-      <div className="min-w-0">
-        <p className="text-sm font-medium">
-          {!connected
-            ? "No mailbox is connected, so nothing can be sent."
-            : mine?.lastError
-              ? "Your mailbox needs reconnecting."
-              : status.explanation}
-        </p>
-        <p className="mt-0.5 text-xs opacity-80">
-          {mine?.lastError
-            ? mine.lastError
-            : connected
-              ? `Letters would go out from ${status.from ?? "the connected account"}.`
-              : "Connect your Google or Outlook account and letters will go out as you, with replies coming back to you."}
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-3 rounded-lg border border-warn-line bg-warn-wash px-4 py-3 text-warn-ink lg:flex-row lg:items-center lg:justify-between">
+      <p className="min-w-0 text-sm font-medium">{line}</p>
       <div className="flex flex-wrap items-center gap-2">
-        {/*
-          Shown whether or not Google is set up yet. Hiding it made the feature
-          look like it did not exist, when in fact it was one missing setting
-          away. Pressing it while unconfigured says exactly what is missing,
-          which is what somebody in that position needs to hear.
-        */}
-        {/*
-          One thing to press, and it does the thing. Signing in happens right
-          here rather than by sending somebody to another screen to find the
-          same button: this is where the question occurred to them.
-
-          Settings is a quiet link beside it, not a second button. Two buttons
-          that look alike leave somebody guessing which one is the action, and
-          the one they pressed last time only navigated.
-        */}
-        <button
-          type="button"
-          disabled={busy === "connect"}
-          onClick={() => void connect("google")}
-          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-sm hover:border-accent disabled:opacity-40"
-        >
-          {busy === "connect" ? <Spinner /> : <GoogleMark />}
-          {mine?.provider === "google" ? "Reconnect Google" : "Sign in with Google"}
-        </button>
-        <button
-          type="button"
-          disabled={busy === "connect"}
-          onClick={() => void connect("microsoft")}
-          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-sm hover:border-accent disabled:opacity-40"
-        >
-          {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
-          {mine?.provider === "microsoft" ? "Reconnect Outlook" : "Sign in with Microsoft"}
-        </button>
+        {offer.map((p) => (
+          <button
+            key={p}
+            type="button"
+            disabled={busy === "connect"}
+            onClick={() => void connect(p)}
+            className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3.5 py-2 text-sm font-medium text-ink shadow-sm hover:border-accent disabled:opacity-40"
+          >
+            {busy === "connect" ? <Spinner /> : p === "microsoft" ? <MicrosoftMark /> : <GoogleMark />}
+            {reconnect ? "Reconnect" : p === "microsoft" ? "Connect Outlook" : "Connect Gmail"}
+          </button>
+        ))}
         <Link
           href="/settings"
           className="whitespace-nowrap text-xs underline underline-offset-2 opacity-80 hover:opacity-100"
@@ -255,33 +236,33 @@ export function MailAccounts() {
 
   const admin = role === "admin" || role === "super-admin";
 
-  const remove = async (userId: string, email: string) => {
-    setBusy(userId);
+  const remove = async (id: string, email: string) => {
+    setBusy(id);
     try {
-      const r = await fetch(`/api/mail/accounts?user=${encodeURIComponent(userId)}`, {
+      const r = await fetch(`/api/mail/accounts?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
         headers: await authHeader(),
       });
       const body = (await r.json()) as { ok?: boolean; error?: string };
-      notify(body.ok ? "Disconnected" : "Could not disconnect",
-             body.ok ? `${email} can no longer send.` : body.error ?? "");
+      notify(body.ok ? `Removed ${email}` : "Not removed",
+             body.ok ? "It is off the list and can no longer send." : body.error ?? "");
       await load();
     } finally {
       setBusy(null);
     }
   };
 
-  const nominate = async (userId: string, email: string) => {
-    setBusy(userId);
+  const makeActive = async (id: string, email: string) => {
+    setBusy(id);
     try {
       const r = await fetch("/api/mail/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeader()) },
-        body: JSON.stringify({ user: userId }),
+        body: JSON.stringify({ id }),
       });
       const body = (await r.json()) as { ok?: boolean; error?: string };
-      notify(body.ok ? "The schedule will send from this account" : "Could not change it",
-             body.ok ? `The 9am run's reminders will come from ${email}.` : body.error ?? "");
+      notify(body.ok ? `${email} is now the active mailbox` : "Not changed",
+             body.ok ? "Every letter goes out from it from now on." : body.error ?? "");
       await load();
     } finally {
       setBusy(null);
@@ -331,12 +312,16 @@ export function MailAccounts() {
   }
 
   const mode = status ? MODE_LABEL[status.mode] : null;
+  const ready: Provider[] = (["microsoft", "google"] as Provider[]).filter((p) =>
+    p === "microsoft" ? status?.microsoftReady : status?.googleReady,
+  );
+  const others = accounts.length > 1;
 
   return (
     <Card>
       <CardHeader
-        title="Sending mailbox"
-        hint="Connect a Google or Outlook account. Reminders go out from it, and replies come back to it."
+        title="Mailboxes"
+        hint="Every letter goes out from the active mailbox, and replies come back to it."
         right={mode ? <StatusBadge kind={mode.kind} label={mode.label} /> : null}
       />
 
@@ -347,7 +332,7 @@ export function MailAccounts() {
           <p className="text-sm text-ink">{status.explanation}</p>
           {status.from ? (
             <p className="mt-1 text-xs text-ink-muted">
-              Reminders go out from <b className="text-ink-secondary">{status.from}</b>
+              Letters go out from <b className="text-ink-secondary">{status.from}</b>
               {status.via === "shared" ? " (the shared mailbox)" : ""}.
             </p>
           ) : null}
@@ -360,116 +345,124 @@ export function MailAccounts() {
         </div>
       ) : null}
 
-      {admin && status ? <TestAddresses mode={status.mode} onChanged={load} /> : null}
-
-      {!status?.googleReady && !status?.microsoftReady ? (
+      {ready.length === 0 ? (
         <div className="border-b border-line-hair bg-warn-wash px-4 py-3 text-sm text-warn-ink sm:px-5">
-          Mailbox sign-in has not been set up yet, so no account can be
-          connected. Please contact your system administrator.
+          Mailbox sign-in has not been set up yet, so no mailbox can be connected. Please contact
+          your system administrator.
         </div>
       ) : null}
 
       <ul className="divide-y divide-line-grid">
         {accounts.map((a) => (
-          <li key={a.userId} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-start sm:px-5">
+          <li key={a.id} className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:px-5">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex items-center gap-1.5 break-all font-medium text-ink">
                   {a.provider === "microsoft" ? <MicrosoftMark /> : <GoogleMark />}
                   {a.email}
                 </span>
-                {a.isDefault ? <StatusBadge kind="good" label="Sends the 9am reminders" /> : null}
-                {a.isMine ? <Tag>you</Tag> : null}
+                {a.isDefault ? <StatusBadge kind="good" label="Active" /> : null}
+                <Tag>{a.provider === "microsoft" ? "Outlook" : "Gmail"}</Tag>
               </div>
               <p className="mt-1 text-xs text-ink-muted">
-                {a.displayName ? `${a.displayName} · ` : ""}
-                connected {when(a.connectedAt)}
+                Connected {when(a.connectedAt)}
+                {a.connectedBy ? ` by ${a.connectedBy}` : ""}
                 {a.lastUsedAt ? ` · last sent ${when(a.lastUsedAt)}` : " · not used yet"}
               </p>
               {/* A revoked connection is the failure that would otherwise be
-                  discovered as a quiet morning where the 7th sent nothing. */}
+                  discovered as a quiet morning where nothing was sent. */}
               {a.lastError ? (
                 <p className="mt-1 text-xs text-crit-ink">{a.lastError}</p>
               ) : null}
             </div>
 
-            <div className="flex shrink-0 gap-2 self-start">
-              {admin && !a.isDefault ? (
+            {admin ? (
+              <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-center">
+                {!a.isDefault ? (
+                  <button
+                    type="button"
+                    disabled={busy === a.id}
+                    onClick={() => void makeActive(a.id, a.email)}
+                    className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
+                  >
+                    Make active
+                  </button>
+                ) : null}
+                {a.lastError && ready.includes(a.provider) ? (
+                  <button
+                    type="button"
+                    disabled={busy === "connect"}
+                    onClick={() => void connect(a.provider)}
+                    className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink hover:border-accent disabled:opacity-40"
+                  >
+                    Reconnect
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  disabled={busy === a.userId}
-                  onClick={() => void nominate(a.userId, a.email)}
-                  className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
+                  disabled={busy === a.id || (a.isDefault && others)}
+                  title={a.isDefault && others ? "Make another mailbox active first" : undefined}
+                  onClick={() => void remove(a.id, a.email)}
+                  className="rounded-md border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-crit-line hover:text-crit-ink disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Use for 9am reminders
+                  Remove
                 </button>
-              ) : null}
-              {a.isMine || admin ? (
-                <button
-                  type="button"
-                  disabled={busy === a.userId}
-                  onClick={() => void remove(a.userId, a.email)}
-                  className="rounded-md border border-line-hair px-3 py-1.5 text-xs text-ink-secondary hover:border-crit-line hover:text-crit-ink disabled:opacity-40"
-                >
-                  Disconnect
-                </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </li>
         ))}
 
         {accounts.length === 0 ? (
           <li className="px-5 py-8 text-center">
-            <p className="text-sm text-ink">No Google or Outlook account is connected.</p>
+            <p className="text-sm text-ink">No mailbox is connected.</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-ink-muted">
-              Until one is, the 9am run has no mailbox to send reminders from.
+              Until one is, nothing can be sent.
             </p>
           </li>
         ) : null}
       </ul>
 
-      <div className="flex flex-col gap-3 border-t border-line-hair px-4 py-4 sm:px-5 lg:flex-row lg:flex-wrap lg:items-center">
-        <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy === "connect"}
-          onClick={() => void connect("google")}
-          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {busy === "connect" ? <Spinner /> : <GoogleMark />}
-          {accounts.some((a) => a.isMine && a.provider === "google") ? "Reconnect my Google account" : "Sign in with Google"}
-        </button>
-        <button
-          type="button"
-          disabled={busy === "connect"}
-          onClick={() => void connect("microsoft")}
-          className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-2 text-sm font-medium text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {busy === "connect" ? <Spinner /> : <MicrosoftMark />}
-          {accounts.some((a) => a.isMine && a.provider === "microsoft") ? "Reconnect my Outlook account" : "Sign in with Microsoft"}
-        </button>
+      {admin && ready.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-line-hair px-4 py-3.5 sm:px-5">
+          <span className="mr-1 text-xs text-ink-muted">Add a mailbox:</span>
+          {ready.map((p) => (
+            <button
+              key={p}
+              type="button"
+              disabled={busy === "connect"}
+              onClick={() => void connect(p)}
+              className="inline-flex items-center gap-2 rounded-md border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy === "connect" ? <Spinner /> : p === "microsoft" ? <MicrosoftMark /> : <GoogleMark />}
+              {p === "microsoft" ? "Connect Outlook" : "Connect Gmail"}
+            </button>
+          ))}
         </div>
+      ) : null}
 
+      <div className="flex flex-col gap-2 border-t border-line-hair px-4 py-3.5 sm:flex-row sm:items-center sm:px-5">
+        <span className="text-xs text-ink-muted sm:w-40">Send a test letter</span>
         <div className="flex flex-1 items-center gap-2">
           <input
             type="email"
             value={testTo}
             onChange={(e) => setTestTo(e.target.value)}
             placeholder="your@address.com"
-            className="min-w-0 flex-1 rounded-md border bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-muted"
+            className="min-w-0 flex-1 rounded-md border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-ink-muted"
             aria-label="Address to send a test letter to"
           />
           <button
             type="button"
             disabled={busy === "test" || !testTo.trim()}
             onClick={() => void sendTest()}
-            className="shrink-0 rounded-md border border-line-strong px-3 py-2 text-sm text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
+            className="shrink-0 rounded-md border border-line-strong px-3 py-1.5 text-sm text-ink hover:border-accent hover:text-accent-text disabled:opacity-40"
           >
             {busy === "test" ? <Spinner /> : "Send me a test"}
           </button>
         </div>
       </div>
 
+      {admin && status ? <TestAddresses mode={status.mode} onChanged={load} /> : null}
     </Card>
   );
 }
@@ -557,7 +550,7 @@ function TestAddresses({ mode, onChanged }: { mode: Status["mode"]; onChanged: (
   };
 
   return (
-    <div className="border-b border-line-hair px-4 py-4 sm:px-5">
+    <div className="border-t border-line-hair px-4 py-4 sm:px-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-medium text-ink">Test addresses</h3>
         <span className="text-[11px] text-ink-muted">

@@ -840,7 +840,7 @@ check("and so does Reminder Emails",
 check("both read it from the one component, not their own copy",
       read("src/components/MailAccounts.tsx").includes("function useMailbox()"), true);
 check("and the strip keeps quiet when there is nothing wrong",
-      read("src/components/MailAccounts.tsx").includes("if (connected && status.ready"), true);
+      read("src/components/MailAccounts.tsx").includes("if (active && status.ready && !active.lastError) return null;"), true);
 
 
 /*

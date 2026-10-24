@@ -368,6 +368,12 @@ function plainAudit(action: string, subject: string, names: Map<string, string>)
       return { text: "Switched a login back on", subject: tidy(subject) };
     case "user.password":
       return { text: "Reset a password", subject: tidy(subject) };
+    case "mail.connect":
+      return { text: "Connected a mailbox", subject: tidy(subject) };
+    case "mail.active":
+      return { text: "Made a mailbox active", subject: tidy(subject) };
+    case "mail.remove":
+      return { text: "Removed a mailbox", subject: tidy(subject) };
     default:
       return { text: tidy(action), subject: tidy(subject) };
   }

@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Reading and writing the connected Google accounts.
+ * Reading and writing the connected mailboxes.
  *
  * Kept apart from the OAuth dance and from the transport, so the one thing
  * that touches a stored refresh token is small enough to read in a sitting.
@@ -11,14 +11,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * Nothing here returns a token to a caller that does not need it. `listFor`
  * is what a screen sees and carries no token at all; `withToken` is what the
  * send path uses and is only ever called on the server.
+ *
+ * Since 25 October (0028) the mailboxes are one shared list, one row per
+ * address, not one per login. One is active and sends every letter; the
+ * others are there to switch to.
  */
 
 export type MailProvider = "google" | "microsoft";
 
 export interface MailAccountRow {
-  user_id: string;
-  /** Absent until 0025_mail_provider.sql is applied; absent means Google. */
-  provider?: MailProvider;
+  id: string;
+  connected_by: string | null;
+  provider: MailProvider;
   email: string;
   display_name: string | null;
   refresh_token: string;
@@ -32,81 +36,70 @@ export interface MailAccountRow {
 
 /** What a screen is allowed to know: everything except the credential. */
 export interface ConnectedAccount {
-  userId: string;
+  id: string;
   provider: MailProvider;
   email: string;
   displayName: string | null;
+  /** The active mailbox: every letter goes out from it. */
   isDefault: boolean;
   connectedAt: string;
+  /** Whoever connected it, by name, where that login still exists. */
+  connectedBy: string | null;
   lastUsedAt: string | null;
   lastError: string | null;
-  isMine: boolean;
 }
 
-const SAFE = "user_id,email,display_name,is_default,connected_at,last_used_at,last_error";
-const SAFE_WITH_PROVIDER = `${SAFE},provider`;
+const SAFE = "id,connected_by,provider,email,display_name,is_default,connected_at,last_used_at,last_error";
 
-/**
- * Every connected account, for the settings screen.
- *
- * All of them, not only the caller's. Which mailbox MES letters leave from is
- * not private between colleagues: an officer needs to know that the schedule
- * sends as somebody in particular, especially when that person is away and
- * their connection has lapsed.
- */
+const missingTable = (message: string) =>
+  /does not exist|schema cache/i.test(message)
+    ? "The mailbox list is not set up in this database yet (0015 and 0028)."
+    : message;
+
+/** Every connected mailbox, the active one first, for the settings screen. */
 export async function listFor(
   db: SupabaseClient,
-  me: string,
 ): Promise<{ ok: true; accounts: ConnectedAccount[] } | { ok: false; error: string }> {
-  const ordered = (cols: string) =>
-    db
-      .from("mail_accounts")
-      .select(cols)
-      .order("is_default", { ascending: false })
-      .order("connected_at", { ascending: true });
+  const { data, error } = await db
+    .from("mail_accounts")
+    .select(SAFE)
+    .order("is_default", { ascending: false })
+    .order("connected_at", { ascending: true });
+  if (error) return { ok: false, error: missingTable(error.message) };
 
-  let { data, error } = await ordered(SAFE_WITH_PROVIDER);
-  /*
-   * Before 0025 there is no provider column, and asking for it fails. Every
-   * account is Google then, so ask again without it rather than showing
-   * nothing connected.
-   */
-  if (error && /provider/i.test(error.message)) {
-    ({ data, error } = await ordered(SAFE));
-  }
-
-  if (error) {
-    const missing = /relation .*mail_accounts.* does not exist|schema cache/i.test(error.message);
-    return {
-      ok: false,
-      error: missing
-        ? "This database does not have 0015_mail_accounts.sql applied yet."
-        : error.message,
-    };
+  const rows = (data ?? []) as unknown as Omit<MailAccountRow, "refresh_token" | "scope" | "last_error_at">[];
+  const ids = Array.from(new Set(rows.map((r) => r.connected_by).filter((x): x is string => Boolean(x))));
+  const names = new Map<string, string>();
+  if (ids.length > 0) {
+    const p = await db.from("profiles").select("id,full_name").in("id", ids);
+    for (const r of (p.data ?? []) as { id: string; full_name: string | null }[]) {
+      if (r.full_name) names.set(r.id, r.full_name);
+    }
   }
 
   return {
     ok: true,
-    accounts: ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
-      userId: r.user_id as string,
-      provider: (r.provider === "microsoft" ? "microsoft" : "google") as MailProvider,
-      email: r.email as string,
-      displayName: (r.display_name as string | null) ?? null,
+    accounts: rows.map((r) => ({
+      id: r.id,
+      provider: r.provider === "microsoft" ? "microsoft" : "google",
+      email: r.email,
+      displayName: r.display_name ?? null,
       isDefault: Boolean(r.is_default),
-      connectedAt: r.connected_at as string,
-      lastUsedAt: (r.last_used_at as string | null) ?? null,
-      lastError: (r.last_error as string | null) ?? null,
-      isMine: r.user_id === me,
+      connectedAt: r.connected_at,
+      connectedBy: r.connected_by ? names.get(r.connected_by) ?? null : null,
+      lastUsedAt: r.last_used_at ?? null,
+      lastError: r.last_error ?? null,
     })),
   };
 }
 
 /**
- * Stores a connection, replacing any the same person already had.
+ * Stores a connection. Connecting an address already on the list refreshes
+ * that mailbox rather than adding a second row for it.
  *
- * The first account to connect becomes the one the schedule uses, because a
- * system with a connected mailbox and no nominated sender would refuse the
- * 7th's letters for a reason nobody would guess. It can be changed afterwards.
+ * The first mailbox connected becomes the active one, because a system with a
+ * mailbox and none active would refuse every letter for a reason nobody would
+ * guess. Any other is added to the list, to be made active when wanted.
  */
 export async function save(
   db: SupabaseClient,
@@ -119,174 +112,148 @@ export async function save(
     provider?: MailProvider;
   },
 ): Promise<{ ok: true; isDefault: boolean } | { ok: false; error: string }> {
-  // "*" so it can be seen whether the provider column exists yet (0025).
-  const existing = await db.from("mail_accounts").select("*");
-  if (existing.error) {
-    const missing = /does not exist|schema cache/i.test(existing.error.message);
-    return {
-      ok: false,
-      error: missing
-        ? "This database does not have 0015_mail_accounts.sql applied yet."
-        : existing.error.message,
-    };
-  }
+  const provider: MailProvider = c.provider ?? "google";
+  const existing = await db.from("mail_accounts").select("id,provider,email,is_default");
+  if (existing.error) return { ok: false, error: missingTable(existing.error.message) };
 
-  const rows = existing.data ?? [];
-  const hasProviderColumn = rows.length > 0 && "provider" in rows[0];
-  const wasDefault = rows.find((r) => r.user_id === userId)?.is_default === true;
-  const anyDefault = rows.some((r) => r.is_default);
-  const isDefault = wasDefault || !anyDefault;
+  const rows = (existing.data ?? []) as Pick<MailAccountRow, "id" | "provider" | "email" | "is_default">[];
+  const same = rows.find((r) => r.provider === provider && r.email.toLowerCase() === c.email.toLowerCase());
+  const isDefault = same ? same.is_default : !rows.some((r) => r.is_default);
 
-  const { error } = await db.from("mail_accounts").upsert(
-    {
-      user_id: userId,
-      email: c.email,
-      display_name: c.displayName,
-      refresh_token: c.refreshToken,
-      scope: c.scope,
-      is_default: isDefault,
-      /*
-       * Written for Microsoft, and for Google wherever the column exists, so
-       * reconnecting as Google replaces a Microsoft row rather than keeping its
-       * label. Left off only where 0025 has not been applied, which is all
-       * Google there.
-       */
-      ...(c.provider === "microsoft" || hasProviderColumn
-        ? { provider: c.provider ?? "google" }
-        : {}),
-      connected_at: new Date().toISOString(),
-      // A fresh connection clears whatever went wrong with the old one.
-      last_error: null,
-      last_error_at: null,
-    },
-    { onConflict: "user_id" },
-  );
+  const fields = {
+    connected_by: userId,
+    provider,
+    email: c.email,
+    display_name: c.displayName,
+    refresh_token: c.refreshToken,
+    scope: c.scope,
+    is_default: isDefault,
+    connected_at: new Date().toISOString(),
+    // A fresh connection clears whatever went wrong with the old one.
+    last_error: null,
+    last_error_at: null,
+  };
+  const { error } = same
+    ? await db.from("mail_accounts").update(fields).eq("id", same.id)
+    : await db.from("mail_accounts").insert(fields);
+  if (error) return { ok: false, error: missingTable(error.message) };
 
-  if (error) {
-    if (/provider/i.test(error.message)) {
-      return {
-        ok: false,
-        error: "This database does not have 0025_mail_provider.sql applied yet.",
-      };
-    }
-    return { ok: false, error: error.message };
-  }
+  /* Who can send as MES is worth a line in the log nobody can edit. */
+  const me = await db.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+  await db.from("audit_log").insert({
+    actor: userId,
+    actor_name: (me.data?.full_name as string | null) ?? "a signed-in user",
+    action: "mail.connect",
+    subject: `${c.email} (${provider === "microsoft" ? "Outlook" : "Gmail"})${isDefault ? ", active" : ""}`,
+    meta: { provider, refreshed: Boolean(same) },
+  });
   return { ok: true, isDefault };
 }
 
 /** Keeps the newest refresh token, where the provider hands back a new one. */
 export async function updateRefreshToken(
   db: SupabaseClient,
-  userId: string,
+  accountId: string,
   refreshToken: string,
 ): Promise<void> {
-  await db.from("mail_accounts").update({ refresh_token: refreshToken }).eq("user_id", userId);
+  await db.from("mail_accounts").update({ refresh_token: refreshToken }).eq("id", accountId);
 }
 
+/**
+ * Takes a mailbox off the list. Not the active one while there are others:
+ * removing it would leave every letter with nothing to send from until
+ * somebody noticed, so another is made active first.
+ */
 export async function disconnect(
   db: SupabaseClient,
-  userId: string,
+  accountId: string,
 ): Promise<
-  { ok: true; token: string | null; provider: MailProvider } | { ok: false; error: string }
+  | { ok: true; token: string | null; provider: MailProvider; email: string }
+  | { ok: false; error: string; status: number }
 > {
-  // Read the token first so Google can be told to forget it too. Deleting our
-  // row alone would leave the app still listed in their Google account.
-  const found = await db
-    .from("mail_accounts")
-    .select("*")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const all = await db.from("mail_accounts").select("id,is_default");
+  if (all.error) return { ok: false, error: missingTable(all.error.message), status: 502 };
+  const rows = (all.data ?? []) as { id: string; is_default: boolean }[];
+  const target = rows.find((r) => r.id === accountId);
+  if (!target) return { ok: false, error: "That mailbox is not on the list.", status: 404 };
+  if (target.is_default && rows.length > 1) {
+    return {
+      ok: false,
+      error: "This is the active mailbox. Make another one active first, then remove this one.",
+      status: 409,
+    };
+  }
 
-  const { error } = await db.from("mail_accounts").delete().eq("user_id", userId);
-  if (error) return { ok: false, error: error.message };
+  // Read the token first so Google can be told to forget it too.
+  const found = await db.from("mail_accounts").select("*").eq("id", accountId).maybeSingle();
+  const { error } = await db.from("mail_accounts").delete().eq("id", accountId);
+  if (error) return { ok: false, error: error.message, status: 502 };
 
   return {
     ok: true,
     token: (found.data?.refresh_token as string | null) ?? null,
     provider: found.data?.provider === "microsoft" ? "microsoft" : "google",
+    email: (found.data?.email as string) ?? "",
   };
 }
 
-/** Nominates which connected account the schedule sends from. */
+/** Makes one mailbox the active one, which every letter then goes out from. */
 export async function makeDefault(
   db: SupabaseClient,
-  userId: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  accountId: string,
+): Promise<{ ok: true; email: string } | { ok: false; error: string }> {
+  const target = await db.from("mail_accounts").select("id,email").eq("id", accountId).maybeSingle();
+  if (target.error) return { ok: false, error: target.error.message };
+  if (!target.data) return { ok: false, error: "That mailbox is not on the list." };
+
   /*
-   * Cleared first, then set. The unique index allows only one default, so
-   * setting before clearing would collide with the row being replaced.
+   * Cleared first, then set. The unique index allows only one active mailbox,
+   * so setting before clearing would collide with the row being replaced.
    */
-  const cleared = await db
-    .from("mail_accounts")
-    .update({ is_default: false })
-    .eq("is_default", true);
+  const cleared = await db.from("mail_accounts").update({ is_default: false }).eq("is_default", true);
   if (cleared.error) return { ok: false, error: cleared.error.message };
 
-  const { error } = await db
-    .from("mail_accounts")
-    .update({ is_default: true })
-    .eq("user_id", userId);
+  const { error } = await db.from("mail_accounts").update({ is_default: true }).eq("id", accountId);
   if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  return { ok: true, email: target.data.email as string };
 }
 
 /**
- * The account a send should go out as, token included.
- *
- * `preferred` is the person doing it, where a person is doing it. The cron has
- * nobody, so it falls back to whichever account was nominated, which is the
- * whole reason tokens are stored rather than sessions read.
+ * The mailbox a send goes out as, token included: always the active one.
+ * Letters sent by hand used to go from the sender's own connected mailbox;
+ * since 25 October every letter comes from the active mailbox, so replies
+ * always reach the same inbox.
  */
 export async function withToken(
   db: SupabaseClient,
-  preferred: string | null,
 ): Promise<
   | { ok: true; account: MailAccountRow }
   | { ok: false; error: string; noneConnected: boolean }
 > {
-  if (preferred) {
-    const mine = await db
-      .from("mail_accounts")
-      .select("*")
-      .eq("user_id", preferred)
-      .maybeSingle();
-    if (mine.data) return { ok: true, account: mine.data as MailAccountRow };
+  const active = await db.from("mail_accounts").select("*").eq("is_default", true).maybeSingle();
+
+  if (active.error) {
+    const missing = /does not exist|schema cache/i.test(active.error.message);
+    return { ok: false, noneConnected: missing, error: missingTable(active.error.message) };
   }
-
-  const fallback = await db
-    .from("mail_accounts")
-    .select("*")
-    .eq("is_default", true)
-    .maybeSingle();
-
-  if (fallback.error) {
-    const missing = /does not exist|schema cache/i.test(fallback.error.message);
+  if (!active.data) {
+    const any = await db.from("mail_accounts").select("id", { count: "exact", head: true });
     return {
       ok: false,
-      noneConnected: missing,
-      error: missing
-        ? "This database does not have 0015_mail_accounts.sql applied yet."
-        : fallback.error.message,
-    };
-  }
-
-  if (!fallback.data) {
-    return {
-      ok: false,
-      noneConnected: true,
+      noneConnected: (any.count ?? 0) === 0,
       error:
-        "No mailbox is connected, so there is nothing to send from. " +
-        "Connect one under Settings.",
+        (any.count ?? 0) === 0
+          ? "No mailbox is connected, so there is nothing to send from. Connect one under Settings."
+          : "No mailbox is active. Make one active under Settings, Mailbox.",
     };
   }
-
-  return { ok: true, account: fallback.data as MailAccountRow };
+  return { ok: true, account: active.data as MailAccountRow };
 }
 
-/** Records that an account worked, or why it did not. */
+/** Records that a mailbox worked, or why it did not. */
 export async function note(
   db: SupabaseClient,
-  userId: string,
+  accountId: string,
   error: string | null,
 ): Promise<void> {
   await db
@@ -296,5 +263,5 @@ export async function note(
         ? { last_error: error, last_error_at: new Date().toISOString() }
         : { last_used_at: new Date().toISOString(), last_error: null, last_error_at: null },
     )
-    .eq("user_id", userId);
+    .eq("id", accountId);
 }

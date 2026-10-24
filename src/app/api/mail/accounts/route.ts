@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
-  const listed = await listFor(db, who.caller.userId);
+  const listed = await listFor(db);
   const status = await sendingStatus(db, who.caller.userId);
 
   return NextResponse.json({
@@ -48,11 +48,40 @@ export async function GET(request: Request) {
   });
 }
 
+/** Only an administrator changes the mailbox list: it decides who every letter comes from. */
+function isAdmin(role: string) {
+  return role === "admin" || role === "super-admin";
+}
+
+async function record(
+  db: ReturnType<typeof serverSupabase>,
+  who: { userId: string; email: string | null; role: string },
+  action: string,
+  subject: string,
+) {
+  await db.from("audit_log").insert({
+    actor: who.userId,
+    actor_name: who.email ?? who.role,
+    action,
+    subject,
+    meta: {},
+  });
+}
+
+/** Takes a mailbox off the list: ?id=<mailbox>. */
 export async function DELETE(request: Request) {
   const who = await identify(request);
   if (!who.ok) {
     return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
   }
+  if (!isAdmin(who.caller.role)) {
+    return NextResponse.json(
+      { ok: false, error: "Only an administrator can remove a mailbox." },
+      { status: 403 },
+    );
+  }
+  const id = new URL(request.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ ok: false, error: "Name a mailbox." }, { status: 400 });
 
   let db;
   try {
@@ -61,53 +90,36 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
-  /*
-   * A person may disconnect their own account. An administrator may disconnect
-   * anybody's, because somebody who has left cannot do it themselves and their
-   * connection would otherwise keep sending on the 7th.
-   */
-  const target = new URL(request.url).searchParams.get("user") ?? who.caller.userId;
-  const admin = who.caller.role === "admin" || who.caller.role === "super-admin";
-  if (target !== who.caller.userId && !admin) {
-    return NextResponse.json(
-      { ok: false, error: "Only an administrator can disconnect somebody else's mailbox." },
-      { status: 403 },
-    );
-  }
-
-  const gone = await disconnect(db, target);
-  if (!gone.ok) return NextResponse.json({ ok: false, error: gone.error }, { status: 502 });
+  const gone = await disconnect(db, id);
+  if (!gone.ok) return NextResponse.json({ ok: false, error: gone.error }, { status: gone.status });
   // Microsoft has no equivalent call; removing our row is what stops sending.
   if (gone.token && gone.provider === "google") await revoke(gone.token);
+  await record(db, who.caller, "mail.remove", gone.email);
 
   return NextResponse.json({ ok: true });
 }
 
+/** Makes a mailbox the active one: { id }. */
 export async function POST(request: Request) {
   const who = await identify(request);
   if (!who.ok) {
     return NextResponse.json({ ok: false, error: who.error }, { status: who.status });
   }
-  if (who.caller.role !== "admin" && who.caller.role !== "super-admin") {
+  if (!isAdmin(who.caller.role)) {
     return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Only an administrator can choose which mailbox the schedule sends " +
-          "from. It decides whose name is on every automatic letter.",
-      },
+      { ok: false, error: "Only an administrator can choose the active mailbox. Every letter comes from it." },
       { status: 403 },
     );
   }
 
-  let body: { user?: string };
+  let body: { id?: string };
   try {
-    body = (await request.json()) as { user?: string };
+    body = (await request.json()) as { id?: string };
   } catch {
     return NextResponse.json({ ok: false, error: "Unreadable request." }, { status: 400 });
   }
-  if (!body.user) {
-    return NextResponse.json({ ok: false, error: "Name an account." }, { status: 400 });
+  if (!body.id) {
+    return NextResponse.json({ ok: false, error: "Name a mailbox." }, { status: 400 });
   }
 
   let db;
@@ -117,7 +129,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }
 
-  const done = await makeDefault(db, body.user);
+  const done = await makeDefault(db, body.id);
   if (!done.ok) return NextResponse.json({ ok: false, error: done.error }, { status: 502 });
+  await record(db, who.caller, "mail.active", done.email);
   return NextResponse.json({ ok: true });
 }
