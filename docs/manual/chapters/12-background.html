@@ -21,7 +21,7 @@ in. In order, it:</p>
   <li>Puts each tenant's letters for the day into one email, using the edited wording where someone
     has saved an edit.</li>
   <li>Sends the tenants with no email address to the By hand list instead.</li>
-  <li>Records each letter as written, then sends it from the nominated mailbox, in small batches.
+  <li>Records each letter as written, then sends it from the active mailbox, in small batches.
     A letter is marked sent only once the mail server accepts it.</li>
   <li>On the 16th, raises the late payment fees (section 12.3).</li>
   <li>Records what it did on the 9am runs tab of the Activity Log. Anything it could not do appears in
@@ -82,7 +82,7 @@ letters ask only for what is left.</p>
   <path d="M180 324 V368" stroke="#6b6b6b" stroke-width="1.2" fill="none" marker-end="url(#a2)"/>
   <text x="188" y="350" fill="#3a3a3a">yes</text>
   <rect x="40" y="370" width="280" height="44" rx="4" fill="#1a1a1a"/>
-  <text x="180" y="396" text-anchor="middle" font-weight="700" fill="#fff">Emailed from the 9am mailbox</text>
+  <text x="180" y="396" text-anchor="middle" font-weight="700" fill="#fff">Emailed from the active mailbox</text>
 </svg>
 <figcaption><b>Figure 12.1</b> How the 9am run decides, for one bill, whether a letter goes today.</figcaption>
 </figure>
@@ -141,7 +141,7 @@ Maintenance tenants.</p>
 
 <h2>Sending safely</h2>
 
-<p>A letter reaches a tenant only when three things are true: a mailbox is connected, Microsoft still
+<p>A letter reaches a tenant only when three things are true: a mailbox is active, Microsoft or Google still
 accepts it, and sending is switched on. Each one is shown on Settings, Mailbox. Sending has three
 modes, set by the system administrator:</p>
 
