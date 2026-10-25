@@ -146,8 +146,7 @@ export async function connector(
       error:
         "error" in google
           ? `No mailbox is available. ${google.error} ${shared.error}`.trim()
-          : "No mailbox is connected and no shared mailbox is configured. " +
-            "Connect an account under Settings.",
+          : "No mailbox is connected yet. An administrator connects one on Settings, Mailbox.",
     };
   }
 

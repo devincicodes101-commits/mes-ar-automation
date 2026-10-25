@@ -10,8 +10,8 @@ step before it is done.</p>
 <table class="tests">
   <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
   <tr><td>1.1</td><td>Set sending to "Nothing is sent" while everything else is set up.</td><td>System administrator</td><td><span class="box"></span></td></tr>
-  <tr><td>1.2</td><td>Make sure the Microsoft connection is in place, so Sign in with Microsoft works. Settings,
-    Mailbox must not say "Microsoft sign in has not been set up".</td><td>System administrator</td><td><span class="box"></span></td></tr>
+  <tr><td>1.2</td><td>Make sure the Microsoft connection is in place, so Connect Outlook works. Settings,
+    Mailbox must not say "Mailbox sign-in has not been set up yet".</td><td>System administrator</td><td><span class="box"></span></td></tr>
   <tr><td>1.3</td><td>If MES's Microsoft 365 only lets IT approve new apps, have MES's IT administrator approve
     MES AR Automation for the organisation.</td><td>MES IT</td><td><span class="box"></span></td></tr>
 </table>
@@ -31,13 +31,13 @@ step before it is done.</p>
 
 <table class="tests">
   <tr><th>#</th><th style="width:60%">Step</th><th>Who</th><th>Done</th></tr>
-  <tr><td>3.1</td><td>Sign in, open Settings, Mailbox, press Sign in with Microsoft, and sign in as the AR team
+  <tr><td>3.1</td><td>Sign in, open Settings, Mailbox, press Connect Outlook, and sign in as the AR team
     mailbox (section 9.3).</td><td>MES Admin</td><td><span class="box"></span></td></tr>
-  <tr><td>3.2</td><td>Press Use for 9am reminders on that mailbox, so it is marked "Sends the 9am
-    reminders".</td><td>MES Admin</td><td><span class="box"></span></td></tr>
-  <tr><td>3.3</td><td>Press Disconnect on every test mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>3.2</td><td>Check that mailbox is marked Active. If another one is, press Make active on the AR
+    mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
+  <tr><td>3.3</td><td>Press Remove on any other mailbox in the list.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
   <tr><td>3.4</td><td>Set sending to "Test addresses only", and put a few MES staff addresses on the test list on
-    Settings, Mailbox.</td><td>System administrator, then MES Admin</td><td><span class="box"></span></td></tr>
+    Settings, Mailbox. It is handed over empty.</td><td>System administrator, then MES Admin</td><td><span class="box"></span></td></tr>
   <tr><td>3.5</td><td>Send a test to one of those addresses and reply to it. The test arrives from MES Group AR,
     and the reply reaches the AR mailbox.</td><td>MES Admin</td><td><span class="box"></span></td></tr>
 </table>
@@ -84,4 +84,8 @@ only until an Admin first saves one there. The Microsoft connection is <code>MIC
 <code>MICROSOFT_CLIENT_SECRET</code> and <code>MICROSOFT_TENANT</code>, with
 <code>https://mes-ar-automation.vercel.app/api/mail/microsoft/callback</code> registered as the
 redirect address. A change to any of these takes effect after the site is redeployed.</p>
+<p>If MES send from Gmail instead, the Google app behind Connect Gmail must allow their address. While
+it is in Testing in Google Cloud Console, only the addresses under Audience, Test users can connect,
+and Google ends the connection after 7 days. Before going live on Gmail, press Publish app on the same
+page. Google verification is not needed for this.</p>
 </div>

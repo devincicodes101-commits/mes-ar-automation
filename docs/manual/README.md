@@ -52,7 +52,7 @@ If the PDF is open in a viewer, Windows will not let it be replaced, and the bui
 
 Taking screenshots only reads the app. It never presses a button that saves
 or sends, unless a figure's steps tell it to. Do not write steps that press
-**Use this report**, **Send**, **Save** or **Disconnect** against the live site.
+**Use this report**, **Send**, **Save**, **Make active** or **Remove** against the live site.
 
 ## Writing a chapter
 

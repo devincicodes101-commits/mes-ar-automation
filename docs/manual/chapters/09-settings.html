@@ -9,8 +9,8 @@ recorded in the Activity Log.</p>
 
 <table>
   <tr><th style="width:24%">Tab</th><th>What it holds</th></tr>
-  <tr><td><b>Mailbox</b></td><td>The Outlook account letters are sent from, whether sending is
-    switched on, and a test letter.</td></tr>
+  <tr><td><b>Mailbox</b></td><td>The mailboxes letters can be sent from and which one is active,
+    whether sending is switched on, a test letter, and the test list.</td></tr>
   <tr><td><b>Reminder timing</b></td><td>How many days after billing the first reminder and the final
     notice go, and three choices about how they are counted.</td></tr>
   <tr><td><b>Fees and reports</b></td><td>When the S$100 late fee applies, the regular billing day,
@@ -21,51 +21,67 @@ recorded in the Activity Log.</p>
 
 <h2>The Mailbox tab</h2>
 
-<p>Settings opens on Mailbox. This tab answers the question "why did nobody get the reminder?"
-without anyone having to guess.</p>
+<p>Settings opens on Mailbox. It holds the list of mailboxes, the one letters go out from, and the
+test list. It also answers the question "why did nobody get the reminder?" without anyone having to
+guess.</p>
+
+<div class="note"><span class="label">Set this up first</span>
+<p>The system is handed over with no mailbox connected and an empty test list, so nothing can be
+sent until MES set both up. Before any testing, connect MES's mailbox (section 9.3), then put the
+addresses you will test with on the test list (section 9.5). Chapter 13 starts with these
+steps.</p>
+</div>
 
 <figure class="shot" id="settings-mailbox" data-path="/settings"
-  data-steps="wait: text=Sending mailbox"
-  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Sending mailbox'))">
-  <figcaption>The Mailbox tab.</figcaption>
+  data-steps="wait: text=Add a mailbox"
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Mailboxes'))">
+  <figcaption>The Mailbox tab, as handed over, with no mailbox connected yet.</figcaption>
   <ol>
-    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Sending mailbox')) span.rounded-full:text-matches('Nothing is sent|Test addresses only|Sending to real tenants')"><b>Whether
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Mailboxes')) span.rounded-full:text-matches('Nothing is sent|Test addresses only|Sending to real tenants')"><b>Whether
       sending is on.</b> "Nothing is sent": letters are written and recorded, and no email leaves.
-      "Test addresses only": only the test inboxes can receive mail. "Sending to real tenants":
-      live.</li>
-    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Sending mailbox')) p.text-sm.text-ink >> nth=0"><b>In
-      plain words</b>, what happens right now and which address letters go out from. A problem shows
-      here first.</li>
-    <li data-find="main li:has-text('Sends the 9am reminders')"><b>The mailbox the 9am run sends
-      from</b>, marked "Sends the 9am reminders". Below the address: who connected it, when, and
-      when it last sent.</li>
-    <li data-find="main button:has-text('Use for 9am reminders')"><b>Use for 9am reminders</b> makes
-      another connected mailbox the one the 9am run sends from.</li>
-    <li data-find="main li:has-text('Sends the 9am reminders') button:has-text('Disconnect')"><b>Disconnect</b>
-      removes a mailbox. It can no longer send.</li>
-    <li data-find="main button:text-matches('Sign in with Microsoft|Outlook account')"><b>Sign in with
-      Microsoft</b> connects your Outlook account. Once connected it reads "Reconnect my Outlook
-      account".</li>
-    <li data-find="main input[aria-label='Address to send a test letter to'] >> xpath=..">Type an
-      address and press <b>Send me a test</b> to send a sample letter from the mailbox shown.</li>
+      "Test addresses only": only the addresses on the test list can receive mail. "Sending to real
+      tenants": live.</li>
+    <li data-find="main div.rounded-lg.bg-surface:has(h2:has-text('Mailboxes')) p.text-sm.text-ink >> nth=0"><b>In
+      plain words</b>, what happens right now and which address letters go out from. While no
+      mailbox is connected it reads "Nothing can be sent", with the reason.</li>
+    <li data-find="main li:has-text('No mailbox is connected')"><b>The list of mailboxes.</b> It is
+      empty until one is connected. Each mailbox then has a row with its address, Outlook or Gmail,
+      who connected it and when, and when it last sent. The one letters go out from is marked
+      Active.</li>
+    <li data-find="main span:has-text('Add a mailbox:') >> xpath=.."><b>Add a mailbox.</b> Connect
+      Outlook, or Connect Gmail where it has been set up, adds a mailbox to the list.</li>
+    <li data-find="main input[aria-label='Address to send a test letter to'] >> xpath=../.."><b>Send a
+      test letter</b> from the active mailbox to the address you type.</li>
+    <li data-find="main div.border-t:has(h3:has-text('Test addresses'))"><b>The test list</b>, the
+      only addresses that can receive a letter while testing (section 9.5).</li>
   </ol>
 </figure>
 
-<h2>Connecting MES's Outlook mailbox</h2>
+<p>Once mailboxes are connected, each row has its own buttons:</p>
+<ul>
+  <li><b>Make active</b> makes that mailbox the one every letter goes out from. Only one is active at
+    a time.</li>
+  <li><b>Remove</b> takes a mailbox off the list, and it can no longer send. The active mailbox
+    cannot be removed while there are others: make another one active first.</li>
+  <li><b>Reconnect</b> appears when a mailbox has stopped working, with the reason in red
+    (section 9.7).</li>
+</ul>
 
-<p>Letters go out from a real Outlook mailbox, and tenants' replies come back to it.</p>
+<h2>Connecting MES's mailbox</h2>
+
+<p>Letters go out from a real mailbox, and tenants' replies come back to it.</p>
 
 <div class="note"><span class="label">Which account to connect</span>
-<p>Connect a team mailbox, such as the AR team's address, rather than one person's. Replies then
-reach the whole team, and nothing breaks when someone leaves. It must be a mailbox someone can sign
-in to with a password. A Microsoft 365 shared mailbox that nobody signs in to cannot be
-connected.</p>
+<p>Connect a Microsoft 365 work mailbox, such as the AR team's address, rather than one person's or a
+personal Outlook.com account. Replies then reach the whole team, nothing breaks when someone leaves,
+and Microsoft is far less likely to lock the account as suspected spam, which it does to personal
+accounts that send many letters. It must be a mailbox someone can sign in to with a password. A
+shared mailbox that nobody signs in to cannot be connected.</p>
 </div>
 
 <ol>
-  <li>Sign in to MES AR Automation with your own login. Each login can have one mailbox
-    connected.</li>
-  <li>Open Settings. On the Mailbox tab, press <b>Sign in with Microsoft</b>.</li>
+  <li>Sign in to MES AR Automation with an Admin login.</li>
+  <li>Open Settings. On the Mailbox tab, press <b>Connect Outlook</b>.</li>
   <li>Microsoft's sign-in page opens. Sign in as the mailbox you want letters to come from, for
     example the AR team's address. This does not have to be your own account.</li>
   <li>Microsoft asks you to allow MES AR Automation to sign you in and read your profile, send mail
@@ -73,8 +89,8 @@ connected.</p>
     read the mailbox.</li>
   <li>You are brought back to Settings. The notice "Connected" names the address, and the mailbox
     appears in the list.</li>
-  <li>If it is the first mailbox connected, it becomes the 9am mailbox straight away. If not, see
-    the next section.</li>
+  <li>The first mailbox connected is made active straight away. Connecting an address that is
+    already on the list refreshes its row rather than adding a second one.</li>
 </ol>
 
 <div class="note"><span class="label">If Microsoft says "Need admin approval"</span>
@@ -83,23 +99,22 @@ Microsoft 365 administrator to approve MES AR Automation for the organisation, i
 centre under Enterprise applications. Then try again.</p>
 </div>
 
-<h2>Choosing which mailbox sends the 9am reminders</h2>
+<div class="note"><span class="label">Connecting Gmail instead</span>
+<p>Connect Gmail works the same way. Google may show "Google hasn't verified this app": press
+Advanced, then Go to mes-ar-automation.vercel.app, and carry on. If Google says "Access blocked"
+with Error 403: access_denied, the system administrator must first add that Gmail address as a
+tester, or publish the app (chapter 14).</p>
+</div>
 
-<p>Several people can connect a mailbox, but the 9am run sends from one.</p>
+<h2>Which mailbox letters come from</h2>
 
-<ol>
-  <li>Find the mailbox in the list on the Mailbox tab.</li>
-  <li>Press <b>Use for 9am reminders</b> beside it. The notice says "The 9am run's reminders will come
-    from" that address, and the "Sends the 9am reminders" label moves to it.</li>
-</ol>
-
-<p>Which mailbox a letter comes from:</p>
 <ul>
-  <li>Letters the 9am run sends come from the mailbox marked "Sends the 9am reminders".</li>
-  <li>Letters you send yourself from Reminder Emails, and promise confirmations, come from your own
-    mailbox if you have connected one, and from the 9am mailbox if you have not.</li>
-  <li>Replies go to whichever mailbox sent the letter.</li>
+  <li>Every letter comes from the active mailbox: the 9am run's letters, letters sent from Reminder
+    Emails, promise confirmations and emailed reports.</li>
+  <li>Replies come back to the active mailbox.</li>
   <li>Tenants see the sender's name as MES Group AR.</li>
+  <li>To change it, press <b>Make active</b> on another mailbox. The notice says it "is now the
+    active mailbox", and the next letter goes from it.</li>
 </ul>
 
 <h2>The test list</h2>
@@ -110,15 +125,19 @@ Any other letter is written, held back and recorded with the reason "not on the 
 even if a real tenant's address finds its way into the system during a test, that tenant is never
 written to.</p>
 
+<p>The list starts empty. Before testing, add the inboxes you will test with, such as a few MES staff
+addresses. Use only inboxes someone at MES can open, so every test letter can be checked.</p>
+
 <figure class="shot" id="settings-test-list" data-path="/settings"
   data-steps="wait: text=Test addresses"
-  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Sending mailbox')) div.border-b:has(h3:has-text('Test addresses'))">
-  <figcaption>The test list on Settings, Mailbox.</figcaption>
+  data-clip="main div.rounded-lg.bg-surface:has(h2:has-text('Mailboxes')) div.border-t:has(h3:has-text('Test addresses'))">
+  <figcaption>The test list on Settings, Mailbox, empty as handed over.</figcaption>
   <ol>
-    <li data-find="main div.border-b:has(h3:has-text('Test addresses')) span.text-ink-muted >> nth=0">Whether
+    <li data-find="main div.border-t:has(h3:has-text('Test addresses')) span.text-ink-muted >> nth=0">Whether
       the list is in use now. It is used only while sending is set to test addresses only.</li>
-    <li data-find="main div.border-b:has(h3:has-text('Test addresses')) ul">The addresses that can
-      receive a letter. Press the cross beside one to remove it.</li>
+    <li data-find="main div.border-t:has(h3:has-text('Test addresses')) ul">The addresses that can
+      receive a letter. Each has a cross beside it to remove it. While the list is empty it reads
+      "No test addresses".</li>
     <li data-find="input[aria-label='Add a test address'] >> xpath=..">Type an address and press
       <b>Add</b>, or Enter. Several can be added at once, separated by commas.</li>
   </ol>
@@ -130,7 +149,7 @@ while testing, nothing can be sent at all. Only an Admin or Super Admin can see 
 <h2>Sending a test letter</h2>
 
 <ol>
-  <li>Type an address in the box at the bottom of the Mailbox tab.</li>
+  <li>Type an address in the Send a test letter box on the Mailbox tab.</li>
   <li>Press <b>Send me a test</b>.</li>
   <li>"Test sent" means it left, and names the mailbox it came from. "Nothing was sent" gives the
     reason. For example, while sending is set to test addresses only, an address that is not on the
@@ -139,17 +158,21 @@ while testing, nothing can be sent at all. Only an Admin or Super Admin can see 
 
 <h2>When a mailbox needs reconnecting</h2>
 
-<p>Microsoft can stop accepting a connection after a password change, when access is removed, or
-after a long time unused. The mailbox's row then shows the reason in red, and Reminder Emails
-shows "Your mailbox needs reconnecting". Press <b>Reconnect my Outlook account</b> and sign in
+<p>Microsoft or Google can stop accepting a connection after a password change, when access is
+removed, or after a long time unused. The mailbox's row then shows the reason in red, and Reminder
+Emails says the active mailbox needs reconnecting. Press <b>Reconnect</b> on its row and sign in
 again. Nothing else changes.</p>
+
+<p>If the reason says Microsoft has locked the account as suspected spam, reconnecting will not
+help until the account is unlocked. Its owner signs in at outlook.com and follows Microsoft's steps
+to verify the account, then presses Reconnect.</p>
 
 <div class="note"><span class="label">Set outside this screen</span>
 <p>Two things are set once by the system administrator in the hosting settings, not on this tab:
-the sending mode (off, test addresses only, or real tenants), and the connection to Microsoft that
-makes Sign in with Microsoft work. Keeping the mode outside the system means switching to real
-tenants is always a deliberate step. If that connection is missing, the tab says "Microsoft sign in
-has not been set up for this system yet". Chapter 14 covers both.</p>
+the sending mode (off, test addresses only, or real tenants), and the connection to Microsoft or
+Google that makes Connect Outlook and Connect Gmail work. Keeping the mode outside the system means
+switching to real tenants is always a deliberate step. If no connection is set up, the tab says
+"Mailbox sign-in has not been set up yet". Chapter 14 covers both.</p>
 </div>
 
 <h2>Reminder timing</h2>

@@ -8,18 +8,27 @@ it to the system administrator.</p>
 
 <h2>Before you start</h2>
 
-<p>Testing must never reach a real tenant. Check all of these first.</p>
+<p>The system is handed over with no mailbox connected and an empty test list, so nothing can be
+sent yet. Set up these two first, then check the rest. Testing must never reach a real tenant.</p>
 
 <ol>
+  <li><b>Connect MES's mailbox.</b> On Settings, Mailbox, press Connect Outlook and sign in as the
+    mailbox letters should come from (section 9.3). It appears in the list marked Active, with no
+    red line under it.</li>
+  <li><b>Put your test inboxes on the test list.</b> In the Test addresses box on the same tab, add
+    the addresses you will test with, such as a few MES staff inboxes you can open (section 9.5).
+    While the list is empty, nothing can be sent.</li>
+  <li><b>Send yourself a test letter</b> from the Mailbox tab to one of those addresses. It arrives
+    from MES Group AR.</li>
   <li><b>Sending is on test addresses only.</b> On Settings, Mailbox, the label reads "Test addresses
     only". If it reads "Sending to real tenants", stop and ask the system administrator to switch it
     back.</li>
-  <li><b>The test list holds only test inboxes.</b> Check the Test addresses box on the same tab. This
-    is the second check: a letter to any address not on the list is held back, whatever the contact
-    list says.</li>
+  <li><b>The test list holds only test inboxes.</b> This is the second check: a letter to any address
+    not on the list is held back, whatever the contact list says.</li>
   <li><b>Use the test files</b> kept with this manual in <code>docs/manual/samples</code>: a shortened
-    AR report of 15 tenants, a contact list whose addresses are all test inboxes, and a file that is
-    not a report.</li>
+    AR report of 15 tenants, a contact list, and a file that is not a report. Before uploading the
+    contact list, change its email addresses to the test inboxes on your test list, so the test
+    letters reach someone at MES.</li>
   <li><b>Have a login for each role:</b> Admin, CSD Officer, Relationship Manager and Management.</li>
   <li><b>Note the report in use</b> on Upload Reports before you start, so you can put it back.</li>
 </ol>
@@ -202,8 +211,8 @@ nobody else is working in the system, and upload the current NetSuite report aga
 
 <table class="tests">
   <tr><th>#</th><th style="width:42%">Do this</th><th>You should see</th><th>Pass</th></tr>
-  <tr><td>G1</td><td>Open Settings, Mailbox.</td><td>"Test addresses only". One mailbox marked "Sends the 9am
-    reminders", and no red problem line.</td><td><span class="box"></span></td></tr>
+  <tr><td>G1</td><td>Open Settings, Mailbox.</td><td>"Test addresses only". MES's mailbox marked Active, and no
+    red problem line.</td><td><span class="box"></span></td></tr>
   <tr><td>G2</td><td>Send a test to a test inbox.</td><td>"Test sent", and it arrives from MES Group AR.</td><td><span class="box"></span></td></tr>
   <tr><td>G3</td><td>Send a test to an address that is not a test inbox.</td><td>"Nothing was sent", with the
     reason. Nothing arrives.</td><td><span class="box"></span></td></tr>
@@ -214,6 +223,10 @@ nobody else is working in the system, and upload the current NetSuite report aga
     that tenant's letter from Reminder Emails on a day one is due.</td><td>The letter is held back and
     marked "not sent", with the reason. Nothing arrives at that address. Remove the address
     afterwards.</td><td><span class="box"></span></td></tr>
+  <tr><td>G3c</td><td>Connect a second mailbox, press Make active on it, and send a test. Then make
+    the first one active again and press Remove on the second.</td><td>The test comes from the second
+    mailbox. After Remove, only MES's mailbox is listed, marked Active. The Activity Log shows each
+    step.</td><td><span class="box"></span></td></tr>
   <tr><td>G4</td><td>On Reminder timing, type 30 as the first reminder without saving.</td><td>The worked
     example changes. Change it back.</td><td><span class="box"></span></td></tr>
   <tr><td>G5</td><td>Type a final notice smaller than the first reminder.</td><td>"Cannot save".</td><td><span class="box"></span></td></tr>
